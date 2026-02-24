@@ -150,7 +150,9 @@ async def get_recent_articles_for_entity(entity: str, limit: int = 5) -> List[Di
     mentions_collection = db.entity_mentions
 
     # Use aggregation pipeline to join entity_mentions with articles
-    # and sort by article published_at (not mention timestamp)
+    # NOTE: Removed pre-group and post-group $sort stages and $limit for Atlas M0 compatibility
+    # (M0 silently ignores allowDiskUse=True). Changed $first to $max to get actual latest
+    # published_at without relying on pre-sort order. Sort and limit will happen post-pipeline.
     pipeline = [
         # Match mentions for this entity
         {"$match": {"entity": entity}},
@@ -175,23 +177,14 @@ async def get_recent_articles_for_entity(entity: str, limit: int = 5) -> List[Di
         # Unwind the article array (should only be one)
         {"$unwind": "$article"},
 
-        # Sort by article published_at descending (most recent first)
-        {"$sort": {"article.published_at": -1}},
-
-        # Deduplicate by article URL - keep first occurrence (most recent)
+        # Deduplicate by article URL - use $max to get latest published_at (no pre-sort)
         {"$group": {
             "_id": "$article.url",
             "title": {"$first": "$article.title"},
             "url": {"$first": "$article.url"},
             "source": {"$first": "$article.source"},
-            "published_at": {"$first": "$article.published_at"}
+            "published_at": {"$max": "$article.published_at"}
         }},
-
-        # Sort again by published_at after deduplication
-        {"$sort": {"published_at": -1}},
-
-        # Limit to requested number
-        {"$limit": limit},
 
         # Project only the fields we need
         {"$project": {
@@ -204,7 +197,7 @@ async def get_recent_articles_for_entity(entity: str, limit: int = 5) -> List[Di
     ]
 
     articles = []
-    async for doc in mentions_collection.aggregate(pipeline, allowDiskUse=True):
+    async for doc in mentions_collection.aggregate(pipeline):
         articles.append({
             "title": doc.get("title", ""),
             "url": doc.get("url", ""),
@@ -212,7 +205,9 @@ async def get_recent_articles_for_entity(entity: str, limit: int = 5) -> List[Di
             "published_at": doc.get("published_at").isoformat() if doc.get("published_at") else None
         })
 
-    return articles
+    # Sort by published_at (in Python, since post-$group is small) and limit
+    articles.sort(key=lambda x: x["published_at"] or "", reverse=True)
+    return articles[:limit]
 
 
 @router.get("")
