@@ -222,7 +222,7 @@ async def get_trending_entities(
         mention_count = await entity_mentions.count_documents(
             {
                 "entity": entity,
-                "timestamp": {"$gte": cutoff_date}
+                "created_at": {"$gte": cutoff_date}
             },
             limit=1
         )

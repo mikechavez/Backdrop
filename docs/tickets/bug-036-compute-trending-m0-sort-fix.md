@@ -1,13 +1,15 @@
 ---
 id: BUG-036
 type: bug
-status: in-progress
+status: completed
 priority: high
 severity: high
 created: 2026-02-24
 updated: 2026-02-24
+merged: 2026-02-24T18:29:14Z
 branch: fix/bug-036-compute-trending-m0-sort
 commit: 5dcfc6c
+pr: "182"
 ---
 
 # BUG-036: compute_trending_signals() Exceeds Atlas M0 32MB Sort Limit
