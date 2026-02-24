@@ -2,14 +2,14 @@
 session_date: 2026-02-24
 project: Backdrop (Context Owl)
 current_sprint: Sprint 10 — UI Polish & Stability
-session_focus: Implement Atlas M0 sort limit rework (BUG-036/037/038), then resume launch prep
+session_focus: Fix Sonnet fallback cost leak (BUG-039), then resume Atlas M0 rework and launch prep
 ---
 
 # Session Context: Sprint 10 — UI Polish & Stability
 
 ## Sprint Overview
 
-**Goal:** Implement Atlas M0 sort limit rework (supersedes BUG-034/035 allowDiskUse approach), then resume Substack launch work
+**Goal:** Fix Sonnet cost leak (BUG-039), complete Atlas M0 sort limit rework (BUG-036/037/038), then resume Substack launch work
 
 **Duration:** 2026-02-23 onward
 
@@ -40,6 +40,20 @@ session_focus: Implement Atlas M0 sort limit rework (BUG-036/037/038), then resu
 ---
 
 ## What to Work On Next
+
+### ✅ PRIORITY 0: Sonnet Fallback Cost Leak (BUG-039) — CODE COMPLETE (2026-02-24)
+
+**[BUG-039] Remove Sonnet from General LLM Fallback Chain** ✅ COMPLETE
+- **Priority:** HIGH | **Severity:** HIGH | **Status:** ✅ CODE COMPLETE
+- **Commit:** c997a27 | **PR:** #183 | **Branch:** `fix/bug-039-sonnet-fallback-cost-leak`
+- **Files Changed:**
+  - `src/crypto_news_aggregator/llm/anthropic.py` — Removed Sonnet from `_get_completion()` and `extract_entities_batch()`
+  - `src/crypto_news_aggregator/core/config.py` — Deprecated `ANTHROPIC_ENTITY_FALLBACK_MODEL`
+- **Impact:** Estimated $0.50-2.00/day savings; Sonnet calls should drop from 112/day to ~10-15/day
+- **Verification:** `grep -rn "sonnet" src/` confirms only in briefing_agent.py, optimized_anthropic.py, pricing tables
+- **Ticket:** `bug-039-sonnet-fallback-cost-leak.md`
+
+---
 
 ### 🟡 PRIORITY 1: Atlas M0 Sort Limit Rework (Supersedes BUG-034/035) — CODE COMPLETE, TEST COVERAGE VERIFIED
 
