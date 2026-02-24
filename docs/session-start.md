@@ -1,28 +1,32 @@
 ---
-session_date: 2026-02-23
+session_date: 2026-02-24
 project: Backdrop (Context Owl)
 current_sprint: Sprint 10 — UI Polish & Stability
-session_focus: Fix signals bugs, add skeleton loaders, then resume launch prep
+session_focus: Implement Atlas M0 sort limit rework (BUG-036/037/038), then resume launch prep
 ---
 
 # Session Context: Sprint 10 — UI Polish & Stability
 
 ## Sprint Overview
 
-**Goal:** Fix signals page bugs and add skeleton loaders across all pages before resuming Substack launch work
+**Goal:** Implement Atlas M0 sort limit rework (supersedes BUG-034/035 allowDiskUse approach), then resume Substack launch work
 
 **Duration:** 2026-02-23 onward
-**Estimated effort:** 4-5 hours
 
 ---
 
 ## Current Status
 
 ### Recently Completed (2026-02-24)
+- ✅ **BUG-036/037/038** — CODE COMPLETE (3 commits, ~2 hours)
+  - BUG-036 (compute_trending_signals): Commit 5dcfc6c
+  - BUG-037 (get_top_entities_by_mentions): Commit 12fc306
+  - BUG-038 (get_recent_articles_for_entity): Commit 752212f
+  - **Status:** Ready for testing (test suite + staging deployment)
 - ✅ FEATURE-047 (skeleton loaders for all 5 pages) — MERGED TO MAIN (2026-02-24)
 - ✅ Railway deployment fix (NumPy 2.4.2 for Python 3.13) — DEPLOYED (2026-02-24)
-- ✅ BUG-035 (signals endpoint allowDiskUse) — MERGED (2026-02-24)
-- ✅ BUG-034 (sort exceeded memory limit) — MERGED (2026-02-23)
+- ⚠️ BUG-035 (allowDiskUse approach) — MERGED but **superseded** by BUG-036/037/038 (M0 ignores allowDiskUse)
+- ⚠️ BUG-034 (allowDiskUse approach) — MERGED but **superseded** (same reason)
 - ✅ BUG-032 (duplicate articles under signals) — MERGED (2026-02-23)
 - ✅ BUG-031 (invalid Sonnet model string) — VERIFIED + DEPLOYED (2026-02-23)
 - ✅ Sprint 9 documentation infrastructure complete (2,526 lines, 8 modules)
@@ -37,28 +41,52 @@ session_focus: Fix signals bugs, add skeleton loaders, then resume launch prep
 
 ## What to Work On Next
 
-### 🟢 PRIORITY 1: allowDiskUse Aggregation Fixes ✅ COMPLETED (THIS SESSION)
+### 🟡 PRIORITY 1: Atlas M0 Sort Limit Rework (Supersedes BUG-034/035) — CODE COMPLETE, TESTING REQUIRED
 
-**[BUG-034] Sort Exceeded Memory Limit on Signals Page** ✅ MERGED TO MAIN
-- **Priority:** HIGH | **Severity:** HIGH | **Resolved:** 2026-02-23
-- **Status:** MERGED TO MAIN (commit b5a1c7b, via runtime.txt fix)
-- **Branch:** `fix/bug-034-aggregate-allowdiskuse` | **Commit:** `b5a1c7b`
-- **Issue:** MongoDB 32MB in-memory sort limit exceeded as data grew
-- **Fix:** Added `allowDiskUse=True` to 5 `.aggregate()` calls in `signal_service.py` (lines 144, 303, 635, 736, 743)
-- **Runtime Fix:** PR #179 updated `runtime.txt` to `python-3.13.1` (unblocks Vercel deployments)
+**Root Cause Discovery:** Atlas M0 (free tier) **silently ignores** `allowDiskUse=True`. BUG-034/035 added this parameter everywhere, but it does nothing. The real fix: remove `$sort`/`$limit` from pipelines and sort in Python. Team provided reference implementations.
 
-**[BUG-035] Signals Endpoint Aggregation Missing allowDiskUse** ⚠️ MERGED BUT ISSUE PERSISTS
-- **Priority:** HIGH | **Severity:** HIGH | **Status:** MERGED + INVESTIGATING (2026-02-24)
-- **Branch:** `fix/bug-035-signals-endpoint-allowdiskuse` | **Commit:** `65c968e`
-- **PR:** #180 — MERGED TO MAIN (2026-02-24)
-- **Fix Applied:** Added `allowDiskUse=True` to 2 `.aggregate()` calls in `signals.py`:
-  - Line 207: `get_recent_articles_for_entity()` pipeline (BUG-032)
-  - Line 264: `get_signals()` narrative count aggregation
-- **Issue:** Signals page still failing with "Sort exceeded memory limit" error after merge
-  - Error code: 292 (QueryExceededMemoryLimitNoDiskUseAllowed)
-  - Occurs on `/api/v1/signals/trending` endpoint
-  - Suggests `allowDiskUse` parameter not being applied correctly to aggregation
-- **Next Step:** Verify allowDiskUse parameter syntax and check all aggregation calls in signal_service.py
+**[BUG-036] Fix compute_trending_signals() for Atlas M0** 🟡 TESTING
+- **Priority:** HIGH | **Severity:** HIGH | **Status:** ✅ CODE COMPLETE
+- **File:** `src/crypto_news_aggregator/services/signal_service.py`
+- **Commit:** 5dcfc6c | **Branch:** `fix/bug-036-compute-trending-m0-sort`
+- ✅ Removed `$sort`, `$limit`, `$addToSet: "$source"` from pipeline
+- ✅ Implemented Python sort/limit on post-$group results
+- ✅ Added second-pass aggregation for source counts on top-N entities only
+- ⚠️ **TESTING REQUIRED:** Run test suite + staging deployment before merge
+- **Ticket:** `bug-036-compute-trending-m0-sort-fix.md`
+
+**[BUG-037] Fix get_top_entities_by_mentions() for Atlas M0** 🟡 TESTING
+- **Priority:** HIGH | **Severity:** HIGH | **Status:** ✅ CODE COMPLETE
+- **File:** `src/crypto_news_aggregator/services/signal_service.py`
+- **Commit:** 12fc306 | **Branch:** `fix/bug-036-compute-trending-m0-sort`
+- ✅ Same pattern as BUG-036 (removed pipeline sorts, added Python sort/limit + sources pass)
+- ⚠️ **TESTING REQUIRED:** Run test suite + verify entity ranking correct + staging deployment
+- **Ticket:** `bug-037-top-entities-m0-sort-fix.md`
+
+**[BUG-038] Fix get_recent_articles_for_entity() for Atlas M0** 🟡 TESTING
+- **Priority:** HIGH | **Severity:** MEDIUM | **Status:** ✅ CODE COMPLETE
+- **File:** `src/crypto_news_aggregator/api/v1/endpoints/signals.py`
+- **Commit:** 752212f | **Branch:** `fix/bug-036-compute-trending-m0-sort`
+- ✅ Removed two `$sort` stages + `$limit`
+- ✅ Changed `$first` → `$max` for `published_at` in `$group` (ensures correct dates without pre-sort)
+- ✅ Added Python sort/limit after cursor loop
+- ⚠️ **TESTING REQUIRED:** Verify newest-first article order + no duplicates (BUG-032 still works) + valid timestamps
+- **Ticket:** `bug-038-recent-articles-m0-sort-fix.md`
+
+**[TASK-012] Remove Unnecessary allowDiskUse=True** 🟡 OPEN
+- **Priority:** LOW | **Effort:** 15 min
+- Clean up `allowDiskUse=True` from aggregations that have no `$sort` stage
+- **Ticket:** `task-012-remove-unnecessary-allowdiskuse.md`
+
+**[TASK-013] Create MongoDB Indexes** 🟡 OPEN
+- **Priority:** MEDIUM | **Effort:** 15 min
+- Three indexes in Atlas Console (not code) to make `$match` stages fast
+- **Ticket:** `task-013-create-signal-indexes.md`
+
+**Reference files from team:**
+- `signal_service.py` — target state for BUG-036 + BUG-037
+- `signals.py` — target state for BUG-038
+- `CHANGES.md` — full spec with before/after for each change
 
 ---
 
