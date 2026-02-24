@@ -141,7 +141,7 @@ async def _count_filtered_mentions(
         {"$count": "total"}
     ]
 
-    result = await collection.aggregate(pipeline).to_list(length=1)
+    result = await collection.aggregate(pipeline, allowDiskUse=True).to_list(length=1)
     return result[0]["total"] if result else 0
 
 
@@ -300,7 +300,7 @@ async def calculate_source_diversity(entity: str) -> int:
         }
     ]
 
-    result = await db.entity_mentions.aggregate(pipeline).to_list(length=1)
+    result = await db.entity_mentions.aggregate(pipeline, allowDiskUse=True).to_list(length=1)
     return result[0]["unique_sources"] if result else 0
 
 
@@ -632,7 +632,7 @@ async def get_top_entities_by_mentions(
         {"$limit": limit},
     ]
 
-    results = await db.entity_mentions.aggregate(pipeline).to_list(length=limit)
+    results = await db.entity_mentions.aggregate(pipeline, allowDiskUse=True).to_list(length=limit)
 
     return [
         {
@@ -733,7 +733,7 @@ async def compute_trending_signals(
         {"$limit": limit * 2},  # Fetch extra to account for min_score filtering
     ]
 
-    results = await db.entity_mentions.aggregate(pipeline).to_list(length=limit * 2)
+    results = await db.entity_mentions.aggregate(pipeline, allowDiskUse=True).to_list(length=limit * 2)
 
     if not results:
         return []
@@ -745,7 +745,7 @@ async def compute_trending_signals(
         {"$unwind": "$entities"},
         {"$match": {"entities": {"$in": entities}}},
         {"$group": {"_id": "$entities", "count": {"$sum": 1}, "narrative_ids": {"$push": {"$toString": "$_id"}}}}
-    ]).to_list(length=None)
+    ], allowDiskUse=True).to_list(length=None)
 
     narrative_map = {doc["_id"]: doc for doc in narrative_counts}
 
