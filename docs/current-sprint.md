@@ -165,6 +165,28 @@ Added skeleton loader components across all 5 pages to replace the full-screen s
 
 ---
 
+## Resolved This Session (Continued)
+
+### ✅ BUG-039: Sonnet Fallback in General LLM Provider Causes 100+ Unnecessary Expensive Calls/Day
+**Priority:** HIGH | **Severity:** HIGH | **Status:** ✅ CODE COMPLETE (2026-02-24)
+**Branch:** `fix/bug-039-sonnet-fallback-cost-leak` | **Commit:** `c997a27` | **PR:** #183
+
+Removed Sonnet from `_get_completion()` and `extract_entities_batch()` fallback chains. Cost dashboard showed 112 Sonnet calls in one day; only ~10-15 are legitimate (briefing generation). Root cause was silent escalation: `AnthropicProvider._get_completion()` (used by all narrative processing) included Sonnet as fallback. Every Haiku 403 silently escalated to Sonnet at 5x cost.
+
+**Fix Applied:**
+- Removed Sonnet from `_get_completion()` fallback chain → Haiku only
+- Removed Sonnet from `extract_entities_batch()` → Haiku only
+- Deprecated `ANTHROPIC_ENTITY_FALLBACK_MODEL` config
+- Added logging for 403 errors explaining no fallback
+- `briefing_agent.py` has its own Sonnet fallback chain (unaffected)
+
+**Impact:** Estimated $0.50-2.00/day savings; Sonnet calls expected to drop to ~10-15/day (briefings only)
+
+**Files:** `src/crypto_news_aggregator/llm/anthropic.py`, `src/crypto_news_aggregator/core/config.py`
+**Ticket:** `bug-039-sonnet-fallback-cost-leak.md`
+
+---
+
 ## In Progress — Atlas M0 Sort Limit Rework (Supersedes BUG-034/035 approach)
 
 > **Context:** BUG-034/035 added `allowDiskUse=True` to aggregation pipelines, but Atlas M0 (free tier) **silently ignores** this parameter. The real fix is to remove `$sort`/`$limit` from MongoDB pipelines and do them in Python instead. Reference implementations provided by team in `signal_service.py` and `signals.py`.
@@ -263,17 +285,18 @@ Three indexes to make `$match` stages fast now that sort/limit moved to Python:
 
 ## Next Session Actions
 
-1. 🔴 BUG-036: Apply `compute_trending_signals()` M0 sort fix (reference impl provided)
-2. 🔴 BUG-037: Apply `get_top_entities_by_mentions()` M0 sort fix (same pattern)
-3. 🔴 BUG-038: Apply `get_recent_articles_for_entity()` M0 sort fix ($first→$max + Python sort)
-4. 🟡 TASK-012: Remove leftover `allowDiskUse=True` from non-sorting aggregations
-5. 🟡 TASK-013: Create 3 indexes in Atlas Console (mongosh)
-6. Fix Vercel dashboard root directory for BUG-033 frontend redeploy
-7. Audit remaining `.aggregate()` calls codebase-wide (TASK-011)
-8. Resume PRIORITY 3: Substack launch prep (TASK-001, FEATURE-045, FEATURE-046)
+1. 🔴 **BUG-039:** Remove Sonnet from `_get_completion()` fallback chain + `extract_entities_batch()` (anthropic.py, config.py)
+2. 🔴 BUG-036: Apply `compute_trending_signals()` M0 sort fix (reference impl provided)
+3. 🔴 BUG-037: Apply `get_top_entities_by_mentions()` M0 sort fix (same pattern)
+4. 🔴 BUG-038: Apply `get_recent_articles_for_entity()` M0 sort fix ($first→$max + Python sort)
+5. 🟡 TASK-012: Remove leftover `allowDiskUse=True` from non-sorting aggregations
+6. 🟡 TASK-013: Create 3 indexes in Atlas Console (mongosh)
+7. Fix Vercel dashboard root directory for BUG-033 frontend redeploy
+8. Audit remaining `.aggregate()` calls codebase-wide (TASK-011)
+9. Resume PRIORITY 3: Substack launch prep (TASK-001, FEATURE-045, FEATURE-046)
 
 ---
 
-**Status:** 🔄 Sprint 10 In Progress — 5 bugs resolved (BUG-027, 028, 032, 034, 035) + FEATURE-047 complete + 5 new tickets (BUG-036/037/038, TASK-012/013) for Atlas M0 sort rework | **Previous:** ✅ Sprint 9 Complete
+**Status:** 🔄 Sprint 10 In Progress — 5 bugs resolved (BUG-027, 028, 032, 034, 035) + FEATURE-047 complete + 6 open tickets (BUG-036/037/038/039, TASK-012/013) — BUG-039 (Sonnet cost leak) is next priority | **Previous:** ✅ Sprint 9 Complete
 
 > **This Session:** Created BUG-036/037/038 + TASK-012/013 from team's Atlas M0 sort limit rework spec
