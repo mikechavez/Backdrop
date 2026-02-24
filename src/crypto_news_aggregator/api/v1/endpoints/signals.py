@@ -204,7 +204,7 @@ async def get_recent_articles_for_entity(entity: str, limit: int = 5) -> List[Di
     ]
 
     articles = []
-    async for doc in mentions_collection.aggregate(pipeline):
+    async for doc in mentions_collection.aggregate(pipeline, allowDiskUse=True):
         articles.append({
             "title": doc.get("title", ""),
             "url": doc.get("url", ""),
@@ -261,7 +261,7 @@ async def get_signals() -> Dict[str, Any]:
             {"$unwind": "$entities"},
             {"$match": {"entities": {"$in": entity_list}}},
             {"$group": {"_id": "$entities", "count": {"$sum": 1}}}
-        ]).to_list(length=None)
+        ], allowDiskUse=True).to_list(length=None)
 
         counts = {doc["_id"]: doc["count"] for doc in narrative_counts}
 
