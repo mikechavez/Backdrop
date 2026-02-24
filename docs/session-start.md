@@ -19,13 +19,12 @@ session_focus: Fix signals bugs, add skeleton loaders, then resume launch prep
 ## Current Status
 
 ### Recently Completed
+- ✅ FEATURE-047 (skeleton loaders for all 5 pages) — COMPLETED (2026-02-23)
+- ✅ BUG-035 (signals endpoint allowDiskUse) — PR #180 (2026-02-23)
+- ✅ BUG-034 (sort exceeded memory limit) — MERGED (2026-02-23)
+- ✅ BUG-032 (duplicate articles under signals) — MERGED (2026-02-23)
 - ✅ BUG-031 (invalid Sonnet model string) — VERIFIED + DEPLOYED (2026-02-23)
-- ✅ BUG-030 (deprecated model strings) — CLOSED
-- ✅ BUG-029 (API credits exhausted) — CLOSED (misdiagnosed)
-- ✅ Sprint 7 complete (all 4 tickets)
 - ✅ Sprint 9 documentation infrastructure complete (2,526 lines, 8 modules)
-- ✅ API verification test script: all 12 tests PASSED
-- ✅ Evening briefing queued and processing
 
 ### Valid Anthropic Model Strings (Reference)
 | Model | Valid ID | Status |
@@ -86,16 +85,14 @@ session_focus: Fix signals bugs, add skeleton loaders, then resume launch prep
 
 ---
 
-### 🟡 PRIORITY 2: Skeleton Loaders (Feature Work)
+### ✅ PRIORITY 2: Skeleton Loaders (Feature Work) — COMPLETED 2026-02-23
 
 **[FEATURE-047] Skeleton Loaders for All Pages**
-- **Priority:** Medium | **Complexity:** Medium | **Effort:** 3-4 hours
+- **Priority:** Medium | **Complexity:** Medium | **Effort:** ~90 min actual
 - **Ticket:** `docs/tickets/feature-047-skeleton-loaders.md`
-- **Status:** Backlog
+- **Status:** ✅ COMPLETE
 
-**Pages:** Briefing, Signals, Narratives, Articles, Cost Monitor (all 5)
-**Approach:** Create reusable `Skeleton.tsx` primitives, then per-page skeleton components
-**Reference:** Existing narratives skeleton (20+ stories overflow case)
+Created `context-owl-ui/src/components/Skeleton.tsx` with reusable primitives and 5 page-specific skeleton components. All pages now show layout-matched skeletons instead of a full-screen spinner. Dark mode compatible. `ArticleSkeleton` (within-card loading) preserved unchanged.
 
 ---
 

@@ -2,8 +2,8 @@ import { useQuery } from '@tanstack/react-query';
 import { ExternalLink } from 'lucide-react';
 import { articlesAPI } from '../api';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/Card';
-import { Loading } from '../components/Loading';
 import { ErrorMessage } from '../components/ErrorMessage';
+import { ArticlesSkeleton } from '../components/Skeleton';
 import { formatRelativeTime, getEntityTypeColor } from '../lib/formatters';
 
 const getSourceColor = (source: string): string => {
@@ -27,7 +27,7 @@ export function Articles() {
   });
 
   if (isLoading) {
-    return <Loading />;
+    return <ArticlesSkeleton />;
   }
 
   if (error) {

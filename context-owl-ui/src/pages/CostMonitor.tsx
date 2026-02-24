@@ -14,8 +14,8 @@ import {
 import { motion } from 'framer-motion';
 import { adminAPI } from '../api';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/Card';
-import { Loading } from '../components/Loading';
 import { ErrorMessage } from '../components/ErrorMessage';
+import { CostMonitorSkeleton } from '../components/Skeleton';
 import { CostAlert } from '../components/CostAlert';
 import { cn } from '../lib/cn';
 
@@ -251,7 +251,7 @@ export function CostMonitor() {
   // Error handling
   const error = summaryError || dailyError || modelError || cacheError || processingError;
   
-  if (isLoading && !summary) return <Loading />;
+  if (isLoading && !summary) return <CostMonitorSkeleton />;
   if (error) return <ErrorMessage message={(error as Error).message} onRetry={() => refetchSummary()} />;
 
   // Calculate savings

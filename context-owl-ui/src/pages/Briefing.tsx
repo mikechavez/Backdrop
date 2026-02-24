@@ -3,8 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { briefingAPI } from '../api';
-import { Loading } from '../components/Loading';
 import { ErrorMessage } from '../components/ErrorMessage';
+import { BriefingSkeleton } from '../components/Skeleton';
 import { formatTheme } from '../lib/formatters';
 import type { Briefing as BriefingType, BriefingRecommendation } from '../types';
 
@@ -174,7 +174,7 @@ export function Briefing() {
     staleTime: 60 * 1000, // 1 minute
   });
 
-  if (isLoading) return <Loading />;
+  if (isLoading) return <BriefingSkeleton />;
   if (error) return <ErrorMessage message={error.message} onRetry={() => refetch()} />;
 
   // Use real briefing or placeholder

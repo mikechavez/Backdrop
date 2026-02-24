@@ -3,8 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import { TrendingUp, ArrowUp, Activity, Minus, TrendingDown } from 'lucide-react';
 import { signalsAPI } from '../api';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/Card';
-import { Loading } from '../components/Loading';
 import { ErrorMessage } from '../components/ErrorMessage';
+import { SignalsSkeleton } from '../components/Skeleton';
 import { formatRelativeTime, formatEntityType, getEntityTypeColor } from '../lib/formatters';
 import { cn } from '../lib/cn';
 
@@ -76,7 +76,7 @@ export function Signals() {
     staleTime: 0, // Always consider data stale
   });
 
-  if (isLoading) return <Loading />;
+  if (isLoading) return <SignalsSkeleton />;
   if (error) return <ErrorMessage message={error.message} onRetry={() => refetch()} />;
 
   // Debug: Log the first signal to see if recent_articles is present

@@ -81,6 +81,23 @@ Preventive fix for same class of bug as BUG-034. Two `.aggregate()` calls in the
 
 ---
 
+### ✅ FEATURE-047: Skeleton Loaders for All Pages
+**Priority:** MEDIUM | **Complexity:** MEDIUM | **Resolved:** 2026-02-23
+**Branch:** `fix/bug-035-signals-endpoint-allowdiskuse`
+
+Added skeleton loader components across all 5 pages to replace the full-screen spinner (`<Loading />`). Each skeleton mirrors the actual page layout for a seamless loading-to-loaded transition.
+
+**New file:** `context-owl-ui/src/components/Skeleton.tsx`
+- Shared primitives: `SkeletonLine`, `SkeletonBadge`, `SkeletonBlock`
+- Page exports: `BriefingSkeleton`, `SignalsSkeleton`, `NarrativesSkeleton`, `ArticlesSkeleton`, `CostMonitorSkeleton`
+- Uses Tailwind `animate-pulse` (consistent with existing `ArticleSkeleton`)
+- Dark mode compatible throughout
+
+**Modified files:** `Briefing.tsx`, `Signals.tsx`, `Narratives.tsx`, `Articles.tsx`, `CostMonitor.tsx`
+**Ticket:** `feature-047-skeleton-loaders.md`
+
+---
+
 ### ⚠️ BUG-033: Narrative Association Still Visible on Signals (INVESTIGATION COMPLETE)
 **Priority:** MEDIUM | **Severity:** LOW | **Status:** Awaiting Vercel Dashboard Fix + Redeploy
 **Branch:** N/A — Deployment issue, not code issue
@@ -152,12 +169,13 @@ Preventive fix for same class of bug as BUG-034. Two `.aggregate()` calls in the
 
 1. ✅ BUG-034 & BUG-035 deployments: Monitor Vercel redeploy after runtime fix
 2. ✅ Merge PR #180 (BUG-035) once tests pass
-3. Resume PRIORITY 2: FEATURE-047 (Skeleton Loaders for all pages)
+3. ✅ FEATURE-047: Skeleton loaders complete (all 5 pages)
 4. Fix Vercel dashboard root directory for BUG-033 frontend redeploy
 5. Audit remaining `.aggregate()` calls codebase-wide (TASK-011)
+6. Resume PRIORITY 3: Substack launch prep (TASK-001, FEATURE-045, FEATURE-046)
 
 ---
 
-**Status:** 🔄 Sprint 10 In Progress — 5 bugs resolved (BUG-027, 028, 032, 034, 035), features queued | **Previous:** ✅ Sprint 9 Complete
+**Status:** 🔄 Sprint 10 In Progress — 5 bugs resolved (BUG-027, 028, 032, 034, 035) + FEATURE-047 complete | **Previous:** ✅ Sprint 9 Complete
 
-> **This Session:** Completed BUG-034 (merged) + BUG-035 (PR #180 created) in 10 minutes combined
+> **This Session:** BUG-034 (merged) + BUG-035 (PR #180) + FEATURE-047 skeleton loaders (all 5 pages)
