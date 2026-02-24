@@ -27,74 +27,56 @@ class AnthropicProvider(LLMProvider):
 
     def _get_completion(self, prompt: str) -> str:
         """
-        Get completion from Claude with automatic fallback on 403 errors.
-        Tries multiple models in order until one succeeds.
+        Get completion from Claude. Does NOT fall back to Sonnet.
+
+        NOTE: This method is used by all narrative processing (narrative_themes.py),
+        not just briefings. Sonnet fallback causes unnecessary 5x cost escalation.
+        Sonnet is only used in briefing_agent.py which has its own separate model fallback chain.
+        See BUG-039 for context.
         """
-        # Try multiple models in fallback order
-        models_to_try = [
-            self.model_name,  # Primary model from config
-            "claude-sonnet-4-5-20250929",  # Sonnet 4.5
-            "claude-haiku-4-5-20251001",  # Haiku 4.5 (fallback)
-        ]
-        
-        # Remove duplicates while preserving order
-        seen = set()
-        models_to_try = [m for m in models_to_try if not (m in seen or seen.add(m))]
-        
-        last_error = None
-        
-        for model in models_to_try:
-            headers = {
-                "x-api-key": self.api_key,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json",
-            }
-            payload = {
-                "model": model,
-                "max_tokens": 2048,  # Increased for narrative JSON responses
-                "messages": [{"role": "user", "content": prompt}],
-            }
-            try:
-                with httpx.Client() as client:
-                    response = client.post(
-                        self.API_URL, headers=headers, json=payload, timeout=30
-                    )
-                    response.raise_for_status()
-                    data = response.json()
-                    
-                    # Log which model was used if not the primary
-                    if model != self.model_name:
-                        logger.info(f"Using fallback model: {model}")
-                    
-                    return data.get("content", [{}])[0].get("text", "")
-            except httpx.HTTPStatusError as e:
-                last_error = e
-                # If 403 Forbidden, try next model
-                if e.response.status_code == 403:
-                    logger.warning(
-                        f"403 Forbidden for model {model}, trying next fallback..."
-                    )
-                    try:
-                        error_json = e.response.json()
-                        error_msg = error_json.get("error", {}).get("message", "")
-                        logger.debug(f"Error details: {error_msg}")
-                    except:
-                        pass
-                    continue
-                else:
-                    # For non-403 errors, log and return empty
-                    logger.error(
-                        f"Anthropic API request failed with status {e.response.status_code}: {e.response.text}"
-                    )
-                    return ""
-            except Exception as e:
-                last_error = e
-                logger.error(f"An unexpected error occurred: {e}")
-                return ""
-        
-        # All models failed
-        logger.error(f"All models failed. Last error: {last_error}")
-        return ""
+        # Use primary model only (Haiku) - no expensive fallback
+        model = self.model_name
+
+        headers = {
+            "x-api-key": self.api_key,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+        }
+        payload = {
+            "model": model,
+            "max_tokens": 2048,  # Increased for narrative JSON responses
+            "messages": [{"role": "user", "content": prompt}],
+        }
+        try:
+            with httpx.Client() as client:
+                response = client.post(
+                    self.API_URL, headers=headers, json=payload, timeout=30
+                )
+                response.raise_for_status()
+                data = response.json()
+                return data.get("content", [{}])[0].get("text", "")
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 403:
+                logger.warning(
+                    f"403 Forbidden for model {model}. "
+                    f"NOT falling back to Sonnet (BUG-039). "
+                    f"Will retry or fail gracefully."
+                )
+                try:
+                    error_json = e.response.json()
+                    error_msg = error_json.get("error", {}).get("message", "")
+                    logger.debug(f"Error details: {error_msg}")
+                except:
+                    pass
+            else:
+                # For non-403 errors, log and return empty
+                logger.error(
+                    f"Anthropic API request failed with status {e.response.status_code}: {e.response.text}"
+                )
+            return ""
+        except Exception as e:
+            logger.error(f"An unexpected error occurred: {e}")
+            return ""
 
     @track_usage
     def analyze_sentiment(self, text: str) -> float:
@@ -144,8 +126,9 @@ class AnthropicProvider(LLMProvider):
 
     def extract_entities_batch(self, articles: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
-        Extracts entities from a batch of articles using Claude Haiku with fallback to Sonnet.
+        Extracts entities from a batch of articles using Claude Haiku only.
         Returns structured data with entities for each article and usage metrics.
+        No fallback to Sonnet (see BUG-039).
         """
         from ..core.config import settings
 
@@ -202,11 +185,11 @@ Articles:
 
 Return ONLY the JSON array, no other text."""
 
-        # Try with Haiku 3.5 first, fallback to Sonnet if unavailable
+        # Use Haiku only - no Sonnet fallback
+        # NOTE: Entity extraction should fail rather than silently use 5x more expensive model.
+        # See BUG-039 for context.
         models_to_try = [
-            (settings.ANTHROPIC_ENTITY_MODEL, "Haiku 3.5"),
-            (settings.ANTHROPIC_ENTITY_FALLBACK_MODEL, "Sonnet 3.5 (Fallback)"),
-            ("claude-3-5-sonnet-20240620", "Sonnet 3.5 (June)"),
+            (settings.ANTHROPIC_ENTITY_MODEL, "Haiku 4.5"),
         ]
 
         last_error = None
