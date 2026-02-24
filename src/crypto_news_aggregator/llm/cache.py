@@ -147,17 +147,17 @@ class LLMResponseCache:
 class CostTracker:
     """Track API costs for monitoring and budgeting"""
     
-    # Pricing per 1M tokens (as of Nov 2025)
+    # Pricing per 1M tokens (as of February 2026)
     PRICING = {
-        "claude-3-5-haiku-20241022": {
-            "input": 0.25,
-            "output": 1.25
+        "claude-haiku-4-5-20251001": {
+            "input": 1.0,
+            "output": 5.0
         },
-        "claude-sonnet-4-20250514": {
+        "claude-sonnet-4-6": {
             "input": 3.0,
             "output": 15.0
         },
-        "claude-3-5-sonnet-20241022": {
+        "claude-sonnet-4-5-20250929": {
             "input": 3.0,
             "output": 15.0
         }
