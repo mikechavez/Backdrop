@@ -53,6 +53,34 @@ API endpoint `/api/v1/signals/trending` was returning duplicate articles in the 
 
 ---
 
+### ✅ BUG-034: Sort Exceeded Memory Limit on Signals Page
+**Priority:** HIGH | **Severity:** HIGH | **Resolved:** 2026-02-23
+**Branch:** `fix/bug-034-aggregate-allowdiskuse` | **Commit:** `b5a1c7b` (merged via PR #179)
+
+MongoDB 32MB in-memory sort limit exceeded on signals page as data volume grew. Root cause: Five `.aggregate()` calls in `signal_service.py` lacked `allowDiskUse=True` parameter, which enables disk-based sorting. Fixed by adding `allowDiskUse=True` to all aggregation pipelines (lines 144, 303, 635, 736, 743).
+
+**Related:** Runtime fix via PR #179 updated `runtime.txt` to `python-3.13.1` to unblock Vercel deployments.
+
+**Files:** `src/crypto_news_aggregator/services/signal_service.py`
+**Ticket:** `bug-034-sort-exceeded-memory-limit-signals.md`
+
+---
+
+### ✅ BUG-035: Signals Endpoint Aggregation Missing allowDiskUse
+**Priority:** MEDIUM | **Severity:** MEDIUM | **Resolved:** 2026-02-23
+**Branch:** `fix/bug-035-signals-endpoint-allowdiskuse` | **Commit:** `65c968e` | **PR:** #180
+
+Preventive fix for same class of bug as BUG-034. Two `.aggregate()` calls in the signals endpoint (added in BUG-032 and `get_signals()`) lacked `allowDiskUse=True`. Added parameter to both pipelines to prevent future 32MB in-memory sort limit failures as data grows.
+
+**Changes:**
+- Line 207: `mentions_collection.aggregate(pipeline, allowDiskUse=True)`
+- Line 264: `db.narratives.aggregate([...], allowDiskUse=True)`
+
+**Files:** `src/crypto_news_aggregator/api/v1/endpoints/signals.py`
+**Ticket:** `bug-035-signals-endpoint-allowdiskuse`
+
+---
+
 ### ⚠️ BUG-033: Narrative Association Still Visible on Signals (INVESTIGATION COMPLETE)
 **Priority:** MEDIUM | **Severity:** LOW | **Status:** Awaiting Vercel Dashboard Fix + Redeploy
 **Branch:** N/A — Deployment issue, not code issue
@@ -122,11 +150,14 @@ API endpoint `/api/v1/signals/trending` was returning duplicate articles in the 
 
 ## Next Session Actions
 
-1. Deploy BUG-027 and BUG-028 fixes, run verification commands
-2. Audit `db/operations/` for other Motor `find_one` sort issues
-3. Decide scope for remainder of Sprint 10
-4. Update this file with Sprint 10 feature branch plan
+1. ✅ BUG-034 & BUG-035 deployments: Monitor Vercel redeploy after runtime fix
+2. ✅ Merge PR #180 (BUG-035) once tests pass
+3. Resume PRIORITY 2: FEATURE-047 (Skeleton Loaders for all pages)
+4. Fix Vercel dashboard root directory for BUG-033 frontend redeploy
+5. Audit remaining `.aggregate()` calls codebase-wide (TASK-011)
 
 ---
 
-**Status:** 🔄 Sprint 10 In Progress — 2 bugs resolved, features queued | **Previous:** ✅ Sprint 9 Complete
+**Status:** 🔄 Sprint 10 In Progress — 5 bugs resolved (BUG-027, 028, 032, 034, 035), features queued | **Previous:** ✅ Sprint 9 Complete
+
+> **This Session:** Completed BUG-034 (merged) + BUG-035 (PR #180 created) in 10 minutes combined
