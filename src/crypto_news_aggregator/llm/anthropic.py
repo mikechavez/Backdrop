@@ -33,7 +33,7 @@ class AnthropicProvider(LLMProvider):
         # Try multiple models in fallback order
         models_to_try = [
             self.model_name,  # Primary model from config
-            "claude-sonnet-4-20250514",  # Sonnet 4
+            "claude-sonnet-4-5-20250929",  # Sonnet 4.5
             "claude-haiku-4-5-20251001",  # Haiku 4.5 (fallback)
         ]
         

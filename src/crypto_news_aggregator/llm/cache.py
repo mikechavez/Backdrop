@@ -153,7 +153,7 @@ class CostTracker:
             "input": 1.0,
             "output": 5.0
         },
-        "claude-sonnet-4-20250514": {
+        "claude-sonnet-4-5-20250929": {
             "input": 3.0,
             "output": 15.0
         },
@@ -218,7 +218,7 @@ class CostTracker:
         pricing = self.PRICING.get(model)
         if not pricing:
             # Default to Sonnet pricing if unknown
-            pricing = self.PRICING["claude-sonnet-4-20250514"]
+            pricing = self.PRICING["claude-sonnet-4-5-20250929"]
         
         input_cost = (input_tokens / 1_000_000) * pricing["input"]
         output_cost = (output_tokens / 1_000_000) * pricing["output"]

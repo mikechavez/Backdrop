@@ -31,7 +31,7 @@ class CostTracker:
             "input": 1.00,   # $1.00 per 1M input tokens
             "output": 5.00,  # $5.00 per 1M output tokens
         },
-        "claude-sonnet-4-20250514": {
+        "claude-sonnet-4-5-20250929": {
             "input": 3.00,
             "output": 15.00,
         },
