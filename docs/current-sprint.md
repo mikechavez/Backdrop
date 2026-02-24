@@ -66,15 +66,29 @@ MongoDB 32MB in-memory sort limit exceeded on signals page as data volume grew. 
 
 ---
 
-### ✅ BUG-035: Signals Endpoint Aggregation Missing allowDiskUse
-**Priority:** MEDIUM | **Severity:** MEDIUM | **Resolved:** 2026-02-23
+### ⚠️ BUG-035: Signals Endpoint Aggregation Missing allowDiskUse (MERGED BUT ISSUE PERSISTS)
+**Priority:** HIGH | **Severity:** HIGH | **Status:** Merged + Investigating | **Merged:** 2026-02-24
 **Branch:** `fix/bug-035-signals-endpoint-allowdiskuse` | **Commit:** `65c968e` | **PR:** #180
 
-Preventive fix for same class of bug as BUG-034. Two `.aggregate()` calls in the signals endpoint (added in BUG-032 and `get_signals()`) lacked `allowDiskUse=True`. Added parameter to both pipelines to prevent future 32MB in-memory sort limit failures as data grows.
+Preventive fix for same class of bug as BUG-034. Two `.aggregate()` calls in the signals endpoint were added for allowDiskUse parameter.
 
-**Changes:**
+**Changes Applied:**
 - Line 207: `mentions_collection.aggregate(pipeline, allowDiskUse=True)`
 - Line 264: `db.narratives.aggregate([...], allowDiskUse=True)`
+
+**Current Issue (2026-02-24):**
+After merge and Railway redeployment, signals page still fails with:
+```
+Sort exceeded memory limit of 33554432 bytes, but did not opt in to external sorting
+Error code: 292 (QueryExceededMemoryLimitNoDiskUseAllowed)
+```
+Suggests `allowDiskUse` parameter is not being applied correctly or there are additional aggregation calls missing the parameter.
+
+**Investigation Required:**
+1. Verify Python motor/pymongo syntax for allowDiskUse parameter
+2. Check signal_service.py for any remaining aggregate() calls without allowDiskUse
+3. Confirm BUG-035 changes were actually merged (not just PR created)
+4. Check if error is from signals.py endpoint or signal_service.py service layer
 
 **Files:** `src/crypto_news_aggregator/api/v1/endpoints/signals.py`
 **Ticket:** `bug-035-signals-endpoint-allowdiskuse`
@@ -82,10 +96,10 @@ Preventive fix for same class of bug as BUG-034. Two `.aggregate()` calls in the
 ---
 
 ### ✅ FEATURE-047: Skeleton Loaders for All Pages
-**Priority:** MEDIUM | **Complexity:** MEDIUM | **Resolved:** 2026-02-23
-**Branch:** `fix/bug-035-signals-endpoint-allowdiskuse`
+**Priority:** MEDIUM | **Complexity:** MEDIUM | **Resolved:** 2026-02-24
+**Branch:** `fix/bug-035-signals-endpoint-allowdiskuse` | **Commit:** `f893571`
 
-Added skeleton loader components across all 5 pages to replace the full-screen spinner (`<Loading />`). Each skeleton mirrors the actual page layout for a seamless loading-to-loaded transition.
+Added skeleton loader components across all 5 pages to replace the full-screen spinner (`<Loading />`). Each skeleton mirrors the actual page layout for a seamless loading-to-loaded transition. **MERGED TO MAIN (2026-02-24)**.
 
 **New file:** `context-owl-ui/src/components/Skeleton.tsx`
 - Shared primitives: `SkeletonLine`, `SkeletonBadge`, `SkeletonBlock`

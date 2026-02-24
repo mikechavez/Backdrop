@@ -102,3 +102,9 @@ if (loading) return <BriefingSkeleton />;
 - **Deviations from plan:** None. All 5 pages updated as specified.
 - **New file:** `context-owl-ui/src/components/Skeleton.tsx` — primitives + 5 page exports
 - **Modified files:** `Briefing.tsx`, `Signals.tsx`, `Narratives.tsx`, `Articles.tsx`, `CostMonitor.tsx`
+
+## Merge Status (2026-02-24)
+- **Commit:** `f893571` (feat(ui): FEATURE-047 - Add skeleton loaders for all pages)
+- **Branch:** `fix/bug-035-signals-endpoint-allowdiskuse`
+- **Status:** ✅ MERGED TO MAIN
+- **Associated changes:** Committed alongside Railway deployment fix (NumPy 2.4.2)

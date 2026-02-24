@@ -18,9 +18,10 @@ session_focus: Fix signals bugs, add skeleton loaders, then resume launch prep
 
 ## Current Status
 
-### Recently Completed
-- ✅ FEATURE-047 (skeleton loaders for all 5 pages) — COMPLETED (2026-02-23)
-- ✅ BUG-035 (signals endpoint allowDiskUse) — PR #180 (2026-02-23)
+### Recently Completed (2026-02-24)
+- ✅ FEATURE-047 (skeleton loaders for all 5 pages) — MERGED TO MAIN (2026-02-24)
+- ✅ Railway deployment fix (NumPy 2.4.2 for Python 3.13) — DEPLOYED (2026-02-24)
+- ✅ BUG-035 (signals endpoint allowDiskUse) — MERGED (2026-02-24)
 - ✅ BUG-034 (sort exceeded memory limit) — MERGED (2026-02-23)
 - ✅ BUG-032 (duplicate articles under signals) — MERGED (2026-02-23)
 - ✅ BUG-031 (invalid Sonnet model string) — VERIFIED + DEPLOYED (2026-02-23)
@@ -46,15 +47,18 @@ session_focus: Fix signals bugs, add skeleton loaders, then resume launch prep
 - **Fix:** Added `allowDiskUse=True` to 5 `.aggregate()` calls in `signal_service.py` (lines 144, 303, 635, 736, 743)
 - **Runtime Fix:** PR #179 updated `runtime.txt` to `python-3.13.1` (unblocks Vercel deployments)
 
-**[BUG-035] Signals Endpoint Aggregation Missing allowDiskUse** ✅ PR #180 CREATED
-- **Priority:** MEDIUM | **Severity:** MEDIUM | **Resolved:** 2026-02-23
-- **Status:** COMPLETED + PR CREATED (preventive fix for same class of bug as BUG-034)
+**[BUG-035] Signals Endpoint Aggregation Missing allowDiskUse** ⚠️ MERGED BUT ISSUE PERSISTS
+- **Priority:** HIGH | **Severity:** HIGH | **Status:** MERGED + INVESTIGATING (2026-02-24)
 - **Branch:** `fix/bug-035-signals-endpoint-allowdiskuse` | **Commit:** `65c968e`
-- **PR:** #180 — https://github.com/mikechavez/crypto-news-aggregator/pull/180
+- **PR:** #180 — MERGED TO MAIN (2026-02-24)
 - **Fix Applied:** Added `allowDiskUse=True` to 2 `.aggregate()` calls in `signals.py`:
   - Line 207: `get_recent_articles_for_entity()` pipeline (BUG-032)
   - Line 264: `get_signals()` narrative count aggregation
-- **Verification:** ✅ Grep confirms zero `.aggregate()` calls without `allowDiskUse`
+- **Issue:** Signals page still failing with "Sort exceeded memory limit" error after merge
+  - Error code: 292 (QueryExceededMemoryLimitNoDiskUseAllowed)
+  - Occurs on `/api/v1/signals/trending` endpoint
+  - Suggests `allowDiskUse` parameter not being applied correctly to aggregation
+- **Next Step:** Verify allowDiskUse parameter syntax and check all aggregation calls in signal_service.py
 
 ---
 
