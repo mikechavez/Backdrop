@@ -302,28 +302,92 @@ async def get_signals() -> Dict[str, Any]:
 
 async def get_recent_articles_batch(entities: List[str], limit_per_entity: int = 5) -> Dict[str, List[Dict[str, Any]]]:
     """
-    Batch fetch recent articles for multiple entities using parallel queries.
-    Uses the existing indexed get_recent_articles_for_entity function in parallel.
-    
+    Batch fetch recent articles for multiple entities in a SINGLE aggregation pipeline.
+
+    Replaces the previous N+1 approach (one pipeline per entity) which caused 45s+ load
+    times on Atlas M0 with 50 entities. This runs one pipeline for all entities, then
+    partitions and limits in Python.
+
     Args:
         entities: List of entity names to fetch articles for
         limit_per_entity: Maximum number of articles per entity (default 5)
-    
+
     Returns:
         Dict mapping entity name to list of article dicts
     """
     if not entities:
         return {}
-    
-    import asyncio
-    
-    # Fetch articles for all entities in parallel using existing optimized function
-    # This uses the entity+timestamp compound index efficiently
-    tasks = [get_recent_articles_for_entity(entity, limit=limit_per_entity) for entity in entities]
-    results = await asyncio.gather(*tasks)
-    
-    # Map results back to entities
-    return {entity: articles for entity, articles in zip(entities, results)}
+
+    db = await mongo_manager.get_async_database()
+    mentions_collection = db.entity_mentions
+
+    # Single pipeline for ALL entities at once
+    pipeline = [
+        # Match mentions for any of the requested entities
+        {"$match": {"entity": {"$in": entities}}},
+
+        # Convert article_id string to ObjectId if needed
+        {"$addFields": {
+            "article_oid": {"$cond": [
+                {"$eq": [{"$type": "$article_id"}, "string"]},
+                {"$toObjectId": "$article_id"},
+                "$article_id"
+            ]}
+        }},
+
+        # Join with articles collection
+        {"$lookup": {
+            "from": "articles",
+            "localField": "article_oid",
+            "foreignField": "_id",
+            "as": "article"
+        }},
+
+        # Unwind the article array
+        {"$unwind": "$article"},
+
+        # Deduplicate by entity + article URL, use $max for latest published_at
+        {"$group": {
+            "_id": {"entity": "$entity", "url": "$article.url"},
+            "title": {"$first": "$article.title"},
+            "url": {"$first": "$article.url"},
+            "source": {"$first": "$article.source"},
+            "published_at": {"$max": "$article.published_at"},
+            "entity": {"$first": "$entity"},
+        }},
+
+        # Project only the fields we need
+        {"$project": {
+            "_id": 0,
+            "entity": 1,
+            "title": 1,
+            "url": 1,
+            "source": 1,
+            "published_at": 1,
+        }}
+    ]
+
+    # Run single aggregation (post-$group results are small: ~5-20 articles per entity)
+    all_articles = await mentions_collection.aggregate(pipeline).to_list(length=20000)
+
+    # Partition by entity, sort by published_at desc, limit per entity — all in Python
+    result: Dict[str, List[Dict[str, Any]]] = {entity: [] for entity in entities}
+    for doc in all_articles:
+        entity = doc.get("entity", "")
+        if entity in result:
+            result[entity].append({
+                "title": doc.get("title", ""),
+                "url": doc.get("url", ""),
+                "source": doc.get("source", ""),
+                "published_at": doc.get("published_at").isoformat() if doc.get("published_at") else None,
+            })
+
+    # Sort each entity's articles by published_at desc and limit
+    for entity in result:
+        result[entity].sort(key=lambda x: x["published_at"] or "", reverse=True)
+        result[entity] = result[entity][:limit_per_entity]
+
+    return result
 
 
 @router.get("/trending")
