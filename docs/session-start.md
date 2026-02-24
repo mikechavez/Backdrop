@@ -37,19 +37,32 @@ session_focus: Fix signals bugs, add skeleton loaders, then resume launch prep
 
 ## What to Work On Next
 
-### 🔴 PRIORITY 1: Signals Page Bugs (Fix First)
+### 🟢 PRIORITY 1: allowDiskUse Aggregation Fixes ✅ COMPLETED (THIS SESSION)
 
-**[BUG-032] Duplicate Articles Under Signals** ✅ COMPLETED
-- **Priority:** Medium | **Effort:** 30 minutes (backend fix)
-- **Ticket:** `docs/tickets/bug-032-duplicate-articles-under-signals.md`
-- **Status:** ✅ FIXED + COMMITTED
+**[BUG-034] Sort Exceeded Memory Limit on Signals Page** ✅ MERGED TO MAIN
+- **Priority:** HIGH | **Severity:** HIGH | **Resolved:** 2026-02-23
+- **Status:** MERGED TO MAIN (commit b5a1c7b, via runtime.txt fix)
+- **Branch:** `fix/bug-034-aggregate-allowdiskuse` | **Commit:** `b5a1c7b`
+- **Issue:** MongoDB 32MB in-memory sort limit exceeded as data grew
+- **Fix:** Added `allowDiskUse=True` to 5 `.aggregate()` calls in `signal_service.py` (lines 144, 303, 635, 736, 743)
+- **Runtime Fix:** PR #179 updated `runtime.txt` to `python-3.13.1` (unblocks Vercel deployments)
+
+**[BUG-035] Signals Endpoint Aggregation Missing allowDiskUse** ✅ PR #180 CREATED
+- **Priority:** MEDIUM | **Severity:** MEDIUM | **Resolved:** 2026-02-23
+- **Status:** COMPLETED + PR CREATED (preventive fix for same class of bug as BUG-034)
+- **Branch:** `fix/bug-035-signals-endpoint-allowdiskuse` | **Commit:** `65c968e`
+- **PR:** #180 — https://github.com/mikechavez/crypto-news-aggregator/pull/180
+- **Fix Applied:** Added `allowDiskUse=True` to 2 `.aggregate()` calls in `signals.py`:
+  - Line 207: `get_recent_articles_for_entity()` pipeline (BUG-032)
+  - Line 264: `get_signals()` narrative count aggregation
+- **Verification:** ✅ Grep confirms zero `.aggregate()` calls without `allowDiskUse`
+
+---
+
+**[BUG-032] Duplicate Articles Under Signals** ✅ COMPLETED (Previous)
+- **Priority:** Medium | **Status:** ✅ FIXED + COMMITTED
 - **Branch:** `fix/bug-032-duplicate-articles` | **Commit:** `1c53e30`
-
-**What was fixed:**
-- Added `$group` stage to MongoDB aggregation pipeline in `get_recent_articles_for_entity()`
-- Deduplicates articles by URL before limiting to 5 results
-- Maintains chronological ordering by re-sorting after deduplication
-- File: `src/crypto_news_aggregator/api/v1/endpoints/signals.py` (lines 181-188)
+- **Note:** This PR prompted BUG-035 (missing allowDiskUse on the new pipeline)
 
 ---
 

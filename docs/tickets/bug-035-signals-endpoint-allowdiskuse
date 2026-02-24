@@ -1,0 +1,87 @@
+---
+ticket_id: BUG-035
+title: Signals Endpoint Aggregation Missing allowDiskUse
+priority: MEDIUM
+severity: MEDIUM
+status: COMPLETED
+date_created: 2026-02-23
+date_completed: 2026-02-23
+branch: fix/bug-035-signals-endpoint-allowdiskuse
+commit: 65c968e
+pr: 180
+effort_estimate: 10 minutes
+actual_effort: 10 minutes
+---
+
+# BUG-035: Signals Endpoint Aggregation Missing allowDiskUse
+
+## Problem Statement
+
+The `get_recent_articles_for_entity()` function in the signals API endpoint uses an aggregation pipeline (added in BUG-032) that includes `$sort` and `$group` stages without `allowDiskUse=True`. This pipeline has not yet hit the 32MB memory limit, but will as data volume grows — the same root cause as BUG-034.
+
+### Root Cause
+
+The BUG-032 fix added a `$group` + `$sort` deduplication stage to the aggregation pipeline in `signals.py`, but did not include `allowDiskUse=True`. This is a ticking time bomb — the same class of bug that crashed the signals page in BUG-034.
+
+---
+
+## Solution
+
+Add `allowDiskUse=True` to all `.aggregate()` calls in the signals endpoint file.
+
+### Changes Required
+
+**File:** `src/crypto_news_aggregator/api/v1/endpoints/signals.py`
+
+**`get_recent_articles_for_entity()` — BUG-032 pipeline**
+```python
+# Before
+cursor = collection.aggregate(pipeline)
+
+# After
+cursor = collection.aggregate(pipeline, allowDiskUse=True)
+```
+
+Audit the full file for any other `.aggregate()` calls and apply the same fix.
+
+---
+
+## Verification
+
+✅ **COMPLETED - 2026-02-23**
+
+```bash
+# 1. Confirmed all aggregate calls have allowDiskUse
+rg -n "\.aggregate\(" src/crypto_news_aggregator/api/v1/endpoints/signals.py | grep -v "allowDiskUse"
+# Result: 0 results ✅
+
+# 2. Test signals endpoint returns unique articles
+curl -s https://context-owl-production.up.railway.app/api/v1/signals/trending | python -m json.tool | head -40
+# Verify recent_articles arrays contain no duplicate URLs
+```
+
+---
+
+## Impact
+
+- ✅ **Preventive fix**: Avoids future BUG-034-class crash in this endpoint
+- ✅ **No behavior change**: `allowDiskUse=True` only affects MongoDB's sort strategy when memory is exceeded
+- ✅ **Deployed**: PR #180 created and merged alongside BUG-034
+
+---
+
+## Implementation Details
+
+**Changes Made:**
+- Line 207: `mentions_collection.aggregate(pipeline, allowDiskUse=True)`
+- Line 264: `db.narratives.aggregate([...], allowDiskUse=True)`
+
+**Files Changed**
+
+- `src/crypto_news_aggregator/api/v1/endpoints/signals.py` — aggregate calls updated (2 changes)
+
+## Related Tickets
+
+- BUG-032: Added the deduplication pipeline that needs this fix
+- BUG-034: Same class of bug, already hit in `signal_service.py` (merged)
+- TASK-011: Codebase-wide audit of all `.aggregate()` calls
