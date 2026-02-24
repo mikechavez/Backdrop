@@ -3,11 +3,13 @@ bug-039-sonnet-fallback-cost-leak
 ---
 id: BUG-039
 type: bug
-status: open
+status: completed
 priority: high
 severity: high
 created: 2026-02-24
 updated: 2026-02-24
+merged: 2026-02-24T20:51:29Z
+pr: "183"
 ---
 
 # Sonnet Fallback in General LLM Provider Causes 100+ Unnecessary Expensive Calls/Day
