@@ -178,16 +178,28 @@ async def get_recent_articles_for_entity(entity: str, limit: int = 5) -> List[Di
         # Sort by article published_at descending (most recent first)
         {"$sort": {"article.published_at": -1}},
 
+        # Deduplicate by article URL - keep first occurrence (most recent)
+        {"$group": {
+            "_id": "$article.url",
+            "title": {"$first": "$article.title"},
+            "url": {"$first": "$article.url"},
+            "source": {"$first": "$article.source"},
+            "published_at": {"$first": "$article.published_at"}
+        }},
+
+        # Sort again by published_at after deduplication
+        {"$sort": {"published_at": -1}},
+
         # Limit to requested number
         {"$limit": limit},
 
         # Project only the fields we need
         {"$project": {
             "_id": 0,
-            "title": "$article.title",
-            "url": "$article.url",
-            "source": "$article.source",
-            "published_at": "$article.published_at"
+            "title": 1,
+            "url": 1,
+            "source": 1,
+            "published_at": 1
         }}
     ]
 

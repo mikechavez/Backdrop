@@ -1,18 +1,18 @@
 ---
-session_date: 2026-02-10
+session_date: 2026-02-23
 project: Backdrop (Context Owl)
 current_sprint: Sprint 10
-session_focus: Bug Fixes & Next Feature Planning
+session_focus: UI Polish & Stability — Signals Bugs & Skeleton Loaders
 ---
 
 # Current Sprint Status
 
-> **Last Updated:** 2026-02-10
+> **Last Updated:** 2026-02-23
 > **Previous Sprint:** ✅ Sprint 9 Complete (Documentation Infrastructure)
 
-## Sprint 10: In Progress
+## Sprint 10: UI Polish & Stability
 
-Sprint 9 completed with 100% of features delivered. Sprint 10 opened with two bug fixes identified during post-sprint review.
+Sprint 9 completed with 100% of features delivered. Sprint 10 focuses on fixing signals page bugs and adding skeleton loaders before resuming launch prep.
 
 ---
 
@@ -39,6 +39,17 @@ Frontend always displayed the same (oldest) briefing. Root cause: Motor's `find_
 
 **Files:** `db/operations/briefing.py`
 **Ticket:** `bug-028-website-always-shows-same-briefing.md`
+
+---
+
+### ✅ BUG-032: Duplicate Articles Under Signals
+**Priority:** MEDIUM | **Severity:** MEDIUM | **Resolved:** 2026-02-23
+**Branch:** `fix/bug-032-duplicate-articles` | **Commit:** `1c53e30`
+
+API endpoint `/api/v1/signals/trending` was returning duplicate articles in the `recent_articles` field. Root cause: MongoDB aggregation pipeline in `get_recent_articles_for_entity()` lacked deduplication before limiting results. Fixed by adding `$group` stage to consolidate articles by URL before applying the 5-article limit, maintaining chronological order.
+
+**Files:** `src/crypto_news_aggregator/api/v1/endpoints/signals.py`
+**Ticket:** `bug-032-duplicate-articles-under-signals.md`
 
 ---
 
