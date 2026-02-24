@@ -43,7 +43,7 @@ logger = logging.getLogger(__name__)
 
 # LLM Configuration
 ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
-DEFAULT_MODEL = "claude-sonnet-4-6"  # Sonnet 4.6 - best instruction following
+DEFAULT_MODEL = "claude-sonnet-4-5-20250929"  # Sonnet 4.5 - best instruction following
 FALLBACK_MODELS = [
     "claude-haiku-4-5-20251001",  # Haiku 4.5 as fallback
 ]
@@ -773,6 +773,7 @@ Return ONLY valid JSON in the same format as before."""
 
         for model in models_to_try:
             try:
+                logger.info(f"Trying LLM model: {model}")
                 async with httpx.AsyncClient() as client:
                     response = await client.post(
                         ANTHROPIC_API_URL,
@@ -789,6 +790,13 @@ Return ONLY valid JSON in the same format as before."""
                         },
                         timeout=120,
                     )
+                    logger.info(f"LLM response status: {response.status_code}")
+                    if response.status_code != 200:
+                        try:
+                            error_data = response.json()
+                            logger.error(f"API error response: {error_data}")
+                        except:
+                            logger.error(f"API error body: {response.text[:500]}")
                     response.raise_for_status()
                     data = response.json()
 

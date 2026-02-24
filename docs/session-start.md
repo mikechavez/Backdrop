@@ -1,120 +1,185 @@
 ---
-session_date: 2026-02-10
+session_date: 2026-02-23
 project: Backdrop (Context Owl)
-current_sprint: Sprint 10
-session_focus: Bug Fixes - Scheduling & Stale Briefing
+current_sprint: Sprint 11 — 48-Hour Launch
+session_focus: Ship Substack + Interactive Site + Distribution
 ---
 
-# Session Context: Sprint 10 - Bug Fixes
+# Session Context: Sprint 11 — 48-Hour Launch
 
 ## Sprint Overview
 
-**Goal:** Bug triage and fixes uncovered during post-Sprint 9 review of the briefing system
+**Goal:** Fix production, ship Substack article + Cognitive Debt Simulator interactive site, maximize distribution across X, LinkedIn, Reddit, HN
 
-**Duration:** 2026-02-10 (ongoing)
-**Sprint 10 Status:** In Progress
+**Duration:** 2026-02-23 to 2026-02-25 (48 hours)
+**Deadline:** Hard — launch window is time-sensitive
 
 ---
 
 ## Current Status
 
-### Sprint 9 Status
-- ✅ All Sprint 9 features complete (FEATURE-038 through FEATURE-042)
-- ✅ Full system documentation live (8 modules, 2,526 lines)
-- ✅ Validation guardrails operational
-- ✅ 228 legacy docs archived
+### Sprint 10 Status
+- ✅ BUG-027 (afternoon briefing removal) — completed & verified
+- ✅ BUG-028 (stale briefing query) — completed & verified
+- ✅ Sprint 9 documentation infrastructure complete (2,526 lines, 8 modules)
+- ✅ BUG-029 (API credits exhausted) — CLOSED, misdiagnosed as billing issue
+- 🟡 BUG-030 (deprecated model strings) — CODE COMPLETE (commit cafae9c), awaiting production verification
 
-### Sprint 10 — Session 1 Activity
-
-Two bugs identified and resolved during review of the briefing system:
-
-- ✅ **BUG-027** — Afternoon briefing running on schedule when it shouldn't
-- ✅ **BUG-028** — Website always displaying the same briefing (Motor `find_one` sort bug)
-
----
-
-## Active Tickets (Priority Order)
-
-### 1. BUG-027: Remove Afternoon Scheduled Briefing
-**Status:** ✅ COMPLETED — 2026-02-10
-**Priority:** MEDIUM
-**Severity:** LOW
-
-**Problem:** Celery Beat scheduled briefings 3x/day (8 AM, 2 PM, 8 PM). Only morning and evening should run automatically. The afternoon manual trigger via API was also broken (400 error).
-
-**Fix Summary:**
-- Removed afternoon cron entry from `beat_schedule.py`
-- Added `generate_afternoon_briefing()` to `briefing_agent.py`
-- Updated `/generate` endpoint to accept `"type": "afternoon"`
-
-**Files Changed:**
-- `src/crypto_news_aggregator/tasks/beat_schedule.py`
-- `src/crypto_news_aggregator/services/briefing_agent.py`
-- `src/crypto_news_aggregator/api/v1/endpoints/briefing.py`
-
-**Branch:** `fix/bug-027-remove-afternoon-scheduled-briefing`
-**Commit:** 2661166
-
-**Ticket:** `bug-027-remove-afternoon-scheduled-briefing.md`
+### BUG-030 Status
+- ✅ Code changes merged across 5 files (config.py, briefing_agent.py, anthropic.py, cost_tracker.py, cache.py)
+- ✅ All deprecated model strings replaced, verified with ripgrep
+- ✅ Models upgraded: Haiku → 4.5 (`claude-haiku-4-5-20251001`), Sonnet → 4 (`claude-sonnet-4-20250514`)
+- ✅ Correction applied: Fixed invalid model name format `claude-sonnet-4-6` → `claude-sonnet-4-20250514`
+- ✅ Local verification: API calls use correct model format, fail only on billing (expected without credits)
+- **Status:** Code-complete, awaiting production verification and API credits for full test
+- Once production verified → close BUG-030 and move to TASK-001
 
 ---
 
-### 2. BUG-028: Website Always Shows the Same Briefing
-**Status:** ✅ COMPLETED — 2026-02-10
-**Priority:** HIGH
-**Severity:** HIGH
+## What to Work On Next
 
-**Problem:** Frontend always shows the same (oldest) briefing regardless of new generations. Root cause: Motor's `find_one(..., sort=[...])` silently ignores the sort parameter, returning an arbitrary document instead of the newest.
+**Priority 1**: [BUG-030] Production verification — deploy + test LLM features
+- Status: 🟡 Code complete, needs production verification
+- Tool: Manual (deploy, trigger briefing, check logs)
+- Estimated effort: 15-30 min
+- Steps:
+  1. Deploy commit cafae9c to Vercel
+  2. Trigger manual briefing: `curl -X POST "https://backdrop.markets/admin/trigger-briefing?force=true"`
+  3. Verify narrative pipeline: check MongoDB for new narratives/entity mentions
+  4. Check Anthropic console logs for 200 responses with new model strings
+- Once verified → mark BUG-030 completed
 
-**Fix Summary:**
-- Replaced `find_one(filter, sort=[...])` with `find(filter).sort(...).limit(1)` in `get_latest_briefing()`
-- Audited entire `db/operations/` for other `find_one(..., sort=[...])` calls — **no other instances found**
-- Updated beat_schedule.py comments to reflect afternoon briefing removal
+**Priority 2**: [TASK-001] Replace placeholder URLs + add OG/Twitter meta tags
+- Status: Ready to implement (after BUG-030 verified)
+- Tool: Claude Code
+- Estimated effort: 30 min
+- Files to update:
+  - `cognitive-debt-simulator-v5.html` (6 instances of `YOUR_SUBSTACK_URL_HERE`)
+  - Add `og:image` meta tag
+  - Add Twitter card meta tags
+- Blocker: None (use temp Substack URL, replace after publish)
 
-**Files Changed:**
-- `src/crypto_news_aggregator/db/operations/briefing.py`
-- `src/crypto_news_aggregator/tasks/beat_schedule.py` (docs only)
+**Priority 3**: [FEATURE-045] Add share mechanics to interactive site
+- Status: Ready to implement
+- Tool: Claude Code
+- Estimated effort: 1–2 hours
+- Blocker: None
 
-**Commits:**
-- 39ac7ab: fix(db): BUG-028 - Replace Motor find_one with sort
-- 3bd4d8f: docs: Update beat schedule comments for BUG-027
+**Priority 4**: [FEATURE-046] Add email capture / Substack embed
+- Status: Ready to implement
+- Tool: Claude Code
+- Estimated effort: 30 min
+- Blocker: None
 
-**Ticket:** `bug-028-website-always-shows-same-briefing.md`
+**Priority 5**: [TASK-002] Mobile/desktop QA + fix broken animations
+- Status: Blocked by TASK-001, FEATURE-045, FEATURE-046
+- Tool: Claude Code
+- Estimated effort: 1 hour
+
+**Priority 6**: [TASK-003] Deploy interactive site to backdrop.markets
+- Status: Blocked by TASK-002
+- Tool: Claude Code
+- Estimated effort: 30 min–1 hour
+
+**Priority 7**: [TASK-004] Create OG image / social card
+- Status: Ready (Claude Web)
+- Tool: Claude Web
+- Estimated effort: 30 min
+
+**Priority 8**: [TASK-005] Final polish Substack draft
+- Status: Ready (Claude Web)
+- Tool: Claude Web
+- Estimated effort: 1–2 hours
+
+**Priority 9**: [TASK-006] Adapt article for LinkedIn (native post)
+- Status: Blocked by TASK-005
+- Tool: Claude Web
+- Estimated effort: 1 hour
+
+**Priority 10**: [TASK-007] Adapt article for X (native article or thread)
+- Status: Blocked by TASK-005
+- Tool: Claude Web
+- Estimated effort: 1 hour
+
+**Priority 11**: [TASK-008] Write all launch distribution copy
+- Status: Blocked by TASK-005
+- Tool: Claude Web
+- Estimated effort: 1–2 hours
+
+**Priority 12**: [TASK-009] Warm-up phase (T-36 to T-24)
+- Status: Blocked by all dev + content work
+- Tool: Manual
+- Estimated effort: 1 hour spread across day
+
+**Priority 13**: [TASK-010] Launch day execution
+- Status: Final step
+- Tool: Manual
 
 ---
 
-## Next Tasks
+## Task Routing
 
-1. Deploy both fixes and verify with the MongoDB check in BUG-028
-2. Confirm Celery Beat shows only 2 scheduled entries post-deploy
-3. Continue Sprint 10 planning (FEATURE-037 follow-on, performance, frontend)
+| Ticket | Type | Tool | Model |
+|--------|------|------|-------|
+| BUG-030 (verify in prod) | Bug | Manual | — |
+| TASK-001 (placeholders + meta) | Task | Claude Code | Sonnet |
+| FEATURE-045 (share buttons) | Feature | Claude Code | Sonnet |
+| FEATURE-046 (email capture) | Feature | Claude Code | Sonnet |
+| TASK-002 (QA) | Task | Claude Code | Sonnet |
+| TASK-003 (deploy) | Task | Claude Code | Sonnet |
+| TASK-004 (OG image) | Task | Claude Web | — |
+| TASK-005 (Substack polish) | Task | Claude Web | — |
+| TASK-006 (LinkedIn version) | Task | Claude Web | — |
+| TASK-007 (X article) | Task | Claude Web | — |
+| TASK-008 (launch copy) | Task | Claude Web | — |
+| TASK-009 (warm-up) | Task | Manual | — |
+| TASK-010 (launch execution) | Task | Manual | — |
+
+---
+
+## Key Assets
+- Substack draft: `Full_Draft_-_revised-3.md`
+- Interactive site: `cognitive-debt-simulator-v5.html`
+- Hosting: Vercel — same domain as Backdrop (backdrop.markets)
+- LinkedIn: https://www.linkedin.com/in/mikechavez3/
+
+## Known Issues in Interactive Site
+- 6 instances of `YOUR_SUBSTACK_URL_HERE` (lines 382, 483, 540, 586, 611, 629)
+- No `og:image` meta tag
+- No Twitter card meta tags
+- No share/tweet buttons
+- No email capture
+- No score-sharing after routing mini-game
+- Mobile untested
+
+---
+
+## Recently Completed
+- ✅ BUG-029 closed (misdiagnosed — was not billing, was deprecated models)
+- ✅ BUG-030 code changes merged (commit cafae9c) — 5 files updated, all deprecated model strings removed
 
 ---
 
 ## Quick Reference
 
-### Verify BUG-027 fix (after deploy)
+### Verify BUG-030 in production
 ```bash
-celery -A crypto_news_aggregator.tasks inspect scheduled
-# Should show only: generate_morning_briefing (08:00), generate_evening_briefing (20:00)
+# 1. Trigger manual briefing
+curl -X POST "https://backdrop.markets/admin/trigger-briefing?force=true"
+
+# 2. Test Haiku directly
+curl -s https://api.anthropic.com/v1/messages \
+  -H "x-api-key: $ANTHROPIC_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "content-type: application/json" \
+  -d '{"model":"claude-haiku-4-5-20251001","max_tokens":10,"messages":[{"role":"user","content":"ping"}]}' \
+  | jq '.content[0].text'
+
+# 3. Confirm no stale strings (run from project root)
+rg -n "claude-3-haiku-20240307|claude-3-5-haiku-20241022|claude-3-5-sonnet-20241022" --type py .
 ```
 
-### Verify BUG-028 fix (after deploy)
-```bash
-# Check newest doc in Mongo
-db.daily_briefings.find(
-  { published: true, is_smoke: { $ne: true } },
-  { type: 1, generated_at: 1 }
-).sort({ generated_at: -1 }).limit(5)
-
-# Check API returns newest
-curl http://localhost:8000/api/v1/briefings | jq '.briefing.generated_at'
+### Test Substack OG tags
 ```
-
----
-
-## Notes
-
-- BUG-028 is high impact — deploy this first
-- The Motor `find_one` sort bug may affect other queries; worth auditing any other `find_one(..., sort=[...])` calls across `db/operations/`
-- Sprint 10 candidates (FEATURE-037 follow-on, performance, frontend) still queued — see `current-sprint.md`
+https://cards-dev.twitter.com/validator
+```
