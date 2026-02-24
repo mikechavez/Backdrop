@@ -44,7 +44,7 @@ class Settings(BaseSettings):
     ANTHROPIC_API_KEY: str = ""
     ANTHROPIC_DEFAULT_MODEL: str = "claude-haiku-4-5-20251001"
     ANTHROPIC_ENTITY_MODEL: str = "claude-haiku-4-5-20251001"
-    ANTHROPIC_ENTITY_FALLBACK_MODEL: str = "claude-sonnet-4-6"
+    ANTHROPIC_ENTITY_FALLBACK_MODEL: str = "claude-sonnet-4-20250514"
     ANTHROPIC_ENTITY_INPUT_COST_PER_1K_TOKENS: float = 0.0
     ANTHROPIC_ENTITY_OUTPUT_COST_PER_1K_TOKENS: float = 0.0
     ENTITY_EXTRACTION_BATCH_SIZE: int = 10

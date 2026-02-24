@@ -153,7 +153,7 @@ class CostTracker:
             "input": 1.0,
             "output": 5.0
         },
-        "claude-sonnet-4-6": {
+        "claude-sonnet-4-20250514": {
             "input": 3.0,
             "output": 15.0
         },
