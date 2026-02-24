@@ -42,9 +42,9 @@ class Settings(BaseSettings):
     NEWS_API_KEY: str = ""  # Kept for backward compatibility
     TWITTER_BEARER_TOKEN: str = ""
     ANTHROPIC_API_KEY: str = ""
-    ANTHROPIC_DEFAULT_MODEL: str = "claude-3-haiku-20240307"
-    ANTHROPIC_ENTITY_MODEL: str = "claude-3-5-haiku-20241022"
-    ANTHROPIC_ENTITY_FALLBACK_MODEL: str = "claude-3-5-sonnet-20241022"
+    ANTHROPIC_DEFAULT_MODEL: str = "claude-haiku-4-5-20251001"
+    ANTHROPIC_ENTITY_MODEL: str = "claude-haiku-4-5-20251001"
+    ANTHROPIC_ENTITY_FALLBACK_MODEL: str = "claude-sonnet-4-6"
     ANTHROPIC_ENTITY_INPUT_COST_PER_1K_TOKENS: float = 0.0
     ANTHROPIC_ENTITY_OUTPUT_COST_PER_1K_TOKENS: float = 0.0
     ENTITY_EXTRACTION_BATCH_SIZE: int = 10

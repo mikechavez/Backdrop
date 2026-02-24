@@ -43,10 +43,9 @@ logger = logging.getLogger(__name__)
 
 # LLM Configuration
 ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
-DEFAULT_MODEL = "claude-sonnet-4-5-20250929"  # Sonnet 4.5 - best instruction following
+DEFAULT_MODEL = "claude-sonnet-4-6"  # Sonnet 4.6 - best instruction following
 FALLBACK_MODELS = [
-    "claude-3-5-haiku-20241022",  # Newer Haiku as fallback
-    "claude-3-haiku-20240307",    # Old Haiku as last resort
+    "claude-haiku-4-5-20251001",  # Haiku 4.5 as fallback
 ]
 
 

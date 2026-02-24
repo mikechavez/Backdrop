@@ -31,25 +31,13 @@ class CostTracker:
             "input": 1.00,   # $1.00 per 1M input tokens
             "output": 5.00,  # $5.00 per 1M output tokens
         },
-        "claude-3-5-haiku-20241022": {
-            "input": 0.80,   # $0.80 per 1M input tokens (deprecated)
-            "output": 4.00,  # $4.00 per 1M output tokens (deprecated)
+        "claude-sonnet-4-6": {
+            "input": 3.00,
+            "output": 15.00,
         },
         "claude-sonnet-4-5-20250929": {
             "input": 3.00,
             "output": 15.00,
-        },
-        "claude-3-5-sonnet-20241022": {
-            "input": 3.00,
-            "output": 15.00,
-        },
-        "claude-3-5-sonnet-20240620": {  # Fallback model
-            "input": 3.00,
-            "output": 15.00,
-        },
-        "claude-opus-4-5-20251101": {
-            "input": 15.00,
-            "output": 75.00,
         },
     }
 
@@ -73,7 +61,7 @@ class CostTracker:
         Calculate cost for an API call.
 
         Args:
-            model: Model name (e.g., "claude-3-5-haiku-20241022")
+            model: Model name (e.g., "claude-haiku-4-5-20251001")
             input_tokens: Number of input tokens
             output_tokens: Number of output tokens
 
@@ -86,7 +74,7 @@ class CostTracker:
         if model not in self.PRICING:
             logger.warning(f"Unknown model '{model}', defaulting to Haiku pricing")
             # Default to Haiku if model unknown
-            pricing = self.PRICING["claude-3-5-haiku-20241022"]
+            pricing = self.PRICING["claude-haiku-4-5-20251001"]
         else:
             pricing = self.PRICING[model]
 

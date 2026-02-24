@@ -18,8 +18,8 @@ class AnthropicProvider(LLMProvider):
     API_URL = "https://api.anthropic.com/v1/messages"
 
     def __init__(
-        self, api_key: str, model_name: str = "claude-3-haiku-20240307"
-    ):  # Reverted to Haiku as Sonnet is unavailable.
+        self, api_key: str, model_name: str = "claude-haiku-4-5-20251001"
+    ):
         if not api_key:
             raise ValueError("Anthropic API key not provided.")
         self.api_key = api_key
@@ -33,9 +33,8 @@ class AnthropicProvider(LLMProvider):
         # Try multiple models in fallback order
         models_to_try = [
             self.model_name,  # Primary model from config
-            "claude-3-5-sonnet-20241022",  # Sonnet 3.5 (Oct 2024)
-            "claude-3-5-sonnet-20240620",  # Sonnet 3.5 (June 2024)
-            "claude-3-haiku-20240307",  # Haiku 3.0 (fallback)
+            "claude-sonnet-4-6",  # Sonnet 4.6
+            "claude-haiku-4-5-20251001",  # Haiku 4.5 (fallback)
         ]
         
         # Remove duplicates while preserving order
