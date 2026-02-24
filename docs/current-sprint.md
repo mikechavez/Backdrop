@@ -53,6 +53,34 @@ API endpoint `/api/v1/signals/trending` was returning duplicate articles in the 
 
 ---
 
+### ⚠️ BUG-033: Narrative Association Still Visible on Signals (INVESTIGATION COMPLETE)
+**Priority:** MEDIUM | **Severity:** LOW | **Status:** Awaiting Vercel Dashboard Fix + Redeploy
+**Branch:** N/A — Deployment issue, not code issue
+**Commit:** N/A
+
+**Investigation Results:**
+- ✅ FEATURE-036 (Sprint 7) code is correct and complete
+- ✅ Signals.tsx has no narrative association code (verified clean)
+- ✅ Build successful: `npm run build` completed without errors
+- ⚠️ Root cause: Stale production build due to Vercel project misconfiguration
+
+**What was found:**
+- Frontend code was properly updated in FEATURE-036 (Sprint 7)
+- No "Part of:", formatTheme, getThemeColor, or narrative refs in Signals.tsx
+- Vercel CLI authenticated successfully
+- Vercel project root directory setting is misconfigured in dashboard
+
+**Resolution Required:**
+1. Fix Vercel dashboard: https://vercel.com/mikes-projects-92d90cb6/context-owl-ui/settings
+2. Clear "Root Directory" setting (should be empty or `.`)
+3. Save changes
+4. Redeploy: `cd context-owl-ui && vercel --prod --yes`
+
+**Files:** `context-owl-ui/src/pages/Signals.tsx` (verified clean)
+**Ticket:** `bug-033-narrative-still-visible-on-signals.md`
+
+---
+
 ## Pending — High-Priority Candidates
 
 ### 1. FEATURE-037 Follow-on: Manual Briefing Flexibility (HIGH)

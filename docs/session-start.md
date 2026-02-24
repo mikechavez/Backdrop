@@ -53,17 +53,23 @@ session_focus: Fix signals bugs, add skeleton loaders, then resume launch prep
 
 ---
 
-**[BUG-033] Narrative Association Still Visible on Signals**
-- **Priority:** Medium | **Effort:** 10-15 min
+**[BUG-033] Narrative Association Still Visible on Signals** ⚠️ INVESTIGATION COMPLETE
+- **Priority:** Medium | **Effort:** 10-15 min (deployment only)
 - **Ticket:** `docs/tickets/bug-033-narrative-still-visible-on-signals.md`
-- **Status:** Backlog — Next to implement
-- **Context:** FEATURE-036 (Sprint 7) was supposed to remove "Part of:" from signal cards. This is either incomplete removal or a deployment issue.
+- **Status:** Code verified clean, awaiting Vercel dashboard fix + redeploy
+- **Context:** FEATURE-036 (Sprint 7) code is correct; issue is stale production build
 
-**First step — check if code was properly removed:**
-```bash
-rg -n "Part of\|formatTheme\|getThemeColor\|signal\.narratives" context-owl-ui/src/pages/Signals.tsx
-```
-If any hits → remove the remaining code. If no hits → check production build is current.
+**Investigation Results:**
+- ✅ Frontend code verified clean: No "Part of", narrative refs, or formatTheme code in Signals.tsx
+- ✅ Build successful: `npm run build` completed without errors
+- ✅ Vercel auth complete: `vercel login` succeeded
+- ⚠️ Vercel project settings issue: Root directory misconfigured in dashboard
+
+**Next Step — Fix Vercel Dashboard & Redeploy:**
+1. Go to: https://vercel.com/mikes-projects-92d90cb6/context-owl-ui/settings
+2. Find "Root Directory" setting, clear it (should be empty or `.`)
+3. Save changes
+4. Then run: `cd context-owl-ui && vercel --prod --yes`
 
 ---
 
