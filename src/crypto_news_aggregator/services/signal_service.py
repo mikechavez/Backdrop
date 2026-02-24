@@ -584,6 +584,8 @@ async def get_top_entities_by_mentions(
 
     # Use aggregation pipeline with $lookup to join with articles
     # and filter by relevance_tier - more efficient than loading all article IDs
+    # NOTE: Removed $sort, $limit, and $addToSet from pipeline for Atlas M0 compatibility
+    # (M0 silently ignores allowDiskUse=True). Sort and source collection will happen post-$group.
     pipeline = [
         {"$match": match_criteria},
         # Convert article_id string to ObjectId for lookup
@@ -625,21 +627,38 @@ async def get_top_entities_by_mentions(
                 "_id": "$entity",
                 "entity_type": {"$first": "$entity_type"},
                 "mention_count": {"$sum": 1},
-                "sources": {"$addToSet": "$source"},
             }
         },
-        {"$sort": {"mention_count": -1}},
-        {"$limit": limit},
     ]
 
-    results = await db.entity_mentions.aggregate(pipeline, allowDiskUse=True).to_list(length=limit)
+    # Fetch all results (post-$group = small, one doc per entity)
+    results = await db.entity_mentions.aggregate(pipeline).to_list(length=20000)
+
+    # Sort by mention count (in Python, since post-$group is small)
+    results.sort(key=lambda x: x["mention_count"], reverse=True)
+    results = results[:limit]
+
+    # Second-pass aggregation for source counts on top-N entities only
+    top_entities = [doc["_id"] for doc in results]
+    source_pipeline = [
+        {
+            "$match": {
+                "entity": {"$in": top_entities},
+                "is_primary": True,
+                "created_at": {"$gte": cutoff},
+            }
+        },
+        {"$group": {"_id": "$entity", "sources": {"$addToSet": "$source"}}},
+    ]
+    source_results = await db.entity_mentions.aggregate(source_pipeline).to_list(length=len(top_entities))
+    source_map = {doc["_id"]: len(doc["sources"]) for doc in source_results}
 
     return [
         {
             "entity": doc["_id"],
             "entity_type": doc.get("entity_type", "unknown"),
             "mention_count": doc["mention_count"],
-            "source_count": len(doc["sources"]),
+            "source_count": source_map.get(doc["_id"], 0),
         }
         for doc in results
     ]
