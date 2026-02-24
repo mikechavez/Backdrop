@@ -695,6 +695,8 @@ async def compute_trending_signals(
         match_criteria["entity_type"] = entity_type
 
     # Single aggregation to get all metrics we need
+    # NOTE: Removed $sort, $limit, and $addToSet from pipeline for Atlas M0 compatibility
+    # (M0 silently ignores allowDiskUse=True). Sort and source collection will happen post-$group.
     pipeline = [
         {"$match": match_criteria},
         # Group by entity with period-based counts
@@ -721,22 +723,38 @@ async def compute_trending_signals(
                         ]
                     }
                 },
-                "sources": {"$addToSet": "$source"},
                 "latest_mention": {"$max": "$created_at"},
                 "first_seen": {"$min": "$created_at"},
             }
         },
         # Only include entities with current period mentions
         {"$match": {"current_mentions": {"$gte": 1}}},
-        # Sort by current mentions descending
-        {"$sort": {"current_mentions": -1}},
-        {"$limit": limit * 2},  # Fetch extra to account for min_score filtering
     ]
 
-    results = await db.entity_mentions.aggregate(pipeline, allowDiskUse=True).to_list(length=limit * 2)
+    # Fetch all results (post-$group = small, one doc per entity)
+    results = await db.entity_mentions.aggregate(pipeline).to_list(length=20000)
 
     if not results:
         return []
+
+    # Sort by current mentions (in Python, since post-$group is small)
+    results.sort(key=lambda x: x["current_mentions"], reverse=True)
+    results = results[:limit * 2]  # Limit for min_score filtering
+
+    # Second-pass aggregation for source counts on top-N entities only
+    top_entities = [doc["_id"] for doc in results]
+    source_pipeline = [
+        {
+            "$match": {
+                "entity": {"$in": top_entities},
+                "is_primary": True,
+                "created_at": {"$gte": previous_period_start},
+            }
+        },
+        {"$group": {"_id": "$entity", "sources": {"$addToSet": "$source"}}},
+    ]
+    source_results = await db.entity_mentions.aggregate(source_pipeline).to_list(length=len(top_entities))
+    source_map = {doc["_id"]: len(doc["sources"]) for doc in source_results}
 
     # Get narrative info for all entities in batch
     entities = [doc["_id"] for doc in results]
@@ -755,7 +773,7 @@ async def compute_trending_signals(
         entity = doc["_id"]
         current = doc["current_mentions"]
         previous = doc["previous_mentions"]
-        source_count = len(doc["sources"])
+        source_count = source_map.get(entity, 0)
 
         # Calculate velocity as growth percentage
         if previous == 0:
