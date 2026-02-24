@@ -1,9 +1,9 @@
 import os
 
 os.environ.setdefault(
-    "MONGODB_URI", "mongodb://localhost:27017/test_crypto_news_aggregator"
+    "MONGODB_URI", "mongodb://localhost:27017/crypto_news"
 )
-os.environ.setdefault("MONGODB_NAME", "test_crypto_news_aggregator")
+os.environ.setdefault("MONGODB_NAME", "crypto_news")
 
 """Pytest configuration and fixtures for testing the Crypto News Aggregator."""
 import asyncio
@@ -59,9 +59,9 @@ class TestSettings(Settings):
     FORCE_SQLITE: bool = True
 
     # MongoDB settings
-    MONGODB_URI: str = "mongodb://localhost:27017"
-    MONGODB_NAME: str = "test_news_aggregator"
-    MONGODB_URI_SYNC: str = "mongodb://localhost:27017/test_news_aggregator_sync"
+    MONGODB_URI: str = "mongodb://localhost:27017/crypto_news"
+    MONGODB_NAME: str = "crypto_news"
+    MONGODB_URI_SYNC: str = "mongodb://localhost:27017/crypto_news"
 
     # News API settings
     NEWS_API_KEY: str = "test_api_key"
@@ -124,8 +124,8 @@ class TestSettings(Settings):
     def __init__(self, **data):
         # Set default values if not provided
         defaults = {
-            "MONGODB_URI": "mongodb://localhost:27017",
-            "MONGODB_NAME": "test_news_aggregator",
+            "MONGODB_URI": "mongodb://localhost:27017/crypto_news",
+            "MONGODB_NAME": "crypto_news",
             "DATABASE_URL": "sqlite+aiosqlite:///:memory:",
             "CELERY_BROKER_URL": "redis://localhost:6379/0",
             "CELERY_RESULT_BACKEND": "redis://localhost:6379/0",
@@ -144,8 +144,8 @@ def get_test_settings():
 
 
 # Ensure the settings are properly set for testing
-os.environ["MONGODB_URI"] = "mongodb://localhost:27017"
-os.environ["MONGODB_NAME"] = "test_news_aggregator"
+os.environ["MONGODB_URI"] = "mongodb://localhost:27017/crypto_news"
+os.environ["MONGODB_NAME"] = "crypto_news"
 
 # Import the FastAPI app
 from src.crypto_news_aggregator.main import app

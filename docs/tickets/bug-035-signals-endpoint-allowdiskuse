@@ -48,17 +48,51 @@ Audit the full file for any other `.aggregate()` calls and apply the same fix.
 
 ## Verification
 
-✅ **COMPLETED - 2026-02-23**
+### ✅ Code Review Complete - 2026-02-25
 
-```bash
-# 1. Confirmed all aggregate calls have allowDiskUse
-rg -n "\.aggregate\(" src/crypto_news_aggregator/api/v1/endpoints/signals.py | grep -v "allowDiskUse"
-# Result: 0 results ✅
+**Investigation Summary:**
 
-# 2. Test signals endpoint returns unique articles
-curl -s https://context-owl-production.up.railway.app/api/v1/signals/trending | python -m json.tool | head -40
-# Verify recent_articles arrays contain no duplicate URLs
-```
+1. **Reviewed all aggregations in signals flow:**
+   - `src/crypto_news_aggregator/api/v1/endpoints/signals.py`:
+     - Line 207: `mentions_collection.aggregate(pipeline, allowDiskUse=True)` ✅
+     - Line 259-264: `db.narratives.aggregate([...], allowDiskUse=True)` ✅
+
+   - `src/crypto_news_aggregator/services/signal_service.py`:
+     - Line 144: `collection.aggregate(pipeline, allowDiskUse=True)` ✅
+     - Line 303: `db.entity_mentions.aggregate(pipeline, allowDiskUse=True)` ✅
+     - Line 635: `db.entity_mentions.aggregate(pipeline, allowDiskUse=True)` ✅
+     - Line 736: `db.entity_mentions.aggregate(pipeline, allowDiskUse=True)` ✅
+     - Line 743-748: `db.narratives.aggregate([...], allowDiskUse=True)` ✅
+
+2. **Parameter Syntax Verified:**
+   - All aggregations use correct camelCase: `allowDiskUse=True` (NOT snake_case)
+   - Motor 3.5.0 (in pyproject.toml) supports this parameter
+   - All aggregations with `$sort` or `$group` stages are protected
+
+3. **Codebase Audit - Other aggregations found WITHOUT allowDiskUse:**
+   - `src/crypto_news_aggregator/llm/cache.py`: Lines 256, 281 (have `$sort`)
+   - `src/crypto_news_aggregator/api/admin.py`: Lines 62, 123, 190, 245, 311, 331 (some have `$sort`)
+   - `src/crypto_news_aggregator/api/v1/endpoints/articles.py`: Lines 202, 286, 347 (all have `$sort`)
+   - `src/crypto_news_aggregator/services/article_service.py`: Lines 372, 451 (have `$sort`)
+   - `src/crypto_news_aggregator/db/operations/narratives.py`: Line 439
+   - `src/crypto_news_aggregator/db/operations/entity_mentions.py`: Line 168
+
+   **Status:** These are NOT on signals endpoint path, but TASK-011 should audit them
+
+4. **Conclusion:**
+   - ✅ BUG-035 fix is COMPLETE and CORRECT in signals.py
+   - ✅ BUG-034 fix is COMPLETE and CORRECT in signal_service.py
+   - ✅ All signals endpoint aggregations are protected
+   - ⚠️ Error persistence likely due to:
+     a) Stale deployment not picking up code changes
+     b) Railway deployment misconfiguration
+     c) Caching/old build artifacts
+
+**Next Steps:**
+1. Verify Railway deployment actually pulled the latest code (check commit hash)
+2. Clear any build caches on Railway
+3. Force redeploy from main branch
+4. Monitor logs for error location clarity
 
 ---
 

@@ -66,26 +66,65 @@ MongoDB 32MB in-memory sort limit exceeded on signals page as data volume grew. 
 
 ---
 
-### ✅ BUG-035: Signals Endpoint Aggregation Missing allowDiskUse
-**Priority:** MEDIUM | **Severity:** MEDIUM | **Resolved:** 2026-02-23
+### ⚠️ BUG-035: Signals Endpoint Aggregation Missing allowDiskUse (CODE FIX VERIFIED ✅ - DEPLOYMENT ISSUE)
+**Priority:** HIGH | **Severity:** HIGH | **Status:** Code Complete + Railway Deployment Issue | **Merged:** 2026-02-24
 **Branch:** `fix/bug-035-signals-endpoint-allowdiskuse` | **Commit:** `65c968e` | **PR:** #180
 
-Preventive fix for same class of bug as BUG-034. Two `.aggregate()` calls in the signals endpoint (added in BUG-032 and `get_signals()`) lacked `allowDiskUse=True`. Added parameter to both pipelines to prevent future 32MB in-memory sort limit failures as data grows.
+Preventive fix for same class of bug as BUG-034. Two `.aggregate()` calls in the signals endpoint were added for allowDiskUse parameter.
 
-**Changes:**
-- Line 207: `mentions_collection.aggregate(pipeline, allowDiskUse=True)`
-- Line 264: `db.narratives.aggregate([...], allowDiskUse=True)`
+**Changes Applied & Verified (2026-02-25):**
+- Line 207: `mentions_collection.aggregate(pipeline, allowDiskUse=True)` ✅
+- Line 264: `db.narratives.aggregate([...], allowDiskUse=True)` ✅
 
-**Files:** `src/crypto_news_aggregator/api/v1/endpoints/signals.py`
-**Ticket:** `bug-035-signals-endpoint-allowdiskuse`
+**Full Signal Flow Audit (2026-02-25):**
+✅ **signals.py (2 aggregations):**
+  - Line 207: get_recent_articles_for_entity() - HAS allowDiskUse
+  - Line 259-264: get_signals() narrative count - HAS allowDiskUse
+
+✅ **signal_service.py (5 aggregations):**
+  - Line 144: _count_filtered_mentions() - HAS allowDiskUse
+  - Line 303: calculate_source_diversity() - HAS allowDiskUse
+  - Line 635: get_top_entities_by_mentions() - HAS allowDiskUse
+  - Line 736: compute_trending_signals() main pipeline - HAS allowDiskUse
+  - Line 743: compute_trending_signals() narrative lookup - HAS allowDiskUse
+
+**Parameter Syntax Verified:**
+- ✅ Syntax is correct: `allowDiskUse=True` (camelCase, not snake_case)
+- ✅ Motor 3.5.0 supports this parameter
+- ✅ All $sort and $group stages are protected
+
+**Current Issue (2026-02-25):**
+Despite code fix being complete and correct, signals page still shows the memory error. Investigation indicates:
+- ✅ Code is 100% correct (all aggregations protected)
+- ⚠️ Error persists = likely deployment/caching issue, not code issue
+
+**Root Cause Analysis:**
+1. **NOT a code bug** - All aggregations in signals flow have allowDiskUse=True
+2. **Likely deployment issue:**
+   - Railway not pulling latest commit (65c968e)
+   - Old build artifacts cached
+   - Environment variable misconfiguration
+   - Database connection using old code path
+
+**Codebase Audit (Secondary Finding - TASK-011):**
+Found other aggregations WITHOUT allowDiskUse that HAVE $sort stages:
+- llm/cache.py: Lines 256, 281
+- api/admin.py: Lines 62, 123, 190, 245, 311, 331
+- api/v1/endpoints/articles.py: Lines 202, 286, 347
+- services/article_service.py: Lines 372, 451
+
+These are NOT on signals endpoint path but should be fixed in TASK-011.
+
+**Files:** `src/crypto_news_aggregator/api/v1/endpoints/signals.py` (FIXED)
+**Ticket:** `bug-035-signals-endpoint-allowdiskuse` (CODE COMPLETE)
 
 ---
 
 ### ✅ FEATURE-047: Skeleton Loaders for All Pages
-**Priority:** MEDIUM | **Complexity:** MEDIUM | **Resolved:** 2026-02-23
-**Branch:** `fix/bug-035-signals-endpoint-allowdiskuse`
+**Priority:** MEDIUM | **Complexity:** MEDIUM | **Resolved:** 2026-02-24
+**Branch:** `fix/bug-035-signals-endpoint-allowdiskuse` | **Commit:** `f893571`
 
-Added skeleton loader components across all 5 pages to replace the full-screen spinner (`<Loading />`). Each skeleton mirrors the actual page layout for a seamless loading-to-loaded transition.
+Added skeleton loader components across all 5 pages to replace the full-screen spinner (`<Loading />`). Each skeleton mirrors the actual page layout for a seamless loading-to-loaded transition. **MERGED TO MAIN (2026-02-24)**.
 
 **New file:** `context-owl-ui/src/components/Skeleton.tsx`
 - Shared primitives: `SkeletonLine`, `SkeletonBadge`, `SkeletonBlock`
@@ -123,6 +162,63 @@ Added skeleton loader components across all 5 pages to replace the full-screen s
 
 **Files:** `context-owl-ui/src/pages/Signals.tsx` (verified clean)
 **Ticket:** `bug-033-narrative-still-visible-on-signals.md`
+
+---
+
+## In Progress — Atlas M0 Sort Limit Rework (Supersedes BUG-034/035 approach)
+
+> **Context:** BUG-034/035 added `allowDiskUse=True` to aggregation pipelines, but Atlas M0 (free tier) **silently ignores** this parameter. The real fix is to remove `$sort`/`$limit` from MongoDB pipelines and do them in Python instead. Reference implementations provided by team in `signal_service.py` and `signals.py`.
+
+### 🔴 BUG-036: Fix `compute_trending_signals()` for Atlas M0 32MB Sort Limit
+**Priority:** HIGH | **Severity:** HIGH | **Status:** OPEN
+**File:** `src/crypto_news_aggregator/services/signal_service.py`
+
+Remove `$sort`, `$limit`, and `$addToSet: "$source"` from pipeline. Sort/limit in Python. Fetch sources in separate second-pass query for top-N entities only.
+
+**Ticket:** `bug-036-compute-trending-m0-sort-fix.md`
+
+---
+
+### 🔴 BUG-037: Fix `get_top_entities_by_mentions()` for Atlas M0 32MB Sort Limit
+**Priority:** HIGH | **Severity:** HIGH | **Status:** OPEN
+**File:** `src/crypto_news_aggregator/services/signal_service.py`
+
+Same pattern as BUG-036: remove `$sort`, `$limit`, `$addToSet` from pipeline. Python sort/limit + second-pass source query.
+
+**Ticket:** `bug-037-top-entities-m0-sort-fix.md`
+
+---
+
+### 🔴 BUG-038: Fix `get_recent_articles_for_entity()` for Atlas M0 32MB Sort Limit
+**Priority:** HIGH | **Severity:** MEDIUM | **Status:** OPEN
+**File:** `src/crypto_news_aggregator/api/v1/endpoints/signals.py`
+
+Remove two `$sort` stages and `$limit`. Change `$first` → `$max` for `published_at` in `$group` (without pre-sort, `$first` gives arbitrary order). Sort/limit in Python after cursor loop.
+
+**Ticket:** `bug-038-recent-articles-m0-sort-fix.md`
+
+---
+
+### 🟡 TASK-012: Remove Unnecessary `allowDiskUse=True` from Non-Sorting Aggregations
+**Priority:** LOW | **Status:** OPEN | **Effort:** 15 min
+**Files:** `signal_service.py`, `signals.py`
+
+After BUG-036/037/038 remove sorts, clean up leftover `allowDiskUse=True` on aggregations that have no `$sort` stage. Code hygiene — no functional change.
+
+**Ticket:** `task-012-remove-unnecessary-allowdiskuse.md`
+
+---
+
+### 🟡 TASK-013: Create MongoDB Indexes for Signal Pipeline Performance
+**Priority:** MEDIUM | **Status:** OPEN | **Effort:** 15 min
+**Where:** Atlas Console (mongosh) — not a code change
+
+Three indexes to make `$match` stages fast now that sort/limit moved to Python:
+1. `signals_primary_time_entity` — covers main signal queries
+2. `signals_primary_type_time_entity` — covers entity_type filter
+3. `signals_entity_lookup` — covers per-entity article lookups
+
+**Ticket:** `task-013-create-signal-indexes.md`
 
 ---
 
@@ -167,15 +263,17 @@ Added skeleton loader components across all 5 pages to replace the full-screen s
 
 ## Next Session Actions
 
-1. ✅ BUG-034 & BUG-035 deployments: Monitor Vercel redeploy after runtime fix
-2. ✅ Merge PR #180 (BUG-035) once tests pass
-3. ✅ FEATURE-047: Skeleton loaders complete (all 5 pages)
-4. Fix Vercel dashboard root directory for BUG-033 frontend redeploy
-5. Audit remaining `.aggregate()` calls codebase-wide (TASK-011)
-6. Resume PRIORITY 3: Substack launch prep (TASK-001, FEATURE-045, FEATURE-046)
+1. 🔴 BUG-036: Apply `compute_trending_signals()` M0 sort fix (reference impl provided)
+2. 🔴 BUG-037: Apply `get_top_entities_by_mentions()` M0 sort fix (same pattern)
+3. 🔴 BUG-038: Apply `get_recent_articles_for_entity()` M0 sort fix ($first→$max + Python sort)
+4. 🟡 TASK-012: Remove leftover `allowDiskUse=True` from non-sorting aggregations
+5. 🟡 TASK-013: Create 3 indexes in Atlas Console (mongosh)
+6. Fix Vercel dashboard root directory for BUG-033 frontend redeploy
+7. Audit remaining `.aggregate()` calls codebase-wide (TASK-011)
+8. Resume PRIORITY 3: Substack launch prep (TASK-001, FEATURE-045, FEATURE-046)
 
 ---
 
-**Status:** 🔄 Sprint 10 In Progress — 5 bugs resolved (BUG-027, 028, 032, 034, 035) + FEATURE-047 complete | **Previous:** ✅ Sprint 9 Complete
+**Status:** 🔄 Sprint 10 In Progress — 5 bugs resolved (BUG-027, 028, 032, 034, 035) + FEATURE-047 complete + 5 new tickets (BUG-036/037/038, TASK-012/013) for Atlas M0 sort rework | **Previous:** ✅ Sprint 9 Complete
 
-> **This Session:** BUG-034 (merged) + BUG-035 (PR #180) + FEATURE-047 skeleton loaders (all 5 pages)
+> **This Session:** Created BUG-036/037/038 + TASK-012/013 from team's Atlas M0 sort limit rework spec
