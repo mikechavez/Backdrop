@@ -4,8 +4,8 @@ import { useSearchParams } from 'react-router-dom';
 import { Sparkles, TrendingUp, Flame, Zap, Star, Wind, AlertCircle } from 'lucide-react';
 import { narrativesAPI } from '../api';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/Card';
-import { Loading } from '../components/Loading';
 import { ErrorMessage } from '../components/ErrorMessage';
+import { NarrativesSkeleton } from '../components/Skeleton';
 import { formatRelativeTime, formatNumber } from '../lib/formatters';
 import { cn } from '../lib/cn';
 import { ArticleSkeleton } from '../components/ArticleSkeleton';
@@ -90,7 +90,7 @@ export function Narratives() {
     }
   }, [searchParams, narratives]);
 
-  if (isLoading) return <Loading />;
+  if (isLoading) return <NarrativesSkeleton />;
   if (error) return <ErrorMessage message={error.message} onRetry={() => refetch()} />;
 
   return (
