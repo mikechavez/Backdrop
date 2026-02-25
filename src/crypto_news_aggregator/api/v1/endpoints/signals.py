@@ -522,18 +522,11 @@ async def get_trending_signals(
         narratives_by_id = {n["id"]: n for n in narratives_list}
         logger.info(f"[{req_id}] Batch fetched {len(narratives_list)} narratives in {time.time() - batch_start:.3f}s")
 
-        # Batch fetch articles for ONLY the paged entities (~15 instead of ~100)
-        batch_start = time.time()
-        articles_by_entity = await get_recent_articles_batch(paged_entities, limit_per_entity=5)
-        total_articles = sum(len(articles) for articles in articles_by_entity.values())
-        logger.info(f"[{req_id}] Batch fetched {total_articles} articles for {len(paged_entities)} entities in {time.time() - batch_start:.3f}s")
-
         # Build enriched signals for the paged result (for response and cache)
         all_enriched_signals = []
         for signal in paged_signals:
             narrative_ids = signal.get("narrative_ids", [])
             narratives = [narratives_by_id[nid] for nid in narrative_ids if nid in narratives_by_id]
-            recent_articles = articles_by_entity.get(signal["entity"], [])
 
             all_enriched_signals.append({
                 "entity": signal["entity"],
@@ -546,7 +539,7 @@ async def get_trending_signals(
                 "sentiment": signal.get("sentiment", {}),
                 "is_emerging": signal.get("is_emerging", False),
                 "narratives": narratives,
-                "recent_articles": recent_articles,
+                "recent_articles": [],
             })
 
         # Cache the computed trends only (not the per-page enrichment)
@@ -597,4 +590,36 @@ async def get_trending_signals(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to compute trending signals: {str(e)}"
+        )
+
+
+@router.get("/{entity}/articles")
+async def get_entity_articles(
+    entity: str,
+    limit: int = Query(default=5, ge=1, le=20),
+) -> Dict[str, Any]:
+    """
+    Fetch recent articles for a specific entity.
+
+    Used for lazy-loading articles on signal card expand.
+    This endpoint returns articles for a single entity without the full signal computation.
+
+    Args:
+        entity: The entity name to fetch articles for
+        limit: Maximum number of articles to return (1-20, default 5)
+
+    Returns:
+        Object with entity name and list of recent articles
+    """
+    try:
+        articles = await get_recent_articles_for_entity(entity, limit=limit)
+        return {
+            "entity": entity,
+            "articles": articles,
+        }
+    except Exception as e:
+        logger.error(f"Failed to fetch articles for entity {entity}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch articles for entity: {str(e)}"
         )

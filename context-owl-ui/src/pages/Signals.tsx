@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { TrendingUp, ArrowUp, Activity, Minus, TrendingDown } from 'lucide-react';
+import { TrendingUp, ArrowUp, Activity, Minus, TrendingDown, Loader } from 'lucide-react';
 import { signalsAPI } from '../api';
+import type { ArticleLink } from '../types';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/Card';
 import { ErrorMessage } from '../components/ErrorMessage';
 import { SignalsSkeleton } from '../components/Skeleton';
@@ -71,6 +72,8 @@ const SIGNALS_PER_PAGE = 15;
 
 export function Signals() {
   const [expandedArticles, setExpandedArticles] = useState<Set<number>>(new Set());
+  const [articlesByEntity, setArticlesByEntity] = useState<Record<string, ArticleLink[]>>({});
+  const [loadingArticles, setLoadingArticles] = useState<Set<string>>(new Set());
 
   const {
     data,
@@ -97,6 +100,33 @@ export function Signals() {
     onLoadMore: () => fetchNextPage(),
     threshold: 300,
   });
+
+  const handleLoadArticles = async (entity: string) => {
+    // If already loaded, don't fetch again
+    if (articlesByEntity[entity] !== undefined) return;
+
+    // If already loading, don't fetch again
+    if (loadingArticles.has(entity)) return;
+
+    setLoadingArticles(new Set(loadingArticles).add(entity));
+    try {
+      const response = await signalsAPI.getEntityArticles(entity);
+      setArticlesByEntity(prev => ({
+        ...prev,
+        [entity]: response.articles,
+      }));
+    } catch (err) {
+      console.error(`Failed to fetch articles for ${entity}:`, err);
+      setArticlesByEntity(prev => ({
+        ...prev,
+        [entity]: [],
+      }));
+    } finally {
+      const newLoading = new Set(loadingArticles);
+      newLoading.delete(entity);
+      setLoadingArticles(newLoading);
+    }
+  };
 
   if (isLoading) return <SignalsSkeleton />;
   if (error) return <ErrorMessage message={error.message} onRetry={() => refetch()} />;
@@ -183,27 +213,38 @@ export function Signals() {
                   </div>
                 )}
 
-                {/* Recent articles section */}
-                {signal.recent_articles && signal.recent_articles.length > 0 && (
-                  <div className="mt-3 pt-3 border-t border-gray-200 dark:border-dark-border">
-                    <button
-                      onClick={() => {
-                        const newExpanded = new Set(expandedArticles);
-                        if (newExpanded.has(index)) {
-                          newExpanded.delete(index);
-                        } else {
-                          newExpanded.add(index);
-                        }
-                        setExpandedArticles(newExpanded);
-                      }}
-                      className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-medium flex items-center gap-1"
-                    >
-                      {expandedArticles.has(index) ? '▼' : '▶'} Recent mentions ({signal.recent_articles.length})
-                    </button>
+                {/* Recent articles section with lazy-loading */}
+                <div className="mt-3 pt-3 border-t border-gray-200 dark:border-dark-border">
+                  <button
+                    onClick={async () => {
+                      const newExpanded = new Set(expandedArticles);
+                      const isCurrentlyExpanded = newExpanded.has(index);
 
-                    {expandedArticles.has(index) && (
-                      <div className="mt-2 space-y-2">
-                        {signal.recent_articles.map((article, articleIdx) => (
+                      if (isCurrentlyExpanded) {
+                        newExpanded.delete(index);
+                      } else {
+                        newExpanded.add(index);
+                        // Fetch articles if not already loaded
+                        if (articlesByEntity[signal.entity] === undefined) {
+                          await handleLoadArticles(signal.entity);
+                        }
+                      }
+                      setExpandedArticles(newExpanded);
+                    }}
+                    className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-medium flex items-center gap-1"
+                  >
+                    {expandedArticles.has(index) ? '▼' : '▶'} Recent mentions
+                  </button>
+
+                  {expandedArticles.has(index) && (
+                    <div className="mt-2 space-y-2">
+                      {loadingArticles.has(signal.entity) ? (
+                        <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 py-2">
+                          <Loader className="w-3 h-3 animate-spin" />
+                          Loading articles...
+                        </div>
+                      ) : articlesByEntity[signal.entity] && articlesByEntity[signal.entity].length > 0 ? (
+                        articlesByEntity[signal.entity].map((article, articleIdx) => (
                           <div key={articleIdx} className="text-xs bg-gray-50 dark:bg-dark-hover p-2 rounded">
                             <a
                               href={article.url}
@@ -219,11 +260,13 @@ export function Signals() {
                               <span>{formatRelativeTime(article.published_at)}</span>
                             </div>
                           </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
+                        ))
+                      ) : (
+                        <p className="text-xs text-gray-500 dark:text-gray-400 py-2">No articles found</p>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>
