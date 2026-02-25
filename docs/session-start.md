@@ -2,7 +2,7 @@
 session_date: 2026-02-25
 project: Backdrop (Context Owl)
 current_sprint: Sprint 10 — UI Polish & Stability
-session_focus: FEATURE-048c (frontend shared infra for lazy loading), then 048d/048e frontend implementations
+session_focus: BUG-043/BUG-044 signals cold cache diagnosis, then Fix 2 implementation
 ---
 
 # Session Context: Sprint 10 — UI Polish & Stability
@@ -16,6 +16,18 @@ session_focus: FEATURE-048c (frontend shared infra for lazy loading), then 048d/
 ---
 
 ## Current Status
+
+### In Progress (2026-02-25) — BUG-043/BUG-044 Signals Cold Cache Investigation
+- 🟡 **BUG-043** — IN PROGRESS (Fix 1 Complete, Fix 2 pending diagnosis)
+  - Signals endpoint takes 110s on cold cache due to article batch fetch bottleneck
+  - Fix 1 (paginate before fetch) shipped on branch `fix/bug-043-paginate-before-fetch` (commit e11a3e5)
+  - Production still showing 110s loads — ambiguity on whether Fix 1 is deployed or a second caller sends `limit=50`
+  - **Blocked by:** BUG-044 (need request tracing to diagnose)
+- 🔴 **BUG-044** — OPEN (Created 2026-02-25) — Signals endpoint lacks request tracing
+  - Cannot correlate log lines to specific requests (no request ID)
+  - Cannot confirm whether 50-entity enrichment comes from `limit=15` or `limit=50` caller
+  - **Fix:** Add request ID + param logging to signals handler (10-minute change)
+  - **Unblocks:** BUG-043 diagnosis and Fix 2 implementation
 
 ### Recently Completed (2026-02-25) — FEATURE-048a Pagination Implementation ✅
 - ✅ **FEATURE-048a** — COMPLETED (2026-02-25) — Backend signals pagination
@@ -57,6 +69,38 @@ session_focus: FEATURE-048c (frontend shared infra for lazy loading), then 048d/
 ---
 
 ## What to Work On Next
+
+### 🔴 IMMEDIATE: BUG-044 — Add Request Tracing to Signals Endpoint (2026-02-25)
+**Status:** OPEN | **Effort:** 10 minutes | **Blocks:** BUG-043 diagnosis
+
+Add request ID and parameter logging to `get_trending_signals()` to resolve the ambiguity blocking BUG-043:
+1. Generate `req_id = uuid4().hex[:8]` at top of handler
+2. Log parsed request params (`limit`, `offset`) immediately
+3. Log diagnostic line: `requested_limit` vs `page_items` vs `article_entities`
+4. Add `req_id` to all existing log lines in the handler
+
+After deploying, reproduce once on cold cache. The logs will immediately reveal whether:
+- Fix 1 isn't deployed (backend ignoring pagination)
+- A second caller is sending `limit=50`
+- A hardcoded enrichment cap is overriding the request limit
+
+**Then:** Based on diagnosis, proceed to BUG-043 Fix 2 (remove articles from list endpoint entirely).
+
+**Ticket:** `bug-044-signals-endpoint-missing-request-tracing.md`
+
+---
+
+### 🟡 NEXT: BUG-043 Fix 2 — Remove Articles from Signals List Endpoint
+**Status:** Blocked by BUG-044 diagnosis | **Effort:** 1-2 hours (backend + frontend)
+
+Once BUG-044 confirms the root cause, implement Fix 2:
+- Remove article fetching from `/api/v1/signals/trending` entirely
+- Create `/api/v1/signals/{entity}/articles` detail endpoint
+- Frontend: lazy-load articles on signal card expand/click
+- Add semaphore (Fix 3) to protect Atlas M0 on the detail endpoint
+- Expected result: cold cache 120s → ~3.5s
+
+---
 
 ### ✅ PRIORITY 1 (COMPLETED): FEATURE-048c — Frontend Shared Infinite Scroll Infrastructure (2026-02-25)
 **Status:** COMPLETED | **Effort:** 20-30 min actual | **Commit:** 0e23872
