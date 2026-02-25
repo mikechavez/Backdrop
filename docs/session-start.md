@@ -17,6 +17,15 @@ session_focus: Investigate Vercel deployment pipeline (BUG-041/BUG-033 — merge
 
 ## Current Status
 
+### Recently Completed (2026-02-25) — FEATURE-048a Pagination Implementation ✅
+- ✅ **FEATURE-048a** — COMPLETED (2026-02-25) — Backend signals pagination
+  - Endpoint `/api/v1/signals/trending` now accepts `offset` param, default `limit` = 15
+  - Cache key bumped to v3, excludes offset/limit so all pages share single cache entry
+  - Response includes pagination metadata: total_count, offset, limit, has_more
+  - Full signal set (up to 100) computed and cached; pagination applied after retrieval
+  - 7 new pagination tests added, all passing
+  - Commit: f9511d8
+
 ### Recently Completed (2026-02-25) — All PRs Merged + Frontend Redeployed ✅
 - ✅ **BUG-041 + BUG-033** — RESOLVED (2026-02-25 01:19) — Vercel root directory fix + force redeploy
   - Root directory: Set to empty (was misconfigured to `context-owl-ui/context-owl-ui`)
@@ -49,7 +58,7 @@ session_focus: Investigate Vercel deployment pipeline (BUG-041/BUG-033 — merge
 
 ## What to Work On Next
 
-### ✅ PRIORITY 1: TASK-012 — Remove Unnecessary `allowDiskUse=True` (COMPLETED 2026-02-25)
+### ✅ PRIORITY 1 (COMPLETED): TASK-012 — Remove Unnecessary `allowDiskUse=True` (2026-02-25)
 **Status:** COMPLETED | **Effort:** 10 min actual
 **Commit:** 2f535a1
 
@@ -62,7 +71,21 @@ Kept on `_count_filtered_mentions()` which still has complex `$lookup`.
 
 ---
 
-### 🟡 PRIORITY 2: FEATURE-048 — Lazy Loading for Signals & Narratives Pages (5 Sub-Tickets)
+### ✅ PRIORITY 2a (COMPLETED): FEATURE-048a — Backend Signals Pagination (2026-02-25)
+**Status:** COMPLETED | **Effort:** 30-45 min actual
+**Commit:** f9511d8
+
+Implemented offset-based pagination for `/api/v1/signals/trending`:
+- Default limit changed from 50 → 15 (one page)
+- Cache key bumped to v3, excludes offset/limit
+- Full set (up to 100) computed, paginated after cache retrieval
+- Response includes: total_count, offset, limit, has_more, cached, computed_at, performance
+- 7 new pagination tests added, all passing
+- All existing tests updated and passing
+
+---
+
+### 🟡 PRIORITY 2b: FEATURE-048 — Lazy Loading for Signals & Narratives Pages (Remaining 4 Sub-Tickets)
 **Priority:** HIGH | **Complexity:** MEDIUM | **Status:** OPEN | **Effort:** 2-4 hours total
 **Approach:** Offset-based pagination (backend) + Intersection Observer infinite scroll (frontend)
 
