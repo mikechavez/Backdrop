@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { Sparkles, TrendingUp, Flame, Zap, Star, Wind, AlertCircle } from 'lucide-react';
 import { narrativesAPI } from '../api';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/Card';
 import { ErrorMessage } from '../components/ErrorMessage';
 import { NarrativesSkeleton } from '../components/Skeleton';
+import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 import { formatRelativeTime, formatNumber } from '../lib/formatters';
 import { cn } from '../lib/cn';
 import { ArticleSkeleton } from '../components/ArticleSkeleton';
@@ -48,6 +49,9 @@ interface PaginationState {
   totalCount: number;
 }
 
+const NARRATIVES_PER_PAGE = 10;
+const ARTICLES_PER_PAGE = 20;
+
 export function Narratives() {
   const [searchParams] = useSearchParams();
   const [expandedArticles, setExpandedArticles] = useState<Set<number>>(new Set());
@@ -57,19 +61,35 @@ export function Narratives() {
   const [paginationState, setPaginationState] = useState<Map<string, PaginationState>>(new Map());
   const [loadErrors, setLoadErrors] = useState<Map<string, string>>(new Map());
   const [highlightedNarrativeId, setHighlightedNarrativeId] = useState<string | null>(null);
-  const ARTICLES_PER_PAGE = 20;
-  
-  const { data, isLoading, error, refetch, dataUpdatedAt } = useQuery({
+
+  const {
+    data,
+    isLoading,
+    error,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    refetch,
+    dataUpdatedAt
+  } = useInfiniteQuery({
     queryKey: ['narratives'],
-    queryFn: async () => {
-      const result = await narrativesAPI.getNarratives();
-      console.log('[DEBUG] API returned:', result.narratives.length, 'narratives');
-      return result.narratives;
-    },
+    queryFn: ({ pageParam = 0 }) => narrativesAPI.getNarratives({ offset: pageParam, limit: NARRATIVES_PER_PAGE }),
+    getNextPageParam: (lastPage) => lastPage.has_more ? lastPage.offset + NARRATIVES_PER_PAGE : undefined,
+    initialPageParam: 0,
     refetchInterval: 60000, // 60 seconds
+    staleTime: 0, // Always consider data stale
   });
 
-  const narratives = data || [];
+  const sentinelRef = useInfiniteScroll({
+    hasMore: hasNextPage ?? false,
+    isLoading: isFetchingNextPage,
+    onLoadMore: () => fetchNextPage(),
+    threshold: 300,
+  });
+
+  // Flatten pages array into single narratives array
+  const narratives = data?.pages.flatMap((page) => page.narratives) ?? [];
+  const totalCount = data?.pages[0]?.total_count ?? 0;
 
   // Handle highlight query parameter
   useEffect(() => {
@@ -101,6 +121,11 @@ export function Narratives() {
         </h1>
         <p className="mt-2 text-gray-600 dark:text-gray-400">
           Clustered stories and trending topics in the crypto space
+          {narratives.length > 0 && totalCount > 0 && (
+            <span className="text-gray-500 dark:text-gray-400 ml-2">
+              ({narratives.length} of {totalCount})
+            </span>
+          )}
         </p>
         {dataUpdatedAt && (
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
@@ -469,7 +494,25 @@ export function Narratives() {
         })}
       </div>
 
-      {narratives.length === 0 && (
+      {/* Sentinel element for infinite scroll trigger */}
+      {narratives.length > 0 && <div ref={sentinelRef} className="h-10" />}
+
+      {/* Loading indicator for next page */}
+      {isFetchingNextPage && (
+        <div className="text-center py-8">
+          <p className="text-gray-500 dark:text-gray-400">Loading more narratives...</p>
+        </div>
+      )}
+
+      {/* All narratives loaded indicator */}
+      {!hasNextPage && narratives.length > 0 && (
+        <div className="text-center py-8">
+          <p className="text-gray-500 dark:text-gray-400">All narratives loaded</p>
+        </div>
+      )}
+
+      {/* Empty state */}
+      {narratives.length === 0 && !isLoading && (
         <div className="text-center py-12">
           <p className="text-gray-500 dark:text-gray-400">No narratives detected yet</p>
         </div>
