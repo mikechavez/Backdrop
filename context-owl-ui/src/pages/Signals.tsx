@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import { TrendingUp, ArrowUp, Activity, Minus, TrendingDown } from 'lucide-react';
 import { signalsAPI } from '../api';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/Card';
 import { ErrorMessage } from '../components/ErrorMessage';
 import { SignalsSkeleton } from '../components/Skeleton';
+import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 import { formatRelativeTime, formatEntityType, getEntityTypeColor } from '../lib/formatters';
 import { cn } from '../lib/cn';
 
@@ -66,26 +67,42 @@ const getVelocityIndicator = (velocity: number): { icon: any; label: string; col
 };
 
 
+const SIGNALS_PER_PAGE = 15;
+
 export function Signals() {
   const [expandedArticles, setExpandedArticles] = useState<Set<number>>(new Set());
-  
-  const { data, isLoading, error, refetch, dataUpdatedAt } = useQuery({
+
+  const {
+    data,
+    isLoading,
+    error,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    refetch,
+    dataUpdatedAt
+  } = useInfiniteQuery({
     queryKey: ['signals'],
-    queryFn: () => signalsAPI.getSignals({ limit: 50 }),
+    queryFn: ({ pageParam = 0 }) => signalsAPI.getSignals({ offset: pageParam, limit: SIGNALS_PER_PAGE }),
+    getNextPageParam: (lastPage) => lastPage.has_more ? lastPage.offset + SIGNALS_PER_PAGE : undefined,
+    initialPageParam: 0,
     refetchInterval: 30000, // 30 seconds
     staleTime: 0, // Always consider data stale
+  });
+
+  const sentinelRef = useInfiniteScroll({
+    hasMore: hasNextPage ?? false,
+    isLoading: isFetchingNextPage,
+    onLoadMore: () => fetchNextPage(),
+    threshold: 300,
   });
 
   if (isLoading) return <SignalsSkeleton />;
   if (error) return <ErrorMessage message={error.message} onRetry={() => refetch()} />;
 
-  // Debug: Log the first signal to see if recent_articles is present
-  if (data?.signals && data.signals.length > 0) {
-    console.log('First signal data:', data.signals[0]);
-    console.log('Has recent_articles?', 'recent_articles' in data.signals[0]);
-    console.log('Recent articles count:', data.signals[0].recent_articles?.length);
-  }
-
+  // Flatten pages array into single signals array
+  const signals = data?.pages.flatMap((page) => page.signals) ?? [];
+  const totalCount = data?.pages[0]?.total_count ?? 0;
 
   return (
     <div>
@@ -93,6 +110,11 @@ export function Signals() {
         <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Market Signals</h1>
         <p className="mt-2 text-gray-600 dark:text-gray-400">
           Top entities showing unusual activity in the last 24 hours
+          {signals.length > 0 && totalCount > 0 && (
+            <span className="text-gray-500 dark:text-gray-400 ml-2">
+              ({signals.length} of {totalCount})
+            </span>
+          )}
         </p>
         {dataUpdatedAt && (
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
@@ -102,12 +124,12 @@ export function Signals() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {data?.signals.map((signal, index) => {
+        {signals.map((signal, index) => {
           const ticker = signal.entity.match(/\$[A-Z]+/)?.[0];
           const entityName = signal.entity.replace(/\$[A-Z]+/g, '').trim();
-          
+
           const velocityIndicator = getVelocityIndicator(signal.velocity);
-          
+
           return (
           <Card key={`${signal.entity}-${index}`}>
             <CardHeader>
@@ -159,7 +181,7 @@ export function Signals() {
                     </div>
                   </div>
                 )}
-                
+
                 {/* Recent articles section */}
                 {signal.recent_articles && signal.recent_articles.length > 0 && (
                   <div className="mt-3 pt-3 border-t border-gray-200 dark:border-dark-border">
@@ -177,7 +199,7 @@ export function Signals() {
                     >
                       {expandedArticles.has(index) ? '▼' : '▶'} Recent mentions ({signal.recent_articles.length})
                     </button>
-                    
+
                     {expandedArticles.has(index) && (
                       <div className="mt-2 space-y-2">
                         {signal.recent_articles.map((article, articleIdx) => (
@@ -208,7 +230,25 @@ export function Signals() {
         })}
       </div>
 
-      {data?.signals.length === 0 && (
+      {/* Sentinel element for infinite scroll trigger */}
+      {signals.length > 0 && <div ref={sentinelRef} className="h-10" />}
+
+      {/* Loading indicator for next page */}
+      {isFetchingNextPage && (
+        <div className="text-center py-8">
+          <p className="text-gray-500 dark:text-gray-400">Loading more signals...</p>
+        </div>
+      )}
+
+      {/* All signals loaded indicator */}
+      {!hasNextPage && signals.length > 0 && (
+        <div className="text-center py-8">
+          <p className="text-gray-500 dark:text-gray-400">All signals loaded</p>
+        </div>
+      )}
+
+      {/* Empty state */}
+      {signals.length === 0 && !isLoading && (
         <div className="text-center py-12">
           <p className="text-gray-500 dark:text-gray-400">No signals detected yet</p>
         </div>
