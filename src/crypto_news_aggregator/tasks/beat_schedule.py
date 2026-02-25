@@ -96,6 +96,15 @@ def get_schedule():
                 "time_limit": 3600,  # 1 hour
             },
         },
+        # Warm entity articles cache every 10 minutes
+        "warm-entity-articles-cache": {
+            "task": "warm_cache",  # Task registered with short name in tasks/__init__.py
+            "schedule": crontab(minute="*/10"),  # Every 10 minutes
+            "options": {
+                "expires": 600,  # 10 minutes
+                "time_limit": 300,  # 5 minutes max execution
+            },
+        },
     }
 
     # ============================================================
