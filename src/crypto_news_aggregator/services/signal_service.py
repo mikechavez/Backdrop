@@ -300,7 +300,7 @@ async def calculate_source_diversity(entity: str) -> int:
         }
     ]
 
-    result = await db.entity_mentions.aggregate(pipeline, allowDiskUse=True).to_list(length=1)
+    result = await db.entity_mentions.aggregate(pipeline).to_list(length=1)
     return result[0]["unique_sources"] if result else 0
 
 
@@ -782,7 +782,7 @@ async def compute_trending_signals(
         {"$unwind": "$entities"},
         {"$match": {"entities": {"$in": entities}}},
         {"$group": {"_id": "$entities", "count": {"$sum": 1}, "narrative_ids": {"$push": {"$toString": "$_id"}}}}
-    ], allowDiskUse=True).to_list(length=None)
+    ]).to_list(length=None)
 
     narrative_map = {doc["_id"]: doc for doc in narrative_counts}
 

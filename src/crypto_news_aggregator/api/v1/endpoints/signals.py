@@ -256,7 +256,7 @@ async def get_signals() -> Dict[str, Any]:
             {"$unwind": "$entities"},
             {"$match": {"entities": {"$in": entity_list}}},
             {"$group": {"_id": "$entities", "count": {"$sum": 1}}}
-        ], allowDiskUse=True).to_list(length=None)
+        ]).to_list(length=None)
 
         counts = {doc["_id"]: doc["count"] for doc in narrative_counts}
 
