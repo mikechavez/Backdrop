@@ -6,13 +6,15 @@ ADR-012 supersedes all prior sprint goals.
 
 ## Sprint Order + Status
 
+🎯 **ADR-012 COMPLETE - ALL PHASES SHIPPED**
+
 1. ✅ **BUG-045** --- Time-bound entity articles (7d) [COMPLETE - PR #203]
 2. ✅ **FEATURE-049** --- Redis cache entity articles [COMPLETE - PR #206]
 3. ✅ **TASK-015** --- Cache warming task [COMPLETE - PR #207]
 4. ✅ **BUG-051** --- Remove UI counts [COMPLETE - Branch: fix/bug-051-remove-ui-counts]
-5. **TASK-016** --- Observability + clamps [NEXT]
+5. ✅ **TASK-016** --- Observability + clamps [COMPLETE - Branch: fix/task-016-observability-clamps]
 
-All other Sprint 10 work paused until ADR-012 complete.
+**Status:** Ready for final PR review and deployment to Railway
 
 ## Phase 1 Completion (BUG-045)
 
@@ -43,9 +45,44 @@ All other Sprint 10 work paused until ADR-012 complete.
 
 **Impact:** Cleaner UI, removes internal metrics display
 
-## Phase 5 (TASK-016) - Ready to Start
+## Phase 5 Completion (TASK-016)
 
-- [ ] Add observability logging
-- [ ] Implement clamps on API parameters
-- [ ] Monitor performance in production
-- [ ] Verify all ADR-012 goals met
+**Implementation:**
+- ✅ Fixed duplicate logging issue in main.py
+  - Removed redundant basicConfig() call
+  - Consolidated handler chain
+  - Verified with tests: zero duplicates
+
+- ✅ Added comprehensive observability logging
+  - All endpoints log with consistent format: `operation: key1=value1, key2=value2`
+  - Millisecond-precision timing for all operations
+  - Request tracing with unique IDs for correlation
+
+- ✅ Parameter clamp tracking
+  - limit≤20, days≤7 with visible logging
+  - Format: `param_clamped: original_value → clamped_value`
+
+- ✅ Comprehensive testing
+  - 7 tests in test_task_016_observability.py
+  - All tests passing
+  - Verified no duplicate handlers
+  - Verified consistent logging format
+
+**Branch:** fix/task-016-observability-clamps
+**Commits:** fad129a, a420bdd
+
+## Ready for Deployment
+
+✅ All ADR-012 phases complete and tested
+✅ Signals page performance optimized (<5s cold expected)
+✅ Entity articles cached (15m TTL, <1s warm expected)
+✅ Full observability for production monitoring
+✅ Zero duplicate log messages
+✅ Parameter clamps verified and logged
+
+**Next steps:**
+1. Create PR against main
+2. Review and merge to main
+3. Deploy to Railway (production)
+4. Monitor performance metrics
+5. Close ADR-012 epic

@@ -25,13 +25,13 @@ Signals page was unusable due to 40s+ entity article loads.
 
 ## ADR-012 Progress
 
-Ship remaining phases:
+🎯 **ALL PHASES COMPLETE** - Ready for PR and deployment
 
-1. ✅ **Phase 1:** 7-day hard cutoff (BUG-045 COMPLETE)
-2. ✅ **Phase 2:** Redis cache (15m TTL) (FEATURE-049 COMPLETE)
-3. ✅ **Phase 3:** Cache warmer (TASK-015 COMPLETE)
+1. ✅ **Phase 1:** 7-day hard cutoff (BUG-045 COMPLETE - PR #203)
+2. ✅ **Phase 2:** Redis cache (15m TTL) (FEATURE-049 COMPLETE - PR #206)
+3. ✅ **Phase 3:** Cache warmer (TASK-015 COMPLETE - PR #207)
 4. ✅ **Phase 4:** UI cleanup - BUG-051 (remove counts) COMPLETE
-5. **Phase 5:** Observability - TASK-016 [NEXT]
+5. ✅ **Phase 5:** Observability + clamps - TASK-016 COMPLETE
 
 ## Definition of Done
 
@@ -51,6 +51,44 @@ Ship remaining phases:
 
 **Frontend validation:** Build successful - 2146 modules, 144KB gzipped
 
-## Next Task
+### ✅ COMPLETED: TASK-016 (2026-02-25 11:50:00Z)
+- **Branch:** fix/task-016-observability-clamps
+- **Commits:** fad129a, a420bdd
+- **Type:** Backend observability + parameter validation
+- **Effort:** 2 hours (actual)
 
-**TASK-016:** Observability + clamps (Phase 5 - Final ADR-012 Phase)
+**What was implemented:**
+1. **Fixed duplicate logging issue** ✅
+   - Removed redundant `basicConfig()` call in main.py
+   - Consolidated handler setup (clear → add file → add console)
+   - Changed uvicorn loggers to use propagation instead of explicit handlers
+   - Result: Zero duplicate log messages verified with tests
+
+2. **Added comprehensive observability logging** ✅
+   - All endpoints log with consistent format: `operation: key1=value1, key2=value2`
+   - Signals page: `signals_page:` with cache_hit, total_ms
+   - Trending signals: `signals_cache:`, `signals_compute:`, `signals_enrichment:`, `signals_narratives:`
+   - Entity articles: `entity_articles:` with entity, limit, days, param_clamped
+   - Cache operations: `entity_articles_cache:` with cache_hit, cache_ms/compute_ms
+
+3. **Parameter clamp tracking** ✅
+   - Entity articles: limit≤20, days≤7 with clamp logging
+   - Format: `param_clamped: limit=100 → 20`
+
+4. **Comprehensive testing** ✅
+   - 7 tests created and passing (test_task_016_observability.py)
+   - Verified no duplicate handlers
+   - Verified logging format consistency
+
+**Impact:** Full observability for monitoring ADR-012 performance goals
+
+## ADR-012 Complete - Ready for Deployment
+
+✅ All 5 phases implemented and tested
+✅ Signals page expected <5s cold
+✅ Entity articles expected <1s warm (Redis cached)
+✅ No 10s+ backend calls expected
+✅ Zero duplicate log messages
+✅ Full performance observability in place
+
+**Next:** Create PR, merge to main, deploy to Railway (production)
