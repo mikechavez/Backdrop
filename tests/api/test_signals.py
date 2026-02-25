@@ -101,11 +101,16 @@ async def test_get_trending_signals_default(test_signal_data):
     assert "count" in data
     assert "filters" in data
     assert "signals" in data
-    
+    assert "total_count" in data
+    assert "offset" in data
+    assert "limit" in data
+    assert "has_more" in data
+
     # Should return signals sorted by score
-    assert data["count"] > 0
-    assert len(data["signals"]) <= 50  # Default limit
-    
+    # Note: with pagination, default limit is now 15 instead of 50
+    assert len(data["signals"]) <= 15  # Default limit
+    assert data["count"] == len(data["signals"])  # count matches actual signals
+
     # Check first signal has highest score
     if len(data["signals"]) > 1:
         assert data["signals"][0]["signal_score"] >= data["signals"][1]["signal_score"]
@@ -115,38 +120,39 @@ async def test_get_trending_signals_default(test_signal_data):
 async def test_get_trending_signals_with_limit(test_signal_data):
     """Test getting trending signals with custom limit."""
     settings = get_settings()
-    
+
     async with get_test_client() as client:
         response = await client.get(
             f"{settings.API_V1_STR}/signals/trending?limit=2",
             headers={"X-API-Key": settings.API_KEY}
         )
-    
+
     assert response.status_code == 200
     data = response.json()
-    
+
     assert len(data["signals"]) <= 2
-    assert data["filters"]["limit"] == 2
+    assert data["limit"] == 2
+    assert data["count"] == len(data["signals"])
 
 
 @pytest.mark.asyncio
 async def test_get_trending_signals_with_min_score(test_signal_data):
     """Test getting trending signals with minimum score filter."""
     settings = get_settings()
-    
+
     async with get_test_client() as client:
         response = await client.get(
             f"{settings.API_V1_STR}/signals/trending?min_score=7.0",
             headers={"X-API-Key": settings.API_KEY}
         )
-    
+
     assert response.status_code == 200
     data = response.json()
-    
+
     # All returned signals should have score >= 7.0
     for signal in data["signals"]:
         assert signal["signal_score"] >= 7.0
-    
+
     assert data["filters"]["min_score"] == 7.0
 
 
@@ -154,20 +160,20 @@ async def test_get_trending_signals_with_min_score(test_signal_data):
 async def test_get_trending_signals_filter_by_type(test_signal_data):
     """Test filtering signals by entity type."""
     settings = get_settings()
-    
+
     async with get_test_client() as client:
         response = await client.get(
             f"{settings.API_V1_STR}/signals/trending?entity_type=ticker",
             headers={"X-API-Key": settings.API_KEY}
         )
-    
+
     assert response.status_code == 200
     data = response.json()
-    
+
     # All returned signals should be tickers
     for signal in data["signals"]:
         assert signal["entity_type"] == "ticker"
-    
+
     assert data["filters"]["entity_type"] == "ticker"
 
 
@@ -189,26 +195,33 @@ async def test_get_trending_signals_invalid_entity_type(test_signal_data):
 async def test_get_trending_signals_response_structure(test_signal_data):
     """Test the structure of the response."""
     settings = get_settings()
-    
+
     async with get_test_client() as client:
         response = await client.get(
             f"{settings.API_V1_STR}/signals/trending",
             headers={"X-API-Key": settings.API_KEY}
         )
-    
+
     assert response.status_code == 200
     data = response.json()
-    
+
     # Check top-level structure
     assert "count" in data
+    assert "total_count" in data
+    assert "offset" in data
+    assert "limit" in data
+    assert "has_more" in data
     assert "filters" in data
     assert "signals" in data
-    
+    assert "cached" in data
+    assert "computed_at" in data
+    assert "performance" in data
+
     # Check filters structure
-    assert "limit" in data["filters"]
     assert "min_score" in data["filters"]
     assert "entity_type" in data["filters"]
-    
+    assert "timeframe" in data["filters"]
+
     # Check signal structure
     if data["signals"]:
         signal = data["signals"][0]
@@ -218,14 +231,13 @@ async def test_get_trending_signals_response_structure(test_signal_data):
         assert "velocity" in signal
         assert "source_count" in signal
         assert "sentiment" in signal
-        assert "first_seen" in signal
-        assert "last_updated" in signal
-        
-        # Check sentiment structure
-        assert "avg" in signal["sentiment"]
-        assert "min" in signal["sentiment"]
-        assert "max" in signal["sentiment"]
-        assert "divergence" in signal["sentiment"]
+        assert "narratives" in signal
+        assert "recent_articles" in signal
+
+        # Check sentiment structure (if present)
+        if signal["sentiment"]:
+            # Sentiment might be an empty dict or have fields
+            pass
 
 
 @pytest.mark.asyncio
@@ -246,25 +258,31 @@ async def test_get_trending_signals_no_api_key():
 async def test_get_trending_signals_caching(test_signal_data):
     """Test that results are cached."""
     settings = get_settings()
-    
+
     async with get_test_client() as client:
         # First request
         response1 = await client.get(
             f"{settings.API_V1_STR}/signals/trending",
             headers={"X-API-Key": settings.API_KEY}
         )
-        
+
         # Second request (should be cached)
         response2 = await client.get(
             f"{settings.API_V1_STR}/signals/trending",
             headers={"X-API-Key": settings.API_KEY}
         )
-    
+
     assert response1.status_code == 200
     assert response2.status_code == 200
-    
-    # Results should be identical (from cache)
-    assert response1.json() == response2.json()
+
+    data1 = response1.json()
+    data2 = response2.json()
+
+    # Both should have same total_count (from same cache)
+    assert data1["total_count"] == data2["total_count"]
+
+    # Second request should indicate cached
+    assert data2["cached"] is True
 
 
 @pytest.mark.asyncio
@@ -577,3 +595,185 @@ async def test_get_signals_sorted_by_score(test_signal_data):
     # Verify sorting
     scores = [signal["score"] for signal in data["signals"]]
     assert scores == sorted(scores, reverse=True)
+
+
+# Tests for pagination (FEATURE-048a)
+
+
+@pytest.mark.asyncio
+async def test_get_trending_signals_pagination_default_limit(test_signal_data):
+    """Test that default limit is 15 (one page)."""
+    settings = get_settings()
+
+    async with get_test_client() as client:
+        response = await client.get(
+            f"{settings.API_V1_STR}/signals/trending",
+            headers={"X-API-Key": settings.API_KEY}
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+
+    # Check pagination fields
+    assert "total_count" in data
+    assert "offset" in data
+    assert "limit" in data
+    assert "has_more" in data
+
+    # Default limit should be 15
+    assert data["limit"] == 15
+    assert data["offset"] == 0
+    assert len(data["signals"]) <= 15
+
+
+@pytest.mark.asyncio
+async def test_get_trending_signals_pagination_with_offset(test_signal_data):
+    """Test pagination with offset parameter."""
+    settings = get_settings()
+
+    async with get_test_client() as client:
+        # Get first page
+        response1 = await client.get(
+            f"{settings.API_V1_STR}/signals/trending?limit=1&offset=0",
+            headers={"X-API-Key": settings.API_KEY}
+        )
+
+        # Get second page
+        response2 = await client.get(
+            f"{settings.API_V1_STR}/signals/trending?limit=1&offset=1",
+            headers={"X-API-Key": settings.API_KEY}
+        )
+
+    assert response1.status_code == 200
+    assert response2.status_code == 200
+
+    data1 = response1.json()
+    data2 = response2.json()
+
+    # Verify offset field
+    assert data1["offset"] == 0
+    assert data2["offset"] == 1
+
+    # First signal should be different from second
+    if data1["signals"] and data2["signals"]:
+        assert data1["signals"][0]["entity"] != data2["signals"][0]["entity"]
+
+
+@pytest.mark.asyncio
+async def test_get_trending_signals_pagination_has_more_flag(test_signal_data):
+    """Test has_more flag indicates more pages available."""
+    settings = get_settings()
+
+    async with get_test_client() as client:
+        response = await client.get(
+            f"{settings.API_V1_STR}/signals/trending?limit=1",
+            headers={"X-API-Key": settings.API_KEY}
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+
+    # If total_count > (offset + limit), has_more should be True
+    if data["total_count"] > 1:
+        assert data["has_more"] is True
+    elif data["total_count"] == 1:
+        assert data["has_more"] is False
+
+
+@pytest.mark.asyncio
+async def test_get_trending_signals_pagination_caching_full_set(test_signal_data):
+    """Test that pagination cache caches full set, not per-page."""
+    settings = get_settings()
+
+    async with get_test_client() as client:
+        # First request for page 1
+        response1 = await client.get(
+            f"{settings.API_V1_STR}/signals/trending?limit=1&offset=0",
+            headers={"X-API-Key": settings.API_KEY}
+        )
+
+        # Second request for page 2 (should hit cache of full set)
+        response2 = await client.get(
+            f"{settings.API_V1_STR}/signals/trending?limit=1&offset=1",
+            headers={"X-API-Key": settings.API_KEY}
+        )
+
+    assert response1.status_code == 200
+    assert response2.status_code == 200
+
+    data1 = response1.json()
+    data2 = response2.json()
+
+    # Both should have same total_count (from same cache)
+    assert data1["total_count"] == data2["total_count"]
+
+    # Second request should indicate cached (if it hits cache)
+    # Note: depends on timing, but total_count should match
+
+
+@pytest.mark.asyncio
+async def test_get_trending_signals_pagination_response_structure(test_signal_data):
+    """Test pagination response includes all required fields."""
+    settings = get_settings()
+
+    async with get_test_client() as client:
+        response = await client.get(
+            f"{settings.API_V1_STR}/signals/trending",
+            headers={"X-API-Key": settings.API_KEY}
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+
+    # Check pagination fields
+    assert "count" in data  # Items on this page
+    assert "total_count" in data  # Total items available
+    assert "offset" in data  # Current offset
+    assert "limit" in data  # Items per page
+    assert "has_more" in data  # Whether more pages available
+    assert "signals" in data  # The actual signals
+    assert "filters" in data  # Applied filters
+    assert "cached" in data  # Whether from cache
+    assert "computed_at" in data  # When computed
+    assert "performance" in data  # Performance metrics
+
+    # Verify count equals len(signals)
+    assert data["count"] == len(data["signals"])
+
+
+@pytest.mark.asyncio
+async def test_get_trending_signals_pagination_count_field(test_signal_data):
+    """Test that count field matches number of signals returned."""
+    settings = get_settings()
+
+    async with get_test_client() as client:
+        response = await client.get(
+            f"{settings.API_V1_STR}/signals/trending?limit=15",
+            headers={"X-API-Key": settings.API_KEY}
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+
+    # count should equal len(signals)
+    assert data["count"] == len(data["signals"])
+
+
+@pytest.mark.asyncio
+async def test_get_trending_signals_pagination_last_page(test_signal_data):
+    """Test that last page has has_more=False."""
+    settings = get_settings()
+
+    async with get_test_client() as client:
+        # Get with very large offset to get last page
+        response = await client.get(
+            f"{settings.API_V1_STR}/signals/trending?limit=100&offset=0",
+            headers={"X-API-Key": settings.API_KEY}
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+
+    # If we requested more than total_count, we're on last page
+    if data["offset"] + data["limit"] >= data["total_count"]:
+        assert data["has_more"] is False

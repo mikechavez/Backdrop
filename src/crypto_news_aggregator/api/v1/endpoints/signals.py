@@ -256,7 +256,7 @@ async def get_signals() -> Dict[str, Any]:
             {"$unwind": "$entities"},
             {"$match": {"entities": {"$in": entity_list}}},
             {"$group": {"_id": "$entities", "count": {"$sum": 1}}}
-        ], allowDiskUse=True).to_list(length=None)
+        ]).to_list(length=None)
 
         counts = {doc["_id"]: doc["count"] for doc in narrative_counts}
 
@@ -392,7 +392,8 @@ async def get_recent_articles_batch(entities: List[str], limit_per_entity: int =
 
 @router.get("/trending")
 async def get_trending_signals(
-    limit: int = Query(default=50, ge=1, le=100, description="Maximum number of results"),
+    limit: int = Query(default=15, ge=1, le=100, description="Maximum number of results per page"),
+    offset: int = Query(default=0, ge=0, description="Number of items to skip for pagination"),
     min_score: float = Query(default=0.0, ge=0.0, le=10.0, description="Minimum signal score"),
     entity_type: Optional[str] = Query(default=None, description="Filter by entity type (ticker, project, event)"),
     timeframe: str = Query(default="7d", description="Time window for scoring (24h, 7d, or 30d)"),
@@ -406,16 +407,18 @@ async def get_trending_signals(
     - Recency: Proportion of recent mentions
     - Sentiment: Average sentiment and divergence
 
-    Results are cached for 60 seconds for performance.
+    Results are cached for 60 seconds for performance. Full signal set (up to 100)
+    is computed and cached; pagination is applied after cache retrieval.
 
     Args:
-        limit: Maximum number of results (1-100, default 50)
+        limit: Maximum number of results per page (1-100, default 15)
+        offset: Number of items to skip for pagination (default 0)
         min_score: Minimum signal score threshold (0-10, default 0)
         entity_type: Filter by entity type (optional)
         timeframe: Time window for scoring (24h, 7d, or 30d, default 7d)
 
     Returns:
-        List of trending entities with freshly computed signal scores
+        Paginated response with trending entities, total count, and pagination metadata
     """
     # Validate entity_type if provided
     if entity_type and entity_type not in ["ticker", "project", "event"]:
@@ -431,24 +434,39 @@ async def get_trending_signals(
             detail="timeframe must be one of: 24h, 7d, 30d"
         )
 
-    # Build cache key including timeframe
-    cache_key = f"signals:trending:v2:{limit}:{min_score}:{entity_type or 'all'}:{timeframe}"
+    # Build cache key — cache the FULL result set, not per-page
+    # Pagination (offset/limit) is applied after cache retrieval
+    cache_key = f"signals:trending:v3:{min_score}:{entity_type or 'all'}:{timeframe}"
 
     # Try to get from cache (Redis or in-memory) - 60 second TTL
     cached_result = get_from_cache(cache_key)
     if cached_result is not None:
-        # Add cache hit indicator
-        cached_result["cached"] = True
-        return cached_result
+        # Paginate from cached full result
+        all_signals = cached_result.get("signals", [])
+        total_count = len(all_signals)
+        page_signals = all_signals[offset:offset + limit]
+        return {
+            "count": len(page_signals),
+            "total_count": total_count,
+            "offset": offset,
+            "limit": limit,
+            "has_more": (offset + limit) < total_count,
+            "filters": cached_result.get("filters", {}),
+            "signals": page_signals,
+            "cached": True,
+            "computed_at": cached_result.get("computed_at"),
+            "performance": cached_result.get("performance", {}),
+        }
 
     # Compute signals on-demand
     try:
         start_time = time.time()
 
-        # Compute trending signals using the new on-demand approach
+        # Always compute full set (up to 100) for caching; paginate after
+        max_compute = 100
         trending = await compute_trending_signals(
             timeframe=timeframe,
-            limit=limit,
+            limit=max_compute,
             min_score=min_score,
             entity_type=entity_type,
         )
@@ -456,7 +474,9 @@ async def get_trending_signals(
         compute_time = time.time() - start_time
         logger.info(f"[Signals] Computed {len(trending)} trending signals in {compute_time:.3f}s")
 
-        # Collect all unique narrative IDs and entities for batch fetching
+        total_count = len(trending)
+
+        # Collect ALL narrative IDs and entities for batch fetching (for cache)
         all_narrative_ids = set()
         entities = []
         for signal in trending:
@@ -476,16 +496,14 @@ async def get_trending_signals(
         total_articles = sum(len(articles) for articles in articles_by_entity.values())
         logger.info(f"[Signals] Batch fetched {total_articles} articles for {len(entities)} entities in {time.time() - batch_start:.3f}s")
 
-        # Build response with pre-fetched data
-        signals_with_narratives = []
+        # Build FULL enriched list (for caching)
+        all_enriched_signals = []
         for signal in trending:
             narrative_ids = signal.get("narrative_ids", [])
             narratives = [narratives_by_id[nid] for nid in narrative_ids if nid in narratives_by_id]
-
-            # Get pre-fetched articles for this entity
             recent_articles = articles_by_entity.get(signal["entity"], [])
 
-            signals_with_narratives.append({
+            all_enriched_signals.append({
                 "entity": signal["entity"],
                 "entity_type": signal["entity_type"],
                 "signal_score": signal.get("score", 0.0),
@@ -499,32 +517,45 @@ async def get_trending_signals(
                 "recent_articles": recent_articles,
             })
 
-        # Format response
+        # Cache the FULL enriched list
         total_time = time.time() - start_time
-        payload_size = len(json.dumps(signals_with_narratives)) / 1024  # KB
+        payload_size = len(json.dumps(all_enriched_signals)) / 1024
+        logger.info(f"[Signals] Total request time: {total_time:.3f}s, Payload: {payload_size:.2f}KB")
 
-        response = {
-            "count": len(trending),
+        full_cache = {
+            "signals": all_enriched_signals,
             "filters": {
-                "limit": limit,
                 "min_score": min_score,
                 "entity_type": entity_type,
                 "timeframe": timeframe,
             },
-            "signals": signals_with_narratives,
-            "cached": False,
             "computed_at": datetime.now().isoformat(),
             "performance": {
                 "total_time_seconds": round(total_time, 3),
                 "compute_time_seconds": round(compute_time, 3),
                 "payload_size_kb": round(payload_size, 2),
-            }
+            },
         }
+        set_in_cache(cache_key, full_cache, ttl_seconds=60)
 
-        logger.info(f"[Signals] Total request time: {total_time:.3f}s, Payload: {payload_size:.2f}KB")
-
-        # Cache for 60 seconds using Redis or in-memory fallback
-        set_in_cache(cache_key, response, ttl_seconds=60)
+        # Return paginated slice
+        page_signals = all_enriched_signals[offset:offset + limit]
+        response = {
+            "count": len(page_signals),
+            "total_count": total_count,
+            "offset": offset,
+            "limit": limit,
+            "has_more": (offset + limit) < total_count,
+            "filters": {
+                "min_score": min_score,
+                "entity_type": entity_type,
+                "timeframe": timeframe,
+            },
+            "signals": page_signals,
+            "cached": False,
+            "computed_at": full_cache["computed_at"],
+            "performance": full_cache["performance"],
+        }
 
         return response
 

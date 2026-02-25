@@ -19,6 +19,22 @@ Sprint 9 completed with 100% of features delivered. Sprint 10 focuses on fixing 
 
 ## Resolved This Sprint
 
+### ✅ FEATURE-048a: Backend Signals Pagination (THIS SESSION)
+**Priority:** HIGH | **Complexity:** MEDIUM | **Status:** ✅ COMPLETED (2026-02-25)
+**Branch:** `docs/bug-041-bug-033-vercel-deployment-fix` | **Commit:** f9511d8
+
+Implemented offset-based pagination for `/api/v1/signals/trending` endpoint to enable incremental loading of signals:
+- **Default limit:** Changed from 50 → 15 (one page of cards)
+- **Offset parameter:** Added to enable pagination (`GET /api/v1/signals/trending?offset=15`)
+- **Cache strategy:** Full set (up to 100) computed once, cache key v3 excludes offset/limit so all pages share same cache
+- **Response metadata:** Added total_count, offset, limit, has_more, cached, computed_at, performance
+- **Testing:** 7 new pagination tests added + 5 existing tests updated, all passing
+
+**Files:** `src/crypto_news_aggregator/api/v1/endpoints/signals.py`, `tests/api/test_signals.py`
+**Ticket:** `docs/tickets/feature-048-lazy-loading/feature-048a-backend-signals-pagination.md`
+
+---
+
 ### ✅ BUG-027: Remove Afternoon Scheduled Briefing
 **Priority:** MEDIUM | **Severity:** LOW | **Resolved:** 2026-02-10
 **Branch:** `fix/bug-027-remove-afternoon-scheduled-briefing` | **Commit:** 2661166
@@ -121,11 +137,11 @@ These are NOT on signals endpoint path but should be fixed in TASK-011.
 
 ---
 
-### ✅ FEATURE-047: Skeleton Loaders for All Pages
-**Priority:** MEDIUM | **Complexity:** MEDIUM | **Resolved:** 2026-02-24
-**Branch:** `fix/bug-035-signals-endpoint-allowdiskuse` | **Commit:** `f893571`
+### ✅ FEATURE-047: Skeleton Loaders for All Pages (DEPLOYED TO PRODUCTION)
+**Priority:** MEDIUM | **Complexity:** MEDIUM | **Resolved:** 2026-02-24 | **Deployed:** 2026-02-25 00:57:38Z
+**Branch:** `fix/bug-035-signals-endpoint-allowdiskuse` | **Commit:** `f893571` | **Production:** ✅ LIVE
 
-Added skeleton loader components across all 5 pages to replace the full-screen spinner (`<Loading />`). Each skeleton mirrors the actual page layout for a seamless loading-to-loaded transition. **MERGED TO MAIN (2026-02-24)**.
+Added skeleton loader components across all 5 pages to replace the full-screen spinner (`<Loading />`). Each skeleton mirrors the actual page layout for a seamless loading-to-loaded transition. **MERGED TO MAIN (2026-02-24)** and **DEPLOYED TO PRODUCTION (2026-02-25)**.
 
 **New file:** `context-owl-ui/src/components/Skeleton.tsx`
 - Shared primitives: `SkeletonLine`, `SkeletonBadge`, `SkeletonBlock`
@@ -135,31 +151,57 @@ Added skeleton loader components across all 5 pages to replace the full-screen s
 
 **Modified files:** `Briefing.tsx`, `Signals.tsx`, `Narratives.tsx`, `Articles.tsx`, `CostMonitor.tsx`
 **Ticket:** `feature-047-skeleton-loaders.md`
+**Deployment:** https://context-owl-1q6vj9sc8-mikes-projects-92d90cb6.vercel.app
 
 ---
 
-### ⚠️ BUG-033: Narrative Association Still Visible on Signals (INVESTIGATION COMPLETE)
-**Priority:** MEDIUM | **Severity:** LOW | **Status:** Awaiting Vercel Dashboard Fix + Redeploy
+### ✅ BUG-041: FEATURE-047 Skeleton Loaders Not Visible in Production (RESOLVED)
+**Priority:** HIGH | **Severity:** MEDIUM | **Status:** ✅ RESOLVED (2026-02-25 00:57:38Z)
 **Branch:** N/A — Deployment issue, not code issue
-**Commit:** N/A
+**Commit:** Deployed from main (f893571 FEATURE-047 already merged)
+
+Root cause: Vercel was serving stale cached build. Fixed by running `vercel --prod --force` to trigger fresh rebuild.
+
+**Resolution:**
+```bash
+cd context-owl-ui
+vercel --prod --force
+```
+
+**Deployment Details:**
+- Build time: 23 seconds
+- Status: Ready
+- URL: https://context-owl-1q6vj9sc8-mikes-projects-92d90cb6.vercel.app
+- Aliases: https://context-owl-ui.vercel.app
+
+**Verification:**
+- ✅ Build logs show Vite compiled 2145 modules successfully
+- ✅ Skeleton components bundled into production JavaScript
+- ✅ All 5 pages (Briefing, Signals, Narratives, Articles, CostMonitor) have skeleton imports verified
+- ✅ No build errors or warnings
+
+**Files:** No code changes (deployment-only)
+**Ticket:** `bug-041-skeleton-loaders-not-in-production.md`
+
+---
+
+### ✅ BUG-033: Narrative Association Still Visible on Signals (RESOLVED)
+**Priority:** MEDIUM | **Severity:** LOW | **Status:** ✅ RESOLVED (2026-02-25 00:57:38Z)
+**Branch:** N/A — Deployment issue, not code issue
+**Commit:** Deployed from main (FEATURE-036 removes narrative UI)
 
 **Investigation Results:**
 - ✅ FEATURE-036 (Sprint 7) code is correct and complete
 - ✅ Signals.tsx has no narrative association code (verified clean)
 - ✅ Build successful: `npm run build` completed without errors
-- ⚠️ Root cause: Stale production build due to Vercel project misconfiguration
+- ✅ Root cause: Stale production build — FIXED via `vercel --prod --force`
 
-**What was found:**
-- Frontend code was properly updated in FEATURE-036 (Sprint 7)
-- No "Part of:", formatTheme, getThemeColor, or narrative refs in Signals.tsx
-- Vercel CLI authenticated successfully
-- Vercel project root directory setting is misconfigured in dashboard
-
-**Resolution Required:**
-1. Fix Vercel dashboard: https://vercel.com/mikes-projects-92d90cb6/context-owl-ui/settings
-2. Clear "Root Directory" setting (should be empty or `.`)
-3. Save changes
-4. Redeploy: `cd context-owl-ui && vercel --prod --yes`
+**Resolution Applied:**
+1. Ran `vercel --prod --force` from context-owl-ui directory
+2. Fresh build triggered and deployed successfully
+3. Build time: 23 seconds, Status: Ready
+4. Production URL: https://context-owl-1q6vj9sc8-mikes-projects-92d90cb6.vercel.app
+5. Also deployed FEATURE-047 skeleton loaders in same build
 
 **Files:** `context-owl-ui/src/pages/Signals.tsx` (verified clean)
 **Ticket:** `bug-033-narrative-still-visible-on-signals.md`
@@ -232,11 +274,16 @@ Replaced 50 parallel pipelines (one per entity) with single `$match:{entity:{$in
 
 ---
 
-### 🟡 TASK-012: Remove Unnecessary `allowDiskUse=True` from Non-Sorting Aggregations
-**Priority:** LOW | **Status:** OPEN | **Effort:** 15 min
-**Files:** `signal_service.py`, `signals.py`
+### ✅ TASK-012: Remove Unnecessary `allowDiskUse=True` from Non-Sorting Aggregations (COMPLETED)
+**Priority:** LOW | **Status:** COMPLETED | **Effort:** 10 min actual
+**Commit:** 2f535a1 | **Merged:** 2026-02-25
 
-After BUG-036/037/038 remove sorts, clean up leftover `allowDiskUse=True` on aggregations that have no `$sort` stage. Code hygiene — no functional change.
+Removed `allowDiskUse=True` from 3 aggregations with no `$sort`:
+- `calculate_source_diversity()`: groups by source → small result set
+- `compute_trending_signals()`: narrative count aggregation
+- `get_signals()`: narrative count aggregation
+
+Kept on `_count_filtered_mentions()` which still has complex `$lookup`.
 
 **Ticket:** `task-012-remove-unnecessary-allowdiskuse.md`
 
@@ -252,6 +299,32 @@ Three indexes to make `$match` stages fast now that sort/limit moved to Python:
 3. `signals_entity_lookup` — covers per-entity article lookups
 
 **Ticket:** `task-013-create-signal-indexes.md`
+
+---
+
+### 🟡 FEATURE-048: Lazy Loading for Signals & Narratives Pages (Broken into Sub-Tickets)
+**Priority:** HIGH | **Complexity:** MEDIUM | **Status:** OPEN | **Effort:** 2-4 hours total
+
+Speed up perceived load time by adding offset-based pagination (backend) + Intersection Observer infinite scroll (frontend). Broken into 5 implementation tickets:
+
+| Ticket | Scope | Complexity | Dependencies | Spec Part |
+|--------|-------|------------|--------------|-----------|
+| **FEATURE-048a** | Backend Signals Pagination | Medium | None | Part 1 |
+| **FEATURE-048b** | Backend Narratives Pagination | Medium | None | Part 2 |
+| **FEATURE-048c** | Frontend Shared Infra (hook, API clients, types) | Low | 048a, 048b (type alignment) | Parts 3, 4, 7 |
+| **FEATURE-048d** | Frontend Signals Page Infinite Scroll | Medium | 048a, 048c | Part 5 |
+| **FEATURE-048e** | Frontend Narratives Page Infinite Scroll | Medium | 048b, 048c | Part 6 |
+
+**Recommended order:** 048a → 048b → 048c → 048d → 048e (backend first, then shared infra, then pages)
+
+**Acceptance Criteria (parent):**
+- Signals page: first meaningful content within 2-3 seconds
+- Narratives page: first meaningful content within 2-3 seconds
+- Smooth scrolling, no layout shifts
+- Integrates with FEATURE-047 skeleton loaders
+
+**Tickets:** `feature-048a-backend-signals-pagination.md`, `feature-048b-backend-narratives-pagination.md`, `feature-048c-frontend-shared-infrastructure.md`, `feature-048d-frontend-signals-infinite-scroll.md`, `feature-048e-frontend-narratives-infinite-scroll.md`
+**Spec:** `FEATURE-048-implementation-spec.md`
 
 ---
 

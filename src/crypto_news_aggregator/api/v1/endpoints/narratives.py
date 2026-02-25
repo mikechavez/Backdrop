@@ -220,7 +220,7 @@ class NarrativeResponse(BaseModel):
     reawakening_count: Optional[int] = Field(default=None, description="Number of times narrative has been reactivated from dormant state")
     reawakened_from: Optional[str] = Field(default=None, description="ISO timestamp when narrative went dormant before most recent reactivation")
     resurrection_velocity: Optional[float] = Field(default=None, description="Articles per day in last 48 hours during reactivation")
-    
+
     class Config:
         populate_by_name = True  # Allow both 'id' and '_id' as field names
         json_encoders = {str: lambda v: v}  # Ensure strings are serialized properly
@@ -246,9 +246,19 @@ class NarrativeResponse(BaseModel):
         }
 
 
-@router.get("/active", response_model=List[NarrativeResponse])
+class PaginatedNarrativesResponse(BaseModel):
+    """Paginated response for narratives list."""
+    narratives: List[NarrativeResponse] = Field(..., description="List of narratives on this page")
+    total_count: int = Field(..., ge=0, description="Total number of narratives")
+    offset: int = Field(..., ge=0, description="Number of narratives skipped")
+    limit: int = Field(..., ge=1, le=200, description="Maximum narratives per page")
+    has_more: bool = Field(..., description="Whether more narratives exist beyond this page")
+
+
+@router.get("/active", response_model=PaginatedNarrativesResponse)
 async def get_active_narratives_endpoint(
-    limit: int = Query(50, ge=1, le=200, description="Maximum number of narratives to return"),
+    limit: int = Query(10, ge=1, le=200, description="Maximum number of narratives per page"),
+    offset: int = Query(0, ge=0, description="Number of narratives to skip for pagination"),
     lifecycle_state: Optional[str] = Query(None, description="Filter by lifecycle_state (emerging, hot, mature)")
 ):
     """
@@ -267,12 +277,22 @@ async def get_active_narratives_endpoint(
         List of narrative objects with theme, entities, story, and metadata
     """
     # Check in-memory cache
-    cache_key = f"narratives:active:{limit}:{lifecycle_state or 'all'}"
+    cache_key = f"narratives:active:v2:{lifecycle_state or 'all'}"
     
     if cache_key in _narratives_cache:
         cached_data, cached_time = _narratives_cache[cache_key]
         if datetime.now() - cached_time < _narratives_cache_ttl:
-            return cached_data
+            # Paginate from cached full result
+            all_narratives = cached_data.get("narratives", [])
+            total_count = len(all_narratives)
+            page_narratives = all_narratives[offset:offset + limit]
+            return PaginatedNarrativesResponse(
+                narratives=page_narratives,
+                total_count=total_count,
+                offset=offset,
+                limit=limit,
+                has_more=(offset + limit) < total_count
+            )
         else:
             # Remove expired entry
             del _narratives_cache[cache_key]
@@ -297,7 +317,7 @@ async def get_active_narratives_endpoint(
         pipeline = [
             {'$match': match_stage},
             {'$sort': {'last_updated': -1}},
-            {'$limit': limit},
+            {'$limit': 200},  # Fetch full set for caching
             # Lookup articles to get the most recent article timestamp
             {'$lookup': {
                 'from': 'articles',
@@ -347,9 +367,15 @@ async def get_active_narratives_endpoint(
         
         cursor = narratives_collection.aggregate(pipeline)
         narratives = await cursor.to_list(length=None)
-        
+
         if not narratives:
-            return []
+            return PaginatedNarrativesResponse(
+                narratives=[],
+                total_count=0,
+                offset=offset,
+                limit=limit,
+                has_more=False
+            )
         
         # Convert to response models and fetch articles
         response_data = []
@@ -444,11 +470,21 @@ async def get_active_narratives_endpoint(
         
         # Convert to response models
         response = [NarrativeResponse(**n) for n in response_data]
-        
-        # Store in cache with current timestamp (1-minute TTL)
-        _narratives_cache[cache_key] = (response, datetime.now())
-        
-        return response
+
+        # Store full list in cache (without pagination)
+        cache_data = {"narratives": response}
+        _narratives_cache[cache_key] = (cache_data, datetime.now())
+
+        # Return paginated slice
+        total_count = len(response)
+        page_narratives = response[offset:offset + limit]
+        return PaginatedNarrativesResponse(
+            narratives=page_narratives,
+            total_count=total_count,
+            offset=offset,
+            limit=limit,
+            has_more=(offset + limit) < total_count
+        )
     
     except Exception as e:
         logger.exception(f"Error fetching active narratives: {e}")
