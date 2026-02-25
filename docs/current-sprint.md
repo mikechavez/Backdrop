@@ -71,7 +71,7 @@ ADR-012 supersedes all prior sprint goals.
 **Branch:** fix/task-016-observability-clamps
 **Commits:** fad129a, a420bdd
 
-## Ready for Deployment
+## Ready for Deployment (ADR-012 + Polish)
 
 ✅ All ADR-012 phases complete and tested
 ✅ Signals page performance optimized (<5s cold expected)
@@ -79,10 +79,17 @@ ADR-012 supersedes all prior sprint goals.
 ✅ Full observability for production monitoring
 ✅ Zero duplicate log messages
 ✅ Parameter clamps verified and logged
+✅ BUG-052 Fixed: "Recent mentions" two-click bug + hover UX improved
+
+### Latest: BUG-052 Resolution (2026-02-25)
+- Fixed button requiring two clicks to expand
+- Articles now fetch in background (non-blocking)
+- Enhanced hover UX: background highlight, padding, rounded, transition
+- Build verified: 2146 modules, 144KB gzipped
 
 **Next steps:**
-1. Create PR against main
-2. Review and merge to main
+1. Push to origin and create final PR against main
+2. Review and squash merge to main
 3. Deploy to Railway (production)
-4. Monitor performance metrics
+4. Monitor performance metrics and observability logs
 5. Close ADR-012 epic

@@ -82,7 +82,7 @@ Signals page was unusable due to 40s+ entity article loads.
 
 **Impact:** Full observability for monitoring ADR-012 performance goals
 
-## ADR-012 Complete - Ready for Deployment
+## ADR-012 Complete + UI Polish (2026-02-25)
 
 ✅ All 5 phases implemented and tested
 ✅ Signals page expected <5s cold
@@ -90,5 +90,13 @@ Signals page was unusable due to 40s+ entity article loads.
 ✅ No 10s+ backend calls expected
 ✅ Zero duplicate log messages
 ✅ Full performance observability in place
+✅ BUG-052 Fixed: "Recent mentions" two-click issue resolved
 
-**Next:** Create PR, merge to main, deploy to Railway (production)
+### BUG-052: UI Polish Completed
+- **Issue:** "Recent mentions" button required two clicks to expand
+- **Fix:** Removed async/await blocker, articles now load in background
+- **UX:** Added hover styling (bg highlight, padding, rounded, transition)
+- **Commit:** 25f1558
+- **Impact:** Single-click expansion with visual feedback
+
+**Next:** Push to origin, create final PR, deploy to Railway (production)
