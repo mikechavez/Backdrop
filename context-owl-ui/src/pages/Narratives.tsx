@@ -63,8 +63,8 @@ export function Narratives() {
     queryKey: ['narratives'],
     queryFn: async () => {
       const result = await narrativesAPI.getNarratives();
-      console.log('[DEBUG] API returned:', result.length, 'narratives');
-      return result;
+      console.log('[DEBUG] API returned:', result.narratives.length, 'narratives');
+      return result.narratives;
     },
     refetchInterval: 60000, // 60 seconds
   });

@@ -1,19 +1,50 @@
 import { apiClient } from './client';
-import type { SignalsResponse, Signal, SignalFilters } from '../types';
+import type { Signal, SignalFilters } from '../types';
+
+export interface PaginatedSignalsResponse {
+  count: number;
+  total_count: number;
+  offset: number;
+  limit: number;
+  has_more: boolean;
+  signals: Signal[];
+  cached: boolean;
+  computed_at: string;
+  filters: {
+    min_score: number;
+    entity_type: string | null;
+    timeframe: string;
+  };
+  performance?: {
+    total_time_seconds: number;
+    compute_time_seconds: number;
+    payload_size_kb: number;
+  };
+}
 
 export const signalsAPI = {
-  getSignals: async (filters?: SignalFilters): Promise<SignalsResponse> => {
-    return apiClient.get<SignalsResponse>('/api/v1/signals/trending', filters);
+  getSignals: async (filters?: SignalFilters & { offset?: number }): Promise<PaginatedSignalsResponse> => {
+    return apiClient.get<PaginatedSignalsResponse>('/api/v1/signals/trending', {
+      limit: filters?.limit ?? 15,
+      offset: filters?.offset ?? 0,
+      min_score: filters?.min_score,
+      entity_type: filters?.entity_type,
+      timeframe: filters?.timeframe,
+    });
   },
 
   getSignalById: async (id: number): Promise<Signal> => {
     return apiClient.get<Signal>(`/api/v1/signals/${id}`);
   },
 
-  getSignalsByEntity: async (entityId: number, filters?: Omit<SignalFilters, 'entity_id'>): Promise<SignalsResponse> => {
-    return apiClient.get<SignalsResponse>('/api/v1/signals/trending', {
+  getSignalsByEntity: async (entityId: number, filters?: Omit<SignalFilters, 'entity_id'>): Promise<PaginatedSignalsResponse> => {
+    return apiClient.get<PaginatedSignalsResponse>('/api/v1/signals/trending', {
+      limit: filters?.limit ?? 15,
+      offset: filters?.offset ?? 0,
       entity_id: entityId,
-      ...filters,
+      min_score: filters?.min_score,
+      entity_type: filters?.entity_type,
+      timeframe: filters?.timeframe,
     });
   },
 };
