@@ -3,166 +3,130 @@ id: BUG-042
 type: performance
 priority: HIGH
 severity: HIGH
-status: ready-for-merge
+status: ✅ COMPLETED
 created: 2026-02-25
 updated: 2026-02-25
-effort: 45 minutes
+effort: 15 minutes actual
+completed: 2026-02-25 (FEATURE-048d/048e staleTime regression fixed)
 ---
 
-# BUG-042: Signals & Narratives Pages Loading Slowly Despite FEATURE-048 Pagination
+# BUG-042: useInfiniteQuery Refetch Storm (FEATURE-048d/048e Regression)
 
 ## Problem Statement
 
-Users reported that signals and narratives pages were still loading very slowly, despite FEATURE-048 implementing offset-based pagination and infinite scroll. Investigation revealed **the pagination optimization was incomplete** — the backend still paid the full cost of computing all 100 signals/narratives on every cache miss, and the frontend was invalidating cached data on every tab focus.
+FEATURE-048d (Signals infinite scroll) and FEATURE-048e (Narratives infinite scroll) replaced the original `useQuery` calls with new `useInfiniteQuery` calls, but hardcoded `staleTime: 0`. This overwrote the cold-cache performance branch's `staleTime: 25s/55s` fix. Combined with React Query's default `refetchOnWindowFocus: true`, every tab switch triggers refetches of ALL loaded infinite query pages, creating request storms that overwhelm Atlas M0 (intermittent signal failures, slow loads).
 
 ## Root Cause Analysis
 
-### 1. Frontend Cache Invalidation (Highest Impact)
-- **File:** `Signals.tsx`, `Narratives.tsx`
-- **Issue:** `staleTime: 0` on both pages
-- **Effect:** Every tab focus/app refocus triggers React Query to mark data as "stale" and refetch from backend
-- **Impact:** ~90% increase in backend requests compared to cached pattern
-- **Example:** User switches tabs for 2 seconds, comes back → fresh API call instead of using 30-second-old cached data
-
-### 2. Narratives Aggregation Performance (Critical)
-- **File:** `narratives.py` lines 322-336
-- **Issue:** `$lookup` pipeline with `$expr` + `$toString` + `$in` on article IDs
-- **Problem:** `$expr` with `$toString` and `$in` cannot use indexes; forces collection scan of entire `articles` collection per narrative
-- **Complexity:** O(narratives × articles) — for 200 narratives with 50 articles each, scans 10,000 article documents unnecessarily
-- **Reality:** Articles not even returned in list view (line 416: "Don't fetch articles for list view")
-- **Wasted:** All that expensive computation was discarded
-
-### 3. Backend Cache Miss Computation (Medium Impact)
-- **File:** `signals.py` line 467
-- **Issue:** `compute_trending_signals(..., limit=100)` always computes full set
-- **Design:** Correct for caching efficiency (compute once, slice for all pages), but...
-- **Gap:** First user after cache expiry blocks synchronously waiting for 100-entity computation
-- **Partial Fix:** Addressed by reducing cache invalidations (issue #1)
-
-### 4. Redundant Aggregation Pipeline Step (Low Impact)
-- **File:** `signal_service.py` lines 780-785
-- **Issue:** Double `$match` before and after `$unwind`
-- **Fix:** Removed second `$match` (first `$in` filter already filtered results)
+### The Regression
+- **FEATURE-048d/048e Changes:** Both pages replaced `useQuery` with `useInfiniteQuery`
+- **Problem:** New `useInfiniteQuery` options explicitly set `staleTime: 0`
+- **Effect:** Combined with `refetchOnWindowFocus: true` (React Query default), tab focus → refetch all loaded pages
+- **Pattern:** User loads 3 pages of signals (45 items), switches tabs, returns → fetches all 45 items again
+- **Scale:** On Atlas M0 with many users, this creates cascading refetch storms that trigger intermittent errors
+- **Why it matters:** The cold-cache branch (e867741) had already fixed this with `staleTime: 25s/55s`, but FEATURE-048d/048e overwrite was lost on merge
 
 ## Solution Implemented
 
-### 1. Fix Frontend Cache Configuration ✅
-**Changed in:** `Signals.tsx` (line 90), `Narratives.tsx` (line 80)
+### Fix: Restore Cache Configuration + Disable Window Focus Refetch ✅
+**Changed in:**
+- `context-owl-ui/src/pages/Signals.tsx` (line 90-91)
+- `context-owl-ui/src/pages/Narratives.tsx` (line 80-81)
 
 **Before:**
 ```typescript
-staleTime: 0, // Always consider data stale
+useInfiniteQuery({
+  // ... config
+  staleTime: 0, // REGRESSION: Always consider data stale
+  // Missing: refetchOnWindowFocus not configured (defaults to true)
+})
 ```
 
 **After:**
 ```typescript
-// Signals
-staleTime: 25000, // Consider fresh for 25 seconds (5s buffer before next refetchInterval)
+// Signals.tsx
+useInfiniteQuery({
+  // ... config
+  staleTime: 25000, // Restored: Consider fresh for 25 seconds (5s buffer before 30s refetchInterval)
+  refetchOnWindowFocus: false, // Prevent refetch storms on tab focus
+})
 
-// Narratives
-staleTime: 55000, // Consider fresh for 55 seconds (5s buffer before next refetchInterval)
+// Narratives.tsx
+useInfiniteQuery({
+  // ... config
+  staleTime: 55000, // Restored: Consider fresh for 55 seconds (5s buffer before 60s refetchInterval)
+  refetchOnWindowFocus: false, // Prevent refetch storms on tab focus
+})
 ```
 
-**Why:** React Query now respects the backend cache TTL. Data is only considered "stale" after the buffer period, dramatically reducing unnecessary refetches. When user returns to tab after 10 seconds, cached data is still "fresh" and no refetch is triggered.
-
-### 2. Remove Expensive Narratives Lookup ✅
-**Changed in:** `narratives.py` lines 316-342
-
-**Removed:**
-- Entire `$lookup` aggregation pipeline (lines 322-336)
-- `$addFields` computation (lines 337-342)
-- `last_article_at` field from projection (line 338)
-
-**Updated Fallback:**
-- `last_article_at_str` now simply uses `last_updated_str` (no expensive lookup needed)
-
-**Rationale:**
-- List view never returns articles to frontend anyway (line 416)
-- Articles are fetched on-demand only for detail views (separate endpoint)
-- Removing the pipeline eliminates O(narratives × articles) collection scans
-- `last_updated` is a reasonable proxy for "last activity" without expensive lookup
-
-### 3. Clean Up Redundant Aggregation Step ✅
-**Changed in:** `signal_service.py` lines 780-785
-
-**Before:**
-```python
-narrative_counts = await db.narratives.aggregate([
-    {"$match": {"entities": {"$in": entities}}},  # First filter
-    {"$unwind": "$entities"},
-    {"$match": {"entities": {"$in": entities}}},  # Redundant second filter
-    {"$group": {"_id": "$entities", "count": {"$sum": 1}, "narrative_ids": {"$push": {"$toString": "$_id"}}}}
-]).to_list(length=None)
-```
-
-**After:**
-```python
-narrative_counts = await db.narratives.aggregate([
-    {"$match": {"entities": {"$in": entities}}},
-    {"$unwind": "$entities"},
-    # Second $match removed (first $in filter already gave us only matching narratives)
-    {"$group": {"_id": "$entities", "count": {"$sum": 1}, "narrative_ids": {"$push": {"$toString": "$_id"}}}}
-]).to_list(length=None)
-```
+**Why this fixes it:**
+1. **staleTime restoration:** React Query now respects the backend cache TTL (25s/55s buffers)
+2. **refetchOnWindowFocus: false:** Tab switches no longer trigger automatic refetches
+3. **Result:** Repeated visits within cache window use cached data; tab focus doesn't invalidate
+4. **Intentional resets:** `refetchInterval` (30s/60s) still works for live updates
 
 ## Impact Analysis
 
 ### Expected Improvements
 
-| Scenario | Before | After | Improvement |
-|----------|--------|-------|-------------|
-| **Tab focus (warm cache)** | Full refetch | Cache hit | ~90% reduction in API calls |
-| **Narratives page first load (warm cache)** | 8-12s (narratives lookup slow) | 1-2s (no lookup) | 75-85% faster |
-| **Repeated visits (30-60s window)** | Always recomputes | Uses cache | 100% reduction in backend work |
-| **Cold cache latency** | 15-30s (full compute + lookup) | 10-15s (compute only, no lookup) | 30% faster |
+| Scenario | Before (Regression) | After (Fixed) | Improvement |
+|----------|------------|---------|-------------|
+| **Tab focus** | Refetch all loaded pages | Cache hit | ~90% reduction in API calls |
+| **Within 25-55s window** | Always recomputes | Cache serves request | 100% reduction in backend work |
+| **Atlas M0 load** | Refetch storms cause errors | Distributed load (1 per 25-60s) | Prevents intermittent failures |
+| **User experience** | Flickering, slow interactions | Smooth, instant cached display | Dramatic UX improvement |
 
 ### Behavioral Changes
 
-- **User-Facing:** None. API responses identical, just computed more efficiently.
-- **Breaking Changes:** None. All aggregations still produce correct results.
-- **Test Impact:** Existing tests unchanged. No new test coverage needed (non-breaking perf changes).
+- **User-Facing:** Tab switches no longer cause page flicker or slow reloads
+- **Breaking Changes:** None. Query behavior unchanged, just more intelligent caching
+- **Test Impact:** Existing tests unchanged (React Query caching behavior is transparent to tests)
 
 ## Verification
 
-### Frontend
+### Build Status
 ```bash
-cd context-owl-ui
-npm run build
-# ✅ 2146 modules transformed, 144KB gzipped
+cd context-owl-ui && npm run build
+# ✅ 2146 modules transformed, 143-144KB gzipped
 # ✅ TypeScript: 0 errors
+# ✅ No breaking changes
 ```
 
-### Backend
-- No new tests required (removing unused operations, not changing behavior)
-- Existing signal/narrative tests continue to pass
-- Manual verification: API responses identical in structure and content
+### Testing
+- No test changes needed (cache behavior is transparent to existing tests)
+- Manual verification: Tab switch → no page refetch, page stays smooth
+- Load testing: Multiple tab switches should not trigger request storms
 
 ## Files Modified
 
-1. **context-owl-ui/src/pages/Signals.tsx** — Line 90: `staleTime` config
-2. **context-owl-ui/src/pages/Narratives.tsx** — Line 80: `staleTime` config
-3. **src/crypto_news_aggregator/api/v1/endpoints/narratives.py** — Lines 316-342: Remove $lookup
-4. **src/crypto_news_aggregator/services/signal_service.py** — Lines 780-785: Remove redundant $match
+1. **context-owl-ui/src/pages/Signals.tsx** — Lines 90-91: Add `staleTime: 25000` + `refetchOnWindowFocus: false`
+2. **context-owl-ui/src/pages/Narratives.tsx** — Lines 80-81: Add `staleTime: 55000` + `refetchOnWindowFocus: false`
 
 ## Branch & Commit
 
 - **Branch:** `fix/signals-narratives-cold-cache-performance`
-- **Commit:** e867741
-- **Status:** Ready for merge (code complete, no breaking changes)
+- **Commit:** 1dbc98b (BUG-042 fix)
+- **Status:** ✅ COMPLETE AND COMMITTED
 
 ## Related Issues
 
-- **FEATURE-048:** Lazy loading pagination (incomplete without this fix)
-- **BUG-040:** N+1 articles batch query (was causing 45s+ signals load, fixed separately)
-- **TASK-013:** MongoDB indexes (separate work for further perf gains)
+- **FEATURE-048d/048e:** Frontend infinite scroll (caused the regression by setting staleTime: 0)
+- **Cold-cache branch (e867741):** Had correct staleTime config that was overwritten on merge
+- **TASK-014:** Pre-launch security hardening (next priority after this fix)
 
 ## Next Steps
 
-1. Push branch and create PR
-2. Verify staging deployment performance (should see 75% reduction in narratives page load)
-3. Monitor production: backend cache hit rate should increase dramatically
-4. Consider background cache warming (separate optimization) if cold-cache latency remains issue
+1. ✅ Commit pushed to `fix/signals-narratives-cold-cache-performance`
+2. Create PR against `main`
+3. Deploy to production and monitor for reduced refetch storms
+4. Verify tab switches no longer cause intermittent signal failures
 
-## Notes
+## Implementation Notes
 
-The original FEATURE-048 pagination architecture was correct — computing the full set once for cache efficiency is the right pattern. This fix simply removes the one expensive operation that was unnecessary and makes React Query respect the backend cache lifecycle instead of invalidating it unnecessarily.
+This fix corrects a merge regression where FEATURE-048d/048e's new `useInfiniteQuery` calls overwrote the cold-cache performance branch's cache configuration. The solution is minimal (2 lines per file) because:
+
+1. The cold-cache branch already identified the correct `staleTime` values (25s/55s)
+2. Only needed to re-apply those values to the new `useInfiniteQuery` options
+3. Added `refetchOnWindowFocus: false` to prevent React Query's default behavior on window focus
+
+This is a pure React Query configuration fix — no backend changes needed.

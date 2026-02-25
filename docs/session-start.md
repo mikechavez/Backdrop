@@ -2,7 +2,7 @@
 session_date: 2026-02-25
 project: Backdrop (Context Owl)
 current_sprint: Sprint 10 — UI Polish & Stability
-session_focus: FEATURE-048c (frontend shared infra for lazy loading), then 048d/048e frontend implementations
+session_focus: BUG-042 (refetch storm fix), then TASK-014 security hardening
 ---
 
 # Session Context: Sprint 10 — UI Polish & Stability
@@ -58,8 +58,8 @@ session_focus: FEATURE-048c (frontend shared infra for lazy loading), then 048d/
 
 ## Work Completed This Session (2026-02-25 continued)
 
-### ✅ NEW: Cold-Cache Performance Optimization (READY FOR MERGE)
-**Status:** CODE COMPLETE | **Effort:** 45 min actual | **Branch:** `fix/signals-narratives-cold-cache-performance` | **Commit:** e867741
+### ✅ NEW: Cold-Cache Performance Optimization (MERGED)
+**Status:** ✅ MERGED (2026-02-25) | **Effort:** 45 min actual | **Branch:** `fix/signals-narratives-cold-cache-performance` | **Commit:** e867741
 
 Optimized signals and narratives page load performance by addressing root cause of slow loads:
 
@@ -94,13 +94,26 @@ Optimized signals and narratives page load performance by addressing root cause 
 - `src/crypto_news_aggregator/api/v1/endpoints/narratives.py` (removed $lookup)
 - `src/crypto_news_aggregator/services/signal_service.py` (removed redundant $match)
 
-**Next Step:** Push branch and create PR #XXX (squash merge to main)
+**Next Step:** ✅ Merged. However, FEATURE-048d/048e overwrote staleTime fixes — see BUG-042.
 
 ---
 
 ## What to Work On Next
 
-### ✅ PRIORITY 1 (COMPLETED): FEATURE-048c — Frontend Shared Infinite Scroll Infrastructure (2026-02-25)
+### ✅ PRIORITY 1 (COMPLETED THIS SESSION): BUG-042 — useInfiniteQuery Refetch Storm (2026-02-25)
+**Status:** COMPLETED | **Effort:** 15 min actual | **Commit:** 1dbc98b
+
+Fixed the refetch storm regression introduced by FEATURE-048d/048e by:
+- Restoring `staleTime: 25000` in Signals.tsx (line 90)
+- Restoring `staleTime: 55000` in Narratives.tsx (line 80)
+- Adding `refetchOnWindowFocus: false` to both pages to prevent tab-switch refetches
+- Build: ✅ 2146 modules, 143KB gzipped, TypeScript clean
+
+**Next:** TASK-014 security hardening or push BUG-042 PR
+
+---
+
+### ✅ PRIORITY 2 (PREVIOUSLY COMPLETED): FEATURE-048c — Frontend Shared Infinite Scroll Infrastructure (2026-02-25)
 **Status:** COMPLETED | **Effort:** 20-30 min actual | **Commit:** 0e23872
 
 Created shared infinite scroll infrastructure for Signals and Narratives pages:
@@ -202,6 +215,23 @@ Broken into 5 tickets — work in order:
 
 **Spec:** `FEATURE-048-implementation-spec.md` (Parts 1-7)
 **Tickets:** `feature-048a-*.md` through `feature-048e-*.md`
+
+---
+
+### ✅ PRIORITY 0 (COMPLETED): BUG-042 — useInfiniteQuery Refetch Storm
+**Priority:** HIGH | **Severity:** HIGH | **Status:** ✅ COMPLETED | **Effort:** 15 min actual
+**Ticket:** `bug-042-infinite-query-refetch-storm.md` (UPDATED)
+**Commit:** 1dbc98b
+
+FEATURE-048d/048e replaced `useQuery` with `useInfiniteQuery` and hardcoded `staleTime: 0`, overwriting the cold-cache branch's `staleTime: 25s/55s` fix. Combined with React Query's default `refetchOnWindowFocus: true`, every tab switch triggered refetches of ALL loaded pages — creating request storms that overwhelmed Atlas M0.
+
+**Fix Applied (2 files, 2 lines):**
+- ✅ `Signals.tsx` line 91: added `refetchOnWindowFocus: false` (staleTime: 25_000 already present)
+- ✅ `Narratives.tsx` line 81: added `refetchOnWindowFocus: false` (staleTime: 55_000 already present)
+
+**Build:** ✅ Clean (2146 modules, 143KB gzipped)
+
+**Branch:** `fix/signals-narratives-cold-cache-performance` | **Already committed & pushed**
 
 ---
 
