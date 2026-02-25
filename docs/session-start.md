@@ -2,7 +2,11 @@
 session_date: 2026-02-25
 project: Backdrop (Context Owl)
 current_sprint: Sprint 10 — UI Polish & Stability
+<<<<<<< HEAD
+session_focus: BUG-042 (refetch storm fix), then TASK-014 security hardening
+=======
 session_focus: BUG-043/BUG-044 signals cold cache diagnosis, then Fix 2 implementation
+>>>>>>> 29a746f (fix(signals): Add request tracing to signals endpoint (BUG-044))
 ---
 
 # Session Context: Sprint 10 — UI Polish & Stability
@@ -17,17 +21,21 @@ session_focus: BUG-043/BUG-044 signals cold cache diagnosis, then Fix 2 implemen
 
 ## Current Status
 
-### In Progress (2026-02-25) — BUG-043/BUG-044 Signals Cold Cache Investigation
+### Completed (2026-02-25) — BUG-044 Request Tracing ✅
+- ✅ **BUG-044** — COMPLETED (2026-02-25) — Added request tracing to signals endpoint
+  - Generated `req_id` at top of handler for request correlation
+  - Log all request parameters (limit, offset, timeframe, entity_type, min_score)
+  - Added `req_id` to all 11 log lines in `get_trending_signals()`
+  - New diagnostic line: "Enrichment plan: requested_limit vs page_items vs article_entities"
+  - Commit: bd7dbb8
+  - **Next step:** Deploy to production and reproduce cold cache scenario
+
+### In Progress (2026-02-25) — BUG-043 Signals Cold Cache (Awaiting BUG-044 Deployment)
 - 🟡 **BUG-043** — IN PROGRESS (Fix 1 Complete, Fix 2 pending diagnosis)
   - Signals endpoint takes 110s on cold cache due to article batch fetch bottleneck
   - Fix 1 (paginate before fetch) shipped on branch `fix/bug-043-paginate-before-fetch` (commit e11a3e5)
   - Production still showing 110s loads — ambiguity on whether Fix 1 is deployed or a second caller sends `limit=50`
-  - **Blocked by:** BUG-044 (need request tracing to diagnose)
-- 🔴 **BUG-044** — OPEN (Created 2026-02-25) — Signals endpoint lacks request tracing
-  - Cannot correlate log lines to specific requests (no request ID)
-  - Cannot confirm whether 50-entity enrichment comes from `limit=15` or `limit=50` caller
-  - **Fix:** Add request ID + param logging to signals handler (10-minute change)
-  - **Unblocks:** BUG-043 diagnosis and Fix 2 implementation
+  - **Unblocked by:** BUG-044 request tracing (commit bd7dbb8)
 
 ### Recently Completed (2026-02-25) — FEATURE-048a Pagination Implementation ✅
 - ✅ **FEATURE-048a** — COMPLETED (2026-02-25) — Backend signals pagination
@@ -112,6 +120,22 @@ Optimized signals and narratives page load performance by addressing root cause 
 
 ## What to Work On Next
 
+<<<<<<< HEAD
+### ✅ PRIORITY 1 (COMPLETED THIS SESSION): BUG-042 — useInfiniteQuery Refetch Storm (2026-02-25)
+**Status:** COMPLETED | **Effort:** 15 min actual | **Commit:** 1dbc98b
+
+Fixed the refetch storm regression introduced by FEATURE-048d/048e by:
+- Restoring `staleTime: 25000` in Signals.tsx (line 90)
+- Restoring `staleTime: 55000` in Narratives.tsx (line 80)
+- Adding `refetchOnWindowFocus: false` to both pages to prevent tab-switch refetches
+- Build: ✅ 2146 modules, 143KB gzipped, TypeScript clean
+
+**Next:** TASK-014 security hardening or push BUG-042 PR
+
+---
+
+### ✅ PRIORITY 2 (PREVIOUSLY COMPLETED): FEATURE-048c — Frontend Shared Infinite Scroll Infrastructure (2026-02-25)
+=======
 ### 🔴 IMMEDIATE: BUG-044 — Add Request Tracing to Signals Endpoint (2026-02-25)
 **Status:** OPEN | **Effort:** 10 minutes | **Blocks:** BUG-043 diagnosis
 
@@ -145,6 +169,7 @@ Once BUG-044 confirms the root cause, implement Fix 2:
 ---
 
 ### ✅ PRIORITY 1 (COMPLETED): FEATURE-048c — Frontend Shared Infinite Scroll Infrastructure (2026-02-25)
+>>>>>>> 29a746f (fix(signals): Add request tracing to signals endpoint (BUG-044))
 **Status:** COMPLETED | **Effort:** 20-30 min actual | **Commit:** 0e23872
 
 Created shared infinite scroll infrastructure for Signals and Narratives pages:

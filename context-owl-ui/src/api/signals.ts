@@ -47,4 +47,10 @@ export const signalsAPI = {
       timeframe: filters?.timeframe,
     });
   },
+
+  getEntityArticles: async (entity: string, limit: number = 5): Promise<{ entity: string; articles: any[] }> => {
+    return apiClient.get<{ entity: string; articles: any[] }>(`/api/v1/signals/${entity}/articles`, {
+      limit,
+    });
+  },
 };
