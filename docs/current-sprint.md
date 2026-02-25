@@ -7,7 +7,7 @@ session_focus: UI Polish & Stability — Signals Bugs & Skeleton Loaders
 
 # Current Sprint Status
 
-> **Last Updated:** 2026-02-23
+> **Last Updated:** 2026-02-24
 > **Previous Sprint:** ✅ Sprint 9 Complete (Documentation Infrastructure)
 
 ## Sprint 10: UI Polish & Stability
@@ -282,6 +282,32 @@ Three indexes to make `$match` stages fast now that sort/limit moved to Python:
 3. `signals_entity_lookup` — covers per-entity article lookups
 
 **Ticket:** `task-013-create-signal-indexes.md`
+
+---
+
+### 🟡 FEATURE-048: Lazy Loading for Signals & Narratives Pages (Broken into Sub-Tickets)
+**Priority:** HIGH | **Complexity:** MEDIUM | **Status:** OPEN | **Effort:** 2-4 hours total
+
+Speed up perceived load time by adding offset-based pagination (backend) + Intersection Observer infinite scroll (frontend). Broken into 5 implementation tickets:
+
+| Ticket | Scope | Complexity | Dependencies | Spec Part |
+|--------|-------|------------|--------------|-----------|
+| **FEATURE-048a** | Backend Signals Pagination | Medium | None | Part 1 |
+| **FEATURE-048b** | Backend Narratives Pagination | Medium | None | Part 2 |
+| **FEATURE-048c** | Frontend Shared Infra (hook, API clients, types) | Low | 048a, 048b (type alignment) | Parts 3, 4, 7 |
+| **FEATURE-048d** | Frontend Signals Page Infinite Scroll | Medium | 048a, 048c | Part 5 |
+| **FEATURE-048e** | Frontend Narratives Page Infinite Scroll | Medium | 048b, 048c | Part 6 |
+
+**Recommended order:** 048a → 048b → 048c → 048d → 048e (backend first, then shared infra, then pages)
+
+**Acceptance Criteria (parent):**
+- Signals page: first meaningful content within 2-3 seconds
+- Narratives page: first meaningful content within 2-3 seconds
+- Smooth scrolling, no layout shifts
+- Integrates with FEATURE-047 skeleton loaders
+
+**Tickets:** `feature-048a-backend-signals-pagination.md`, `feature-048b-backend-narratives-pagination.md`, `feature-048c-frontend-shared-infrastructure.md`, `feature-048d-frontend-signals-infinite-scroll.md`, `feature-048e-frontend-narratives-infinite-scroll.md`
+**Spec:** `FEATURE-048-implementation-spec.md`
 
 ---
 

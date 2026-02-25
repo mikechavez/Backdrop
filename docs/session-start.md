@@ -2,7 +2,7 @@
 session_date: 2026-02-24
 project: Backdrop (Context Owl)
 current_sprint: Sprint 10 — UI Polish & Stability
-session_focus: Investigate Vercel deployment pipeline (BUG-041/BUG-033 — merged code not in prod), then TASK-012, FEATURE-048, TASK-014, launch
+session_focus: Investigate Vercel deployment pipeline (BUG-041/BUG-033 — merged code not in prod), then TASK-012, FEATURE-048 (048a-048e), TASK-014, launch
 ---
 
 # Session Context: Sprint 10 — UI Polish & Stability
@@ -62,25 +62,28 @@ Kept on `_count_filtered_mentions()` which still has complex `$lookup`.
 
 ---
 
-### 🟡 PRIORITY 2: FEATURE-048 — Lazy Loading for Signals & Narratives Pages
-**Priority:** HIGH | **Complexity:** MEDIUM | **Status:** OPEN | **Effort:** 2-4 hours
+### 🟡 PRIORITY 2: FEATURE-048 — Lazy Loading for Signals & Narratives Pages (5 Sub-Tickets)
+**Priority:** HIGH | **Complexity:** MEDIUM | **Status:** OPEN | **Effort:** 2-4 hours total
+**Approach:** Offset-based pagination (backend) + Intersection Observer infinite scroll (frontend)
 
-Speed up perceived load time of Signals and Narratives pages. Even after BUG-040 (45s → ~10s), users still wait for full payload before seeing content.
+Broken into 5 tickets — work in order:
 
-**Approach options:**
-1. Lazy loading / infinite scroll — load first N items, fetch more on scroll
-2. Pagination — server-side page-based loading
-3. Virtualized lists — render only visible DOM elements (react-window / react-virtuoso)
-4. Progressive hydration — trending entities first → articles second
-5. Combination approach
+| # | Ticket | Scope | Effort | Depends On |
+|---|--------|-------|--------|------------|
+| 1 | **FEATURE-048a** | Backend Signals Pagination | 30-45 min | None |
+| 2 | **FEATURE-048b** | Backend Narratives Pagination | 30-45 min | None |
+| 3 | **FEATURE-048c** | Frontend Shared Infra (hook, API clients, types) | 20-30 min | 048a, 048b |
+| 4 | **FEATURE-048d** | Frontend Signals Page Infinite Scroll | 30-45 min | 048a, 048c |
+| 5 | **FEATURE-048e** | Frontend Narratives Page Infinite Scroll | 30-45 min | 048b, 048c |
 
-**Acceptance Criteria:**
+**Acceptance Criteria (parent):**
 - Signals page: first meaningful content within 2-3 seconds
 - Narratives page: first meaningful content within 2-3 seconds
 - Smooth scrolling, no layout shifts
 - Integrates with FEATURE-047 skeleton loaders
 
-**Ticket:** `feature-048-lazy-loading-signals-narratives.md`
+**Spec:** `FEATURE-048-implementation-spec.md` (Parts 1-7)
+**Tickets:** `feature-048a-*.md` through `feature-048e-*.md`
 
 ---
 
