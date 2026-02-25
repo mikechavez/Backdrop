@@ -204,7 +204,7 @@ export function Signals() {
                 {/* Recent articles section with lazy-loading */}
                 <div className="mt-3 pt-3 border-t border-gray-200 dark:border-dark-border">
                   <button
-                    onClick={async () => {
+                    onClick={() => {
                       const newExpanded = new Set(expandedArticles);
                       const isCurrentlyExpanded = newExpanded.has(index);
 
@@ -212,14 +212,14 @@ export function Signals() {
                         newExpanded.delete(index);
                       } else {
                         newExpanded.add(index);
-                        // Fetch articles if not already loaded
+                        // Fetch articles in background (don't await to expand immediately)
                         if (articlesByEntity[signal.entity] === undefined) {
-                          await handleLoadArticles(signal.entity);
+                          handleLoadArticles(signal.entity);
                         }
                       }
                       setExpandedArticles(newExpanded);
                     }}
-                    className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-medium flex items-center gap-1"
+                    className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 px-2 py-1 rounded transition-colors font-medium flex items-center gap-1 cursor-pointer"
                   >
                     {expandedArticles.has(index) ? '▼' : '▶'} Recent mentions
                   </button>
