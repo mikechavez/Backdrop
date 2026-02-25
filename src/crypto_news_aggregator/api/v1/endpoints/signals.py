@@ -638,11 +638,30 @@ async def get_entity_articles(
         Object with entity name and list of recent articles
     """
     try:
+        start_time = time.time()
+        cache_key = f"signals:articles:v1:{entity}:{limit}:7d"
+
+        # Try to get from cache first
+        cached = get_from_cache(cache_key)
+        if cached is not None:
+            compute_ms = int((time.time() - start_time) * 1000)
+            logger.info(f"[EntityArticles] Cache hit for {entity} (key={cache_key}, latency={compute_ms}ms)")
+            return cached
+
+        # Cache miss - fetch from database
         articles = await get_recent_articles_for_entity(entity, limit=limit, days=days)
-        return {
+        compute_ms = int((time.time() - start_time) * 1000)
+        logger.info(f"[EntityArticles] Cache miss for {entity}: computed in {compute_ms}ms")
+
+        response = {
             "entity": entity,
             "articles": articles,
         }
+
+        # Cache the response for 15 minutes (900 seconds)
+        set_in_cache(cache_key, response, ttl_seconds=900)
+
+        return response
     except Exception as e:
         logger.error(f"Failed to fetch articles for entity {entity}: {e}")
         raise HTTPException(
