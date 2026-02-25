@@ -132,7 +132,7 @@ async def get_narrative_details(narrative_ids: List[str]) -> List[Dict[str, Any]
     return narratives
 
 
-async def get_recent_articles_for_entity(entity: str, limit: int = 5) -> List[Dict[str, Any]]:
+async def get_recent_articles_for_entity(entity: str, limit: int = 5, days: int = 7) -> List[Dict[str, Any]]:
     """
     Fetch recent articles mentioning a specific entity.
 
@@ -142,21 +142,33 @@ async def get_recent_articles_for_entity(entity: str, limit: int = 5) -> List[Di
 
     Args:
         entity: The entity name to search for
-        limit: Maximum number of articles to return (default 5)
+        limit: Maximum number of articles to return (default 5, max 20)
+        days: Time window in days (default 7, max 7)
 
     Returns:
         List of article dicts with title, url, source, published_at
     """
+    # Clamp parameters
+    limit = min(limit, 20)
+    days = min(days, 7)
+
     db = await mongo_manager.get_async_database()
     mentions_collection = db.entity_mentions
+
+    # Calculate cutoff date for 7-day time window
+    cutoff_date = datetime.now() - timedelta(days=days)
 
     # Use aggregation pipeline to join entity_mentions with articles
     # NOTE: Removed pre-group and post-group $sort stages and $limit for Atlas M0 compatibility
     # (M0 silently ignores allowDiskUse=True). Changed $first to $max to get actual latest
     # published_at without relying on pre-sort order. Sort and limit will happen post-pipeline.
+    # BUG-045: Added 7-day cutoff at query level (before $group) for performance.
     pipeline = [
-        # Match mentions for this entity
-        {"$match": {"entity": entity}},
+        # Match mentions for this entity AND within time window
+        {"$match": {
+            "entity": entity,
+            "created_at": {"$gte": cutoff_date}
+        }},
 
         # Convert article_id string to ObjectId if needed for lookup
         {"$addFields": {
@@ -301,17 +313,18 @@ async def get_signals() -> Dict[str, Any]:
         )
 
 
-async def get_recent_articles_batch(entities: List[str], limit_per_entity: int = 5) -> Dict[str, List[Dict[str, Any]]]:
+async def get_recent_articles_batch(entities: List[str], limit_per_entity: int = 5, days: int = 7) -> Dict[str, List[Dict[str, Any]]]:
     """
     Batch fetch recent articles for multiple entities in a SINGLE aggregation pipeline.
 
     Replaces the previous N+1 approach (one pipeline per entity) which caused 45s+ load
     times on Atlas M0 with 50 entities. This runs one pipeline for all entities, then
-    partitions and limits in Python.
+    partitions and limits in Python. Articles are limited to the last 7 days for performance.
 
     Args:
         entities: List of entity names to fetch articles for
         limit_per_entity: Maximum number of articles per entity (default 5)
+        days: Time window in days (default 7)
 
     Returns:
         Dict mapping entity name to list of article dicts
@@ -319,13 +332,23 @@ async def get_recent_articles_batch(entities: List[str], limit_per_entity: int =
     if not entities:
         return {}
 
+    # Clamp parameters
+    days = min(days, 7)
+
     db = await mongo_manager.get_async_database()
     mentions_collection = db.entity_mentions
 
+    # Calculate cutoff date for time window
+    cutoff_date = datetime.now() - timedelta(days=days)
+
     # Single pipeline for ALL entities at once
+    # BUG-045: Added 7-day cutoff at query level (before $group) for performance.
     pipeline = [
-        # Match mentions for any of the requested entities
-        {"$match": {"entity": {"$in": entities}}},
+        # Match mentions for any of the requested entities AND within time window
+        {"$match": {
+            "entity": {"$in": entities},
+            "created_at": {"$gte": cutoff_date}
+        }},
 
         # Convert article_id string to ObjectId if needed
         {"$addFields": {
@@ -597,22 +620,25 @@ async def get_trending_signals(
 async def get_entity_articles(
     entity: str,
     limit: int = Query(default=5, ge=1, le=20),
+    days: int = Query(default=7, ge=1, le=7),
 ) -> Dict[str, Any]:
     """
     Fetch recent articles for a specific entity.
 
     Used for lazy-loading articles on signal card expand.
     This endpoint returns articles for a single entity without the full signal computation.
+    Articles are limited to the last 7 days for performance.
 
     Args:
         entity: The entity name to fetch articles for
         limit: Maximum number of articles to return (1-20, default 5)
+        days: Time window in days (1-7, default 7)
 
     Returns:
         Object with entity name and list of recent articles
     """
     try:
-        articles = await get_recent_articles_for_entity(entity, limit=limit)
+        articles = await get_recent_articles_for_entity(entity, limit=limit, days=days)
         return {
             "entity": entity,
             "articles": articles,

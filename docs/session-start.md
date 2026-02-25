@@ -2,11 +2,7 @@
 session_date: 2026-02-25
 project: Backdrop (Context Owl)
 current_sprint: Sprint 10 — UI Polish & Stability
-<<<<<<< HEAD
-session_focus: BUG-042 (refetch storm fix), then TASK-014 security hardening
-=======
-session_focus: BUG-043/BUG-044 signals cold cache diagnosis, then Fix 2 implementation
->>>>>>> 29a746f (fix(signals): Add request tracing to signals endpoint (BUG-044))
+session_focus: BUG-042 (refetch storm fix) COMPLETED, TASK-014 security hardening next
 ---
 
 # Session Context: Sprint 10 — UI Polish & Stability
@@ -120,8 +116,37 @@ Optimized signals and narratives page load performance by addressing root cause 
 
 ## What to Work On Next
 
-<<<<<<< HEAD
-### ✅ PRIORITY 1 (COMPLETED THIS SESSION): BUG-042 — useInfiniteQuery Refetch Storm (2026-02-25)
+### ✅ COMPLETED (2026-02-25): BUG-043 Fix 2 — Remove Articles from Signals List
+**Status:** ✅ IMPLEMENTED & COMMITTED | **Effort:** 45 minutes actual | **Commit:** bde19ea
+
+**What was done:**
+- ✅ Removed batch article fetch from cold-cache path (signals.py lines 525-529)
+- ✅ Set `recent_articles` to always return empty array (signals.py line 542)
+- ✅ Added new `/api/v1/signals/{entity}/articles` endpoint for lazy-loading (signals.py lines 596-625)
+- ✅ Added `getEntityArticles()` API function (signals.ts lines 50-55)
+- ✅ Implemented lazy-loading with state management (Signals.tsx lines 74-129)
+- ✅ Updated article rendering for on-demand loading (Signals.tsx lines 216-262)
+- ✅ Frontend builds clean: 2146 modules, 472KB gzipped, 0 errors
+- ✅ Git commit: bde19ea (3 files, 107 insertions, 33 deletions)
+
+**Expected impact:** Cold cache ~90s → ~3-5s (removes $lookup bottleneck entirely)
+
+**⚠️ NEXT SESSION PRIORITY 1 — DEPLOYMENT & TESTING:**
+
+Deploy to production and verify:
+1. Load signals page on cold cache → confirm <5s load time
+2. Click "Recent mentions" button → articles load lazily with spinner
+3. Expand multiple cards → subsequent opens instant (in-memory cache)
+4. Check Railway logs:
+   - ✅ NO "Batch fetched ... articles" line during initial page load
+   - ✅ YES new GET `/api/v1/signals/{entity}/articles` requests on card expand
+5. Monitor Atlas M0 connections → should be significantly lower (no massive article batch)
+
+**Full testing checklist in:** `docs/tickets/bug-043-signal-endpoint-120-cold-cache.md` — Testing Checklist section
+
+---
+
+### ✅ PRIORITY 2 (COMPLETED THIS SESSION): BUG-042 — useInfiniteQuery Refetch Storm (2026-02-25)
 **Status:** COMPLETED | **Effort:** 15 min actual | **Commit:** 1dbc98b
 
 Fixed the refetch storm regression introduced by FEATURE-048d/048e by:
@@ -130,46 +155,11 @@ Fixed the refetch storm regression introduced by FEATURE-048d/048e by:
 - Adding `refetchOnWindowFocus: false` to both pages to prevent tab-switch refetches
 - Build: ✅ 2146 modules, 143KB gzipped, TypeScript clean
 
-**Next:** TASK-014 security hardening or push BUG-042 PR
+**Next:** TASK-014 security hardening
 
 ---
 
-### ✅ PRIORITY 2 (PREVIOUSLY COMPLETED): FEATURE-048c — Frontend Shared Infinite Scroll Infrastructure (2026-02-25)
-=======
-### 🔴 IMMEDIATE: BUG-044 — Add Request Tracing to Signals Endpoint (2026-02-25)
-**Status:** OPEN | **Effort:** 10 minutes | **Blocks:** BUG-043 diagnosis
-
-Add request ID and parameter logging to `get_trending_signals()` to resolve the ambiguity blocking BUG-043:
-1. Generate `req_id = uuid4().hex[:8]` at top of handler
-2. Log parsed request params (`limit`, `offset`) immediately
-3. Log diagnostic line: `requested_limit` vs `page_items` vs `article_entities`
-4. Add `req_id` to all existing log lines in the handler
-
-After deploying, reproduce once on cold cache. The logs will immediately reveal whether:
-- Fix 1 isn't deployed (backend ignoring pagination)
-- A second caller is sending `limit=50`
-- A hardcoded enrichment cap is overriding the request limit
-
-**Then:** Based on diagnosis, proceed to BUG-043 Fix 2 (remove articles from list endpoint entirely).
-
-**Ticket:** `bug-044-signals-endpoint-missing-request-tracing.md`
-
----
-
-### 🟡 NEXT: BUG-043 Fix 2 — Remove Articles from Signals List Endpoint
-**Status:** Blocked by BUG-044 diagnosis | **Effort:** 1-2 hours (backend + frontend)
-
-Once BUG-044 confirms the root cause, implement Fix 2:
-- Remove article fetching from `/api/v1/signals/trending` entirely
-- Create `/api/v1/signals/{entity}/articles` detail endpoint
-- Frontend: lazy-load articles on signal card expand/click
-- Add semaphore (Fix 3) to protect Atlas M0 on the detail endpoint
-- Expected result: cold cache 120s → ~3.5s
-
----
-
-### ✅ PRIORITY 1 (COMPLETED): FEATURE-048c — Frontend Shared Infinite Scroll Infrastructure (2026-02-25)
->>>>>>> 29a746f (fix(signals): Add request tracing to signals endpoint (BUG-044))
+### ✅ PRIORITY 2 (COMPLETED): FEATURE-048c — Frontend Shared Infinite Scroll Infrastructure (2026-02-25)
 **Status:** COMPLETED | **Effort:** 20-30 min actual | **Commit:** 0e23872
 
 Created shared infinite scroll infrastructure for Signals and Narratives pages:

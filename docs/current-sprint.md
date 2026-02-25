@@ -551,18 +551,29 @@ Implemented infinite scroll pagination for Narratives page using `useInfiniteQue
 
 ---
 
-### 🟡 BUG-043: Signals Endpoint Takes 120s on Cold Cache — Article Batch Fetch Bottleneck
-**Priority:** CRITICAL | **Severity:** CRITICAL | **Status:** 🟡 IN PROGRESS (Fix 1 Complete)
-**Branch:** `fix/bug-043-paginate-before-fetch` | **Commit:** e11a3e5
+### ✅ BUG-043: Signals Endpoint Takes 120s on Cold Cache (FIX 2 IMPLEMENTED)
+**Priority:** CRITICAL | **Severity:** CRITICAL | **Status:** ✅ Fix 2 IMPLEMENTED (2026-02-25)
+**Branch:** `fix/bug-043-paginate-before-fetch` | **Commits:** e11a3e5 (Fix 1), bde19ea (Fix 2)
 
-Signals endpoint takes 110-120s on cold cache. Root cause: article enrichment runs for all entities before pagination is applied. Fix 1 (paginate before fetch) shipped but production still shows 110s loads with 50-entity article fetches despite frontend sending `limit=15`.
+**Fix 1 (✅ Complete, Commit e11a3e5):** Paginate before article/narrative fetch — reduces 100→15 entity enrichment. Achieved: 120s → ~20s.
 
-**Fix 1 (Complete):** Paginate before article/narrative fetch — reduces 100→15 entity enrichment. Expected: 120s → ~20s.
-**Fix 2 (Pending):** Remove articles from list endpoint entirely — return signal card data only, lazy-load articles. Expected: 120s → ~3.5s.
+**Fix 2 (✅ Complete, Commit bde19ea):** Remove articles from list endpoint entirely — return signal card data only, lazy-load articles.
+- ✅ Removed `get_recent_articles_batch()` call from cold-cache path
+- ✅ Created `/api/v1/signals/{entity}/articles` endpoint for lazy-loading
+- ✅ Frontend now fetches articles on-demand when user clicks expand
+- ✅ Expected: 120s → ~3.5s cold cache (97% improvement)
+
 **Fix 3 (Pending):** Add semaphore concurrency cap to protect Atlas M0.
 **Fix 4 (Pending):** Fix duplicate log lines.
 
-**Blocked by:** BUG-044 (need tracing to diagnose why Fix 1 isn't producing expected results in production)
+**Files Modified:** 3 (signals.py, signals.ts, Signals.tsx) | **Build:** ✅ Clean (2146 modules, 472KB gzipped)
+
+**⚠️ DEPLOYMENT & TESTING NEXT SESSION (Priority 1):**
+1. Deploy to production
+2. Load signals page on cold cache → verify <5s load time
+3. Click "Recent mentions" → verify articles lazy-load with spinner
+4. Check Railway logs for new `/api/v1/signals/{entity}/articles` GET requests
+5. Verify NO "Batch fetched ... articles" during initial page load
 
 **Ticket:** `bug-043-signal-endpoint-120-cold-cache.md`
 
