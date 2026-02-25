@@ -7,9 +7,9 @@ session_focus: UI Polish & Stability — Signals Bugs & Skeleton Loaders
 
 # Current Sprint Status
 
-> **Last Updated:** 2026-02-25
+> **Last Updated:** 2026-02-25 (BUG-042 COMPLETED)
 > **Previous Sprint:** ✅ Sprint 9 Complete (Documentation Infrastructure)
-> **Current Session:** FEATURE-048c frontend shared infra COMPLETED
+> **Current Session:** Cold-cache branch merged. BUG-042 refetch storm regression fixed. Ready for TASK-014 security hardening.
 
 ## Sprint 10: UI Polish & Stability
 
@@ -19,8 +19,8 @@ Sprint 9 completed with 100% of features delivered. Sprint 10 focuses on fixing 
 
 ## Resolved This Sprint
 
-### 🟡 NEW: Cold-Cache Performance Optimization for Signals & Narratives (THIS SESSION)
-**Priority:** HIGH | **Severity:** HIGH | **Status:** CODE READY FOR MERGE | **Effort:** 45 min
+### ✅ Cold-Cache Performance Optimization for Signals & Narratives (THIS SESSION)
+**Priority:** HIGH | **Severity:** HIGH | **Status:** ✅ MERGED (2026-02-25) | **Effort:** 45 min
 **Branch:** `fix/signals-narratives-cold-cache-performance` | **Commit:** e867741
 
 **Problem:** Despite FEATURE-048 implementing pagination, signals/narratives pages were still loading slowly. Root cause analysis revealed:
@@ -47,6 +47,21 @@ Sprint 9 completed with 100% of features delivered. Sprint 10 focuses on fixing 
 **Test Status:** ✅ Frontend builds clean (2146 modules, 144KB gzipped). No breaking changes to backend.
 
 **Expected Impact:** Cold-cache latency reduced, repeated page visits use cache, warm-cache load time 2-3s for first meaningful content.
+
+---
+
+### ✅ BUG-042: useInfiniteQuery Refetch Storm — RESOLVED
+**Priority:** HIGH | **Severity:** HIGH | **Status:** ✅ COMPLETED | **Effort:** 15 min actual
+**Created:** 2026-02-25 | **Completed:** 2026-02-25 | **Ticket:** `bug-042-infinite-query-refetch-storm.md`
+
+**Problem:** FEATURE-048d/048e replaced `useQuery` with `useInfiniteQuery` and hardcoded `staleTime: 0`, overwriting cold-cache branch's `staleTime: 25s/55s` fix. Combined with React Query default `refetchOnWindowFocus: true`, every tab switch fired refetches of ALL loaded pages → request storms overwhelming Atlas M0.
+
+**Solution Applied:**
+- ✅ `Signals.tsx` line 91: Added `refetchOnWindowFocus: false` (staleTime: 25_000 already present)
+- ✅ `Narratives.tsx` line 81: Added `refetchOnWindowFocus: false` (staleTime: 55_000 already present)
+- ✅ Build clean: 2146 modules, 143KB gzipped
+
+**Branch:** `fix/signals-narratives-cold-cache-performance` | **Commit:** 1dbc98b
 
 ---
 
@@ -537,7 +552,8 @@ Implemented infinite scroll pagination for Narratives page using `useInfiniteQue
 ---
 
 ### 🔴 Next Priority Actions
-1. **Create PR for FEATURE-048e** and merge to main
+1. **🔴 BUG-042: useInfiniteQuery Refetch Storm** — FEATURE-048d/048e set `staleTime: 0` in useInfiniteQuery, overwriting cold-cache fix. Add `staleTime: 25s/55s` + `refetchOnWindowFocus: false` to Signals.tsx and Narratives.tsx. Root cause of persistent slow loads and intermittent signal failures.
+   - Ticket: `bug-042-infinite-query-refetch-storm.md`
 2. **Consider:** Remaining FEATURE-048 validation or proceed to TASK-014 security hardening
 
 ### 🟡 Follow-up Cleanup (After Staging Validation)
@@ -553,4 +569,4 @@ Implemented infinite scroll pagination for Narratives page using `useInfiniteQue
 
 **Status:** ✅ Sprint 10 Major Fixes Complete + Lazy Loading Feature 100% Complete | **Previous:** ✅ Sprint 9 Complete
 
-> **This Session (2026-02-25):** Completed FEATURE-048c (shared infrastructure), FEATURE-048d (Signals infinite scroll), and FEATURE-048e (Narratives infinite scroll). Lazy loading feature 100% complete (5 of 5 tickets done: 048a, 048b, 048c, 048d, 048e). Ready to create PR and merge to main.
+> **This Session (2026-02-25):** Completed FEATURE-048c (shared infrastructure), FEATURE-048d (Signals infinite scroll), and FEATURE-048e (Narratives infinite scroll). Lazy loading feature 100% complete (5 of 5 tickets done: 048a, 048b, 048c, 048d, 048e). Cold-cache performance branch merged. BUG-042 identified: FEATURE-048d/048e overwrote cold-cache staleTime fixes with staleTime: 0 in new useInfiniteQuery calls, causing refetch storms that overwhelm Atlas M0. Fix: restore staleTime + add refetchOnWindowFocus: false.
