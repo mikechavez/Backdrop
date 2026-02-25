@@ -88,6 +88,7 @@ export function Signals() {
     initialPageParam: 0,
     refetchInterval: 30000, // 30 seconds
     staleTime: 25000, // Consider fresh for 25 seconds (5s buffer before next refetchInterval)
+    refetchOnWindowFocus: false, // Prevent refetch storms on tab focus
   });
 
   const sentinelRef = useInfiniteScroll({

@@ -78,6 +78,7 @@ export function Narratives() {
     initialPageParam: 0,
     refetchInterval: 60000, // 60 seconds
     staleTime: 55000, // Consider fresh for 55 seconds (5s buffer before next refetchInterval)
+    refetchOnWindowFocus: false, // Prevent refetch storms on tab focus
   });
 
   const sentinelRef = useInfiniteScroll({
