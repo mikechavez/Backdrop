@@ -87,7 +87,8 @@ export function Signals() {
     getNextPageParam: (lastPage) => lastPage.has_more ? lastPage.offset + SIGNALS_PER_PAGE : undefined,
     initialPageParam: 0,
     refetchInterval: 30000, // 30 seconds
-    staleTime: 0, // Always consider data stale
+    staleTime: 25000, // Consider fresh for 25 seconds (5s buffer before next refetchInterval)
+    refetchOnWindowFocus: false, // Prevent refetch storms on tab focus
   });
 
   const sentinelRef = useInfiniteScroll({

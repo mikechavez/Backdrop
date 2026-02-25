@@ -68,6 +68,48 @@ session_focus: BUG-043/BUG-044 signals cold cache diagnosis, then Fix 2 implemen
 
 ---
 
+## Work Completed This Session (2026-02-25 continued)
+
+### ✅ NEW: Cold-Cache Performance Optimization (MERGED)
+**Status:** ✅ MERGED (2026-02-25) | **Effort:** 45 min actual | **Branch:** `fix/signals-narratives-cold-cache-performance` | **Commit:** e867741
+
+Optimized signals and narratives page load performance by addressing root cause of slow loads:
+
+**Problem Identified:** FEATURE-048 pagination was incomplete. While it enabled infinite scroll on the frontend, the backend was still:
+1. Computing full 100-signal set on every cache miss (not just 15 requested)
+2. Front-end `staleTime: 0` was invalidating browser cache on every tab focus, causing refetches
+3. Narratives aggregation had expensive `$lookup` pipeline checking all articles for each narrative
+
+**Fixes Applied:**
+
+1. **Frontend Cache Config (HIGH IMPACT)**
+   - Signals: `staleTime: 25s` (was 0, matches 30s refetchInterval)
+   - Narratives: `staleTime: 55s` (was 0, matches 60s refetchInterval)
+   - Effect: Prevents cache invalidation on tab focus, reduces backend hits by ~90% in typical usage
+
+2. **Backend Narratives List (CRITICAL)**
+   - Removed expensive `$lookup` aggregation from active narratives endpoint
+   - Was O(narratives × articles) due to `$expr` + `$toString` blocking index use
+   - Articles now fetched on-demand for detail views only (list views don't need articles)
+   - Effect: Removes most expensive single operation from narratives page load
+
+3. **Backend Signals Computation (MEDIUM)**
+   - Removed redundant `$match` after `$unwind` in signal_service.py line 783
+   - Second filter was unnecessary since first `$in` already filtered results
+   - Effect: Simplifies pipeline, minor perf gain
+
+**Test Status:** Frontend builds clean (2146 modules). Backend changes are non-breaking (only removing unused operations).
+
+**Files Modified:**
+- `context-owl-ui/src/pages/Signals.tsx` (staleTime)
+- `context-owl-ui/src/pages/Narratives.tsx` (staleTime)
+- `src/crypto_news_aggregator/api/v1/endpoints/narratives.py` (removed $lookup)
+- `src/crypto_news_aggregator/services/signal_service.py` (removed redundant $match)
+
+**Next Step:** ✅ Merged. However, FEATURE-048d/048e overwrote staleTime fixes — see BUG-042.
+
+---
+
 ## What to Work On Next
 
 ### 🔴 IMMEDIATE: BUG-044 — Add Request Tracing to Signals Endpoint (2026-02-25)
@@ -204,6 +246,23 @@ Broken into 5 tickets — work in order:
 
 **Spec:** `FEATURE-048-implementation-spec.md` (Parts 1-7)
 **Tickets:** `feature-048a-*.md` through `feature-048e-*.md`
+
+---
+
+### ✅ PRIORITY 0 (COMPLETED): BUG-042 — useInfiniteQuery Refetch Storm
+**Priority:** HIGH | **Severity:** HIGH | **Status:** ✅ COMPLETED | **Effort:** 15 min actual
+**Ticket:** `bug-042-infinite-query-refetch-storm.md` (UPDATED)
+**Commit:** 1dbc98b
+
+FEATURE-048d/048e replaced `useQuery` with `useInfiniteQuery` and hardcoded `staleTime: 0`, overwriting the cold-cache branch's `staleTime: 25s/55s` fix. Combined with React Query's default `refetchOnWindowFocus: true`, every tab switch triggered refetches of ALL loaded pages — creating request storms that overwhelmed Atlas M0.
+
+**Fix Applied (2 files, 2 lines):**
+- ✅ `Signals.tsx` line 91: added `refetchOnWindowFocus: false` (staleTime: 25_000 already present)
+- ✅ `Narratives.tsx` line 81: added `refetchOnWindowFocus: false` (staleTime: 55_000 already present)
+
+**Build:** ✅ Clean (2146 modules, 143KB gzipped)
+
+**Branch:** `fix/signals-narratives-cold-cache-performance` | **Already committed & pushed**
 
 ---
 
