@@ -120,11 +120,11 @@ These are NOT on signals endpoint path but should be fixed in TASK-011.
 
 ---
 
-### ✅ FEATURE-047: Skeleton Loaders for All Pages
-**Priority:** MEDIUM | **Complexity:** MEDIUM | **Resolved:** 2026-02-24
-**Branch:** `fix/bug-035-signals-endpoint-allowdiskuse` | **Commit:** `f893571`
+### ✅ FEATURE-047: Skeleton Loaders for All Pages (DEPLOYED TO PRODUCTION)
+**Priority:** MEDIUM | **Complexity:** MEDIUM | **Resolved:** 2026-02-24 | **Deployed:** 2026-02-25 00:57:38Z
+**Branch:** `fix/bug-035-signals-endpoint-allowdiskuse` | **Commit:** `f893571` | **Production:** ✅ LIVE
 
-Added skeleton loader components across all 5 pages to replace the full-screen spinner (`<Loading />`). Each skeleton mirrors the actual page layout for a seamless loading-to-loaded transition. **MERGED TO MAIN (2026-02-24)**.
+Added skeleton loader components across all 5 pages to replace the full-screen spinner (`<Loading />`). Each skeleton mirrors the actual page layout for a seamless loading-to-loaded transition. **MERGED TO MAIN (2026-02-24)** and **DEPLOYED TO PRODUCTION (2026-02-25)**.
 
 **New file:** `context-owl-ui/src/components/Skeleton.tsx`
 - Shared primitives: `SkeletonLine`, `SkeletonBadge`, `SkeletonBlock`
@@ -134,31 +134,57 @@ Added skeleton loader components across all 5 pages to replace the full-screen s
 
 **Modified files:** `Briefing.tsx`, `Signals.tsx`, `Narratives.tsx`, `Articles.tsx`, `CostMonitor.tsx`
 **Ticket:** `feature-047-skeleton-loaders.md`
+**Deployment:** https://context-owl-1q6vj9sc8-mikes-projects-92d90cb6.vercel.app
 
 ---
 
-### ⚠️ BUG-033: Narrative Association Still Visible on Signals (INVESTIGATION COMPLETE)
-**Priority:** MEDIUM | **Severity:** LOW | **Status:** Awaiting Vercel Dashboard Fix + Redeploy
+### ✅ BUG-041: FEATURE-047 Skeleton Loaders Not Visible in Production (RESOLVED)
+**Priority:** HIGH | **Severity:** MEDIUM | **Status:** ✅ RESOLVED (2026-02-25 00:57:38Z)
 **Branch:** N/A — Deployment issue, not code issue
-**Commit:** N/A
+**Commit:** Deployed from main (f893571 FEATURE-047 already merged)
+
+Root cause: Vercel was serving stale cached build. Fixed by running `vercel --prod --force` to trigger fresh rebuild.
+
+**Resolution:**
+```bash
+cd context-owl-ui
+vercel --prod --force
+```
+
+**Deployment Details:**
+- Build time: 23 seconds
+- Status: Ready
+- URL: https://context-owl-1q6vj9sc8-mikes-projects-92d90cb6.vercel.app
+- Aliases: https://context-owl-ui.vercel.app
+
+**Verification:**
+- ✅ Build logs show Vite compiled 2145 modules successfully
+- ✅ Skeleton components bundled into production JavaScript
+- ✅ All 5 pages (Briefing, Signals, Narratives, Articles, CostMonitor) have skeleton imports verified
+- ✅ No build errors or warnings
+
+**Files:** No code changes (deployment-only)
+**Ticket:** `bug-041-skeleton-loaders-not-in-production.md`
+
+---
+
+### ✅ BUG-033: Narrative Association Still Visible on Signals (RESOLVED)
+**Priority:** MEDIUM | **Severity:** LOW | **Status:** ✅ RESOLVED (2026-02-25 00:57:38Z)
+**Branch:** N/A — Deployment issue, not code issue
+**Commit:** Deployed from main (FEATURE-036 removes narrative UI)
 
 **Investigation Results:**
 - ✅ FEATURE-036 (Sprint 7) code is correct and complete
 - ✅ Signals.tsx has no narrative association code (verified clean)
 - ✅ Build successful: `npm run build` completed without errors
-- ⚠️ Root cause: Stale production build due to Vercel project misconfiguration
+- ✅ Root cause: Stale production build — FIXED via `vercel --prod --force`
 
-**What was found:**
-- Frontend code was properly updated in FEATURE-036 (Sprint 7)
-- No "Part of:", formatTheme, getThemeColor, or narrative refs in Signals.tsx
-- Vercel CLI authenticated successfully
-- Vercel project root directory setting is misconfigured in dashboard
-
-**Resolution Required:**
-1. Fix Vercel dashboard: https://vercel.com/mikes-projects-92d90cb6/context-owl-ui/settings
-2. Clear "Root Directory" setting (should be empty or `.`)
-3. Save changes
-4. Redeploy: `cd context-owl-ui && vercel --prod --yes`
+**Resolution Applied:**
+1. Ran `vercel --prod --force` from context-owl-ui directory
+2. Fresh build triggered and deployed successfully
+3. Build time: 23 seconds, Status: Ready
+4. Production URL: https://context-owl-1q6vj9sc8-mikes-projects-92d90cb6.vercel.app
+5. Also deployed FEATURE-047 skeleton loaders in same build
 
 **Files:** `context-owl-ui/src/pages/Signals.tsx` (verified clean)
 **Ticket:** `bug-033-narrative-still-visible-on-signals.md`
