@@ -30,8 +30,8 @@ Ship remaining phases:
 1. ✅ **Phase 1:** 7-day hard cutoff (BUG-045 COMPLETE)
 2. ✅ **Phase 2:** Redis cache (15m TTL) (FEATURE-049 COMPLETE)
 3. ✅ **Phase 3:** Cache warmer (TASK-015 COMPLETE)
-4. **Phase 4:** UI cleanup - BUG-051 (remove counts) [NEXT]
-5. **Phase 5:** Observability - TASK-016
+4. ✅ **Phase 4:** UI cleanup - BUG-051 (remove counts) COMPLETE
+5. **Phase 5:** Observability - TASK-016 [NEXT]
 
 ## Definition of Done
 
@@ -39,6 +39,18 @@ Ship remaining phases:
 -   Redis cache warmed before user click ← FEATURE-049 ✅ / TASK-015
 -   No 10s+ backend calls ← All phases
 
+### ✅ COMPLETED: BUG-051 (2026-02-25)
+- **Branch:** fix/bug-051-remove-ui-counts
+- **Commit:** 05fb2d3
+- **Changes:** Removed header count display and source count from signal cards
+
+**What was fixed:**
+- Removed "(X of Y)" count display from Signals page header
+- Removed "X sources" count from individual signal cards
+- Cleaned up unused totalCount variable
+
+**Frontend validation:** Build successful - 2146 modules, 144KB gzipped
+
 ## Next Task
 
-**BUG-051:** Remove internal counts from Signals UI header
+**TASK-016:** Observability + clamps (Phase 5 - Final ADR-012 Phase)
