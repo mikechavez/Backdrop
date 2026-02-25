@@ -777,10 +777,11 @@ async def compute_trending_signals(
 
     # Get narrative info for all entities in batch
     entities = [doc["_id"] for doc in results]
+    # Filter narratives that contain any of our entities, then unwind and group by entity
+    # (Second $match after $unwind is redundant since we already filtered by $in in first $match)
     narrative_counts = await db.narratives.aggregate([
         {"$match": {"entities": {"$in": entities}}},
         {"$unwind": "$entities"},
-        {"$match": {"entities": {"$in": entities}}},
         {"$group": {"_id": "$entities", "count": {"$sum": 1}, "narrative_ids": {"$push": {"$toString": "$_id"}}}}
     ]).to_list(length=None)
 
