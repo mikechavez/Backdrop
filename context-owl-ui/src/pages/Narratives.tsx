@@ -77,7 +77,7 @@ export function Narratives() {
     getNextPageParam: (lastPage) => lastPage.has_more ? lastPage.offset + NARRATIVES_PER_PAGE : undefined,
     initialPageParam: 0,
     refetchInterval: 60000, // 60 seconds
-    staleTime: 0, // Always consider data stale
+    staleTime: 55000, // Consider fresh for 55 seconds (5s buffer before next refetchInterval)
   });
 
   const sentinelRef = useInfiniteScroll({

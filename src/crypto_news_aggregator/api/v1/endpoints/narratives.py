@@ -318,28 +318,8 @@ async def get_active_narratives_endpoint(
             {'$match': match_stage},
             {'$sort': {'last_updated': -1}},
             {'$limit': 200},  # Fetch full set for caching
-            # Lookup articles to get the most recent article timestamp
-            {'$lookup': {
-                'from': 'articles',
-                'let': {'article_ids': '$article_ids'},
-                'pipeline': [
-                    {'$match': {
-                        '$expr': {
-                            '$in': [{'$toString': '$_id'}, '$$article_ids']
-                        }
-                    }},
-                    {'$project': {'published_at': 1}},
-                    {'$sort': {'published_at': -1}},
-                    {'$limit': 1}
-                ],
-                'as': 'recent_articles'
-            }},
-            # Add computed field for last_article_at
-            {'$addFields': {
-                'last_article_at': {
-                    '$arrayElemAt': ['$recent_articles.published_at', 0]
-                }
-            }},
+            # Note: Removed $lookup for articles (was O(narratives × articles) on Atlas M0)
+            # Articles are fetched on-demand when user requests narrative details
             {'$project': {
                 '_id': 1,
                 'theme': 1,
@@ -355,7 +335,6 @@ async def get_active_narratives_endpoint(
                 'entity_relationships': 1,
                 'first_seen': 1,
                 'last_updated': 1,
-                'last_article_at': 1,
                 'days_active': 1,
                 'peak_activity': 1,
                 'reawakening_count': 1,
@@ -424,18 +403,9 @@ async def get_active_narratives_endpoint(
             if reawakened_from:
                 reawakened_from_str = reawakened_from.isoformat() if hasattr(reawakened_from, 'isoformat') else str(reawakened_from)
             
-            # Handle last_article_at timestamp (most recent article published_at)
-            last_article_at = narrative.get("last_article_at")
-            last_article_at_str = None
-            if last_article_at:
-                last_article_at_str = last_article_at.isoformat() if hasattr(last_article_at, 'isoformat') else str(last_article_at)
-                # DEBUG: Log when last_article_at differs from last_updated
-                if last_article_at_str != last_updated_str:
-                    logger.debug(f"[API DEBUG] Narrative '{narrative.get('theme')}': last_article_at={last_article_at_str}, last_updated={last_updated_str}")
-            else:
-                # Fallback to last_updated if no articles found
-                last_article_at_str = last_updated_str
-                logger.debug(f"[API DEBUG] Narrative '{narrative.get('theme')}': No last_article_at, using last_updated={last_updated_str}")
+            # Note: last_article_at computation removed (was O(narratives × articles) via $lookup)
+            # Use last_updated as proxy for activity timestamp
+            last_article_at_str = last_updated_str
             
             narrative_id = str(narrative.get("_id", ""))
             response_data.append({
