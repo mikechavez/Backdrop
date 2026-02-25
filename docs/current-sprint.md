@@ -7,10 +7,10 @@ ADR-012 supersedes all prior sprint goals.
 ## Sprint Order + Status
 
 1. ✅ **BUG-045** --- Time-bound entity articles (7d) [COMPLETE - PR #203]
-2. ✅ **FEATURE-049** --- Redis cache entity articles [COMPLETE - Branch: feature/049-redis-cached-entity-articles]
-3. ✅ **TASK-015** --- Cache warming task [COMPLETE - Branch: feature/015-warm-entity-articles-cache]
-4. **BUG-051** --- Remove UI counts [NEXT]
-5. **TASK-016** --- Observability + clamps [QUEUED]
+2. ✅ **FEATURE-049** --- Redis cache entity articles [COMPLETE - PR #206]
+3. ✅ **TASK-015** --- Cache warming task [COMPLETE - PR #207]
+4. ✅ **BUG-051** --- Remove UI counts [COMPLETE - Branch: fix/bug-051-remove-ui-counts]
+5. **TASK-016** --- Observability + clamps [NEXT]
 
 All other Sprint 10 work paused until ADR-012 complete.
 
@@ -33,10 +33,19 @@ All other Sprint 10 work paused until ADR-012 complete.
 - ✅ Entity articles <1s warm (BUG-045 expected impact)
 - ⏳ No 10s+ backend calls (all phases needed)
 
-## Deployment Checklist
+## Phase 4 Completion (BUG-051)
 
-- [ ] Merge PR #203 (BUG-045)
-- [ ] Deploy to production (Railway)
-- [ ] Monitor entity article endpoint latency
-- [ ] Verify <1s warm, <3s cold achieved
-- [ ] Proceed to FEATURE-049 (Redis cache)
+**Changes:**
+- ✅ Remove header count display "(X of Y signals)"
+- ✅ Remove source count from signal cards
+- ✅ Clean up unused totalCount variable
+- ✅ Frontend build verification: 2146 modules, 144KB gzipped
+
+**Impact:** Cleaner UI, removes internal metrics display
+
+## Phase 5 (TASK-016) - Ready to Start
+
+- [ ] Add observability logging
+- [ ] Implement clamps on API parameters
+- [ ] Monitor performance in production
+- [ ] Verify all ADR-012 goals met
