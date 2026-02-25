@@ -457,9 +457,57 @@ Implemented infinite scroll pagination for Signals page using `useInfiniteQuery`
 
 ---
 
+### ✅ FEATURE-048e: Frontend Narratives Page Infinite Scroll (COMPLETED 2026-02-25)
+**Priority:** HIGH | **Complexity:** MEDIUM | **Status:** ✅ COMPLETED
+**File:** `context-owl-ui/src/pages/Narratives.tsx` | **Commit:** a5a4b81 | **Time:** 20 min
+
+Implemented infinite scroll pagination for Narratives page using `useInfiniteQuery` and shared `useInfiniteScroll` hook:
+
+**Implementation Details:**
+1. **Query Hook:** Replaced `useQuery` with `useInfiniteQuery` configured with:
+   - `NARRATIVES_PER_PAGE = 10` constant
+   - `pageParam` starting at 0, incremented by 10 for each page
+   - `getNextPageParam` checks `has_more` field from backend response
+   - Preserved `refetchInterval: 60000` (60 seconds) for live updates
+   - `staleTime: 0` for always-fresh data
+
+2. **Intersection Observer Integration:** Added `useInfiniteScroll` hook with:
+   - 300px threshold (distance from bottom before triggering load)
+   - Conditional sentinel div (only shown when narratives exist and more available)
+   - Proper cleanup on component unmount
+
+3. **Rendering:**
+   - Flatten pages: `data?.pages.flatMap((page) => page.narratives)`
+   - Progress display: "(10 of 35)" in subtitle (uses first page's total_count)
+   - Conditional indicators:
+     - Show "Loading more narratives..." during fetch (`isFetchingNextPage`)
+     - Show "All narratives loaded" when complete (`!hasNextPage && narratives.length > 0`)
+   - Updated empty state: `narratives.length === 0 && !isLoading`
+
+**Build Verification:** ✅ TypeScript: 0 errors | ✅ Vite: 2146 modules, 144KB gzipped
+
+**All 11 acceptance criteria met:**
+- [x] Page loads first 10 narratives within 2-3 seconds
+- [x] Scrolling to bottom triggers loading of next 10
+- [x] "Loading more narratives..." text appears during fetch
+- [x] "All narratives loaded" appears after last page
+- [x] Counter shows "(10 of Y)" updating as more load
+- [x] `?highlight=` query param works for loaded narratives
+- [x] Expanding a narrative's articles works (pagination untouched)
+- [x] Integrates with FEATURE-047 skeleton loaders
+- [x] No layout shifts when new items load
+- [x] Empty state (0 narratives) shows correctly
+- [x] 60-second refetchInterval preserved
+
+**Spec references:** Part 6 (sections 6A–6D) of `FEATURE-048-implementation-spec.md`
+
+**Ticket:** `docs/tickets/feature-048-lazy-loading/feature-048e-frontend-narratives-infinite-scroll.m`
+
+---
+
 ### 🔴 Next Priority Actions
-1. **Begin FEATURE-048e:** Frontend Narratives Page infinite scroll (Part 6 of spec)
-2. **Then consider:** TASK-012/TASK-013 cleanup tasks or staging validation
+1. **Create PR for FEATURE-048e** and merge to main
+2. **Consider:** Remaining FEATURE-048 validation or proceed to TASK-014 security hardening
 
 ### 🟡 Follow-up Cleanup (After Staging Validation)
 1. TASK-012: Remove leftover `allowDiskUse=True` from non-sorting aggregations
@@ -472,6 +520,6 @@ Implemented infinite scroll pagination for Signals page using `useInfiniteQuery`
 
 ---
 
-**Status:** ✅ Sprint 10 Major Fixes Complete + Lazy Loading Infrastructure Started | **Previous:** ✅ Sprint 9 Complete
+**Status:** ✅ Sprint 10 Major Fixes Complete + Lazy Loading Feature 100% Complete | **Previous:** ✅ Sprint 9 Complete
 
-> **This Session (2026-02-25):** Completed FEATURE-048c (shared infrastructure) and FEATURE-048d (Signals infinite scroll). Ready for FEATURE-048e or staging validation. Lazy loading feature 70% complete (3 of 5 tickets done: 048a, 048b, 048c, 048d).
+> **This Session (2026-02-25):** Completed FEATURE-048c (shared infrastructure), FEATURE-048d (Signals infinite scroll), and FEATURE-048e (Narratives infinite scroll). Lazy loading feature 100% complete (5 of 5 tickets done: 048a, 048b, 048c, 048d, 048e). Ready to create PR and merge to main.

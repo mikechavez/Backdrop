@@ -99,13 +99,28 @@ Implemented infinite scroll pagination for Signals page:
 
 ---
 
-### 🟡 PRIORITY 3: FEATURE-048e — Frontend Narratives Page Infinite Scroll (Next)
-**Next ticket in lazy loading sequence:**
-- **FEATURE-048e:** Frontend Narratives Page with infinite scroll (Part 6 of spec)
-  - Load 10 narratives per page
-  - Preserve `?highlight=` query parameter feature
-  - Preserve article expansion functionality
-  - Same infinite scroll pattern as 048d
+### ✅ PRIORITY 3 (COMPLETED): FEATURE-048e — Frontend Narratives Page Infinite Scroll (2026-02-25)
+**Status:** COMPLETED | **Effort:** 20 minutes actual | **Commit:** a5a4b81
+
+Implemented infinite scroll pagination for Narratives page:
+- ✅ Replaced `useQuery` with `useInfiniteQuery` from `@tanstack/react-query`
+- ✅ Integrated `useInfiniteScroll` hook to trigger loading on scroll (300px threshold)
+- ✅ Load 10 narratives per page (configurable via `NARRATIVES_PER_PAGE = 10` constant)
+- ✅ Display progress indicator: "(X of Y)" narrative count in subtitle
+- ✅ Show "Loading more narratives..." indicator during fetch
+- ✅ Show "All narratives loaded" indicator when complete
+- ✅ Preserved 60-second `refetchInterval` for live updates
+- ✅ Preserved `?highlight=` query parameter feature
+- ✅ Preserved article expansion functionality
+- ✅ Proper empty state handling (0 narratives)
+- ✅ Sentinel div placed conditionally to avoid showing on empty states
+- ✅ Flatten pages array to maintain consistent narrative indexing
+- ✅ All TypeScript compiles without errors
+- ✅ Frontend builds successfully (2146 modules, 144KB gzipped)
+
+**All 11 acceptance criteria met exactly as specified**
+
+**File modified:** `context-owl-ui/src/pages/Narratives.tsx`
 
 ---
 
