@@ -1,12 +1,14 @@
 ---
 id: FEATURE-048a
 type: feature
-status: open
+status: completed
 priority: high
 complexity: medium
 created: 2026-02-24
 updated: 2026-02-24
+completed: 2026-02-24
 parent: FEATURE-048
+commit: f9511d8
 ---
 
 # Backend Signals Pagination
@@ -23,16 +25,16 @@ Corresponds to **Implementation Spec Part 1** (sections 1A–1D).
 As a Backdrop user, I want the signals API to support pagination so the frontend can load signals incrementally instead of waiting for the entire dataset.
 
 ## Acceptance Criteria
-- [ ] `GET /api/v1/signals/trending` accepts `offset` param (default 0) and `limit` defaults to 15 (was 50)
-- [ ] Response includes `total_count`, `offset`, `limit`, `has_more` fields
-- [ ] Cache key excludes offset/limit (bumped to v3) so all pages share one cache entry
-- [ ] Cache hit path returns paginated slice with correct metadata
-- [ ] Full signal set (up to 100) is computed, enriched, and cached; pagination applied after
-- [ ] `GET /api/v1/signals/trending` returns 15 items, `has_more: true`, `offset: 0`
-- [ ] `GET /api/v1/signals/trending?offset=15` returns next 15, `offset: 15`
-- [ ] `GET /api/v1/signals/trending?offset=45` returns remainder, `has_more: false`
-- [ ] Second request within 60s returns `cached: true`
-- [ ] Existing filters (min_score, entity_type, timeframe) still work
+- [x] `GET /api/v1/signals/trending` accepts `offset` param (default 0) and `limit` defaults to 15 (was 50)
+- [x] Response includes `total_count`, `offset`, `limit`, `has_more` fields
+- [x] Cache key excludes offset/limit (bumped to v3) so all pages share one cache entry
+- [x] Cache hit path returns paginated slice with correct metadata
+- [x] Full signal set (up to 100) is computed, enriched, and cached; pagination applied after
+- [x] `GET /api/v1/signals/trending` returns 15 items, `has_more: true`, `offset: 0`
+- [x] `GET /api/v1/signals/trending?offset=15` returns next 15, `offset: 15`
+- [x] `GET /api/v1/signals/trending?offset=45` returns remainder, `has_more: false`
+- [x] Second request within 60s returns `cached: true`
+- [x] Existing filters (min_score, entity_type, timeframe) still work
 
 ## Dependencies
 - None (can be implemented independently)
@@ -52,6 +54,35 @@ Key changes:
 See `FEATURE-048-implementation-spec.md` Part 1 for exact code changes.
 
 ## Completion Summary
-- Actual complexity:
-- Key decisions made:
-- Deviations from plan:
+
+**Status:** ✅ COMPLETED (2026-02-24)
+
+**Actual Complexity:** Medium (as planned) — 30-45 minutes actual
+
+**Implementation Details:**
+- ✅ Modified `GET /api/v1/signals/trending` endpoint to accept `offset` and `limit` parameters
+- ✅ Changed default limit from 50 → 15 (one page size)
+- ✅ Implemented full-set caching strategy: always compute max_compute=100, slice after retrieval
+- ✅ Updated cache key to v3, excluding offset/limit so all pages share same cache entry
+- ✅ Cache hit path now slices full cached result and returns pagination metadata
+- ✅ Response includes: count, total_count, offset, limit, has_more, filters, signals, cached, computed_at, performance
+
+**Testing:**
+- ✅ Added 7 new pagination tests:
+  - test_get_trending_signals_pagination_default_limit
+  - test_get_trending_signals_pagination_with_offset
+  - test_get_trending_signals_pagination_has_more_flag
+  - test_get_trending_signals_pagination_caching_full_set
+  - test_get_trending_signals_pagination_response_structure
+  - test_get_trending_signals_pagination_count_field
+  - test_get_trending_signals_pagination_last_page
+- ✅ Updated 5 existing tests to validate new pagination fields
+- ✅ All 12 tests passing
+
+**Key Decisions Made:**
+1. **Full-set caching pattern:** Cache computes full set (up to 100) for freshness, pagination applied client-side. This ensures cache is reusable across all offset values and reduces wasted computation.
+2. **Default limit=15:** Balances payload size with number of requests. Most users will see initial page with 15 cards in < 3 seconds.
+3. **Cache key v3:** Excludes offset/limit so second request for offset=15 hits same cache as offset=0, enabling instant load for subsequent pages.
+
+**Deviations from Plan:**
+- None — implementation followed spec exactly (FEATURE-048-implementation-spec.md Part 1)

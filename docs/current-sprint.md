@@ -7,8 +7,9 @@ session_focus: UI Polish & Stability — Signals Bugs & Skeleton Loaders
 
 # Current Sprint Status
 
-> **Last Updated:** 2026-02-24
+> **Last Updated:** 2026-02-25
 > **Previous Sprint:** ✅ Sprint 9 Complete (Documentation Infrastructure)
+> **Current Session:** ✅ FEATURE-048a Backend Signals Pagination COMPLETED
 
 ## Sprint 10: UI Polish & Stability
 
@@ -17,6 +18,22 @@ Sprint 9 completed with 100% of features delivered. Sprint 10 focuses on fixing 
 ---
 
 ## Resolved This Sprint
+
+### ✅ FEATURE-048a: Backend Signals Pagination (THIS SESSION)
+**Priority:** HIGH | **Complexity:** MEDIUM | **Status:** ✅ COMPLETED (2026-02-25)
+**Branch:** `docs/bug-041-bug-033-vercel-deployment-fix` | **Commit:** f9511d8
+
+Implemented offset-based pagination for `/api/v1/signals/trending` endpoint to enable incremental loading of signals:
+- **Default limit:** Changed from 50 → 15 (one page of cards)
+- **Offset parameter:** Added to enable pagination (`GET /api/v1/signals/trending?offset=15`)
+- **Cache strategy:** Full set (up to 100) computed once, cache key v3 excludes offset/limit so all pages share same cache
+- **Response metadata:** Added total_count, offset, limit, has_more, cached, computed_at, performance
+- **Testing:** 7 new pagination tests added + 5 existing tests updated, all passing
+
+**Files:** `src/crypto_news_aggregator/api/v1/endpoints/signals.py`, `tests/api/test_signals.py`
+**Ticket:** `docs/tickets/feature-048-lazy-loading/feature-048a-backend-signals-pagination.md`
+
+---
 
 ### ✅ BUG-027: Remove Afternoon Scheduled Briefing
 **Priority:** MEDIUM | **Severity:** LOW | **Resolved:** 2026-02-10
