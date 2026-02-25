@@ -2,7 +2,11 @@
 session_date: 2026-02-25
 project: Backdrop (Context Owl)
 current_sprint: Sprint 10 — UI Polish & Stability
+<<<<<<< HEAD
+session_focus: BUG-042 (refetch storm fix), then TASK-014 security hardening
+=======
 session_focus: BUG-043/BUG-044 signals cold cache diagnosis, then Fix 2 implementation
+>>>>>>> 29a746f (fix(signals): Add request tracing to signals endpoint (BUG-044))
 ---
 
 # Session Context: Sprint 10 — UI Polish & Stability
@@ -112,6 +116,22 @@ Optimized signals and narratives page load performance by addressing root cause 
 
 ## What to Work On Next
 
+<<<<<<< HEAD
+### ✅ PRIORITY 1 (COMPLETED THIS SESSION): BUG-042 — useInfiniteQuery Refetch Storm (2026-02-25)
+**Status:** COMPLETED | **Effort:** 15 min actual | **Commit:** 1dbc98b
+
+Fixed the refetch storm regression introduced by FEATURE-048d/048e by:
+- Restoring `staleTime: 25000` in Signals.tsx (line 90)
+- Restoring `staleTime: 55000` in Narratives.tsx (line 80)
+- Adding `refetchOnWindowFocus: false` to both pages to prevent tab-switch refetches
+- Build: ✅ 2146 modules, 143KB gzipped, TypeScript clean
+
+**Next:** TASK-014 security hardening or push BUG-042 PR
+
+---
+
+### ✅ PRIORITY 2 (PREVIOUSLY COMPLETED): FEATURE-048c — Frontend Shared Infinite Scroll Infrastructure (2026-02-25)
+=======
 ### 🔴 IMMEDIATE: BUG-044 — Add Request Tracing to Signals Endpoint (2026-02-25)
 **Status:** OPEN | **Effort:** 10 minutes | **Blocks:** BUG-043 diagnosis
 
@@ -145,6 +165,7 @@ Once BUG-044 confirms the root cause, implement Fix 2:
 ---
 
 ### ✅ PRIORITY 1 (COMPLETED): FEATURE-048c — Frontend Shared Infinite Scroll Infrastructure (2026-02-25)
+>>>>>>> 29a746f (fix(signals): Add request tracing to signals endpoint (BUG-044))
 **Status:** COMPLETED | **Effort:** 20-30 min actual | **Commit:** 0e23872
 
 Created shared infinite scroll infrastructure for Signals and Narratives pages:
