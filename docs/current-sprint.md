@@ -7,8 +7,9 @@ session_focus: UI Polish & Stability — Signals Bugs & Skeleton Loaders
 
 # Current Sprint Status
 
-> **Last Updated:** 2026-02-23
+> **Last Updated:** 2026-02-25
 > **Previous Sprint:** ✅ Sprint 9 Complete (Documentation Infrastructure)
+> **Current Session:** FEATURE-048c frontend shared infra COMPLETED
 
 ## Sprint 10: UI Polish & Stability
 
@@ -302,14 +303,43 @@ Three indexes to make `$match` stages fast now that sort/limit moved to Python:
 4. ✅ BUG-038: Apply `get_recent_articles_for_entity()` M0 sort fix — **MERGED PR #182**
 5. ✅ BUG-040: Replace N+1 articles batch query with single pipeline — **MERGED PR #185**
 
+### ✅ FEATURE-048c: Frontend Shared Infinite Scroll Infrastructure (THIS SESSION)
+**Priority:** HIGH | **Complexity:** LOW | **Status:** ✅ COMPLETED (2026-02-25)
+**Branch:** `feature/feature-048c-frontend-shared-infra` | **Commit:** 0e23872
+
+Implemented shared pagination infrastructure for frontend infinite scroll:
+- **New hook:** `context-owl-ui/src/hooks/useInfiniteScroll.ts` with Intersection Observer API
+  - Detects when user scrolls to within 300px of bottom of list
+  - Fires `onLoadMore()` callback when sentinel enters viewport and !isLoading
+  - Returns `sentinelRef` to attach to div at list end
+  - Fully configurable threshold and dependencies
+
+- **Updated signals API client:** `context-owl-ui/src/api/signals.ts`
+  - New `PaginatedSignalsResponse` interface with count, total_count, offset, limit, has_more, signals, cached, computed_at, performance
+  - `getSignals()` now accepts `offset` param, defaults to 15 items per page
+  - `getSignalsByEntity()` updated with same pagination support
+
+- **Updated narratives API client:** `context-owl-ui/src/api/narratives.ts`
+  - New `PaginatedNarrativesResponse` interface
+  - `getNarratives()` accepts `{ limit?, offset? }` params, defaults to 10 items per page
+
+- **Updated TypeScript types:** `context-owl-ui/src/types/index.ts`
+  - Added `PaginatedSignalsResponse` and `PaginatedNarrativesResponse` interfaces
+  - Extended `SignalFilters` to include `min_score` and `entity_type`
+
+- **Minor fix:** `context-owl-ui/src/pages/Narratives.tsx`
+  - Updated to extract narratives array from new paginated response shape
+
+**Build verification:** ✅ TypeScript compiles clean, frontend builds (2145 modules, 143KB gzipped)
+
+**Spec references:** Parts 3, 4, 7 of `FEATURE-048-implementation-spec.md`
+
+---
+
 ### 🔴 Next Priority Actions
-1. **Run full test suite:** `pytest tests/` — verify all 3 PRs pass integration tests
-2. **Deploy to staging:** Test signals page load time and performance improvements
-3. **Manual verification on staging:**
-   - `/api/v1/signals/trending` → verify no memory errors
-   - Signal scores and entity ranking correct?
-   - Article ordering correct?
-   - Signals page load time < 10s?
+1. **Push FEATURE-048c to remote** and create PR against main
+2. **Begin FEATURE-048d:** Frontend Signals Page infinite scroll (Part 5 of spec)
+3. **Then FEATURE-048e:** Frontend Narratives Page infinite scroll (Part 6 of spec)
 
 ### 🟡 Follow-up Cleanup (After Staging Validation)
 1. TASK-012: Remove leftover `allowDiskUse=True` from non-sorting aggregations
