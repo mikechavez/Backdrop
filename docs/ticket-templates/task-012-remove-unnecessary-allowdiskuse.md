@@ -3,10 +3,13 @@ ticket_id: TASK-012
 title: Remove Unnecessary allowDiskUse=True from Non-Sorting Aggregations
 priority: low
 severity: low
-status: OPEN
+status: COMPLETED
 date_created: 2026-02-24
-branch: 
+date_completed: 2026-02-25
+branch: docs/bug-041-bug-033-vercel-deployment-fix
+commit: 2f535a1
 effort_estimate: 15 min
+effort_actual: 10 min
 ---
 
 # TASK-012: Remove Unnecessary allowDiskUse=True from Non-Sorting Aggregations
@@ -47,9 +50,9 @@ Each remaining instance should be justified by a `$sort` stage in that pipeline.
 
 ## Acceptance Criteria
 
-- [ ] `allowDiskUse=True` removed from aggregations with no `$sort` in signal_service.py
-- [ ] `allowDiskUse=True` removed from aggregations with no `$sort` in signals.py
-- [ ] No behavioral change — these aggregations never needed disk-based sort
+- [x] `allowDiskUse=True` removed from aggregations with no `$sort` in signal_service.py
+- [x] `allowDiskUse=True` removed from aggregations with no `$sort` in signals.py
+- [x] No behavioral change — these aggregations never needed disk-based sort
 
 ---
 

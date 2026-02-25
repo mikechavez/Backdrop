@@ -257,11 +257,16 @@ Replaced 50 parallel pipelines (one per entity) with single `$match:{entity:{$in
 
 ---
 
-### 🟡 TASK-012: Remove Unnecessary `allowDiskUse=True` from Non-Sorting Aggregations
-**Priority:** LOW | **Status:** OPEN | **Effort:** 15 min
-**Files:** `signal_service.py`, `signals.py`
+### ✅ TASK-012: Remove Unnecessary `allowDiskUse=True` from Non-Sorting Aggregations (COMPLETED)
+**Priority:** LOW | **Status:** COMPLETED | **Effort:** 10 min actual
+**Commit:** 2f535a1 | **Merged:** 2026-02-25
 
-After BUG-036/037/038 remove sorts, clean up leftover `allowDiskUse=True` on aggregations that have no `$sort` stage. Code hygiene — no functional change.
+Removed `allowDiskUse=True` from 3 aggregations with no `$sort`:
+- `calculate_source_diversity()`: groups by source → small result set
+- `compute_trending_signals()`: narrative count aggregation
+- `get_signals()`: narrative count aggregation
+
+Kept on `_count_filtered_mentions()` which still has complex `$lookup`.
 
 **Ticket:** `task-012-remove-unnecessary-allowdiskuse.md`
 
