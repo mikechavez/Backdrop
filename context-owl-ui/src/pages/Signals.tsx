@@ -133,7 +133,6 @@ export function Signals() {
 
   // Flatten pages array into single signals array
   const signals = data?.pages.flatMap((page) => page.signals) ?? [];
-  const totalCount = data?.pages[0]?.total_count ?? 0;
 
   return (
     <div>
@@ -141,11 +140,6 @@ export function Signals() {
         <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Market Signals</h1>
         <p className="mt-2 text-gray-600 dark:text-gray-400">
           Top entities showing unusual activity in the last 24 hours
-          {signals.length > 0 && totalCount > 0 && (
-            <span className="text-gray-500 dark:text-gray-400 ml-2">
-              ({signals.length} of {totalCount})
-            </span>
-          )}
         </p>
         {dataUpdatedAt && (
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
@@ -186,12 +180,6 @@ export function Signals() {
                   <span className="text-gray-500 dark:text-gray-400">Type:</span>
                   <span className={`px-2 py-1 rounded-full text-xs font-medium ${getEntityTypeColor(signal.entity_type)}`}>
                     {formatEntityType(signal.entity_type)}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-500 dark:text-gray-400">Sources:</span>
-                  <span className="text-gray-700 dark:text-gray-300">
-                    {signal.source_count} sources
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
