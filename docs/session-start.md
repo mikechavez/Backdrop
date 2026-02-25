@@ -29,8 +29,8 @@ Ship remaining phases:
 
 1. ✅ **Phase 1:** 7-day hard cutoff (BUG-045 COMPLETE)
 2. ✅ **Phase 2:** Redis cache (15m TTL) (FEATURE-049 COMPLETE)
-3. **Phase 3:** Cache warmer - TASK-015 [NEXT]
-4. **Phase 4:** UI cleanup - BUG-051 (remove counts)
+3. ✅ **Phase 3:** Cache warmer (TASK-015 COMPLETE)
+4. **Phase 4:** UI cleanup - BUG-051 (remove counts) [NEXT]
 5. **Phase 5:** Observability - TASK-016
 
 ## Definition of Done
@@ -41,4 +41,4 @@ Ship remaining phases:
 
 ## Next Task
 
-**TASK-015:** Warm entity articles cache at startup
+**BUG-051:** Remove internal counts from Signals UI header
