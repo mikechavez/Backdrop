@@ -8,14 +8,6 @@ from logging.handlers import RotatingFileHandler
 
 def setup_logging():
     """Configure logging for the application."""
-    # Force basic config to ensure stdout logging even if config is already set up
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        stream=sys.stdout,
-        force=True,
-    )
-
     log_dir = "logs"
     os.makedirs(log_dir, exist_ok=True)
 
@@ -34,17 +26,18 @@ def setup_logging():
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setFormatter(log_formatter)
 
-    # Configure root logger
+    # Configure root logger - clear any existing handlers first to prevent duplication
     root_logger = logging.getLogger()
+    root_logger.handlers.clear()
     root_logger.setLevel(logging.INFO)
     root_logger.addHandler(file_handler)
     root_logger.addHandler(console_handler)
 
-    # Ensure Uvicorn logs are captured
+    # Ensure Uvicorn logs propagate to root logger (no explicit handler assignment)
     for logger_name in ["uvicorn", "uvicorn.error", "uvicorn.access"]:
         uvicorn_logger = logging.getLogger(logger_name)
+        uvicorn_logger.setLevel(logging.INFO)
         uvicorn_logger.propagate = True
-        uvicorn_logger.handlers = [file_handler, console_handler]
 
     logger = logging.getLogger(__name__)
     logger.info("--- Logging configured successfully ---")
