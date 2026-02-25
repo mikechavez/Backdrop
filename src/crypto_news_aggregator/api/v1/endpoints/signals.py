@@ -441,10 +441,29 @@ async def get_trending_signals(
     # Try to get from cache (Redis or in-memory) - 60 second TTL
     cached_result = get_from_cache(cache_key)
     if cached_result is not None:
-        # Paginate from cached full result
-        all_signals = cached_result.get("signals", [])
-        total_count = len(all_signals)
-        page_signals = all_signals[offset:offset + limit]
+        # Cache hit: return paginated trends WITHOUT per-page enrichment
+        # Articles/narratives not cached, but we avoid 112s article fetch cost
+        trending_signals = cached_result.get("signals", [])
+        total_count = len(trending_signals)
+        paged_trending = trending_signals[offset:offset + limit]
+
+        # Return trends only - no narratives/articles to avoid per-page fetch
+        page_signals = []
+        for signal in paged_trending:
+            page_signals.append({
+                "entity": signal["entity"],
+                "entity_type": signal["entity_type"],
+                "signal_score": signal.get("score", 0.0),
+                "velocity": signal.get("velocity", 0.0),
+                "mentions": signal.get("mentions", 0),
+                "source_count": signal.get("source_count", 0),
+                "recency_factor": signal.get("recency_factor", 0.0),
+                "sentiment": signal.get("sentiment", {}),
+                "is_emerging": signal.get("is_emerging", False),
+                "narratives": [],  # Not cached, would require per-page fetch
+                "recent_articles": [],  # Not cached, would require per-page fetch
+            })
+
         return {
             "count": len(page_signals),
             "total_count": total_count,
@@ -476,29 +495,29 @@ async def get_trending_signals(
 
         total_count = len(trending)
 
-        # Collect ALL narrative IDs and entities for batch fetching (for cache)
-        all_narrative_ids = set()
-        entities = []
-        for signal in trending:
-            narrative_ids = signal.get("narrative_ids", [])
-            all_narrative_ids.update(narrative_ids)
-            entities.append(signal["entity"])
+        # FIX 1: Paginate BEFORE fetching articles/narratives to reduce cold-cache time
+        # Only fetch enrichment data for signals in the requested page, not all 100
+        paged_signals = trending[offset:offset + limit]
+        paged_entities = [signal["entity"] for signal in paged_signals]
+        paged_narrative_ids = set()
+        for signal in paged_signals:
+            paged_narrative_ids.update(signal.get("narrative_ids", []))
 
-        # Batch fetch all narratives in one query
+        # Batch fetch narratives for ONLY the paged signals
         batch_start = time.time()
-        narratives_list = await get_narrative_details(list(all_narrative_ids))
+        narratives_list = await get_narrative_details(list(paged_narrative_ids))
         narratives_by_id = {n["id"]: n for n in narratives_list}
         logger.info(f"[Signals] Batch fetched {len(narratives_list)} narratives in {time.time() - batch_start:.3f}s")
 
-        # Batch fetch all articles in one query
+        # Batch fetch articles for ONLY the paged entities (~15 instead of ~100)
         batch_start = time.time()
-        articles_by_entity = await get_recent_articles_batch(entities, limit_per_entity=5)
+        articles_by_entity = await get_recent_articles_batch(paged_entities, limit_per_entity=5)
         total_articles = sum(len(articles) for articles in articles_by_entity.values())
-        logger.info(f"[Signals] Batch fetched {total_articles} articles for {len(entities)} entities in {time.time() - batch_start:.3f}s")
+        logger.info(f"[Signals] Batch fetched {total_articles} articles for {len(paged_entities)} entities in {time.time() - batch_start:.3f}s")
 
-        # Build FULL enriched list (for caching)
+        # Build enriched signals for the paged result (for response and cache)
         all_enriched_signals = []
-        for signal in trending:
+        for signal in paged_signals:
             narrative_ids = signal.get("narrative_ids", [])
             narratives = [narratives_by_id[nid] for nid in narrative_ids if nid in narratives_by_id]
             recent_articles = articles_by_entity.get(signal["entity"], [])
@@ -517,13 +536,14 @@ async def get_trending_signals(
                 "recent_articles": recent_articles,
             })
 
-        # Cache the FULL enriched list
+        # Cache the computed trends only (not the per-page enrichment)
+        # This allows cache hits to return fast without per-page enrichment cost
         total_time = time.time() - start_time
         payload_size = len(json.dumps(all_enriched_signals)) / 1024
         logger.info(f"[Signals] Total request time: {total_time:.3f}s, Payload: {payload_size:.2f}KB")
 
         full_cache = {
-            "signals": all_enriched_signals,
+            "signals": trending,  # Cache trends only, not per-page enrichment (narratives/articles)
             "filters": {
                 "min_score": min_score,
                 "entity_type": entity_type,
@@ -538,10 +558,9 @@ async def get_trending_signals(
         }
         set_in_cache(cache_key, full_cache, ttl_seconds=60)
 
-        # Return paginated slice
-        page_signals = all_enriched_signals[offset:offset + limit]
+        # Return the paginated enriched signals for this response
         response = {
-            "count": len(page_signals),
+            "count": len(all_enriched_signals),
             "total_count": total_count,
             "offset": offset,
             "limit": limit,
@@ -551,7 +570,7 @@ async def get_trending_signals(
                 "entity_type": entity_type,
                 "timeframe": timeframe,
             },
-            "signals": page_signals,
+            "signals": all_enriched_signals,
             "cached": False,
             "computed_at": full_cache["computed_at"],
             "performance": full_cache["performance"],
