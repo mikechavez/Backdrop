@@ -23,22 +23,22 @@ Signals page was unusable due to 40s+ entity article loads.
 
 **Expected impact:** Entity articles <1s warm, <3s cold (Bitcoin/Ethereum)
 
-## Remaining ADR-012 Work
+## ADR-012 Progress
 
 Ship remaining phases:
 
 1. ✅ **Phase 1:** 7-day hard cutoff (BUG-045 COMPLETE)
-2. **Phase 2:** Redis cache (15m TTL) - FEATURE-049
-3. **Phase 3:** Cache warmer - TASK-015
+2. ✅ **Phase 2:** Redis cache (15m TTL) (FEATURE-049 COMPLETE)
+3. **Phase 3:** Cache warmer - TASK-015 [NEXT]
 4. **Phase 4:** UI cleanup - BUG-051 (remove counts)
 5. **Phase 5:** Observability - TASK-016
 
 ## Definition of Done
 
 -   Bitcoin articles \<1s warm ← BUG-045 achieves this
--   Redis cache warmed before user click ← FEATURE-049/TASK-015
+-   Redis cache warmed before user click ← FEATURE-049 ✅ / TASK-015
 -   No 10s+ backend calls ← All phases
 
 ## Next Task
 
-**FEATURE-049:** Implement Redis cache for entity articles (15-min TTL)
+**TASK-015:** Warm entity articles cache at startup
