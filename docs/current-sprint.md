@@ -551,10 +551,47 @@ Implemented infinite scroll pagination for Narratives page using `useInfiniteQue
 
 ---
 
+### 🟡 BUG-043: Signals Endpoint Takes 120s on Cold Cache — Article Batch Fetch Bottleneck
+**Priority:** CRITICAL | **Severity:** CRITICAL | **Status:** 🟡 IN PROGRESS (Fix 1 Complete)
+**Branch:** `fix/bug-043-paginate-before-fetch` | **Commit:** e11a3e5
+
+Signals endpoint takes 110-120s on cold cache. Root cause: article enrichment runs for all entities before pagination is applied. Fix 1 (paginate before fetch) shipped but production still shows 110s loads with 50-entity article fetches despite frontend sending `limit=15`.
+
+**Fix 1 (Complete):** Paginate before article/narrative fetch — reduces 100→15 entity enrichment. Expected: 120s → ~20s.
+**Fix 2 (Pending):** Remove articles from list endpoint entirely — return signal card data only, lazy-load articles. Expected: 120s → ~3.5s.
+**Fix 3 (Pending):** Add semaphore concurrency cap to protect Atlas M0.
+**Fix 4 (Pending):** Fix duplicate log lines.
+
+**Blocked by:** BUG-044 (need tracing to diagnose why Fix 1 isn't producing expected results in production)
+
+**Ticket:** `bug-043-signal-endpoint-120-cold-cache.md`
+
+---
+
+### 🔴 BUG-044: Signals Endpoint Lacks Request Tracing — Cannot Diagnose BUG-043
+**Priority:** CRITICAL | **Severity:** HIGH | **Status:** OPEN
+**Created:** 2026-02-25 | **Effort:** 10 minutes
+
+Signals endpoint logs enrichment counts ("50 entities") but not request parameters (`limit`, `offset`). No request ID ties log lines together. This makes it impossible to determine whether the 110s load is caused by a second caller sending `limit=50`, the backend ignoring pagination during enrichment, or a hardcoded enrichment cap.
+
+**Fix:** Add `req_id` + param logging to `get_trending_signals()`:
+- Log parsed `limit`/`offset` at top of handler
+- Add `req_id` to all log lines
+- Log diagnostic: `requested_limit` vs `page_items` vs `article_entities`
+
+**Unblocks:** BUG-043 diagnosis and Fix 2 implementation.
+
+**Files:** `src/crypto_news_aggregator/api/v1/endpoints/signals.py`
+**Ticket:** `bug-044-signals-endpoint-missing-request-tracing.md`
+
+---
+
 ### 🔴 Next Priority Actions
-1. **🔴 BUG-042: useInfiniteQuery Refetch Storm** — FEATURE-048d/048e set `staleTime: 0` in useInfiniteQuery, overwriting cold-cache fix. Add `staleTime: 25s/55s` + `refetchOnWindowFocus: false` to Signals.tsx and Narratives.tsx. Root cause of persistent slow loads and intermittent signal failures.
-   - Ticket: `bug-042-infinite-query-refetch-storm.md`
-2. **Consider:** Remaining FEATURE-048 validation or proceed to TASK-014 security hardening
+1. **Ship BUG-044** — Add request tracing to signals endpoint (10 min)
+2. **Reproduce on cold cache** — Read diagnostic logs to confirm root cause
+3. **Ship BUG-043 Fix 2** — Remove articles from list endpoint, add detail endpoint
+4. **Add BUG-043 Fix 3** — Semaphore on detail endpoint
+5. **Consider:** TASK-014 security hardening or Substack launch sequence
 
 ### 🟡 Follow-up Cleanup (After Staging Validation)
 1. TASK-012: Remove leftover `allowDiskUse=True` from non-sorting aggregations
@@ -567,6 +604,6 @@ Implemented infinite scroll pagination for Narratives page using `useInfiniteQue
 
 ---
 
-**Status:** ✅ Sprint 10 Major Fixes Complete + Lazy Loading Feature 100% Complete | **Previous:** ✅ Sprint 9 Complete
+**Status:** ✅ Sprint 10 Major Fixes Complete + Lazy Loading Feature 100% Complete | 🔴 BUG-043/044 Signals Cold Cache In Progress | **Previous:** ✅ Sprint 9 Complete
 
-> **This Session (2026-02-25):** Completed FEATURE-048c (shared infrastructure), FEATURE-048d (Signals infinite scroll), and FEATURE-048e (Narratives infinite scroll). Lazy loading feature 100% complete (5 of 5 tickets done: 048a, 048b, 048c, 048d, 048e). Cold-cache performance branch merged. BUG-042 identified: FEATURE-048d/048e overwrote cold-cache staleTime fixes with staleTime: 0 in new useInfiniteQuery calls, causing refetch storms that overwhelm Atlas M0. Fix: restore staleTime + add refetchOnWindowFocus: false.
+> **This Session (2026-02-25):** Completed FEATURE-048c (shared infrastructure), FEATURE-048d (Signals infinite scroll), and FEATURE-048e (Narratives infinite scroll). Lazy loading feature 100% complete (5 of 5 tickets done: 048a, 048b, 048c, 048d, 048e). Investigated BUG-043 (110s cold cache) — feedback identified missing request tracing as the blocker. Created BUG-044 to add request ID + param logging before proceeding with BUG-043 Fix 2. Next: ship BUG-044, reproduce, then implement Fix 2 (remove articles from list endpoint).

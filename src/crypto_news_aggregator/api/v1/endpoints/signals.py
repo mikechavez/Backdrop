@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 from fastapi import APIRouter, Query, HTTPException
 from typing import List, Dict, Any, Optional
 from bson import ObjectId
+from uuid import uuid4
 
 from ....core.redis_rest_client import redis_client
 from ....db.mongodb import mongo_manager
@@ -420,6 +421,12 @@ async def get_trending_signals(
     Returns:
         Paginated response with trending entities, total count, and pagination metadata
     """
+    # Generate request ID for tracing
+    req_id = uuid4().hex[:8]
+
+    # Log request parameters for diagnostics
+    logger.info(f"[{req_id}] Signals request: limit={limit}, offset={offset}, min_score={min_score}, entity_type={entity_type}, timeframe={timeframe}")
+
     # Validate entity_type if provided
     if entity_type and entity_type not in ["ticker", "project", "event"]:
         raise HTTPException(
@@ -446,6 +453,8 @@ async def get_trending_signals(
         trending_signals = cached_result.get("signals", [])
         total_count = len(trending_signals)
         paged_trending = trending_signals[offset:offset + limit]
+
+        logger.info(f"[{req_id}] Cache hit: total_count={total_count}, returning {len(paged_trending)} signals ({offset}-{offset + len(paged_trending) - 1})")
 
         # Return trends only - no narratives/articles to avoid per-page fetch
         page_signals = []
@@ -480,6 +489,7 @@ async def get_trending_signals(
     # Compute signals on-demand
     try:
         start_time = time.time()
+        logger.info(f"[{req_id}] Cache miss, computing trending signals...")
 
         # Always compute full set (up to 100) for caching; paginate after
         max_compute = 100
@@ -491,7 +501,7 @@ async def get_trending_signals(
         )
 
         compute_time = time.time() - start_time
-        logger.info(f"[Signals] Computed {len(trending)} trending signals in {compute_time:.3f}s")
+        logger.info(f"[{req_id}] Computed {len(trending)} trending signals in {compute_time:.3f}s")
 
         total_count = len(trending)
 
@@ -503,17 +513,20 @@ async def get_trending_signals(
         for signal in paged_signals:
             paged_narrative_ids.update(signal.get("narrative_ids", []))
 
+        # Log diagnostic: requested_limit vs page_items vs article_entities
+        logger.info(f"[{req_id}] Enrichment plan: requested_limit={limit}, page_items={len(paged_signals)}, article_entities={len(paged_entities)}, narrative_ids={len(paged_narrative_ids)}")
+
         # Batch fetch narratives for ONLY the paged signals
         batch_start = time.time()
         narratives_list = await get_narrative_details(list(paged_narrative_ids))
         narratives_by_id = {n["id"]: n for n in narratives_list}
-        logger.info(f"[Signals] Batch fetched {len(narratives_list)} narratives in {time.time() - batch_start:.3f}s")
+        logger.info(f"[{req_id}] Batch fetched {len(narratives_list)} narratives in {time.time() - batch_start:.3f}s")
 
         # Batch fetch articles for ONLY the paged entities (~15 instead of ~100)
         batch_start = time.time()
         articles_by_entity = await get_recent_articles_batch(paged_entities, limit_per_entity=5)
         total_articles = sum(len(articles) for articles in articles_by_entity.values())
-        logger.info(f"[Signals] Batch fetched {total_articles} articles for {len(paged_entities)} entities in {time.time() - batch_start:.3f}s")
+        logger.info(f"[{req_id}] Batch fetched {total_articles} articles for {len(paged_entities)} entities in {time.time() - batch_start:.3f}s")
 
         # Build enriched signals for the paged result (for response and cache)
         all_enriched_signals = []
@@ -540,7 +553,7 @@ async def get_trending_signals(
         # This allows cache hits to return fast without per-page enrichment cost
         total_time = time.time() - start_time
         payload_size = len(json.dumps(all_enriched_signals)) / 1024
-        logger.info(f"[Signals] Total request time: {total_time:.3f}s, Payload: {payload_size:.2f}KB")
+        logger.info(f"[{req_id}] Total request time: {total_time:.3f}s, Payload: {payload_size:.2f}KB")
 
         full_cache = {
             "signals": trending,  # Cache trends only, not per-page enrichment (narratives/articles)
@@ -557,6 +570,7 @@ async def get_trending_signals(
             },
         }
         set_in_cache(cache_key, full_cache, ttl_seconds=60)
+        logger.info(f"[{req_id}] Cached {len(trending)} signals for future requests")
 
         # Return the paginated enriched signals for this response
         response = {
@@ -579,7 +593,7 @@ async def get_trending_signals(
         return response
 
     except Exception as e:
-        logger.error(f"[Signals] Failed to compute trending signals: {e}")
+        logger.error(f"[{req_id}] Failed to compute trending signals: {e}")
         raise HTTPException(
             status_code=500,
             detail=f"Failed to compute trending signals: {str(e)}"
