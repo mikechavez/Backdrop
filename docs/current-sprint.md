@@ -8,8 +8,8 @@ ADR-012 supersedes all prior sprint goals.
 
 1. ✅ **BUG-045** --- Time-bound entity articles (7d) [COMPLETE - PR #203]
 2. ✅ **FEATURE-049** --- Redis cache entity articles [COMPLETE - Branch: feature/049-redis-cached-entity-articles]
-3. **TASK-015** --- Cache warming task [NEXT]
-4. **BUG-051** --- Remove UI counts [QUEUED]
+3. ✅ **TASK-015** --- Cache warming task [COMPLETE - Branch: feature/015-warm-entity-articles-cache]
+4. **BUG-051** --- Remove UI counts [NEXT]
 5. **TASK-016** --- Observability + clamps [QUEUED]
 
 All other Sprint 10 work paused until ADR-012 complete.
