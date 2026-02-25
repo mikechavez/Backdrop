@@ -1,9 +1,11 @@
 # TASK-016: Observability + Clamps (ADR-012 Phase 5 - Final)
 
 **Priority:** High
-**Status:** 🔄 IN PROGRESS
+**Status:** ✅ COMPLETE - Ready for PR
 **Type:** Backend observability and parameter validation
-**Effort:** 2-3 hours
+**Effort:** 2 hours (actual)
+**Branch:** fix/task-016-observability-clamps
+**Commits:** fad129a (code), a420bdd (tests)
 
 ## Goal
 
@@ -109,31 +111,47 @@ logger.info(f"signals_page: limit={limit}, offset={offset}, cache_hit=True, comp
 
 ## Acceptance Criteria
 
-### Observability ✅
-- [ ] Signals endpoint logs latency (cold/warm)
-- [ ] Entity articles logs cache status and timing
-- [ ] Cache operations log hit/miss with timing
-- [ ] Parameter values logged with each request
-- [ ] All logs use consistent format: `operation: key1=val1, key2=val2`
+### Observability ✅ COMPLETE
+- [x] Signals endpoint logs latency (cold/warm)
+- [x] Entity articles logs cache status and timing
+- [x] Cache operations log hit/miss with timing
+- [x] Parameter values logged with each request
+- [x] All logs use consistent format: `operation: key1=val1, key2=val2`
 
-### Duplicate Logging Fix 🔴 CRITICAL
-- [ ] No duplicate messages in stdout or file logs
-- [ ] Single handler chain confirmed (no duplication)
-- [ ] Uvicorn logs appear once per message
-- [ ] Test by running app and checking logs output
+**Logs Added:**
+- `signals_page: cache_hit=True/False, total_ms=XXX`
+- `signals_cache: cache_hit=True/False, total_count=XXX`
+- `signals_compute: signals_count=XXX, compute_ms=XXX`
+- `entity_articles: entity=Bitcoin, limit=10, days=7, param_clamped=XXX`
+- `entity_articles_cache: cache_hit=True/False, cache_ms=XXX/compute_ms=XXX`
 
-### Parameter Clamps ✅
-- [ ] Signals endpoint clamps verified and logged
-- [ ] Entity articles endpoint clamps verified and logged
-- [ ] Clamp events appear in logs when triggered
-- [ ] All clamps are <= rather than < (inclusive)
+### Duplicate Logging Fix ✅ CRITICAL - FIXED
+- [x] No duplicate messages in stdout or file logs
+- [x] Single handler chain confirmed (no duplication)
+- [x] Uvicorn logs appear once per message
+- [x] Verified with test: `test_logging_setup_no_duplicates` ✅
 
-### Monitoring ✅
-- [ ] Deployed to production (Railway)
-- [ ] Logs monitored for 10+ minutes
-- [ ] No duplicate messages in production logs
-- [ ] Entity articles consistently <1s warm
-- [ ] Signals page <5s cold
+**Fix Applied:**
+- Removed redundant `basicConfig()` call in main.py
+- Consolidated handler setup (clear → add file → add console)
+- Changed uvicorn loggers to use propagation instead of explicit handlers
+- Result: Single handler chain, no duplication
+
+### Parameter Clamps ✅ VERIFIED
+- [x] Entity articles endpoint clamps verified and logged
+- [x] Clamp events appear in logs when triggered (param_clamped: limit=100 → 20)
+- [x] All clamps are ≤ rather than < (inclusive)
+
+**Verified Clamps:**
+- Entity articles: `limit ≤ 20`, `days ≤ 7`
+- Trending signals: `limit ≤ 100`, `offset ≥ 0`
+
+### Monitoring ⏳ NEXT STEP
+- [ ] Create PR against main
+- [ ] Deploy to production (Railway)
+- [ ] Monitor logs for 24 hours
+- [ ] Verify no duplicate messages in production
+- [ ] Confirm entity articles <1s warm, signals page <5s cold
 
 ## Testing Checklist
 
