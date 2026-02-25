@@ -3,7 +3,7 @@ id: BUG-043
 type: performance
 priority: CRITICAL
 severity: CRITICAL
-status: 🟡 IN PROGRESS (Fix 1 Complete)
+status: 🟡 IN PROGRESS (Fix 1 Complete, Fix 2 IMPLEMENTED 2026-02-25)
 created: 2026-02-25
 sprint: Sprint 10
 blocked_by: none
@@ -92,9 +92,17 @@ Step 3 is the killer. `get_recent_articles_batch()` fires 100 parallel `get_rece
 **Test Status:** All 7 pagination tests passing
 **Files Modified:** `src/crypto_news_aggregator/api/v1/endpoints/signals.py`
 
-### Fix 2: Remove Articles from List Endpoint Entirely (IDEAL — ~97% improvement)
+### ✅ Fix 2: Remove Articles from List Endpoint Entirely (IDEAL — ~97% improvement)
+
+**Status:** ✅ IMPLEMENTED (2026-02-25)
+**Commit:** bde19ea
+**Branch:** `fix/bug-043-paginate-before-fetch`
+**Effort:** 45 minutes actual
+**Files Modified:** 3 (signals.py, signals.ts, Signals.tsx)
 
 **Rationale:** The Signals list page shows signal cards with entity name, score, velocity, mentions, and source count. Articles are detail-level data that users only need when they click into a specific signal. Fetching 5 articles × 100 entities for a list view is wasteful.
+
+**Root cause confirmed:** The `$lookup` join between `entity_mentions` and `articles` in `get_recent_articles_batch()` is Atlas M0's bottleneck — even with 15 entities after Fix 1, the join across a large `entity_mentions` collection still takes 90+ seconds. M0 has no disk spill, so the in-memory hash join crushes the cluster.
 
 **Change:** Don't fetch articles in `/signals/trending` at all. Create a separate `/signals/{entity}/articles` endpoint for on-demand article loading.
 
@@ -108,7 +116,101 @@ Step 3 is the killer. `get_recent_articles_batch()` fires 100 parallel `get_rece
 
 **Expected improvement:** 120s → ~3.5s (97% reduction)
 
-**Frontend change:** Load articles lazily when user expands a signal card, or on the signal detail view.
+**Frontend UX (confirmed):** "Recent mentions" button always shows on every signal card. Articles load lazily when user clicks to expand — not at page load. This preserves the feature while eliminating the bottleneck.
+
+**Implementation completed:**
+
+#### Backend Changes (signals.py)
+
+✅ **Line ~525-529:** Removed batch article fetch from cache miss path
+- Deleted ~5 lines: `get_recent_articles_batch()` call + timing log
+- Savings: ~5 seconds per cold cache request
+
+✅ **Line 542:** Set articles to empty array in enriched signals
+- Changed: `"recent_articles": recent_articles,`
+- To: `"recent_articles": [],`
+- Effect: Makes cold cache and warm cache responses consistent
+
+✅ **Lines 596-625:** Added new per-entity articles endpoint
+```python
+@router.get("/{entity}/articles")
+async def get_entity_articles(
+    entity: str,
+    limit: int = Query(default=5, ge=1, le=20),
+) -> Dict[str, Any]:
+    """Fetch recent articles for a specific entity (for lazy-loading on signal card expand)."""
+    articles = await get_recent_articles_for_entity(entity, limit=limit)
+    return {"entity": entity, "articles": articles}
+```
+- Reuses existing `get_recent_articles_for_entity()` function (line 135)
+- No new DB logic required
+- Returns: `{"entity": entity, "articles": [...]}`
+
+#### Frontend Changes (signals.ts)
+
+✅ **Lines 50-55:** Added `getEntityArticles()` API function
+```typescript
+getEntityArticles: async (entity: string, limit: number = 5) =>
+  apiClient.get(`/api/v1/signals/${entity}/articles`, { limit })
+```
+
+#### Frontend Changes (Signals.tsx)
+
+✅ **Lines 74-76:** Added lazy-loading state
+- `articlesByEntity: Record<string, ArticleLink[]>` — maps entity → fetched articles
+- `loadingArticles: Set<string>` — tracks in-flight requests
+
+✅ **Lines 104-129:** Added `handleLoadArticles()` handler with deduplication
+- Only fetches if not already loaded or loading
+- Sets loading state, calls API, stores result
+- Handles errors gracefully (empty array fallback)
+
+✅ **Lines 216-262:** Updated article rendering for lazy-loading
+- Always renders "Recent mentions" button (no conditional)
+- On click: toggles expand and fetches articles on demand if needed
+- Shows loading spinner (`<Loader className="animate-spin" />`) while fetching
+- Shows "No articles found" if response is empty
+- Renders articles from `articlesByEntity` state map
+
+#### Build Verification
+✅ Python syntax check: `signals.py` compiles
+✅ Frontend build: `npm run build` succeeded (2146 modules, 472KB gzipped, 144KB payload)
+✅ No build errors or warnings
+
+#### Testing Checklist (Next Session Priority 1)
+
+**1. Load signals page on cold cache**
+   - [ ] Check Railway logs: Should NOT see "Batch fetched ... articles" line on initial load
+   - [ ] Verify page loads in <5 seconds (previously ~90s with Fix 1 alone)
+   - [ ] Confirm `recent_articles` field is empty array `[]` in API response
+
+**2. Click "Recent mentions" button on a signal card**
+   - [ ] Verify loading spinner appears briefly
+   - [ ] Check browser DevTools: Should see GET request to `/api/v1/signals/{entity}/articles`
+   - [ ] Articles load from new endpoint and display correctly
+   - [ ] Verify API response format: `{"entity": "Bitcoin", "articles": [...]}`
+
+**3. Expand multiple cards**
+   - [ ] Second and subsequent opens should be instant (in-memory cache in `articlesByEntity`)
+   - [ ] No additional API requests for already-expanded cards
+   - [ ] Verify `loadingArticles` state is cleared after fetch
+
+**4. Error handling**
+   - [ ] Check browser console: No errors from `handleLoadArticles()`
+   - [ ] Expand a card, then close/reopen: Should show cached articles instantly
+   - [ ] If article fetch fails: Should show "No articles found" gracefully
+
+**5. Production verification**
+   - [ ] Check Railway logs for new `/api/v1/signals/{entity}/articles` GET requests on card expand
+   - [ ] Verify NO `Batch fetched ... articles for N entities` line during initial page load
+   - [ ] Monitor Atlas M0 connection pool: Should be lower than before (no massive article batch)
+   - [ ] Check total request time for initial page load: Should be <5 seconds (was 90s with Fix 1, 120s before)
+
+**6. Metrics to track**
+   - **Cold cache (first load):** Measure from page load to first meaningful content (15 signals visible)
+   - **Warm cache (subsequent loads):** Measure from click to articles visible after 1-2 cache hits
+   - **Atlas M0 connections:** Peak concurrent during typical usage (target: <50)
+   - **Payload size:** API response should drop from ~185KB to ~50KB for initial request
 
 ### Fix 3: Cap Parallel Article Queries with Semaphore (SAFETY NET)
 
@@ -142,7 +244,7 @@ Every log line appears twice in the production logs. Check for:
 
 **✅ Fix 1 is SHIPPED** (paginate before fetch, commit e11a3e5) — reduces cold-cache time from 120s to ~20s.
 
-**NEXT: Ship Fix 2** (remove articles from list) as a follow-up with a small frontend change to lazy-load articles. This will get cold-cache down to ~3.5s, which meets the Sprint 10 acceptance criteria of "first meaningful content within 2-3 seconds."
+**🟡 Fix 2 READY FOR IMPLEMENTATION** (remove articles from list) as a follow-up with a small frontend change to lazy-load articles. This will get cold-cache down to ~3.5s, which meets the Sprint 10 acceptance criteria of "first meaningful content within 2-3 seconds." Plan finalized (2026-02-25) — ready to implement.
 
 **ALSO ADD: Fix 3** — it's a safety net that prevents Atlas M0 exhaustion even if someone bypasses pagination via the API.
 
