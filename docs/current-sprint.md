@@ -568,18 +568,24 @@ Signals endpoint takes 110-120s on cold cache. Root cause: article enrichment ru
 
 ---
 
-### 🔴 BUG-044: Signals Endpoint Lacks Request Tracing — Cannot Diagnose BUG-043
-**Priority:** CRITICAL | **Severity:** HIGH | **Status:** OPEN
-**Created:** 2026-02-25 | **Effort:** 10 minutes
+### ✅ BUG-044: Signals Endpoint Lacks Request Tracing — COMPLETED
+**Priority:** CRITICAL | **Severity:** HIGH | **Status:** ✅ COMPLETED (2026-02-25)
+**Created:** 2026-02-25 | **Completed:** 2026-02-25 | **Effort:** 10 minutes actual | **Commit:** bd7dbb8
 
-Signals endpoint logs enrichment counts ("50 entities") but not request parameters (`limit`, `offset`). No request ID ties log lines together. This makes it impossible to determine whether the 110s load is caused by a second caller sending `limit=50`, the backend ignoring pagination during enrichment, or a hardcoded enrichment cap.
+Added request ID and comprehensive parameter logging to `get_trending_signals()` to diagnose whether the 110s cold-cache load is caused by backend enrichment ignoring pagination, a second caller sending `limit=50`, or a hardcoded enrichment cap.
 
-**Fix:** Add `req_id` + param logging to `get_trending_signals()`:
-- Log parsed `limit`/`offset` at top of handler
-- Add `req_id` to all log lines
-- Log diagnostic: `requested_limit` vs `page_items` vs `article_entities`
+**Implementation:**
+- ✅ Import uuid and generate `req_id = uuid4().hex[:8]` at top of handler
+- ✅ Log all request parameters immediately: limit, offset, timeframe, entity_type, min_score
+- ✅ Add `req_id` to all 11 log lines for request correlation
+- ✅ New diagnostic line: "Enrichment plan: requested_limit vs page_items vs article_entities vs narrative_ids"
 
-**Unblocks:** BUG-043 diagnosis and Fix 2 implementation.
+**Key diagnostic comparison:**
+- If `article_entities = requested_limit` → pagination working correctly
+- If `article_entities > requested_limit` → enrichment ignoring pagination
+- If `article_entities` varies across requests → multiple callers with different limits
+
+**Unblocks:** BUG-043 diagnosis. Deploy and reproduce on cold cache to read diagnostic logs.
 
 **Files:** `src/crypto_news_aggregator/api/v1/endpoints/signals.py`
 **Ticket:** `bug-044-signals-endpoint-missing-request-tracing.md`

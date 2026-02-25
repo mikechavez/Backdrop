@@ -79,8 +79,8 @@ Key ambiguity: Browser sends `limit=15`, access log shows `limit=50`. Without tr
 
 **Status:** ✅ COMPLETED (2026-02-25)
 **Branch:** `fix/bug-043-paginate-before-fetch`
-**Commit:** TBD (to be committed)
-**Effort:** 10 minutes
+**Commit:** bd7dbb8
+**Effort:** 10 minutes actual
 
 ### Root Cause
 
