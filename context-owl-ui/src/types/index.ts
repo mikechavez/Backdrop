@@ -138,9 +138,40 @@ export interface PaginatedResponse<T> {
   pages: number;
 }
 
+// Signal response types
+export interface PaginatedSignalsResponse {
+  count: number;
+  total_count: number;
+  offset: number;
+  limit: number;
+  has_more: boolean;
+  signals: Signal[];
+  cached: boolean;
+  computed_at: string;
+  filters: {
+    min_score: number;
+    entity_type: string | null;
+    timeframe: string;
+  };
+  performance?: {
+    total_time_seconds: number;
+    compute_time_seconds: number;
+    payload_size_kb: number;
+  };
+}
+
 export interface SignalsResponse {
   signals: Signal[];
   total: number;
+}
+
+// Narrative response types
+export interface PaginatedNarrativesResponse {
+  narratives: Narrative[];
+  total_count: number;
+  offset: number;
+  limit: number;
+  has_more: boolean;
 }
 
 // Backend returns array directly, not wrapped in object
@@ -157,9 +188,11 @@ export interface EntityDetailResponse {
 export interface SignalFilters extends Record<string, string | number | boolean | undefined> {
   entity_id?: number;
   signal_type?: string;
+  min_score?: number;
   min_strength?: number;
   limit?: number;
   offset?: number;
+  entity_type?: string;
   timeframe?: '24h' | '7d' | '30d';
 }
 

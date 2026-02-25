@@ -1,5 +1,13 @@
 import { apiClient } from './client';
-import type { NarrativesResponse, Narrative } from '../types';
+import type { Narrative, NarrativesResponse } from '../types';
+
+export interface PaginatedNarrativesResponse {
+  narratives: Narrative[];
+  total_count: number;
+  offset: number;
+  limit: number;
+  has_more: boolean;
+}
 
 export interface PaginatedArticlesResponse {
   articles: Array<{
@@ -15,8 +23,11 @@ export interface PaginatedArticlesResponse {
 }
 
 export const narrativesAPI = {
-  getNarratives: async (): Promise<NarrativesResponse> => {
-    return apiClient.get<NarrativesResponse>('/api/v1/narratives/active');
+  getNarratives: async (params?: { limit?: number; offset?: number }): Promise<PaginatedNarrativesResponse> => {
+    return apiClient.get<PaginatedNarrativesResponse>('/api/v1/narratives/active', {
+      limit: params?.limit ?? 10,
+      offset: params?.offset ?? 0,
+    });
   },
 
   getNarrativeById: async (id: string | number): Promise<Narrative> => {
