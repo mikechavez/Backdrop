@@ -235,11 +235,14 @@ async def get_signals() -> Dict[str, Any]:
         List of top 20 signals with entity, score, and metadata
     """
     cache_key = "signals:top20:v2"
+    start_time = time.time()
 
     # Check in-memory cache (60 second TTL)
     if cache_key in _signals_cache:
         cached_data, cached_time = _signals_cache[cache_key]
         if datetime.now() - cached_time < timedelta(seconds=60):
+            cached_ms = int((time.time() - start_time) * 1000)
+            logger.info(f"signals_page: cache_hit=True, total_ms={cached_ms}")
             cached_data["cached"] = True
             return cached_data
         else:
@@ -248,7 +251,8 @@ async def get_signals() -> Dict[str, Any]:
 
     # Cache miss - compute on demand
     try:
-        start_time = time.time()
+        logger.info(f"signals_page: cache_hit=False, computing=True")
+        compute_start = time.time()
 
         # Compute trending signals on-demand (default 7d timeframe, top 20)
         trending = await compute_trending_signals(
@@ -257,8 +261,9 @@ async def get_signals() -> Dict[str, Any]:
             min_score=0.0,
         )
 
-        compute_time = time.time() - start_time
-        logger.info(f"[Signals] Computed top 20 signals in {compute_time:.3f}s")
+        compute_time = time.time() - compute_start
+        compute_ms = int(compute_time * 1000)
+        logger.info(f"signals_compute: signals_count={len(trending)}, compute_ms={compute_ms}")
 
         # Get narrative counts for each entity
         db = await mongo_manager.get_async_database()
@@ -290,6 +295,7 @@ async def get_signals() -> Dict[str, Any]:
                 "narrative_count": counts.get(entity, 0),
             })
 
+        total_ms = int((time.time() - start_time) * 1000)
         response = {
             "count": len(signals),
             "signals": signals,
@@ -302,11 +308,12 @@ async def get_signals() -> Dict[str, Any]:
 
         # Store in cache with current timestamp
         _signals_cache[cache_key] = (response, datetime.now())
+        logger.info(f"signals_page: total_ms={total_ms}, cache_stored=True, cache_ttl_seconds=60")
 
         return response
 
     except Exception as e:
-        logger.error(f"[Signals] Failed to compute signals: {e}")
+        logger.error(f"signals_error: error={str(e)}")
         raise HTTPException(
             status_code=500,
             detail=f"Failed to compute signals: {str(e)}"
@@ -448,7 +455,7 @@ async def get_trending_signals(
     req_id = uuid4().hex[:8]
 
     # Log request parameters for diagnostics
-    logger.info(f"[{req_id}] Signals request: limit={limit}, offset={offset}, min_score={min_score}, entity_type={entity_type}, timeframe={timeframe}")
+    logger.info(f"signals_trending: request_id={req_id}, limit={limit}, offset={offset}, min_score={min_score}, entity_type={entity_type}, timeframe={timeframe}")
 
     # Validate entity_type if provided
     if entity_type and entity_type not in ["ticker", "project", "event"]:
@@ -477,7 +484,7 @@ async def get_trending_signals(
         total_count = len(trending_signals)
         paged_trending = trending_signals[offset:offset + limit]
 
-        logger.info(f"[{req_id}] Cache hit: total_count={total_count}, returning {len(paged_trending)} signals ({offset}-{offset + len(paged_trending) - 1})")
+        logger.info(f"signals_cache: request_id={req_id}, cache_hit=True, total_count={total_count}, page_size={len(paged_trending)}, offset={offset}")
 
         # Return trends only - no narratives/articles to avoid per-page fetch
         page_signals = []
@@ -512,7 +519,7 @@ async def get_trending_signals(
     # Compute signals on-demand
     try:
         start_time = time.time()
-        logger.info(f"[{req_id}] Cache miss, computing trending signals...")
+        logger.info(f"signals_cache: request_id={req_id}, cache_hit=False, computing_trends=True")
 
         # Always compute full set (up to 100) for caching; paginate after
         max_compute = 100
@@ -524,7 +531,8 @@ async def get_trending_signals(
         )
 
         compute_time = time.time() - start_time
-        logger.info(f"[{req_id}] Computed {len(trending)} trending signals in {compute_time:.3f}s")
+        compute_ms = int(compute_time * 1000)
+        logger.info(f"signals_compute: request_id={req_id}, signals_count={len(trending)}, compute_ms={compute_ms}")
 
         total_count = len(trending)
 
@@ -537,13 +545,14 @@ async def get_trending_signals(
             paged_narrative_ids.update(signal.get("narrative_ids", []))
 
         # Log diagnostic: requested_limit vs page_items vs article_entities
-        logger.info(f"[{req_id}] Enrichment plan: requested_limit={limit}, page_items={len(paged_signals)}, article_entities={len(paged_entities)}, narrative_ids={len(paged_narrative_ids)}")
+        logger.info(f"signals_enrichment: request_id={req_id}, requested_limit={limit}, page_items={len(paged_signals)}, article_entities={len(paged_entities)}, narrative_ids={len(paged_narrative_ids)}")
 
         # Batch fetch narratives for ONLY the paged signals
         batch_start = time.time()
         narratives_list = await get_narrative_details(list(paged_narrative_ids))
         narratives_by_id = {n["id"]: n for n in narratives_list}
-        logger.info(f"[{req_id}] Batch fetched {len(narratives_list)} narratives in {time.time() - batch_start:.3f}s")
+        narratives_ms = int((time.time() - batch_start) * 1000)
+        logger.info(f"signals_narratives: request_id={req_id}, narratives_count={len(narratives_list)}, narratives_ms={narratives_ms}")
 
         # Build enriched signals for the paged result (for response and cache)
         all_enriched_signals = []
@@ -568,8 +577,9 @@ async def get_trending_signals(
         # Cache the computed trends only (not the per-page enrichment)
         # This allows cache hits to return fast without per-page enrichment cost
         total_time = time.time() - start_time
+        total_ms = int(total_time * 1000)
         payload_size = len(json.dumps(all_enriched_signals)) / 1024
-        logger.info(f"[{req_id}] Total request time: {total_time:.3f}s, Payload: {payload_size:.2f}KB")
+        logger.info(f"signals_response: request_id={req_id}, total_ms={total_ms}, payload_kb={payload_size:.2f}")
 
         full_cache = {
             "signals": trending,  # Cache trends only, not per-page enrichment (narratives/articles)
@@ -586,7 +596,7 @@ async def get_trending_signals(
             },
         }
         set_in_cache(cache_key, full_cache, ttl_seconds=60)
-        logger.info(f"[{req_id}] Cached {len(trending)} signals for future requests")
+        logger.info(f"signals_cached: request_id={req_id}, signals_count={len(trending)}, cache_ttl_seconds=60")
 
         # Return the paginated enriched signals for this response
         response = {
@@ -609,7 +619,7 @@ async def get_trending_signals(
         return response
 
     except Exception as e:
-        logger.error(f"[{req_id}] Failed to compute trending signals: {e}")
+        logger.error(f"signals_error: request_id={req_id}, error={str(e)}")
         raise HTTPException(
             status_code=500,
             detail=f"Failed to compute trending signals: {str(e)}"
@@ -641,17 +651,31 @@ async def get_entity_articles(
         start_time = time.time()
         cache_key = f"signals:articles:v1:{entity}:{limit}:7d"
 
+        # Log request parameters with clamp tracking
+        original_limit = limit
+        original_days = days
+        limit = min(limit, 20)
+        days = min(days, 7)
+
+        clamp_msg = ""
+        if original_limit > limit:
+            clamp_msg += f" param_clamped: limit={original_limit} → {limit}"
+        if original_days > days:
+            clamp_msg += f" param_clamped: days={original_days} → {days}"
+
+        logger.info(f"entity_articles: entity={entity}, limit={limit}, days={days}{clamp_msg}")
+
         # Try to get from cache first
         cached = get_from_cache(cache_key)
         if cached is not None:
             compute_ms = int((time.time() - start_time) * 1000)
-            logger.info(f"[EntityArticles] Cache hit for {entity} (key={cache_key}, latency={compute_ms}ms)")
+            logger.info(f"entity_articles_cache: entity={entity}, cache_hit=True, cache_ms={compute_ms}")
             return cached
 
         # Cache miss - fetch from database
         articles = await get_recent_articles_for_entity(entity, limit=limit, days=days)
         compute_ms = int((time.time() - start_time) * 1000)
-        logger.info(f"[EntityArticles] Cache miss for {entity}: computed in {compute_ms}ms")
+        logger.info(f"entity_articles_cache: entity={entity}, cache_hit=False, compute_ms={compute_ms}")
 
         response = {
             "entity": entity,
