@@ -121,12 +121,7 @@ export function Narratives() {
           Active Narratives
         </h1>
         <p className="mt-2 text-gray-600 dark:text-gray-400">
-          Clustered stories and trending topics in the crypto space
-          {narratives.length > 0 && totalCount > 0 && (
-            <span className="text-gray-500 dark:text-gray-400 ml-2">
-              ({narratives.length} of {totalCount})
-            </span>
-          )}
+          Top stories and trending topics in the crypto space
         </p>
         {dataUpdatedAt && (
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
@@ -165,10 +160,6 @@ export function Narratives() {
           const totalArticles = paginationInfo?.totalCount || narrative.article_count || articles.length;
           const hasMore = articles.length < totalArticles;
 
-          // Calculate progress indicator values
-          const currentPage = Math.floor(articles.length / ARTICLES_PER_PAGE) + (articles.length % ARTICLES_PER_PAGE > 0 ? 1 : 0);
-          const totalPages = Math.ceil(totalArticles / ARTICLES_PER_PAGE);
-          
           const toggleExpanded = async () => {
             console.log('[DEBUG] Card clicked - Narrative ID:', narrativeId, 'Title:', displayTitle);
             const newExpanded = new Set(expandedArticles);
@@ -384,16 +375,11 @@ export function Narratives() {
                       {isExpanded ? '▼' : '▶'} {formatNumber(narrative.article_count)} Articles
                     </div>
 
-                    {/* Progress indicator and Showing X of Y Articles badge */}
+                    {/* Showing X of Y Articles badge */}
                     {isExpanded && articles.length > 0 && (
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
-                          Page {currentPage} of {totalPages}
-                        </span>
-                        <span className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-1 rounded-full">
-                          Showing {formatNumber(articles.length)} of {formatNumber(totalArticles)}
-                        </span>
-                      </div>
+                      <span className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-1 rounded-full">
+                        Showing {formatNumber(articles.length)} of {formatNumber(totalArticles)}
+                      </span>
                     )}
                   </div>
                   
