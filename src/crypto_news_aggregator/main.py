@@ -59,6 +59,7 @@ from .api import admin as admin_api
 from .core.monitoring import setup_performance_monitoring
 from .core.config import get_settings
 from .core.auth import API_KEY_NAME
+from .core.rate_limiting import RateLimitMiddleware
 from .db.mongodb import initialize_mongodb, mongo_manager
 from .services.price_service import price_service
 
@@ -138,6 +139,9 @@ app = FastAPI(
     lifespan=lifespan,
     dependencies=None,  # We'll add dependencies to specific routers instead
 )
+
+# Rate limiting middleware (must be added before CORS)
+app.add_middleware(RateLimitMiddleware)
 
 # CORS middleware configuration
 # Use regex pattern to match all localhost, 127.0.0.1, and Vercel deployments

@@ -32,7 +32,7 @@ created: 2026-02-25
 | ~~1~~ | ~~FEATURE-045~~ | ~~Add Share Mechanics to Interactive Site~~ | CANCELED | — |
 | 1 | FEATURE-046 | Email Capture page w/ Substack Embed | ✅ DONE | 1 hr |
 | 2 | TASK-017 | Substack Profile Setup | ✅ DONE | 1–2 hrs |
-| 3 | TASK-014 | Pre-launch Security Hardening | OPEN | 1 hr |
+| 3 | TASK-014 | Pre-launch Security Hardening | ✅ DONE (2026-02-26) | 2.5 hrs |
 | 4 | TASK-003 | Deploy Interactive Site to backdropxyz.vercel.app | ✅ DONE | 30 min–1 hr |
 | 4.5 | TASK-018 | Add Story Page Integration (Navigation & Links) | ✅ DONE (deployed & merged 2026-02-26) | 30 min |
 | 5 | TASK-002 | Mobile/Desktop QA (on live site) | OPEN | 1 hr |
@@ -73,6 +73,14 @@ created: 2026-02-25
 - **TASK-004** — OG image draft already exists (`v2-og-1200x630.png`) from TASK-017 visual work. May only need refinement.
 - **TASK-003 before TASK-002** — deploy first, then QA on live site.
 - **TASK-018** — ✅ Complete & Deployed (2026-02-26). Files synced, built, and committed to repo. Story→app: amber back-nav, inline links, pre-footer CTA. App→story: amber nav pill "✦ See It Break" + StoryBanner on Briefing page. Substack email form styling updated in story.html. PR merged to main. **Status:** COMPLETE.
+- **TASK-014** — ✅ Complete (2026-02-26). Full security hardening implemented:
+  1. **Rate limiting middleware** in `core/rate_limiting.py` (184 lines) — per-IP limits by endpoint
+  2. **Comprehensive security audit** — CORS, auth, secrets, pooling all verified
+  3. **Documentation created:**
+     - `docs/SECURITY_HARDENING.md` (487 lines) — complete security guide
+     - `docs/tickets/TASK-014-SECURITY-AUDIT.md` (461 lines) — detailed findings & checklist
+  4. **Tests written** — `tests/test_rate_limiting.py` (190 lines, 6 tests, all passing)
+  5. **Pre-launch checklist** — 8/10 items ready (2 dashboard config remain)
 
 ### Substack Identity (from TASK-017)
 - **Publication name:** Early Signal
