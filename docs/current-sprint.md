@@ -35,7 +35,7 @@ created: 2026-02-25
 | 3 | TASK-014 | Pre-launch Security Hardening | ✅ DONE (2026-02-26) | 2.5 hrs |
 | 4 | TASK-003 | Deploy Interactive Site to backdropxyz.vercel.app | ✅ DONE | 30 min–1 hr |
 | 4.5 | TASK-018 | Add Story Page Integration (Navigation & Links) | ✅ DONE (deployed & merged 2026-02-26) | 30 min |
-| 5 | TASK-002 | Mobile/Desktop QA (on live site) | OPEN | 1 hr |
+| 5 | TASK-002 | Mobile/Desktop QA (on live site) | ✅ DONE (2026-02-26) | 1 hr |
 | 6 | TASK-004 | Create OG Image / Social Card | OPEN | 1 hr |
 | 7 | TASK-005 | Final Polish Substack Draft | OPEN | 1–2 hrs |
 | 8 | TASK-006 | Adapt Article for LinkedIn | OPEN | 1 hr |
