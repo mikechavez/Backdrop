@@ -18,6 +18,7 @@ Without an OG image, shared links display as plain text with no visual preview. 
 ## Tool Routing
 - Tool: Claude Web (design discussion + generation)
 - Model: N/A
+- **Status**: Working in Claude Web (2026-02-26)
 
 ## Requirements
 - Dimensions: 1200×630px
