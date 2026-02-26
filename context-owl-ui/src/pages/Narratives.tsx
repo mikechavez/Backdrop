@@ -90,7 +90,6 @@ export function Narratives() {
 
   // Flatten pages array into single narratives array
   const narratives = data?.pages.flatMap((page) => page.narratives) ?? [];
-  const totalCount = data?.pages[0]?.total_count ?? 0;
 
   // Handle highlight query parameter
   useEffect(() => {

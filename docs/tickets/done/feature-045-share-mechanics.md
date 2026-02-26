@@ -1,14 +1,17 @@
 ---
 id: FEATURE-045
 type: feature
-status: backlog
+status: canceled
 priority: high
 complexity: medium
 created: 2026-02-23
-updated: 2026-02-23
+updated: 2026-02-25
 ---
 
 # Add Share Mechanics to Interactive Site
+
+## Status Update (2026-02-25)
+❌ **CANCELED** — Share mechanic competes with Substack CTA at the highest-engagement moment. Most scores deliver critical feedback, limiting share motivation. Viral loop not worth the conversion tradeoff.
 
 ## Problem/Opportunity
 Readers who complete the routing mini-game have no way to share their score. This is the highest-engagement moment — they just got a personalized result. A share button here turns readers into distributors. Without it, the viral loop is broken.
