@@ -57,7 +57,7 @@ export function Layout({ children }: LayoutProps) {
                 className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-full border border-amber-400/40 text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/40 hover:border-amber-400/70 transition-all duration-200"
               >
                 <Sparkles className="w-3.5 h-3.5" />
-                How It's Built
+                See It Break
               </a>
               <button
                 onClick={toggleTheme}

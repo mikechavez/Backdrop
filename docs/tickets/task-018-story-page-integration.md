@@ -3,7 +3,7 @@ ticket_id: TASK-018
 title: Add Story Page Integration (Navigation & Links)
 priority: high
 severity: medium
-status: TESTING
+status: COMMITTED
 date_created: 2026-02-25
 effort_estimate: 30 min
 ---
@@ -23,7 +23,7 @@ TASK-003 deployed the interactive story page to https://backdropxyz.vercel.app/s
 Add bidirectional navigation between the story page and main Backdrop app:
 
 1. **Main app → Story page link** ✅ DONE (2026-02-25)
-   - Nav bar: Amber pill CTA "✦ How It's Built" (right side, next to theme toggle)
+   - Nav bar: Amber pill CTA "✦ See It Break" (right side, next to theme toggle)
    - Briefing page: Story banner card above briefing header with compelling copy
    - Both use `<a href="/story.html">` (not React Router — story.html is static)
 
@@ -48,34 +48,36 @@ Add bidirectional navigation between the story page and main Backdrop app:
 
 ### Main app → Story page (done)
 - **Layout.tsx** — Added amber pill CTA in nav bar right side
-  - `Sparkles` icon from lucide-react + "How It's Built" label
+  - `Sparkles` icon from lucide-react + "See It Break" label
   - `rounded-full` pill with `border-amber-400/40`, amber bg/text
   - `hidden sm:` — hidden on mobile (mobile treatment deferred to TASK-002 QA)
   - Positioned next to theme toggle, visually distinct from blue product nav
 - **Briefing.tsx** — Added `StoryBanner` component above briefing header
   - Amber gradient card: `from-amber-50 via-amber-50/80 to-transparent` (dark mode supported)
-  - Copy: "1,500 articles. $10/month. One briefing." + "The real cost of building AI systems nobody talks about."
+  - Copy: "I had code. I didn't have a system." + "The fastest way to master agentic AI is to learn exactly where it breaks. This is that lesson."
   - `ArrowRight` icon with hover gap animation
   - Framer Motion entrance: `opacity: 0, y: -8` → visible, 0.1s delay
-  - Label: "New — Interactive Case Study" in uppercase tracking
+  - Label: "Interactive · 6-Month Case Study" in uppercase tracking
 
 ### Bug fix
 - Substack iframe and fallback URLs were pointing to wrong publication (`mikechavez.substack.com`), corrected to `earlysignalx.substack.com`
 
-## Completion Work (2026-02-25, Post-Testing)
+## Completion Work (2026-02-25)
 
-### ✅ Files Synced & Build Verified
-- ✅ Located all 3 files in `/docs/` directory
-- ✅ Copied to production paths:
-  - `Layout.tsx` → `context-owl-ui/src/components/Layout.tsx`
-  - `Briefing.tsx` → `context-owl-ui/src/pages/Briefing.tsx`
-  - `story.html` → `context-owl-ui/public/story.html`
-- ✅ Build successful: `npm run build` → 2146 modules, 0 errors
+### ✅ Files Synced & Built (2026-02-25)
+- ✅ Copied updated files to production paths:
+  - `Layout.tsx` → `context-owl-ui/src/components/Layout.tsx` (overwrite)
+  - `Briefing.tsx` → `context-owl-ui/src/pages/Briefing.tsx` (overwrite)
+- ✅ Removed `/docs/Layout.tsx` and `/docs/Briefing.tsx` copies
+- ✅ Build successful: `npm run build` → 2146 modules, 0 TypeScript errors, 144.76 KB gzipped
+
+### ✅ Committed (2026-02-25)
+- ✅ Git commit: "feat(story): Deploy bidirectional navigation between story page and main app"
+- ✅ All files staged and committed to `feat/task-018-story-page-navigation` branch
 
 ### Remaining Work
-- **Commit & Deploy** — Ready for final push
-  - Git commit: "feat(story): Add bidirectional navigation between story page and main app"
-  - Deploy: `vercel --prod` from context-owl-ui directory
+- **Deploy to Vercel** — Ready for final push
+  - Run: `vercel --prod` from context-owl-ui directory
   - Verify: HTTP 200 on both `/` and `/story.html` post-deployment
 
 ## Verification
@@ -86,8 +88,9 @@ Add bidirectional navigation between the story page and main Backdrop app:
 - [x] Navigation placement makes sense in user journey
 - [x] All files synced to correct production paths
 - [x] Build clean (0 TypeScript errors)
+- [x] Files committed to repo
 - [ ] Mobile responsive (both pages — needs QA in TASK-002)
-- [ ] Committed to repo and deployed via `vercel --prod`
+- [ ] Deployed via `vercel --prod`
 
 ## Acceptance Criteria
 
@@ -98,7 +101,8 @@ Add bidirectional navigation between the story page and main Backdrop app:
 - [x] Both links are discoverable and intuitive
 - [x] No broken links or 404s (all URLs valid)
 - [x] Substack URL fixed (earlysignalx.substack.com active)
-- [ ] Changes deployed to production ← Ready for commit & deploy
+- [x] Files committed to repo
+- [ ] Changes deployed to production ← Pending Vercel deploy
 
 ## Impact
 
