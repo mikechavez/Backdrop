@@ -2,6 +2,7 @@ import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { ArrowRight } from 'lucide-react';
 import { briefingAPI } from '../api';
 import { ErrorMessage } from '../components/ErrorMessage';
 import { BriefingSkeleton } from '../components/Skeleton';
@@ -129,6 +130,41 @@ function RecommendationItem({ recommendation }: { recommendation: BriefingRecomm
 }
 
 /**
+ * Story page banner — editorial CTA linking to the interactive case study
+ */
+function StoryBanner() {
+  return (
+    <motion.a
+      href="/story.html"
+      initial={{ opacity: 0, y: -8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, delay: 0.1 }}
+      className="group block mb-10 rounded-lg border border-amber-300/30 dark:border-amber-500/20 bg-gradient-to-r from-amber-50 via-amber-50/80 to-transparent dark:from-amber-950/30 dark:via-amber-950/20 dark:to-transparent px-6 py-5 hover:border-amber-400/50 dark:hover:border-amber-500/40 transition-all duration-300"
+    >
+      <div className="flex items-center justify-between gap-4">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-widest text-amber-600/70 dark:text-amber-500/70 mb-1.5">
+            New — Interactive Case Study
+          </p>
+          <p className="text-base font-medium text-gray-900 dark:text-gray-100 leading-snug">
+            1,500 articles. $10/month. One briefing.
+          </p>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            The real cost of building AI systems nobody talks about.
+          </p>
+        </div>
+        <div className="flex-shrink-0">
+          <span className="inline-flex items-center gap-1 text-sm font-medium text-amber-700 dark:text-amber-400 group-hover:gap-2 transition-all duration-200">
+            Explore
+            <ArrowRight className="w-4 h-4" />
+          </span>
+        </div>
+      </div>
+    </motion.a>
+  );
+}
+
+/**
  * Placeholder briefing for when no real briefing exists yet
  */
 function getPlaceholderBriefing(): BriefingType {
@@ -188,6 +224,9 @@ export function Briefing() {
       transition={{ duration: 0.4 }}
       className="max-w-2xl mx-auto"
     >
+      {/* Story Page Banner */}
+      <StoryBanner />
+
       {/* Header */}
       <header className="text-center mb-12">
         <h1 className="text-3xl md:text-4xl font-light text-gray-900 dark:text-gray-100 mb-3">

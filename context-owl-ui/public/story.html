@@ -43,6 +43,11 @@ nav .nb:hover{border-color:var(--text-dim);color:var(--text);}
 nav .nb.cta-nav{border-color:var(--amber-border);color:var(--amber);}
 nav .nb.cta-nav:hover{background:var(--amber-bg);}
 
+/* ── BACKDROP PLATFORM LINKS ── */
+.backdrop-link{color:var(--amber);text-decoration:none;border-bottom:1px solid var(--amber-border);padding-bottom:1px;transition:all .25s;}
+.backdrop-link:hover{color:var(--text);border-color:var(--amber);background:var(--amber-bg);}
+.backdrop-link strong{color:inherit;font-weight:400;}
+
 /* ── HERO ── */
 .hero{min-height:100vh;display:flex;align-items:center;justify-content:center;flex-direction:column;text-align:center;padding:6rem 2rem 4rem;}
 .hero .hero-eyebrow{font-family:var(--mono);font-size:0.65rem;letter-spacing:0.22em;text-transform:uppercase;color:var(--text-faint);margin-bottom:1.25rem;opacity:0;animation:fi .6s ease forwards .2s;}
@@ -386,7 +391,7 @@ footer .ft-sub{font-family:var(--mono);font-size:.55rem;letter-spacing:.12em;col
 <body>
 
 <nav>
-  <span class="logo">February 2026</span>
+  <a href="https://backdropxyz.vercel.app/" class="nb" style="border-color:var(--amber-border);color:var(--amber);" onmouseover="this.style.background='var(--amber-bg)'" onmouseout="this.style.background='transparent'">← Explore the Platform</a>
   <div class="nav-right">
     <a href="YOUR_SUBSTACK_URL_HERE" class="nb cta-nav">Read the case study →</a>
   </div>
@@ -398,9 +403,10 @@ footer .ft-sub{font-family:var(--mono);font-size:.55rem;letter-spacing:.12em;col
   <h1>AI lets you build faster than you can <em>understand.</em></h1>
   <div class="hero-author">
     by <a href="https://www.linkedin.com/in/mikechavez3/" target="_blank" rel="noopener">Mike Chavez</a>
+    <span style="display:block;margin-top:.35rem;font-size:.6rem;letter-spacing:.15em;color:var(--text-faint);">February 2026</span>
   </div>
   <div class="proof">
-    <p>Built from a <strong>real production system</strong> processing 100+ articles per day. This is the story of using AI to build. <strong>Real infrastructure, real costs, real failures.</strong></p>
+    <p>Built from a <a href="https://backdropxyz.vercel.app/" class="backdrop-link"><strong>real production system</strong></a> processing 100+ articles per day. This is the story of using AI to build. <strong>Real infrastructure, real costs, real failures.</strong></p>
   </div>
   <p class="hero-outcome">Experience the challenges of building with modern AI — and how to overcome them.</p>
   <div class="hero-scroll-cue" onclick="document.getElementById('story-rail').scrollIntoView({behavior:'smooth'})">
@@ -413,7 +419,7 @@ footer .ft-sub{font-family:var(--mono);font-size:.55rem;letter-spacing:.12em;col
 <div class="divider"></div>
 <div class="story-rail reveal" id="story-rail">
   <p class="sr-text">
-    I spent six months building Backdrop with AI coding agents. The agent <span class="sr-red">leaked my credentials</span>, costs <span class="sr-red">hit 4.5× budget</span> in month one, and the core feature was <span class="sr-red">quietly producing garbage</span>. Every failure traced to the same root cause: <strong>I was building faster than I could understand.</strong>
+    I spent six months building <a href="https://backdropxyz.vercel.app/" class="backdrop-link">Backdrop</a> with AI coding agents. The agent <span class="sr-red">leaked my credentials</span>, costs <span class="sr-red">hit 4.5× budget</span> in month one, and the core feature was <span class="sr-red">quietly producing garbage</span>. Every failure traced to the same root cause: <strong>I was building faster than I could understand.</strong>
   </p>
   <div class="sr-stat">
     <div class="sr-stat-num">4.5<span class="sr-stat-unit">×</span></div>
@@ -644,15 +650,25 @@ footer .ft-sub{font-family:var(--mono);font-size:.55rem;letter-spacing:.12em;col
     <p class="label">Stay informed</p>
     <h3 class="subscribe-heading">Get the next build log</h3>
     <p class="subscribe-sub">Lessons from building production AI systems. No hype — just what actually works.</p>
-    <iframe src="https://mikechavez.substack.com/embed" width="100%" height="150" style="border:none; background:transparent;" frameborder="0" scrolling="no" onload="this.parentNode.querySelector('.subscribe-fallback').style.display='none'" onerror="this.style.display='none';this.parentNode.querySelector('.subscribe-fallback').style.display='inline-block'"></iframe>
-    <a href="https://mikechavez.substack.com/subscribe" class="subscribe-fallback" target="_blank" rel="noopener">Subscribe on Substack →</a>
+    <iframe src="https://earlysignalx.substack.com/embed" width="100%" height="150" style="border:none; background:transparent;" frameborder="0" scrolling="no" onload="this.parentNode.querySelector('.subscribe-fallback').style.display='none'" onerror="this.style.display='none';this.parentNode.querySelector('.subscribe-fallback').style.display='inline-block'"></iframe>
+    <a href="https://earlysignalx.substack.com/subscribe" class="subscribe-fallback" target="_blank" rel="noopener">Subscribe on Substack →</a>
+  </div>
+</section>
+
+<!-- ████ EXPLORE PLATFORM ████ -->
+<section class="explore-platform reveal" style="padding:3rem 2rem;text-align:center;border-top:1px solid var(--border);">
+  <div class="container">
+    <p class="label" style="margin-bottom:.75rem">See it in action</p>
+    <h3 style="font-family:var(--serif);font-weight:300;font-size:1.4rem;margin-bottom:.5rem;color:var(--text);">Explore the platform behind this story</h3>
+    <p style="color:var(--text-dim);font-size:.9rem;max-width:440px;margin:0 auto 1.5rem;line-height:1.6;">Backdrop processes 100+ crypto articles daily, detecting narratives in real time. See the system that survived everything above.</p>
+    <a href="https://backdropxyz.vercel.app/" style="display:inline-block;font-family:var(--mono);font-size:.65rem;letter-spacing:.12em;text-transform:uppercase;padding:.75rem 2rem;border:1px solid var(--amber-border);color:var(--amber);text-decoration:none;transition:all .25s;" onmouseover="this.style.background='var(--amber-bg)';this.style.borderColor='var(--amber)';this.style.color='var(--text)'" onmouseout="this.style.background='transparent';this.style.borderColor='';this.style.color='var(--amber)'">Explore Backdrop →</a>
   </div>
 </section>
 
 <!-- ████ FOOTER ████ -->
 <footer>
   <div class="ft-author">An in-depth case study by <a href="https://www.linkedin.com/in/mikechavez3/" target="_blank" rel="noopener"><strong>Mike Chavez</strong></a></div>
-  <div class="ft-sub">February 2026</div>
+  <div class="ft-sub">February 2026 · Built with <a href="https://backdropxyz.vercel.app/" class="backdrop-link">Backdrop</a></div>
 </footer>
 
 <!-- ████████████████████████████████████████████████████████
