@@ -1,10 +1,10 @@
 ---
 id: TASK-002
 type: task
-status: backlog
+status: DONE
 priority: high
 created: 2026-02-23
-updated: 2026-02-23
+updated: 2026-02-26
 ---
 
 # Mobile/Desktop QA + Fix Broken Animations
