@@ -1,51 +1,85 @@
 ---
-id: TASK-004
-type: task
-status: backlog
-priority: high
 created: 2026-02-23
-updated: 2026-02-23
+id: TASK-004
+priority: high
+status: in-progress
+type: task
+updated: 2026-02-26
 ---
 
 # Create OG Image / Social Card
 
 ## Objective
-Create a 1200×630px image used as the social preview card for both the interactive site and the Substack article. This is what people see when the link is shared on X, LinkedIn, Slack, iMessage, etc.
+
+Create a 1200×630px image used as the social preview card for both the
+interactive site and the Substack article. This is what people see when
+the link is shared on X, LinkedIn, Slack, iMessage, etc.
 
 ## Context
-Without an OG image, shared links display as plain text with no visual preview. A compelling OG image dramatically increases click-through rate from social feeds.
+
+Without an OG image, shared links display as plain text with no visual
+preview. A compelling OG image dramatically increases click-through rate
+from social feeds.
 
 ## Tool Routing
-- Tool: Claude Web (design discussion + generation)
-- Model: N/A
 
-## Requirements
-- Dimensions: 1200×630px
-- Dark background matching site (#09090b or close)
-- Headline: "AI Lets You Build Faster Than You Can Understand"
-- One metric callout: choose from:
-  - "6 months · 3 critical failures · 1 production system"
-  - "89.1% accuracy · $10/mo · 1,500+ articles/day"
-- Author attribution: "Mike Chavez"
-- Label: "Interactive Case Study" or "A 6-Month Case Study"
-- Aesthetic: Minimal, editorial, dark — NOT a tech-bro YouTube thumbnail
-- Must be legible at small sizes (Twitter card is ~500px wide)
+-   Tool: Claude Web (design discussion) + Google Imagen (generation) +
+    Claude Code (wiring)
+-   **Status**: Image selected (2026-02-26), meta copy updated, favicon
+    addition pending wiring
 
-## Execution Steps
-1. Design in Claude Web or generate with image tool
-2. Export as PNG or JPG (keep under 1MB)
-3. Host somewhere publicly accessible (Vercel static, imgur, or Substack media)
-4. Update TASK-001 meta tags with final hosted URL
+------------------------------------------------------------------------
+
+## Final Launch Copy (Locked)
+
+**Title (matches webpage hero):** AI lets you build faster than you can
+understand.
+
+**Description:** It feels like progress. Until it isn't. Explore the
+hidden costs of building with AI and what it takes to succeed in the
+agent era.
+
+------------------------------------------------------------------------
+
+## Image Selected
+
+**File:** `og-image-1200x630.jpg` (1200×630px, 194KB JPEG) - Resized
+from original 1424×752 Imagen output - Centered crop preserves figure
+and chasm composition
+
+**Concept:** "The Gap" --- a lone figure at the edge of a massive dark
+chasm with amber light rising from the depths.
+
+**Inspiration:** Kazimir Malevich's Suprematist work. Dark, atmospheric,
+amber palette matches Early Signal brand identity.
+
+------------------------------------------------------------------------
+
+## Remaining Steps (Claude Code)
+
+1.  Update story.html meta tags with final launch copy.
+2.  Add favicon `gt-logo.png` to `context-owl-ui/public/` Add to
+    `<head>`: `<link rel="icon" type="image/png" href="/gt-logo.png">`
+3.  Build and deploy:
+    `cd context-owl-ui && npm run build && vercel --prod`
+4.  Verify rendering on X and Facebook.
+
+------------------------------------------------------------------------
 
 ## Acceptance Criteria
-- [ ] Image is 1200×630px
-- [ ] Readable at Twitter card preview size
-- [ ] Hosted at public URL
-- [ ] URL added to og:image and twitter:image meta tags
 
-## Dependencies
-- None (can do anytime)
+-   [x] Image is 1200×630px
+-   [x] Readable at Twitter card preview size
+-   [ ] Hosted at public URL (Vercel static)
+-   [ ] URL added to og:image and twitter:image meta tags
+-   [ ] Title & description updated to final launch copy
+-   [ ] Favicon updated to gt-logo.png
+-   [ ] Verified rendering on X and Facebook
+
+------------------------------------------------------------------------
 
 ## Out of Scope
-- Animated preview
-- Multiple image variants per platform
+
+-   Animated preview
+-   Multiple image variants per platform
+-   Text overlay on image
