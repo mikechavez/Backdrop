@@ -14,7 +14,7 @@ Sprint 11 in progress. FEATURE-046 (Email Capture) and TASK-017 (Substack Profil
 - ✅ FEATURE-046: Email Capture w/ Substack Embed — DONE
 - ✅ TASK-017: Substack Profile Setup — DONE (2026-02-25)
 
-## This Session (2026-02-25) — TASK-003 Deployment + TASK-018 Navigation
+## This Session (2026-02-26) — TASK-018 Styling + Deployment Completion
 
 ### ✅ Interactive Story Page Deployed to Production
 
@@ -60,7 +60,12 @@ Sprint 11 in progress. FEATURE-046 (Email Capture) and TASK-017 (Substack Profil
 - ✅ Removed `/docs/Layout.tsx` and `/docs/Briefing.tsx` copies
 - ✅ Build successful: `npm run build` → 2146 modules, 0 TypeScript errors, 144.76 KB gzipped
 - ✅ Files committed: `feat(story): Deploy bidirectional navigation between story page and main app`
-- **Status:** Ready for final Vercel deployment via `vercel --prod`
+
+#### ✅ Deployed & Merged (2026-02-26)
+- ✅ Updated story.html styling: replaced older version with newer Substack email form styling
+- ✅ Consolidated to single source: `/docs/story.html` → `/context-owl-ui/public/story.html` (deleted docs copy)
+- ✅ Deployed via `vercel --prod` — live and verified
+- ✅ PR merged to main — **STATUS: COMPLETE**
 
 ## Previous Session Notes (2026-02-25)
 

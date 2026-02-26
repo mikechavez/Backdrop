@@ -351,9 +351,19 @@ footer .ft-sub{font-family:var(--mono);font-size:.55rem;letter-spacing:.12em;col
 .subscribe-section{padding:4rem 2rem;text-align:center;border-top:1px solid var(--border);}
 .subscribe-heading{font-family:var(--serif);font-weight:300;font-size:1.4rem;margin:0.75rem 0;color:var(--text);}
 .subscribe-sub{color:var(--text-dim);font-size:0.9rem;max-width:440px;margin:0 auto 1.5rem;line-height:1.6;}
-.subscribe-section iframe{border-radius:0;max-width:480px;margin:0 auto;display:block;color-scheme:dark;}
-.subscribe-fallback{display:none;margin-top:1.5rem;font-family:var(--mono);font-size:.6rem;letter-spacing:.1em;text-transform:uppercase;color:var(--text-dim);text-decoration:none;padding:.6rem 1.5rem;border:1px solid var(--border);transition:all .25s;cursor:pointer;}
-.subscribe-fallback:hover{color:var(--amber);border-color:var(--amber-border);}
+.subscribe-form{display:flex;gap:0;max-width:440px;margin:0 auto;position:relative;}
+.subscribe-input{flex:1;font-family:var(--mono);font-size:.75rem;letter-spacing:.04em;padding:.85rem 1.25rem;background:var(--bg2);border:1px solid var(--border);color:var(--text);outline:none;transition:border-color .25s;}
+.subscribe-input::placeholder{color:var(--text-faint);letter-spacing:.06em;}
+.subscribe-input:focus{border-color:var(--amber-border);}
+.subscribe-btn{font-family:var(--mono);font-size:.6rem;letter-spacing:.14em;text-transform:uppercase;padding:.85rem 1.75rem;background:transparent;border:1px solid var(--amber-border);border-left:none;color:var(--amber);cursor:pointer;transition:all .25s;white-space:nowrap;}
+.subscribe-btn:hover{background:var(--amber-bg);color:var(--text);}
+.subscribe-note{font-family:var(--mono);font-size:.5rem;letter-spacing:.08em;color:var(--text-faint);margin-top:.75rem;text-transform:uppercase;}
+.subscribe-note a{color:var(--text-faint);text-decoration:none;border-bottom:1px solid var(--border);padding-bottom:1px;transition:all .25s;}
+.subscribe-note a:hover{color:var(--amber);border-color:var(--amber-border);}
+@media(max-width:480px){
+  .subscribe-form{flex-direction:column;}
+  .subscribe-btn{border-left:1px solid var(--amber-border);border-top:none;}
+}
 
 .reveal{opacity:0;transform:translateY(24px);transition:opacity .6s ease,transform .6s ease;}
 .reveal.vis{opacity:1;transform:translateY(0);}
@@ -650,8 +660,11 @@ footer .ft-sub{font-family:var(--mono);font-size:.55rem;letter-spacing:.12em;col
     <p class="label">Stay informed</p>
     <h3 class="subscribe-heading">Get the next build log</h3>
     <p class="subscribe-sub">Lessons from building production AI systems. No hype — just what actually works.</p>
-    <iframe src="https://earlysignalx.substack.com/embed" width="100%" height="150" style="border:none; background:transparent;" frameborder="0" scrolling="no" onload="this.parentNode.querySelector('.subscribe-fallback').style.display='none'" onerror="this.style.display='none';this.parentNode.querySelector('.subscribe-fallback').style.display='inline-block'"></iframe>
-    <a href="https://earlysignalx.substack.com/subscribe" class="subscribe-fallback" target="_blank" rel="noopener">Subscribe on Substack →</a>
+    <form class="subscribe-form" onsubmit="handleSubscribe(event)">
+      <input type="email" class="subscribe-input" placeholder="your@email.com" required id="subscribeEmail" autocomplete="email">
+      <button type="submit" class="subscribe-btn">Subscribe →</button>
+    </form>
+    <p class="subscribe-note">Free · No spam · Powered by <a href="https://earlysignalx.substack.com" target="_blank" rel="noopener">Substack</a></p>
   </div>
 </section>
 
@@ -678,6 +691,18 @@ footer .ft-sub{font-family:var(--mono);font-size:.55rem;letter-spacing:.12em;col
 // ═══════ REVEAL ═══════
 const obs=new IntersectionObserver(e=>{e.forEach(x=>{if(x.isIntersecting)x.target.classList.add('vis')})},{threshold:.12});
 document.querySelectorAll('.reveal').forEach(el=>obs.observe(el));
+
+// ═══════ SUBSCRIBE ═══════
+function handleSubscribe(e){
+  e.preventDefault();
+  const email=document.getElementById('subscribeEmail').value.trim();
+  if(!email)return;
+  window.open('https://earlysignalx.substack.com/subscribe?email='+encodeURIComponent(email)+'&just_hierarchical_signup=true','_blank','noopener');
+  const btn=e.target.querySelector('.subscribe-btn');
+  btn.textContent='Opening Substack…';
+  btn.style.color='var(--green)';btn.style.borderColor='var(--green-border)';
+  setTimeout(()=>{btn.textContent='Subscribe →';btn.style.color='';btn.style.borderColor='';},3000);
+}
 
 // ═══════ TOAST SYSTEM ═══════
 function showToast(text,isGood){
