@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { BookOpen, TrendingUp, Newspaper, FileText, DollarSign, Moon, Sun } from 'lucide-react';
+import { BookOpen, TrendingUp, Newspaper, FileText, DollarSign, Moon, Sun, Sparkles } from 'lucide-react';
 import { cn } from '../lib/cn';
 import { useTheme } from '../contexts/ThemeContext';
 
@@ -50,7 +50,15 @@ export function Layout({ children }: LayoutProps) {
                 })}
               </div>
             </div>
-            <div className="flex items-center">
+            <div className="flex items-center gap-3">
+              {/* Story page CTA — amber pill, visually distinct from blue product nav */}
+              <a
+                href="/story.html"
+                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-full border border-amber-400/40 text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/40 hover:border-amber-400/70 transition-all duration-200"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                How It's Built
+              </a>
               <button
                 onClick={toggleTheme}
                 className="p-2 rounded-lg bg-gray-100 dark:bg-dark-hover hover:bg-gray-200 dark:hover:bg-dark-border transition-colors"

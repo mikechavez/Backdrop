@@ -1,12 +1,12 @@
-# Session Start --- TASK-003 Deploy Interactive Site
+# Session Start --- TASK-003 Deploy Interactive Site + TASK-018 Navigation
 
 **Date:** 2026-02-25
 **Focus:** TASK-003 — Deploy Interactive Site to Production + TASK-018 Navigation Integration
-**Status:** ✅ TASK-003 DEPLOYED (live at https://backdropxyz.vercel.app/story.html)
+**Status:** ✅ TASK-003 DEPLOYED | ✅ TASK-018 DESIGN COMPLETE (pending commit + deploy)
 
 ## Context
 
-Sprint 11 in progress. FEATURE-046 (Email Capture) and TASK-017 (Substack Profile Setup) complete. This session deployed TASK-003: moving the interactive story page from docs to production and making it live on Vercel.
+Sprint 11 in progress. FEATURE-046 (Email Capture) and TASK-017 (Substack Profile Setup) complete. This session deployed TASK-003: moving the interactive story page from docs to production and making it live on Vercel. Then completed TASK-018: bidirectional navigation between story page and main app.
 
 ## Previous Sessions
 
@@ -14,7 +14,7 @@ Sprint 11 in progress. FEATURE-046 (Email Capture) and TASK-017 (Substack Profil
 - ✅ FEATURE-046: Email Capture w/ Substack Embed — DONE
 - ✅ TASK-017: Substack Profile Setup — DONE (2026-02-25)
 
-## This Session (2026-02-25) — TASK-003 Deployment
+## This Session (2026-02-25) — TASK-003 Deployment + TASK-018 Navigation
 
 ### ✅ Interactive Story Page Deployed to Production
 
@@ -31,12 +31,37 @@ Sprint 11 in progress. FEATURE-046 (Email Capture) and TASK-017 (Substack Profil
 **Status:** ✅ Live and accessible
 **Placeholders:** 6 instances of `YOUR_SUBSTACK_URL_HERE` (awaiting TASK-001 — Substack URL wiring)
 
-### ⏳ Open Tasks from TASK-003 Deployment
+### ✅ TASK-018: Bidirectional Navigation Complete (pending deploy)
 
-**Navigation Gap:** Story page is now live but isolated from main app
-- No link from main Backdrop app to story page
-- No back-navigation from story to app
-- **Created:** TASK-018 (Story Page Integration) — 30 min task to add bidirectional links
+#### Story Page → Main App (done, in modified story.html)
+- **Nav restructured:** "← Explore the Platform" (left, amber button) + "Read the case study →" (right, amber CTA)
+- **"February 2026"** moved from nav to under author name in hero
+- **Inline links added:** "real production system" and "Backdrop" in story rail → both link to main app
+- **New section:** "Explore the platform behind this story" with CTA, added before footer
+- **Footer updated:** "February 2026 · Built with Backdrop" (amber link)
+- **New CSS class:** `.backdrop-link` — amber text, subtle underline, amber-bg hover
+- **Bug fix:** Substack embed/fallback URLs corrected from `mikechavez.substack.com` → `earlysignalx.substack.com`
+
+#### Main App → Story Page (done, in modified Layout.tsx + Briefing.tsx)
+- **Layout.tsx nav bar:** Amber pill CTA "✦ How It's Built" (Sparkles icon)
+  - Right side next to theme toggle, `hidden sm:` for mobile
+  - `rounded-full` amber border/bg, visually distinct from blue product nav
+  - Uses `<a href="/story.html">` (not React Router — static page)
+- **Briefing.tsx banner:** `StoryBanner` component above briefing header
+  - Amber gradient card with framer motion entrance animation
+  - Copy: "1,500 articles. $10/month. One briefing." + "The real cost of building AI systems nobody talks about."
+  - "New — Interactive Case Study" label, ArrowRight hover animation
+  - Full dark mode support
+
+#### ✅ Files Synced & Build Verified
+- ✅ Located files in `/docs/`: Layout.tsx, Briefing.tsx, story.html
+- ✅ Copied to correct production paths:
+  - `Layout.tsx` → `context-owl-ui/src/components/Layout.tsx`
+  - `Briefing.tsx` → `context-owl-ui/src/pages/Briefing.tsx`
+  - `story.html` → `context-owl-ui/public/story.html`
+- ✅ Build successful: `npm run build` → 2146 modules, 0 TypeScript errors
+- ✅ All acceptance criteria verified (see test report below)
+- **Next:** Commit & deploy via `git commit` + `vercel --prod`
 
 ## Previous Session Notes (2026-02-25)
 
@@ -105,17 +130,31 @@ Sprint 11 in progress. FEATURE-046 (Email Capture) and TASK-017 (Substack Profil
 - `current-sprint.md` — TASK-017 marked complete
 - `session-start.md` — full session documented
 
+### Test Results for TASK-018 ✅
+
+**All acceptance criteria verified:**
+- ✅ Story page deployed & synced (85KB file, ready for production)
+- ✅ Main app → Story: Layout pill + Briefing banner both present & functional
+- ✅ Story → App: 5 navigation entry points (nav, hero, inline, explore section, footer)
+- ✅ Substack URL fixed: `earlysignalx.substack.com` active (old `mikechavez.substack.com` removed)
+- ✅ No broken links: All URLs syntactically correct
+- ✅ Clean build: 0 TypeScript errors, 2146 modules
+
+**Ready for final commit & deployment**
+
 ## Next Steps
 
-### Immediate (Next in Sprint Order):
-1. **TASK-018** (Story Page Integration) — 30 min
-   - Add link from main app to story page
-   - Add back-link from story page to main app
-   - Verify navigation works both ways
+### Immediate (Claude Code):
+1. **TASK-018 final commit + deploy** — ~10 min
+   - Git commit the 2 modified component files + story.html
+   - `vercel --prod` to push changes live
+   - Verify bidirectional links on live site post-deployment
 
 2. **TASK-002** (Mobile/Desktop QA) — 1 hr
    - QA the live interactive story page on mobile/desktop
    - Test all interactive elements, buttons, flow
+   - Verify new navigation links on both pages
+   - Check mobile treatment of nav CTA (currently `hidden sm:`)
 
 3. **TASK-004** (OG Image) — 1 hr
    - Refine existing draft (`v2-og-1200x630.png` from TASK-017)
