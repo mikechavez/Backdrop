@@ -150,7 +150,7 @@ function StoryBanner() {
             I had code. I didn't have a system.
           </p>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            The fastest way to master agentic AI is to learn exactly where it breaks. This is that lesson.
+            The fastest way to master Agentic AI is to learn exactly where it breaks. This is that lesson.
           </p>
         </div>
         <div className="flex-shrink-0">
