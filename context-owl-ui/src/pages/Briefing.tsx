@@ -144,13 +144,13 @@ function StoryBanner() {
       <div className="flex items-center justify-between gap-4">
         <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-widest text-amber-600/70 dark:text-amber-500/70 mb-1.5">
-            New — Interactive Case Study
+            Interactive · 6-Month Case Study
           </p>
           <p className="text-base font-medium text-gray-900 dark:text-gray-100 leading-snug">
-            1,500 articles. $10/month. One briefing.
+            I had code. I didn't have a system.
           </p>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            The real cost of building AI systems nobody talks about.
+            The fastest way to master agentic AI is to learn exactly where it breaks. This is that lesson.
           </p>
         </div>
         <div className="flex-shrink-0">

@@ -31,7 +31,7 @@ Sprint 11 in progress. FEATURE-046 (Email Capture) and TASK-017 (Substack Profil
 **Status:** ✅ Live and accessible
 **Placeholders:** 6 instances of `YOUR_SUBSTACK_URL_HERE` (awaiting TASK-001 — Substack URL wiring)
 
-### ✅ TASK-018: Bidirectional Navigation Complete (pending deploy)
+### ✅ TASK-018: Bidirectional Navigation Complete & Deployed
 
 #### Story Page → Main App (done, in modified story.html)
 - **Nav restructured:** "← Explore the Platform" (left, amber button) + "Read the case study →" (right, amber CTA)
@@ -43,25 +43,24 @@ Sprint 11 in progress. FEATURE-046 (Email Capture) and TASK-017 (Substack Profil
 - **Bug fix:** Substack embed/fallback URLs corrected from `mikechavez.substack.com` → `earlysignalx.substack.com`
 
 #### Main App → Story Page (done, in modified Layout.tsx + Briefing.tsx)
-- **Layout.tsx nav bar:** Amber pill CTA "✦ How It's Built" (Sparkles icon)
+- **Layout.tsx nav bar:** Amber pill CTA "✦ See It Break" (Sparkles icon)
   - Right side next to theme toggle, `hidden sm:` for mobile
   - `rounded-full` amber border/bg, visually distinct from blue product nav
   - Uses `<a href="/story.html">` (not React Router — static page)
 - **Briefing.tsx banner:** `StoryBanner` component above briefing header
   - Amber gradient card with framer motion entrance animation
-  - Copy: "1,500 articles. $10/month. One briefing." + "The real cost of building AI systems nobody talks about."
-  - "New — Interactive Case Study" label, ArrowRight hover animation
+  - Copy: "I had code. I didn't have a system." + "The fastest way to master agentic AI is to learn exactly where it breaks. This is that lesson."
+  - "Interactive · 6-Month Case Study" label, ArrowRight hover animation
   - Full dark mode support
 
-#### ✅ Files Synced & Build Verified
-- ✅ Located files in `/docs/`: Layout.tsx, Briefing.tsx, story.html
-- ✅ Copied to correct production paths:
-  - `Layout.tsx` → `context-owl-ui/src/components/Layout.tsx`
-  - `Briefing.tsx` → `context-owl-ui/src/pages/Briefing.tsx`
-  - `story.html` → `context-owl-ui/public/story.html`
-- ✅ Build successful: `npm run build` → 2146 modules, 0 TypeScript errors
-- ✅ All acceptance criteria verified (see test report below)
-- **Next:** Commit & deploy via `git commit` + `vercel --prod`
+#### ✅ Files Synced, Built & Committed (2026-02-25)
+- ✅ Copied updated files to production paths:
+  - `Layout.tsx` → `context-owl-ui/src/components/Layout.tsx` (overwrite)
+  - `Briefing.tsx` → `context-owl-ui/src/pages/Briefing.tsx` (overwrite)
+- ✅ Removed `/docs/Layout.tsx` and `/docs/Briefing.tsx` copies
+- ✅ Build successful: `npm run build` → 2146 modules, 0 TypeScript errors, 144.76 KB gzipped
+- ✅ Files committed: `feat(story): Deploy bidirectional navigation between story page and main app`
+- **Status:** Ready for final Vercel deployment via `vercel --prod`
 
 ## Previous Session Notes (2026-02-25)
 
@@ -145,10 +144,10 @@ Sprint 11 in progress. FEATURE-046 (Email Capture) and TASK-017 (Substack Profil
 ## Next Steps
 
 ### Immediate (Claude Code):
-1. **TASK-018 final commit + deploy** — ~10 min
-   - Git commit the 2 modified component files + story.html
-   - `vercel --prod` to push changes live
+1. **TASK-018 Vercel deployment** — ~5 min
+   - Run `vercel --prod` from context-owl-ui directory to deploy live
    - Verify bidirectional links on live site post-deployment
+   - Update TASK-018 ticket status to DONE
 
 2. **TASK-002** (Mobile/Desktop QA) — 1 hr
    - QA the live interactive story page on mobile/desktop

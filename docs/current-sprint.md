@@ -34,7 +34,7 @@ created: 2026-02-25
 | 2 | TASK-017 | Substack Profile Setup | ✅ DONE | 1–2 hrs |
 | 3 | TASK-014 | Pre-launch Security Hardening | OPEN | 1 hr |
 | 4 | TASK-003 | Deploy Interactive Site to backdropxyz.vercel.app | ✅ DONE | 30 min–1 hr |
-| 4.5 | TASK-018 | Add Story Page Integration (Navigation & Links) | ✅ DONE (files synced, build verified, ready to commit) | 30 min |
+| 4.5 | TASK-018 | Add Story Page Integration (Navigation & Links) | ✅ DONE (committed, ready to deploy) | 30 min |
 | 5 | TASK-002 | Mobile/Desktop QA (on live site) | OPEN | 1 hr |
 | 6 | TASK-004 | Create OG Image / Social Card | OPEN | 1 hr |
 | 7 | TASK-005 | Final Polish Substack Draft | OPEN | 1–2 hrs |
@@ -72,7 +72,7 @@ created: 2026-02-25
 - **TASK-017** — ✅ Done. Full editorial branding applied. See details below.
 - **TASK-004** — OG image draft already exists (`v2-og-1200x630.png`) from TASK-017 visual work. May only need refinement.
 - **TASK-003 before TASK-002** — deploy first, then QA on live site.
-- **TASK-018** — ✅ Complete. Files synced, build verified, all acceptance criteria passed. Story→app: amber back-nav, inline links, pre-footer CTA. App→story: amber nav pill "✦ How It's Built" + StoryBanner on Briefing page with "1,500 articles. $10/month. One briefing." copy. Substack URL fixed: earlysignalx.substack.com. **Pending:** final git commit + vercel --prod deployment.
+- **TASK-018** — ✅ Complete & Committed. Files synced, built, and committed to repo. Story→app: amber back-nav, inline links, pre-footer CTA. App→story: amber nav pill "✦ See It Break" + StoryBanner on Briefing page with "I had code. I didn't have a system." copy + "The fastest way to master agentic AI is to learn exactly where it breaks. This is that lesson." subtext. Substack URL fixed: earlysignalx.substack.com. **Pending:** Deploy via `vercel --prod`.
 
 ### Substack Identity (from TASK-017)
 - **Publication name:** Early Signal
@@ -90,7 +90,7 @@ created: 2026-02-25
 ## Parallel Work Strategy
 
 **Claude Code** handles TASK-014 → TASK-003 → TASK-002 (dev work)
-- **Next Claude Code action:** Commit TASK-018 files + deploy. Ask Mike where Layout.tsx, Briefing.tsx, and story.html are saved locally.
+- **Next Claude Code action:** Deploy TASK-018 via `vercel --prod` from context-owl-ui directory. Then proceed to TASK-002 QA.
 
 **Claude Web / separate sessions** handle in parallel:
 - TASK-004: OG image (draft exists, needs refinement)
