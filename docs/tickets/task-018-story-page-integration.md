@@ -75,10 +75,16 @@ Add bidirectional navigation between the story page and main Backdrop app:
 - ✅ Git commit: "feat(story): Deploy bidirectional navigation between story page and main app"
 - ✅ All files staged and committed to `feat/task-018-story-page-navigation` branch
 
-### Remaining Work
-- **Deploy to Vercel** — Ready for final push
-  - Run: `vercel --prod` from context-owl-ui directory
-  - Verify: HTTP 200 on both `/` and `/story.html` post-deployment
+### ✅ Styling Updates (2026-02-26)
+- ✅ Updated Substack email subscription form styling in story.html
+  - Replaced older version in `/docs/story.html` with newer styled version
+  - Copied to production: `context-owl-ui/public/story.html`
+  - Deleted docs copy to consolidate to single source
+
+### ✅ Deployment Complete (2026-02-26)
+- ✅ Deployed to Vercel via `vercel --prod`
+- ✅ Verified HTTP 200 on both `/` and `/story.html`
+- ✅ Merged PR to main
 
 ## Verification
 
@@ -89,8 +95,9 @@ Add bidirectional navigation between the story page and main Backdrop app:
 - [x] All files synced to correct production paths
 - [x] Build clean (0 TypeScript errors)
 - [x] Files committed to repo
+- [x] Substack email form styling updated (2026-02-26)
+- [x] Deployed via `vercel --prod` (2026-02-26)
 - [ ] Mobile responsive (both pages — needs QA in TASK-002)
-- [ ] Deployed via `vercel --prod`
 
 ## Acceptance Criteria
 
@@ -102,7 +109,11 @@ Add bidirectional navigation between the story page and main Backdrop app:
 - [x] No broken links or 404s (all URLs valid)
 - [x] Substack URL fixed (earlysignalx.substack.com active)
 - [x] Files committed to repo
-- [ ] Changes deployed to production ← Pending Vercel deploy
+
+**Post-Deployment (2026-02-26):**
+- [x] Updated Substack email form styling in story.html
+- [x] Changes deployed to production via Vercel
+- [x] PR merged to main
 
 ## Impact
 
