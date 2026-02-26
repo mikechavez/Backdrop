@@ -1,102 +1,136 @@
-# Session Start --- ADR-012 Execution
+# Session Start --- TASK-003 Deploy Interactive Site
 
-**Date:** 2026-02-25\
-**Focus:** Signals Recovery\
-**Status:** ✅ BUG-045 COMPLETE (PR #203)
+**Date:** 2026-02-25
+**Focus:** TASK-003 — Deploy Interactive Site to Production + TASK-018 Navigation Integration
+**Status:** ✅ TASK-003 DEPLOYED (live at https://backdropxyz.vercel.app/story.html)
 
 ## Context
 
-Signals page was unusable due to 40s+ entity article loads.
+Sprint 11 in progress. FEATURE-046 (Email Capture) and TASK-017 (Substack Profile Setup) complete. This session deployed TASK-003: moving the interactive story page from docs to production and making it live on Vercel.
 
-## Progress
+## Previous Sessions
 
-### ✅ COMPLETED: BUG-045 (2026-02-25 13:45:00Z)
-- **PR:** #203
-- **Commit:** bf601df
-- **Branch:** fix/bug-045-entity-articles-time-bound
-- **Changes:** 35 insertions, 9 deletions in signals.py
+- ✅ Sprint 11 planned (14 tickets, 3 phases)
+- ✅ FEATURE-046: Email Capture w/ Substack Embed — DONE
+- ✅ TASK-017: Substack Profile Setup — DONE (2026-02-25)
 
-**What was fixed:**
-- Enforced 7-day cutoff at MongoDB query level (before `$group` stage)
-- Clamped API parameters: `limit≤20`, `days≤7`
-- Applied to both single-entity and batch article fetch functions
+## This Session (2026-02-25) — TASK-003 Deployment
 
-**Expected impact:** Entity articles <1s warm, <3s cold (Bitcoin/Ethereum)
+### ✅ Interactive Story Page Deployed to Production
 
-## ADR-012 Progress
+**Live URL:** https://backdropxyz.vercel.app/story.html
 
-🎯 **ALL PHASES COMPLETE** - Ready for PR and deployment
+**Deployment Steps:**
+1. Moved `cognitive-debt-simulator-v6.html` from `/docs` to `/context-owl-ui/public/story.html`
+2. Fixed TypeScript build error: removed unused `totalCount` variable in Narratives.tsx (line 93)
+3. Built frontend: `npm run build` → 2146 modules, 144KB gzipped
+4. Deployed to Vercel: `vercel --prod` → successful upload
+5. Renamed Vercel project from `context-owl-ui` to `backdropxyz` (for cleaner URL)
+6. Verified HTTP 200 response from story.html endpoint
 
-1. ✅ **Phase 1:** 7-day hard cutoff (BUG-045 COMPLETE - PR #203)
-2. ✅ **Phase 2:** Redis cache (15m TTL) (FEATURE-049 COMPLETE - PR #206)
-3. ✅ **Phase 3:** Cache warmer (TASK-015 COMPLETE - PR #207)
-4. ✅ **Phase 4:** UI cleanup - BUG-051 (remove counts) COMPLETE
-5. ✅ **Phase 5:** Observability + clamps - TASK-016 COMPLETE
+**Status:** ✅ Live and accessible
+**Placeholders:** 6 instances of `YOUR_SUBSTACK_URL_HERE` (awaiting TASK-001 — Substack URL wiring)
 
-## Definition of Done
+### ⏳ Open Tasks from TASK-003 Deployment
 
--   Bitcoin articles \<1s warm ← BUG-045 achieves this
--   Redis cache warmed before user click ← FEATURE-049 ✅ / TASK-015
--   No 10s+ backend calls ← All phases
+**Navigation Gap:** Story page is now live but isolated from main app
+- No link from main Backdrop app to story page
+- No back-navigation from story to app
+- **Created:** TASK-018 (Story Page Integration) — 30 min task to add bidirectional links
 
-### ✅ COMPLETED: BUG-051 (2026-02-25)
-- **Branch:** fix/bug-051-remove-ui-counts
-- **Commit:** 05fb2d3
-- **Changes:** Removed header count display and source count from signal cards
+## Previous Session Notes (2026-02-25)
 
-**What was fixed:**
-- Removed "(X of Y)" count display from Signals page header
-- Removed "X sources" count from individual signal cards
-- Cleaned up unused totalCount variable
+### ✅ Substack Identity Established
 
-**Frontend validation:** Build successful - 2146 modules, 144KB gzipped
+**Publication name:** Early Signal
+**Handle:** @earlysignalx (earlysignal was taken)
+**URL:** earlysignalx.substack.com
 
-### ✅ COMPLETED: TASK-016 (2026-02-25 11:50:00Z)
-- **Branch:** fix/task-016-observability-clamps
-- **Commits:** fad129a, a420bdd
-- **Type:** Backend observability + parameter validation
-- **Effort:** 2 hours (actual)
+**Tagline (publication short description):**
+> On AI, systems, markets, and the signals that matter.
 
-**What was implemented:**
-1. **Fixed duplicate logging issue** ✅
-   - Removed redundant `basicConfig()` call in main.py
-   - Consolidated handler setup (clear → add file → add console)
-   - Changed uvicorn loggers to use propagation instead of explicit handlers
-   - Result: Zero duplicate log messages verified with tests
+**Introduction:**
+> Early Signal is where I write about building at the frontier: AI systems in production, markets, and the mental models behind both. I'm Mike Chavez, a product manager and builder. I write from inside the space, not the sidelines.
 
-2. **Added comprehensive observability logging** ✅
-   - All endpoints log with consistent format: `operation: key1=value1, key2=value2`
-   - Signals page: `signals_page:` with cache_hit, total_ms
-   - Trending signals: `signals_cache:`, `signals_compute:`, `signals_enrichment:`, `signals_narratives:`
-   - Entity articles: `entity_articles:` with entity, limit, days, param_clamped
-   - Cache operations: `entity_articles_cache:` with cache_hit, cache_ms/compute_ms
+**About page:**
+> I'm Mike Chavez, a product manager, builder, and the person behind Backdrop, a crypto narrative intelligence platform that processes hundreds of news articles daily to detect market narratives in real time.
+>
+> I try to show up early to things. This is where I write about what I find.
 
-3. **Parameter clamp tracking** ✅
-   - Entity articles: limit≤20, days≤7 with clamp logging
-   - Format: `param_clamped: limit=100 → 20`
+### Naming Process
+- Explored niche publication brands first, then pivoted to personal platform approach
+- Key requirements: timeless, frontier-signaling, topic-agnostic, recruiter-friendly, contrarian explorer energy
+- Finalists: Uncharted, Forward Deployed, Early Signal, The Vanguard, Off Consensus, Already There, At the Frontier
+- External feedback confirmed Early Signal as strongest choice — aligns with Backdrop (signal extraction), not trend-locked, scales beyond AI
+- Original tagline "the discipline of understanding" → replaced with "the signals that matter" (less vague, ties to publication name)
+- Added "markets" to tagline to reflect crypto/trading coverage
 
-4. **Comprehensive testing** ✅
-   - 7 tests created and passing (test_task_016_observability.py)
-   - Verified no duplicate handlers
-   - Verified logging format consistency
+### ✅ Visual Branding — Two Iterations
 
-**Impact:** Full observability for monitoring ADR-012 performance goals
+**v1 (scrapped):** Neon cyan waves, dark blue grid, GeistMono throughout, "ES" monogram
+- External feedback: "competent but interchangeable" — looked like a trading terminal or analytics startup
+- Rated 6/10 — technically well executed but not distinctive
 
-## ADR-012 Complete + UI Polish (2026-02-25)
+**v2 (adopted):** Editorial/intelligence brief direction
+- Deep charcoal (not blue), Instrument Serif for name, GeistMono for labels
+- Muted amber accent, single signal dot motif
+- No waves, no glow, no gradients — typography is the brand
+- Assets: logo (typographic + dot mark), banner, cover, email banner, OG image draft
 
-✅ All 5 phases implemented and tested
-✅ Signals page expected <5s cold
-✅ Entity articles expected <1s warm (Redis cached)
-✅ No 10s+ backend calls expected
-✅ Zero duplicate log messages
-✅ Full performance observability in place
-✅ BUG-052 Fixed: "Recent mentions" two-click issue resolved
+### ✅ All Settings Configured
 
-### BUG-052: UI Polish Completed
-- **Issue:** "Recent mentions" button required two clicks to expand
-- **Fix:** Removed async/await blocker, articles now load in background
-- **UX:** Added hover styling (bg highlight, padding, rounded, transition)
-- **Commit:** 25f1558
-- **Impact:** Single-click expansion with visual feedback
+**Uploaded in Substack:**
+- ✅ Publication logo
+- ✅ Cover/welcome page photo
+- ✅ Email banner
+- ✅ Profile banner (Edit Profile → Theme)
 
-**Next:** Push to origin, create final PR, deploy to Railway (production)
+**Website editor changes:**
+- ✅ Accent color → `C4A060` (muted amber)
+- ✅ Post titles → Serif
+- ✅ Thumbnails → Center
+
+**Settings toggles:**
+- ✅ Categories → Technology (primary) + Business/Finance (secondary)
+- ✅ Subscribe prompts → ON
+- ✅ Subscriber count → OFF
+- ✅ Listing on Substack.com → ON
+- ✅ Block AI training → OFF (content is about AI, wants discoverability)
+
+### ⏳ Deferred
+- Subscribe flow end-to-end test — got "Something went wrong" error, likely from testing while logged in. Needs incognito test with different email.
+
+**Files updated:**
+- `task-017-substack-profile-setup.md` — status: DONE
+- `current-sprint.md` — TASK-017 marked complete
+- `session-start.md` — full session documented
+
+## Next Steps
+
+### Immediate (Next in Sprint Order):
+1. **TASK-018** (Story Page Integration) — 30 min
+   - Add link from main app to story page
+   - Add back-link from story page to main app
+   - Verify navigation works both ways
+
+2. **TASK-002** (Mobile/Desktop QA) — 1 hr
+   - QA the live interactive story page on mobile/desktop
+   - Test all interactive elements, buttons, flow
+
+3. **TASK-004** (OG Image) — 1 hr
+   - Refine existing draft (`v2-og-1200x630.png` from TASK-017)
+   - Host image and wire into story page meta tags
+
+### Parallel Work (Content):
+- TASK-005: Final Polish Substack Draft
+- TASK-006–008: Content adaptation and distribution copy
+
+### Blocking for Full Launch:
+- **TASK-001** (Wire Substack URLs) — requires published article
+  - Replace all 6 `YOUR_SUBSTACK_URL_HERE` placeholders
+  - Rebuild and redeploy via `vercel --prod`
+
+### Notes
+- Story page is live at https://backdropxyz.vercel.app/story.html (HTTP 200 ✅)
+- OG image draft (`v2-og-1200x630.png`) exists and can be refined for TASK-004
+- All Phase 1 work converges for Phase 2 launch execution
