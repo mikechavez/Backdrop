@@ -399,7 +399,7 @@ async def get_next_briefing_time_endpoint():
 class GenerateBriefingRequest(BaseModel):
     """Request to manually generate a briefing."""
 
-    type: str = Field("morning", description="Briefing type: 'morning', 'afternoon', or 'evening'")
+    type: Optional[str] = Field(None, description="Briefing type: 'morning', 'afternoon', or 'evening'. If omitted, auto-detected based on time of day.")
     force: bool = Field(True, description="Force generation even if one exists today")
 
 
@@ -409,6 +409,25 @@ class GenerateBriefingResponse(BaseModel):
     success: bool
     message: str
     briefing_id: Optional[str] = None
+
+
+def _get_briefing_type_from_time(now: datetime) -> str:
+    """
+    Determine briefing type based on current time (UTC).
+
+    Time periods:
+    - Morning: 2:00 AM ≤ time < 12:00 PM
+    - Afternoon: 12:00 PM ≤ time < 5:00 PM
+    - Evening: 5:00 PM ≤ time < 2:00 AM (next day)
+    """
+    hour = now.hour
+
+    if 2 <= hour < 12:
+        return "morning"
+    elif 12 <= hour < 17:
+        return "afternoon"
+    else:  # 17 <= hour or hour < 2
+        return "evening"
 
 
 @router.post("/generate", response_model=GenerateBriefingResponse)
@@ -421,6 +440,7 @@ async def generate_briefing_endpoint(request: GenerateBriefingRequest):
 
     Args:
         request: Generation parameters (type, force)
+        - type: Optional briefing type. If omitted, auto-detected based on current time.
 
     Returns:
         GenerateBriefingResponse with success status and briefing ID
@@ -428,24 +448,31 @@ async def generate_briefing_endpoint(request: GenerateBriefingRequest):
     from ....services.briefing_agent import generate_morning_briefing, generate_afternoon_briefing, generate_evening_briefing
 
     try:
-        logger.info(f"Generating {request.type} briefing (force={request.force})")
+        # Auto-detect briefing type if not provided
+        briefing_type = request.type
+        if not briefing_type:
+            now = datetime.now(timezone.utc)
+            briefing_type = _get_briefing_type_from_time(now)
+            logger.info(f"Auto-detected briefing type: {briefing_type} (current UTC time: {now.strftime('%H:%M:%S')})")
 
-        if request.type == "morning":
+        logger.info(f"Generating {briefing_type} briefing (force={request.force})")
+
+        if briefing_type == "morning":
             briefing = await generate_morning_briefing(force=request.force)
-        elif request.type == "afternoon":
+        elif briefing_type == "afternoon":
             briefing = await generate_afternoon_briefing(force=request.force)
-        elif request.type == "evening":
+        elif briefing_type == "evening":
             briefing = await generate_evening_briefing(force=request.force)
         else:
             raise HTTPException(status_code=400, detail="Invalid briefing type. Use 'morning', 'afternoon', or 'evening'")
 
         if not briefing:
-            logger.warning(f"Briefing generation returned None for {request.type} (force={request.force})")
+            logger.warning(f"Briefing generation returned None for {briefing_type} (force={request.force})")
 
         if briefing:
             return GenerateBriefingResponse(
                 success=True,
-                message=f"Successfully generated {request.type} briefing",
+                message=f"Successfully generated {briefing_type} briefing",
                 briefing_id=str(briefing.get("_id")),
             )
         else:

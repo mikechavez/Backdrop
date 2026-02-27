@@ -11,7 +11,7 @@
 
 ## Current Session: 🔧 IN PROGRESS
 
-### BUG-050: Briefing Force Parameter (FIXED & DEPLOYED)
+### BUG-050: Briefing Force Parameter (FIXED, DEPLOYED, & TESTED ✅)
 **Status:** ✅ Fixed & Deployed (2026-02-27, commit e97c178)
 
 Fixed the `/api/v1/briefing/generate` endpoint which was not providing clear feedback when `force=true`. Changes:
@@ -19,14 +19,30 @@ Fixed the `/api/v1/briefing/generate` endpoint which was not providing clear fee
 - Improved error messages to differentiate between "briefing exists" vs "generation error"
 - Better exception handling that returns error details instead of generic 500 status
 
-**Key Discovery:** While testing the fix, discovered that briefing generation failures were being caused by **Anthropic API rate limit exceeded** (recovers 2026-03-01 00:00 UTC). The fix now makes this visible and actionable instead of returning misleading "may already exist today" errors.
+**Key Discovery:** While testing the fix, discovered that briefing generation failures were caused by **Anthropic API credit balance** being depleted (not rate limits). The fix now makes this visible and actionable instead of returning misleading "may already exist today" errors.
 
 **File:** `src/crypto_news_aggregator/api/v1/endpoints/briefing.py`
 
-Now when triggering briefing generation with `force=true`:
-- If generation fails: "Briefing generation failed (check server logs for details)"
-- If generation succeeds: Returns briefing with ID
-- All errors logged with proper context for debugging
+**Testing & Resolution (2026-02-27):**
+- Initial test failed: "Your credit balance is too low to access the Anthropic API"
+- User added credits to Anthropic account
+- Re-tested: ✅ **Evening briefing generated successfully** (ID: 69a18c6775a7e14f07133260)
+- Briefing generation is now fully operational
+
+### NEW: BUG-051 Auto-Detect Briefing Type (IN PROGRESS)
+**Status:** 🔧 Code implemented, testing
+**Discovery:** During manual testing at 6:24 AM UTC, system allowed generating "evening" briefing when it should auto-detect "morning"
+
+**Fix Implemented:**
+- Made `type` parameter optional in `/api/v1/briefing/generate` endpoint
+- Added `_get_briefing_type_from_time()` function with time period detection:
+  - **Morning:** 2:00 AM ≤ time < 12:00 PM
+  - **Afternoon:** 12:00 PM ≤ time < 5:00 PM
+  - **Evening:** 5:00 PM ≤ time < 2:00 AM
+- Auto-detects correct briefing type if `type` parameter is omitted
+- Logs detected type + UTC time for debugging
+
+**Files Modified:** `src/crypto_news_aggregator/api/v1/endpoints/briefing.py`
 
 ### LinkedIn Post (Final Copy)
 My AI coding agent committed my database credentials to a public GitHub repo.

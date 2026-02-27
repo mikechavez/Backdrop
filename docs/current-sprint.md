@@ -80,15 +80,16 @@ status: in-progress
 
 ## Remaining Work (prioritized)
 
-**⚠️ API LIMIT NOTICE:** Anthropic API rate limit hit on 2026-02-27. Recovers 2026-03-01 00:00 UTC.
-- BUG-050 fixed endpoint error handling to surface API errors clearly
-- Briefing generation will resume after March 1st
+**✅ BRIEFING GENERATION RESTORED:** Credits added to Anthropic account on 2026-02-27.
+- BUG-050: Endpoint error handling improved to surface API errors clearly
+- Briefing generation tested & working: evening briefing successfully generated
+- BUG-051: Auto-detect briefing type based on time of day (in progress)
 
-1. **TASK-020** — Publish LinkedIn post + link in first comment
-2. **TASK-021** — Draft + post Instagram story (friends/family support)
-3. **TASK-022** — Draft + post Facebook distribution post
-4. **TASK-006/007** — X / Reddit / HN distribution posts
-5. **Monitor** — Verify briefing generation resumes after 2026-03-01 00:00 UTC
+1. **BUG-051** — Auto-detect briefing type based on time of day (code ready, testing)
+2. **TASK-020** — Publish LinkedIn post + link in first comment
+3. **TASK-021** — Draft + post Instagram story (friends/family support)
+4. **TASK-022** — Draft + post Facebook distribution post
+5. **TASK-006/007** — X / Reddit / HN distribution posts
 
 ------------------------------------------------------------------------
 
