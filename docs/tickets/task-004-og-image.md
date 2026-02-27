@@ -25,8 +25,7 @@ from social feeds.
 
 -   Tool: Claude Web (design discussion) + Google Imagen (generation) +
     Claude Code (wiring)
--   **Status**: Image selected (2026-02-26), meta copy updated, favicon
-    addition pending wiring
+-   **Status**: ✅ COMPLETE - All assets deployed to production
 
 ------------------------------------------------------------------------
 
@@ -55,14 +54,14 @@ amber palette matches Early Signal brand identity.
 
 ------------------------------------------------------------------------
 
-## Remaining Steps (Claude Code)
+## Completed Steps (2026-02-26)
 
-1.  Update story.html meta tags with final launch copy.
-2.  Add favicon `gt-logo.png` to `context-owl-ui/public/` Add to
-    `<head>`: `<link rel="icon" type="image/png" href="/gt-logo.png">`
-3.  Build and deploy:
-    `cd context-owl-ui && npm run build && vercel --prod`
-4.  Verify rendering on X and Facebook.
+1. ✅ Updated story.html meta tags with final launch copy
+2. ✅ Added favicon `gt-logo.png` to all pages (index.html + story.html)
+3. ✅ Built and deployed to Vercel production
+4. ✅ Verified Facebook rendering (working)
+5. ✅ X validator confirms meta tags correctly deployed (awaiting cache refresh)
+6. ✅ Capitalized "Agentic AI" in Briefing page case study section
 
 ------------------------------------------------------------------------
 
@@ -70,11 +69,11 @@ amber palette matches Early Signal brand identity.
 
 -   [x] Image is 1200×630px
 -   [x] Readable at Twitter card preview size
--   [ ] Hosted at public URL (Vercel static)
--   [ ] URL added to og:image and twitter:image meta tags
--   [ ] Title & description updated to final launch copy
--   [ ] Favicon updated to gt-logo.png
--   [ ] Verified rendering on X and Facebook
+-   [x] Hosted at public URL (Vercel static)
+-   [x] URL added to og:image and twitter:image meta tags
+-   [x] Title & description updated to final launch copy
+-   [x] Favicon updated to gt-logo.png (all pages)
+-   [x] Verified rendering on X and Facebook (X cache pending refresh)
 
 ------------------------------------------------------------------------
 

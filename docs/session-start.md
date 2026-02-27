@@ -1,71 +1,62 @@
-# Session Start --- TASK-005 Final Polish Substack Draft
+# Session Start --- Briefing Generation & Distribution Posts
 
-**Date:** 2026-02-26 **Status:** ✅ COMPLETE (ready to publish)
-
-------------------------------------------------------------------------
-
-## Previous Session (TASK-004): ✅ COMPLETE
-
-- Wired updated meta tags to story.html with final launch copy
-- Added favicon gt-logo.png to all pages
-- Deployed to Vercel production
-- Committed: feat(task-004) - Commit d0b6b6c
+**Date:** 2026-02-26 **Status:** 🔧 IN PROGRESS
 
 ------------------------------------------------------------------------
 
-## Work Completed This Session (2026-02-26)
+## Previous Session: ✅ COMPLETE
 
-### Editorial Pass (Full_Draft_-_revised-4.md)
-- ✅ 10 editorial fixes applied:
-  1. Tense fix: "Working alongside senior-level software engineers, I was careful..."
-  2. Word fix: "punt on" → "push" (wrong word)
-  3. Sentence restructure: demos/social media/"99.9%" broken into three sentences
-  4. Intro tightened: em dash + "those who will hit a ceiling fast"
-  5. Hedge removed: "In a sense" cut before "Humanity's role" thesis line
-  6. Paragraph break: dense Wall paragraph split after "no alerts"
-  7. Tone fix: "Much sadness ensued" cut
-  8. Repetition fix: "in practice" removed from line 95
-  9. Dangling modifier: deduplication sentence split into two clear sentences
-  10. Oxford comma added: "...they project, and engineering"
-- ✅ Also applied #11 from editorial pass: "spent years understanding why systems break"
+- ✅ TASK-019: Made Substack CTAs more visible (bolded, cleaned up copy)
+- ✅ TASK-020: LinkedIn post drafted and finalized
 
-### Interactive Companion CTAs
-- ✅ Top CTA added after intro (line 13): italic, one line, unobtrusive
-- ✅ Bottom CTA added after closing line (line 139): descriptive, action-oriented
-- URL: https://backdropxyz.vercel.app/story.html
+## Current Session: 🔧 IN PROGRESS
 
-------------------------------------------------------------------------
+### BUG-050: Briefing Force Parameter (FIXED)
+**Status:** ✅ Fixed (2026-02-26)
 
-### Substack Final Assembly
-- ✅ Headline confirmed — kept current headline
-- ✅ 4 pull-quotes placed as blockquotes:
-  1. "The gap between velocity and comprehension creates a new kind of risk." (after Velocity Illusion)
-  2. "The model matters far less than the context you give it." (mid Context Engineering)
-  3. "The agent wasn't guessing. It was fabricating with the same authority it uses when it's telling the truth." (Engineering With Agents)
-  4. "Humanity's role in working with AI is the curation of reality." (Curation of Reality)
-- ✅ 4 custom images placed:
-  1. substack-velocity-gap.png (end of Velocity Illusion)
-  2. substack-failure-modes.png (end of The Wall)
-  3. substack-context-engineering.png (mid Context Engineering)
-  4. substack-cost-routing.png (end of Context Engineering)
-- ✅ Hard metric callout — deferred (not needed)
-- ✅ Closing subscribe/share CTA — deferred (not needed)
-- Output: `Final_Draft_Substack.md`
+Fixed the `/api/v1/briefing/generate` endpoint which was not providing clear feedback when `force=true`. Changes:
+- Added logging of force parameter and generation outcome
+- Improved error messages to differentiate between "briefing exists" vs "generation error"
+- Better exception handling that returns error details instead of generic 500 status
+
+**File:** `src/crypto_news_aggregator/api/v1/endpoints/briefing.py`
+
+Now when triggering briefing generation with `force=true`:
+- If generation fails: "Briefing generation failed (check server logs for details)"
+- If generation succeeds: Returns briefing with ID
+- All errors logged with proper context for debugging
+
+### LinkedIn Post (Final Copy)
+My AI coding agent committed my database credentials to a public GitHub repo.
+No warning. No flag. No hesitation.
+I spent six months building a production AI system and wrote the full case study: [LINK]
+The central lesson: AI lets you build faster than you can understand. That gap has a name. I'm calling it cognitive debt.
+Unlike technical debt, which leaves clues, cognitive debt leaves blanks. You have a system but you can't explain why anything was built the way it was.
+The fix wasn't better prompting. It was building an engineering discipline around the tools — context engineering, multi-model review, separating planning from execution. Costs dropped from $100+/mo to under $10. Accuracy went from 67% to 90%. All on the cheapest model available.
+#AI #SoftwareEngineering #BuildInPublic #LLMs
 
 ------------------------------------------------------------------------
 
-## Post-Publish Completion (2026-02-26)
+## Next Up (prioritized)
 
-- ✅ Published to Substack — Live URL: https://open.substack.com/pub/earlysignalx/p/ai-lets-you-build-faster-than-you
-- ✅ Grabbed live Substack URL → replaced 5x YOUR_SUBSTACK_URL_HERE in story.html (nav + 4 section CTAs)
-- ⏭️ Ready for Vercel redeploy
-- ⏭️ Distribution posts (X, LinkedIn, Reddit, HN) — TASK-006/007
+1. **BUG-050** — ✅ FIXED - Briefing endpoint force parameter + error feedback
+2. **Deploy & test** — Push fix to production, verify briefing generation works
+3. **TASK-020** — Publish LinkedIn post + Substack link as first comment
+4. **TASK-021** — Draft + post Instagram story (friends/family support push)
+5. **TASK-022** — Draft + post Facebook distribution post
+6. **TASK-006/007** — X / Reddit / HN distribution posts
+
+------------------------------------------------------------------------
+
+## Key Links
+
+- **Substack article:** https://open.substack.com/pub/earlysignalx/p/ai-lets-you-build-faster-than-you
+- **Interactive companion:** https://backdropxyz.vercel.app/story.html
+- **Vercel site:** https://backdropxyz.vercel.app
 
 ------------------------------------------------------------------------
 
 ## Files
 
-- **Final Substack draft:** `Final_Draft_Substack.md`
-- **Working draft:** `Full_Draft_-_revised-4.md`
-- **Previous draft:** `Full_Draft_-_revised-3.md`
-- **Editorial notes:** `editorial-pass.md`
+- **Sprint doc:** `current-sprint.md`
+- **Tickets:** `task-019-substack-cta-visibility.md`, `task-020-linkedin-distribution-post.md`, `task-021-instagram-story.md`, `task-022-facebook-distribution-post.md`

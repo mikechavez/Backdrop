@@ -428,6 +428,8 @@ async def generate_briefing_endpoint(request: GenerateBriefingRequest):
     from ....services.briefing_agent import generate_morning_briefing, generate_afternoon_briefing, generate_evening_briefing
 
     try:
+        logger.info(f"Generating {request.type} briefing (force={request.force})")
+
         if request.type == "morning":
             briefing = await generate_morning_briefing(force=request.force)
         elif request.type == "afternoon":
@@ -437,6 +439,9 @@ async def generate_briefing_endpoint(request: GenerateBriefingRequest):
         else:
             raise HTTPException(status_code=400, detail="Invalid briefing type. Use 'morning', 'afternoon', or 'evening'")
 
+        if not briefing:
+            logger.warning(f"Briefing generation returned None for {request.type} (force={request.force})")
+
         if briefing:
             return GenerateBriefingResponse(
                 success=True,
@@ -444,15 +449,30 @@ async def generate_briefing_endpoint(request: GenerateBriefingRequest):
                 briefing_id=str(briefing.get("_id")),
             )
         else:
+            if request.force:
+                # If force=True but still failed, it's likely an error during generation
+                error_msg = "Briefing generation failed (check server logs for details)"
+            else:
+                # If force=False, it's likely because one already exists
+                error_msg = "Briefing generation returned no result (may already exist today)"
+
             return GenerateBriefingResponse(
                 success=False,
-                message="Briefing generation returned no result (may already exist today)",
+                message=error_msg,
                 briefing_id=None,
             )
 
+    except HTTPException:
+        # Re-raise HTTP exceptions (like 400 for invalid type)
+        raise
     except Exception as e:
         logger.exception(f"Error generating briefing: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to generate briefing: {str(e)}")
+        # Return error response instead of 500, so the client gets actionable feedback
+        return GenerateBriefingResponse(
+            success=False,
+            message=f"Error during briefing generation: {str(e)}",
+            briefing_id=None,
+        )
 
 
 # =============================================================================
