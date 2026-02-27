@@ -68,24 +68,53 @@ The endpoint was catching all exceptions silently and returning None, then respo
    - Error message includes the actual exception details for debugging
 
 ### Testing
-Manual testing with curl:
+
+**Manual testing with curl (after fix deployed):**
 ```bash
-# Before fix: generic message regardless of force value
 curl -X POST https://context-owl-production.up.railway.app/api/v1/briefing/generate \
   -H "Content-Type: application/json" \
   -d '{"type": "evening", "force": true}'
-# Response: "Briefing generation returned no result (may already exist today)"
-
-# After fix: different message when force=true
-# Response: "Briefing generation failed (check server logs for details)"
 ```
+
+**Test Result (2026-02-27):**
+✅ **Fix working as intended!**
+
+Server logs revealed why generation was failing:
+```
+Anthropic API returned 400: You have reached your specified API usage limits.
+You will regain access on 2026-03-01 at 00:00 UTC.
+```
+
+**Before the fix:** This API error was caught silently and returned generic "may already exist today" message
+**After the fix:** Error handling improved to:
+1. Log the actual error (visible in server logs)
+2. Provide better error feedback to client (force=true users see "check server logs")
+3. Exception details included in error response for debugging
+
+The test confirms the fix enables proper error visibility when generation fails.
 
 ### Files Changed
 - `src/crypto_news_aggregator/api/v1/endpoints/briefing.py` (lines 430-475)
 
 ---
 
+## Deployment & Discovery
+
+**Deployed:** 2026-02-27 (commit e97c178)
+
+**Discovery:** While testing the fix, discovered that briefing generation was failing due to **Anthropic API rate limit** being exceeded:
+- API limit hit on 2026-02-27
+- Access recovers on 2026-03-01 at 00:00 UTC
+- This explains the previous "may already exist today" errors - they were actually masking API limit errors
+
+**Impact of fix:** Now when the API limit is restored on March 1st, briefing generation will:
+1. Succeed again (API will be available)
+2. If any errors occur, they will be visible and actionable (thanks to improved error handling)
+3. Admins using `force=true` will see "check server logs" when something goes wrong, not generic messages
+
+---
+
 ## Next Steps
-1. Commit this fix
-2. Deploy to production
-3. When next briefing generation issue occurs, the error message will now indicate whether to check logs (force=true case) or if a briefing already exists (force=false case)
+1. ✅ Fix committed and deployed
+2. Monitor briefing generation after 2026-03-01 00:00 UTC when API limit resets
+3. Verify that briefings generate successfully with improved error feedback

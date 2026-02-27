@@ -11,13 +11,15 @@
 
 ## Current Session: 🔧 IN PROGRESS
 
-### BUG-050: Briefing Force Parameter (FIXED)
-**Status:** ✅ Fixed (2026-02-26)
+### BUG-050: Briefing Force Parameter (FIXED & DEPLOYED)
+**Status:** ✅ Fixed & Deployed (2026-02-27, commit e97c178)
 
 Fixed the `/api/v1/briefing/generate` endpoint which was not providing clear feedback when `force=true`. Changes:
 - Added logging of force parameter and generation outcome
 - Improved error messages to differentiate between "briefing exists" vs "generation error"
 - Better exception handling that returns error details instead of generic 500 status
+
+**Key Discovery:** While testing the fix, discovered that briefing generation failures were being caused by **Anthropic API rate limit exceeded** (recovers 2026-03-01 00:00 UTC). The fix now makes this visible and actionable instead of returning misleading "may already exist today" errors.
 
 **File:** `src/crypto_news_aggregator/api/v1/endpoints/briefing.py`
 

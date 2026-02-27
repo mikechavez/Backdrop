@@ -80,10 +80,15 @@ status: in-progress
 
 ## Remaining Work (prioritized)
 
+**⚠️ API LIMIT NOTICE:** Anthropic API rate limit hit on 2026-02-27. Recovers 2026-03-01 00:00 UTC.
+- BUG-050 fixed endpoint error handling to surface API errors clearly
+- Briefing generation will resume after March 1st
+
 1. **TASK-020** — Publish LinkedIn post + link in first comment
 2. **TASK-021** — Draft + post Instagram story (friends/family support)
 3. **TASK-022** — Draft + post Facebook distribution post
 4. **TASK-006/007** — X / Reddit / HN distribution posts
+5. **Monitor** — Verify briefing generation resumes after 2026-03-01 00:00 UTC
 
 ------------------------------------------------------------------------
 
