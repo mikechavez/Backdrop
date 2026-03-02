@@ -1,68 +1,60 @@
-# Session Start --- Briefing Generation & Distribution Posts
+# Session Start --- Google Analytics Integration + Distribution
 
-**Date:** 2026-02-26 **Status:** 🔧 IN PROGRESS
+**Date:** 2026-03-02 **Status:** 🔧 IN PROGRESS
 
 ------------------------------------------------------------------------
 
 ## Previous Session: ✅ COMPLETE
 
-- ✅ TASK-019: Made Substack CTAs more visible (bolded, cleaned up copy)
+- ✅ TASK-023: LinkedIn video post published (Three Walls / Jeetu Patel)
+- ✅ TASK-023: X/Twitter draft ready, pending final hook and publish
+- ✅ BUG-050: Briefing endpoint force parameter fixed, deployed, tested
+- ✅ BUG-051: Auto-detect briefing type (code implemented, testing)
+- ✅ TASK-019: Made Substack CTAs more visible
 - ✅ TASK-020: LinkedIn post drafted and finalized
 
 ## Current Session: 🔧 IN PROGRESS
 
-### BUG-050: Briefing Force Parameter (FIXED, DEPLOYED, & TESTED ✅)
-**Status:** ✅ Fixed & Deployed (2026-02-27, commit e97c178)
+### FEATURE-050: Add Google Analytics (GA4) to Backdrop
+**Status:** ✅ COMPLETE (code implementation)
+**Ticket:** `feature-050-google-analytics.md`
+**Complexity:** Low (~25 min actual)
 
-Fixed the `/api/v1/briefing/generate` endpoint which was not providing clear feedback when `force=true`. Changes:
-- Added logging of force parameter and generation outcome
-- Improved error messages to differentiate between "briefing exists" vs "generation error"
-- Better exception handling that returns error details instead of generic 500 status
+**✅ Implementation Complete (2026-03-02):**
+- Created `src/hooks/useGoogleAnalytics.ts` with `initGA()` and `usePageTracking()` hooks
+- Created `src/types/gtag.d.ts` with proper Window interface types
+- Modified `src/App.tsx` to initialize GA4 on mount, track route changes
+- Added `VITE_GA_MEASUREMENT_ID=G-BLF9ZG7TBV` to `.env`
+- Added GA4 gtag.js snippet to `public/story.html`
+- Frontend builds clean: 2147 modules, 145KB gzipped
+- Measurement ID: **G-BLF9ZG7TBV** (Mike's GA4 property)
 
-**Key Discovery:** While testing the fix, discovered that briefing generation failures were caused by **Anthropic API credit balance** being depleted (not rate limits). The fix now makes this visible and actionable instead of returning misleading "may already exist today" errors.
+**Remaining (manual — Mike):**
+1. Add `VITE_GA_MEASUREMENT_ID=G-BLF9ZG7TBV` to Vercel Environment Variables dashboard
+2. Redeploy: `vercel --prod`
+3. Verify GA4 Realtime dashboard shows traffic
 
-**File:** `src/crypto_news_aggregator/api/v1/endpoints/briefing.py`
+**Files changed:**
 
-**Testing & Resolution (2026-02-27):**
-- Initial test failed: "Your credit balance is too low to access the Anthropic API"
-- User added credits to Anthropic account
-- Re-tested: ✅ **Evening briefing generated successfully** (ID: 69a18c6775a7e14f07133260)
-- Briefing generation is now fully operational
-
-### NEW: BUG-051 Auto-Detect Briefing Type (IN PROGRESS)
-**Status:** 🔧 Code implemented, testing
-**Discovery:** During manual testing at 6:24 AM UTC, system allowed generating "evening" briefing when it should auto-detect "morning"
-
-**Fix Implemented:**
-- Made `type` parameter optional in `/api/v1/briefing/generate` endpoint
-- Added `_get_briefing_type_from_time()` function with time period detection:
-  - **Morning:** 2:00 AM ≤ time < 12:00 PM
-  - **Afternoon:** 12:00 PM ≤ time < 5:00 PM
-  - **Evening:** 5:00 PM ≤ time < 2:00 AM
-- Auto-detects correct briefing type if `type` parameter is omitted
-- Logs detected type + UTC time for debugging
-
-**Files Modified:** `src/crypto_news_aggregator/api/v1/endpoints/briefing.py`
-
-### LinkedIn Post (Final Copy)
-My AI coding agent committed my database credentials to a public GitHub repo.
-No warning. No flag. No hesitation.
-I spent six months building a production AI system and wrote the full case study: [LINK]
-The central lesson: AI lets you build faster than you can understand. That gap has a name. I'm calling it cognitive debt.
-Unlike technical debt, which leaves clues, cognitive debt leaves blanks. You have a system but you can't explain why anything was built the way it was.
-The fix wasn't better prompting. It was building an engineering discipline around the tools — context engineering, multi-model review, separating planning from execution. Costs dropped from $100+/mo to under $10. Accuracy went from 67% to 90%. All on the cheapest model available.
-#AI #SoftwareEngineering #BuildInPublic #LLMs
+| Action | File |
+|--------|------|
+| NEW    | `context-owl-ui/src/hooks/useGoogleAnalytics.ts` |
+| NEW    | `context-owl-ui/src/types/gtag.d.ts` |
+| EDIT   | `context-owl-ui/src/App.tsx` |
+| EDIT   | `context-owl-ui/.env` |
+| EDIT   | `context-owl-ui/public/story.html` |
+| CONFIG | Vercel dashboard (pending) |
 
 ------------------------------------------------------------------------
 
 ## Next Up (prioritized)
 
-1. **BUG-050** — ✅ FIXED - Briefing endpoint force parameter + error feedback
-2. **Deploy & test** — Push fix to production, verify briefing generation works
-3. **TASK-020** — Publish LinkedIn post + Substack link as first comment
+1. **FEATURE-050** — ✅ GA4 integration (code complete, awaiting Vercel env var + deploy)
+2. **TASK-023** — Finalize and post X/Twitter adaptation of Three Walls video
+3. **TASK-020** — Publish Substack LinkedIn post + link as first comment
 4. **TASK-021** — Draft + post Instagram story (friends/family support push)
 5. **TASK-022** — Draft + post Facebook distribution post
-6. **TASK-006/007** — X / Reddit / HN distribution posts
+6. **TASK-006/007** — X / Reddit / HN distribution posts (Substack article)
 
 ------------------------------------------------------------------------
 
@@ -71,10 +63,12 @@ The fix wasn't better prompting. It was building an engineering discipline aroun
 - **Substack article:** https://open.substack.com/pub/earlysignalx/p/ai-lets-you-build-faster-than-you
 - **Interactive companion:** https://backdropxyz.vercel.app/story.html
 - **Vercel site:** https://backdropxyz.vercel.app
+- **GA4 dashboard:** https://analytics.google.com (after setup)
 
 ------------------------------------------------------------------------
 
 ## Files
 
 - **Sprint doc:** `current-sprint.md`
-- **Tickets:** `task-019-substack-cta-visibility.md`, `task-020-linkedin-distribution-post.md`, `task-021-instagram-story.md`, `task-022-facebook-distribution-post.md`
+- **This session ticket:** `feature-050-google-analytics.md`
+- **Other open tickets:** `task-020-linkedin-distribution-post.md`, `task-021-instagram-story.md`, `task-022-facebook-distribution-post.md`, `task-023-linkedin-video-x-distribution.md`
