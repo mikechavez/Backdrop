@@ -114,7 +114,22 @@ The test confirms the fix enables proper error visibility when generation fails.
 
 ---
 
+## Update: API Credits Restored (2026-02-27)
+
+**Test Result:** Attempted forced briefing generation after user added Anthropic API credits.
+
+**Resolution:** Credits were added to the Anthropic account successfully.
+
+**Test Outcome:** ✅ **Briefing generation is fully operational**
+- Evening briefing generated successfully: ID `69a18c6775a7e14f07133260`
+- Generated at 2026-02-27 12:20:16 UTC
+- Contains 6 major market developments with full narrative analysis
+- All logging working correctly (type, generation time, entity mentions)
+
+**Key Learning:** The initial failure was not a rate limit issue (despite what logs suggested on 2026-02-27 12:15). The actual issue was API credit balance depletion. The BUG-050 fix properly surfaces this error now instead of returning generic messages.
+
 ## Next Steps
 1. ✅ Fix committed and deployed
-2. Monitor briefing generation after 2026-03-01 00:00 UTC when API limit resets
-3. Verify that briefings generate successfully with improved error feedback
+2. ✅ Briefing generation tested and working
+3. ✅ Issue resolved: credits added to Anthropic account
+4. → Proceed to: BUG-051 (auto-detect briefing type based on time)

@@ -36,8 +36,15 @@ status: in-progress
   11    TASK-022           Facebook             🔲 OPEN            0.25 hr
                            Distribution Post
 
-  12    TASK-006/007       X / Reddit / HN      🔲 OPEN            TBD
+  12    TASK-023           LinkedIn Video Post   ✅ LINKEDIN POSTED  2 hr
+                           + X Distribution      (X draft ready)
+                           (Three Walls)
+
+  13    TASK-006/007       X / Reddit / HN      🔲 OPEN            TBD
                            Distribution
+
+  14    FEATURE-050           Add Google Analytics  ✅ COMPLETE        0.5 hr
+                           (GA4) to Backdrop
   -------------------------------------------------------------------------
 
 ------------------------------------------------------------------------
@@ -76,19 +83,43 @@ status: in-progress
     - CTA: link in comments to Substack article
     - Hashtags: #AI #SoftwareEngineering #BuildInPublic #LLMs
 
+-   **TASK-023** --- ✅ LINKEDIN POSTED (2026-02-28). New thought leadership
+    content separate from Substack distribution. Video clip from Lenny's Podcast
+    (Jeetu Patel, Cisco President) on three AI deployment constraints + Mike's
+    fourth wall (workforce gap). Positions Mike as practical voice in the
+    Shumer/Citrini AI doom conversation.
+
+    **Pipeline:** yt-dlp download → CapCut (1.15x speed, 9:16 vertical) →
+    Whisper base model (subtitle regen) → CapCut (burn-in captions, MP4 export)
+
+    **LinkedIn performance insight:** No-link teaser posts (2,700 impressions)
+    outperform link posts (326) by 8x. Video post follows this pattern.
+
+    **X/Twitter adaptation:** Draft ready, pending final hook refinement and publish.
+    Targeting broader AI/tech builder audience beyond crypto. Riding viral
+    Shumer (85M views) / Citrini (22M views) AI doom conversation wave.
+
+-   **FEATURE-050** --- ✅ COMPLETE (2026-03-02). Add Google Analytics (GA4) to both
+    the React SPA and static Vercel site (story.html). Implemented GA4 hook with
+    React Router integration, proper TypeScript types, and graceful fallback when
+    env var missing. Measurement ID: G-BLF9ZG7TBV. Frontend builds clean.
+
 ------------------------------------------------------------------------
 
 ## Remaining Work (prioritized)
 
-**⚠️ API LIMIT NOTICE:** Anthropic API rate limit hit on 2026-02-27. Recovers 2026-03-01 00:00 UTC.
-- BUG-050 fixed endpoint error handling to surface API errors clearly
-- Briefing generation will resume after March 1st
+**✅ BRIEFING GENERATION RESTORED:** Credits added to Anthropic account on 2026-02-27.
+- BUG-050: Endpoint error handling improved to surface API errors clearly
+- Briefing generation tested & working: evening briefing successfully generated
+- BUG-051: Auto-detect briefing type based on time of day (in progress)
 
-1. **TASK-020** — Publish LinkedIn post + link in first comment
-2. **TASK-021** — Draft + post Instagram story (friends/family support)
-3. **TASK-022** — Draft + post Facebook distribution post
-4. **TASK-006/007** — X / Reddit / HN distribution posts
-5. **Monitor** — Verify briefing generation resumes after 2026-03-01 00:00 UTC
+1. **FEATURE-050** — ✅ Add Google Analytics (GA4) to React SPA + story.html (code complete, pending Vercel deploy)
+2. **BUG-051** — Auto-detect briefing type based on time of day (code ready, testing)
+3. **TASK-020** — Publish LinkedIn post + link in first comment
+4. **TASK-023** — Post X/Twitter adaptation of Three Walls video post
+5. **TASK-021** — Draft + post Instagram story (friends/family support)
+6. **TASK-022** — Draft + post Facebook distribution post
+7. **TASK-006/007** — X / Reddit / HN distribution posts (Substack article)
 
 ------------------------------------------------------------------------
 
@@ -108,6 +139,9 @@ status: in-progress
 -   [x] Substack CTAs made more visible (TASK-019)
 -   [x] LinkedIn post drafted (TASK-020)
 -   [ ] LinkedIn post published
+-   [x] LinkedIn video post published (TASK-023 — Three Walls / workforce gap)
+-   [ ] X post published (TASK-023 — Three Walls adaptation)
 -   [ ] Instagram story posted (TASK-021)
 -   [ ] Facebook post published (TASK-022)
 -   [ ] X / Reddit / HN distribution posts live (TASK-006/007)
+-   [x] Google Analytics live on React SPA + story.html (FEATURE-050 code complete)
