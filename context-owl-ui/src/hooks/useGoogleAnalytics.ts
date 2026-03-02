@@ -8,20 +8,21 @@ export const initGA = () => {
     return;
   }
 
-  // Initialize dataLayer
+  // Initialize dataLayer and gtag function before script loads
   window.dataLayer = window.dataLayer || [];
   window.gtag = function (..._args: any[]) {
     window.dataLayer.push(arguments);
   };
 
-  // Set initial config
-  window.gtag('js', new Date());
-  window.gtag('config', GA_MEASUREMENT_ID);
-
-  // Load gtag script
+  // Load gtag script first, then configure after it loads
   const script = document.createElement('script');
   script.async = true;
   script.src = `https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`;
+  script.onload = () => {
+    // Now safe to call gtag after script loads
+    window.gtag('js', new Date());
+    window.gtag('config', GA_MEASUREMENT_ID);
+  };
   document.head.appendChild(script);
 };
 
