@@ -182,6 +182,58 @@ class CostTracker:
 
         return result[0]["total"] if result else 0.0
 
+    async def get_cost_by_operation(self, days: int = 1) -> dict:
+        """
+        Get total cost broken down by operation type.
+
+        Args:
+            days: Number of days to look back (default: 1)
+
+        Returns:
+            Dict mapping operation names to costs (e.g., {"sentiment_analysis": 1.23, "entity_extraction": 4.56})
+        """
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+
+        pipeline = [
+            {"$match": {"timestamp": {"$gte": cutoff}}},
+            {"$group": {
+                "_id": "$operation",
+                "cost": {"$sum": "$cost"},
+                "calls": {"$sum": 1}
+            }},
+            {"$sort": {"cost": -1}}
+        ]
+
+        results = await self.collection.aggregate(pipeline).to_list(None)
+
+        return {item["_id"]: {"cost": item["cost"], "calls": item["calls"]} for item in results}
+
+    async def get_cost_by_model(self, days: int = 1) -> dict:
+        """
+        Get total cost broken down by model.
+
+        Args:
+            days: Number of days to look back (default: 1)
+
+        Returns:
+            Dict mapping model names to costs
+        """
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+
+        pipeline = [
+            {"$match": {"timestamp": {"$gte": cutoff}}},
+            {"$group": {
+                "_id": "$model",
+                "cost": {"$sum": "$cost"},
+                "calls": {"$sum": 1}
+            }},
+            {"$sort": {"cost": -1}}
+        ]
+
+        results = await self.collection.aggregate(pipeline).to_list(None)
+
+        return {item["_id"]: {"cost": item["cost"], "calls": item["calls"]} for item in results}
+
 
 # Global instance (initialized by dependency injection)
 _cost_tracker: Optional[CostTracker] = None

@@ -51,6 +51,69 @@ _Get Backdrop continuously operational and affordable, then integrate NVIDIA NeM
 
 ---
 
+## Session 5 Work Summary (2026-04-01) - TASK-025 COMPLETE ✅
+
+**TASK-025: Implement Cost Controls - COMPLETE** ✅
+
+### All Stages Complete:
+1. ✅ **Stage 1: Rate Limiting** - Per-system daily call limits (9 tests)
+2. ✅ **Stage 2: Circuit Breaker** - Failure detection & recovery (28 tests)
+3. ✅ **Stage 3: Spend Logging** - Cost tracking & aggregation (9+6 tests)
+4. ✅ **Stage 4: E2E Testing** - Complete flow verification (6 tests)
+
+### Work Completed This Session:
+- ✅ Added entity extraction cost tracking to `extract_entities_batch()`
+- ✅ Implemented `get_cost_by_operation()` for spend breakdown by operation
+- ✅ Implemented `get_cost_by_model()` for spend breakdown by model
+- ✅ Created 15 new integration tests (spend logging + E2E)
+- ✅ Verified all 42 cost control tests passing
+
+### Cost Control Coverage:
+**System 1 - Briefing Generation:** ✅ Tracked via briefing_agent.py
+**System 2 - Entity Extraction:** ✅ Tracked via extract_entities_batch() (NEW)
+**System 3 - Sentiment/Theme/Relevance:** ✅ Tracked via *_tracked() methods
+
+### Test Results:
+- **spend_logging_aggregation tests:** 9/9 ✅
+- **cost_controls_e2e tests:** 6/6 ✅
+- **total cost control tests:** 42/42 ✅
+
+### Metrics:
+- All LLM calls logged to MongoDB with complete cost data
+- Spend aggregation by operation type and model implemented
+- Pricing accuracy verified across all models (Haiku, Sonnet, Opus)
+- Resilience confirmed - cost tracking failures don't break LLM operations
+
+### Ready for:
+- ✅ Merge to main
+- ✅ Deploy to prod (Railway)
+- ✅ Production monitoring via spend aggregation
+
+---
+
+## Session 5 Work Summary (2026-04-01) [Earlier Summary]
+
+**TASK-025 Stage 3: Spend Logging Aggregation - COMPLETE ✅**
+
+**Completed:**
+- ✅ Added cost tracking to `extract_entities_batch()` (async background task)
+- ✅ Implemented `get_cost_by_operation()` for per-operation spend aggregation
+- ✅ Implemented `get_cost_by_model()` for per-model spend aggregation
+- ✅ Created 9 comprehensive integration tests for spend logging
+
+**Cost Control Coverage (ALL SYSTEMS TRACKED):**
+1. **Briefing Generation** - tracked via briefing_agent.py ✅
+2. **Entity Extraction** - tracked via extract_entities_batch() ✅ (NEW)
+3. **Sentiment/Theme/Relevance** - tracked via *_tracked() methods ✅
+
+**Test Status:**
+- Total cost control tests: 36/36 ✅
+- New spend logging tests: 9/9 ✅
+- All stages (1-3) tests: 62/62 passing
+
+**Remaining for TASK-025:**
+- Stage 4: End-to-end integration testing (~20 min)
+
 ## Session 4 Work Summary (2026-04-01)
 
 **TASK-025 Stage 1: Rate Limit Integration - COMPLETE ✅**

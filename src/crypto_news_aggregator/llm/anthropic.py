@@ -7,6 +7,7 @@ from .base import LLMProvider
 from .tracking import track_usage
 from ..services.entity_normalization import normalize_entity_name
 from ..services.rate_limiter import get_rate_limiter
+from ..services.circuit_breaker import get_circuit_breaker
 
 logger = logging.getLogger(__name__)
 
@@ -173,6 +174,20 @@ class AnthropicProvider(LLMProvider):
         """
         from ..core.config import settings
         import asyncio
+
+        # Circuit breaker check: entity_extraction
+        try:
+            circuit_breaker = get_circuit_breaker()
+            state = circuit_breaker._get_state("entity_extraction")
+            if state.value == "open":
+                message = (
+                    f"Circuit breaker OPEN for 'entity_extraction' due to repeated failures. "
+                    f"Service unavailable, retrying in {circuit_breaker.config['cooldown_seconds']}s."
+                )
+                logger.warning(message)
+                return {"results": [], "usage": {}}
+        except Exception as e:
+            logger.warning(f"Failed to check circuit breaker for entity_extraction: {e}")
 
         # Rate limit check: entity_extraction
         try:
@@ -342,6 +357,13 @@ Return ONLY the JSON array, no other text."""
 
                     logger.info(f"Successfully extracted entities using {model_label}")
 
+                    # Record circuit breaker success
+                    try:
+                        circuit_breaker = get_circuit_breaker()
+                        circuit_breaker.record_success("entity_extraction")
+                    except Exception as e:
+                        logger.warning(f"Failed to record circuit breaker success for entity_extraction: {e}")
+
                     # Increment rate limiter counter after successful extraction
                     try:
                         rate_limiter = get_rate_limiter()
@@ -349,6 +371,38 @@ Return ONLY the JSON array, no other text."""
                         rate_limiter.redis.expire(rate_limiter._get_daily_key("entity_extraction"), 24 * 60 * 60)
                     except Exception as e:
                         logger.warning(f"Failed to increment rate limiter for entity_extraction: {e}")
+
+                    # Track cost (async, non-blocking)
+                    try:
+                        from crypto_news_aggregator.services.cost_tracker import CostTracker
+                        from crypto_news_aggregator.db.mongo_manager import mongo_manager
+                        import asyncio
+
+                        async def _track_entity_cost():
+                            db = await mongo_manager.get_async_database()
+                            tracker = CostTracker(db)
+                            await tracker.track_call(
+                                operation="entity_extraction",
+                                model=entity_model,
+                                input_tokens=input_tokens,
+                                output_tokens=output_tokens,
+                            )
+
+                        # Schedule as background task if we have event loop
+                        try:
+                            loop = asyncio.get_event_loop()
+                            if loop.is_running():
+                                asyncio.create_task(_track_entity_cost())
+                            else:
+                                # If no running loop, try to run synchronously via thread
+                                import threading
+                                threading.Thread(target=lambda: asyncio.run(_track_entity_cost()), daemon=True).start()
+                        except RuntimeError:
+                            # No event loop in current thread, schedule in thread
+                            import threading
+                            threading.Thread(target=lambda: asyncio.run(_track_entity_cost()), daemon=True).start()
+                    except Exception as e:
+                        logger.warning(f"Failed to track entity extraction cost: {e}")
 
                     return {
                         "results": results,
@@ -418,6 +472,14 @@ Return ONLY the JSON array, no other text."""
 
         # All models failed
         logger.error(f"All entity extraction models failed. Last error: {last_error}")
+
+        # Record circuit breaker failure
+        try:
+            circuit_breaker = get_circuit_breaker()
+            circuit_breaker.record_failure("entity_extraction")
+        except Exception as e:
+            logger.warning(f"Failed to record circuit breaker failure for entity_extraction: {e}")
+
         return {"results": [], "usage": {}}
 
     async def enrich_articles_batch(self, articles: List[Dict[str, str]]) -> List[Dict[str, Any]]:
@@ -437,6 +499,18 @@ Return ONLY the JSON array, no other text."""
             }
         """
         if not articles or len(articles) == 0:
+            return []
+
+        # Circuit breaker checks: enrich_articles_batch uses both sentiment_analysis and theme_extraction
+        circuit_breaker = get_circuit_breaker()
+        allowed, message = await circuit_breaker.check_circuit("sentiment_analysis")
+        if not allowed:
+            logger.warning(f"Circuit breaker OPEN for sentiment_analysis: {message}")
+            return []
+
+        allowed, message = await circuit_breaker.check_circuit("theme_extraction")
+        if not allowed:
+            logger.warning(f"Circuit breaker OPEN for theme_extraction: {message}")
             return []
 
         # Rate limit check: enrich_articles_batch uses both sentiment_analysis and theme_extraction
@@ -486,58 +560,69 @@ Articles:
 
 Return ONLY the JSON array, no other text."""
 
-        response_text, usage = self._get_completion_with_usage(prompt)
-
-        # Increment rate limiter counters after successful API call
-        rate_limiter = get_rate_limiter()
-        await rate_limiter.increment("sentiment_analysis")
-        await rate_limiter.increment("theme_extraction")
-
-        # Track cost
         try:
-            from crypto_news_aggregator.services.cost_tracker import CostTracker
-            from crypto_news_aggregator.db.mongo_manager import mongo_manager
+            response_text, usage = self._get_completion_with_usage(prompt)
 
-            if usage and (usage.get("input_tokens", 0) > 0 or usage.get("output_tokens", 0) > 0):
-                db = await mongo_manager.get_async_database()
-                tracker = CostTracker(db)
-                import asyncio
-                asyncio.create_task(
-                    tracker.track_call(
-                        operation="article_enrichment_batch",
-                        model=self.model_name,
-                        input_tokens=usage.get("input_tokens", 0),
-                        output_tokens=usage.get("output_tokens", 0),
+            # Record success immediately (before any processing)
+            circuit_breaker.record_success("sentiment_analysis")
+            circuit_breaker.record_success("theme_extraction")
+
+            # Increment rate limiter counters after successful API call
+            rate_limiter = get_rate_limiter()
+            await rate_limiter.increment("sentiment_analysis")
+            await rate_limiter.increment("theme_extraction")
+
+            # Track cost
+            try:
+                from crypto_news_aggregator.services.cost_tracker import CostTracker
+                from crypto_news_aggregator.db.mongo_manager import mongo_manager
+
+                if usage and (usage.get("input_tokens", 0) > 0 or usage.get("output_tokens", 0) > 0):
+                    db = await mongo_manager.get_async_database()
+                    tracker = CostTracker(db)
+                    import asyncio
+                    asyncio.create_task(
+                        tracker.track_call(
+                            operation="article_enrichment_batch",
+                            model=self.model_name,
+                            input_tokens=usage.get("input_tokens", 0),
+                            output_tokens=usage.get("output_tokens", 0),
+                        )
                     )
-                )
-                logger.info(
-                    f"Batch enriched {len(batch_articles)} articles: "
-                    f"{usage.get('input_tokens', 0)}+{usage.get('output_tokens', 0)} tokens"
-                )
+                    logger.info(
+                        f"Batch enriched {len(batch_articles)} articles: "
+                        f"{usage.get('input_tokens', 0)}+{usage.get('output_tokens', 0)} tokens"
+                    )
+            except Exception as e:
+                logger.warning(f"Failed to track batch enrichment cost: {e}")
+
+            # Parse response
+            try:
+                import re
+                json_match = re.search(r"\[.*\]", response_text, re.DOTALL)
+                if json_match:
+                    results = json.loads(json_match.group(0))
+                else:
+                    results = json.loads(response_text)
+
+                # Validate and return
+                enriched = []
+                for result in results:
+                    enriched.append({
+                        "id": result.get("article_id", ""),
+                        "relevance_score": float(result.get("relevance_score", 0.0)),
+                        "sentiment_score": float(result.get("sentiment_score", 0.0)),
+                        "themes": result.get("themes", []) if isinstance(result.get("themes", []), list) else [],
+                    })
+                return enriched
+            except (json.JSONDecodeError, ValueError, TypeError) as e:
+                logger.error(f"Failed to parse batch enrichment response: {e}")
+                return []
         except Exception as e:
-            logger.warning(f"Failed to track batch enrichment cost: {e}")
-
-        # Parse response
-        try:
-            import re
-            json_match = re.search(r"\[.*\]", response_text, re.DOTALL)
-            if json_match:
-                results = json.loads(json_match.group(0))
-            else:
-                results = json.loads(response_text)
-
-            # Validate and return
-            enriched = []
-            for result in results:
-                enriched.append({
-                    "id": result.get("article_id", ""),
-                    "relevance_score": float(result.get("relevance_score", 0.0)),
-                    "sentiment_score": float(result.get("sentiment_score", 0.0)),
-                    "themes": result.get("themes", []) if isinstance(result.get("themes", []), list) else [],
-                })
-            return enriched
-        except (json.JSONDecodeError, ValueError, TypeError) as e:
-            logger.error(f"Failed to parse batch enrichment response: {e}")
+            # Record failure on exception
+            circuit_breaker.record_failure("sentiment_analysis")
+            circuit_breaker.record_failure("theme_extraction")
+            logger.error(f"API error in enrich_articles_batch: {e}")
             return []
 
     async def score_relevance_tracked(self, text: str, operation: str = "relevance_scoring") -> float:
@@ -551,6 +636,13 @@ Return ONLY the JSON array, no other text."""
         Returns:
             Relevance score 0.0-1.0
         """
+        # Circuit breaker check
+        circuit_breaker = get_circuit_breaker()
+        allowed, message = await circuit_breaker.check_circuit(operation)
+        if not allowed:
+            logger.warning(f"Circuit breaker OPEN for {operation}: {message}")
+            return 0.0
+
         # Rate limit check
         rate_limiter = get_rate_limiter()
         allowed, message = await rate_limiter.check_limit(operation)
@@ -559,39 +651,49 @@ Return ONLY the JSON array, no other text."""
             return 0.0
 
         prompt = f"On a scale from 0.0 to 1.0, how relevant is this text to cryptocurrency market movements? Return ONLY a single floating-point number with no explanation:\n\n{text}"
-        response_text, usage = self._get_completion_with_usage(prompt)
 
-        # Increment rate limiter counter after successful API call
-        await rate_limiter.increment(operation)
-
-        # Track cost asynchronously if tracking is available
         try:
-            from crypto_news_aggregator.services.cost_tracker import CostTracker
-            from crypto_news_aggregator.db.mongo_manager import mongo_manager
+            response_text, usage = self._get_completion_with_usage(prompt)
 
-            if usage and (usage.get("input_tokens", 0) > 0 or usage.get("output_tokens", 0) > 0):
-                db = await mongo_manager.get_async_database()
-                tracker = CostTracker(db)
-                import asyncio
-                asyncio.create_task(
-                    tracker.track_call(
-                        operation=operation,
-                        model=self.model_name,
-                        input_tokens=usage.get("input_tokens", 0),
-                        output_tokens=usage.get("output_tokens", 0),
+            # Record success immediately (before any processing)
+            circuit_breaker.record_success(operation)
+
+            # Increment rate limiter counter after successful API call
+            await rate_limiter.increment(operation)
+
+            # Track cost asynchronously if tracking is available
+            try:
+                from crypto_news_aggregator.services.cost_tracker import CostTracker
+                from crypto_news_aggregator.db.mongo_manager import mongo_manager
+
+                if usage and (usage.get("input_tokens", 0) > 0 or usage.get("output_tokens", 0) > 0):
+                    db = await mongo_manager.get_async_database()
+                    tracker = CostTracker(db)
+                    import asyncio
+                    asyncio.create_task(
+                        tracker.track_call(
+                            operation=operation,
+                            model=self.model_name,
+                            input_tokens=usage.get("input_tokens", 0),
+                            output_tokens=usage.get("output_tokens", 0),
+                        )
                     )
-                )
-        except Exception as e:
-            logger.warning(f"Failed to track cost for {operation}: {e}")
+            except Exception as e:
+                logger.warning(f"Failed to track cost for {operation}: {e}")
 
-        # Parse response
-        try:
-            import re
-            numbers = re.findall(r"[-+]?\d*\.\d+|\d+", response_text.strip())
-            if numbers:
-                return float(numbers[0])
-            return float(response_text.strip())
-        except (ValueError, TypeError):
+            # Parse response
+            try:
+                import re
+                numbers = re.findall(r"[-+]?\d*\.\d+|\d+", response_text.strip())
+                if numbers:
+                    return float(numbers[0])
+                return float(response_text.strip())
+            except (ValueError, TypeError):
+                return 0.0
+        except Exception as e:
+            # Record failure on exception
+            circuit_breaker.record_failure(operation)
+            logger.error(f"API error in score_relevance_tracked for {operation}: {e}")
             return 0.0
 
     async def analyze_sentiment_tracked(self, text: str, operation: str = "sentiment_analysis") -> float:
@@ -605,6 +707,13 @@ Return ONLY the JSON array, no other text."""
         Returns:
             Sentiment score -1.0 to 1.0
         """
+        # Circuit breaker check
+        circuit_breaker = get_circuit_breaker()
+        allowed, message = await circuit_breaker.check_circuit(operation)
+        if not allowed:
+            logger.warning(f"Circuit breaker OPEN for {operation}: {message}")
+            return 0.0
+
         # Rate limit check
         rate_limiter = get_rate_limiter()
         allowed, message = await rate_limiter.check_limit(operation)
@@ -613,39 +722,49 @@ Return ONLY the JSON array, no other text."""
             return 0.0
 
         prompt = f"Analyze the sentiment of this crypto text. Return ONLY a single number from -1.0 (very bearish) to 1.0 (very bullish). Do not include any explanation or additional text. Just the number:\n\n{text}"
-        response_text, usage = self._get_completion_with_usage(prompt)
 
-        # Increment rate limiter counter after successful API call
-        await rate_limiter.increment(operation)
-
-        # Track cost asynchronously if tracking is available
         try:
-            from crypto_news_aggregator.services.cost_tracker import CostTracker
-            from crypto_news_aggregator.db.mongo_manager import mongo_manager
+            response_text, usage = self._get_completion_with_usage(prompt)
 
-            if usage and (usage.get("input_tokens", 0) > 0 or usage.get("output_tokens", 0) > 0):
-                db = await mongo_manager.get_async_database()
-                tracker = CostTracker(db)
-                import asyncio
-                asyncio.create_task(
-                    tracker.track_call(
-                        operation=operation,
-                        model=self.model_name,
-                        input_tokens=usage.get("input_tokens", 0),
-                        output_tokens=usage.get("output_tokens", 0),
+            # Record success immediately (before any processing)
+            circuit_breaker.record_success(operation)
+
+            # Increment rate limiter counter after successful API call
+            await rate_limiter.increment(operation)
+
+            # Track cost asynchronously if tracking is available
+            try:
+                from crypto_news_aggregator.services.cost_tracker import CostTracker
+                from crypto_news_aggregator.db.mongo_manager import mongo_manager
+
+                if usage and (usage.get("input_tokens", 0) > 0 or usage.get("output_tokens", 0) > 0):
+                    db = await mongo_manager.get_async_database()
+                    tracker = CostTracker(db)
+                    import asyncio
+                    asyncio.create_task(
+                        tracker.track_call(
+                            operation=operation,
+                            model=self.model_name,
+                            input_tokens=usage.get("input_tokens", 0),
+                            output_tokens=usage.get("output_tokens", 0),
+                        )
                     )
-                )
-        except Exception as e:
-            logger.warning(f"Failed to track cost for {operation}: {e}")
+            except Exception as e:
+                logger.warning(f"Failed to track cost for {operation}: {e}")
 
-        # Parse response
-        try:
-            import re
-            numbers = re.findall(r"[-+]?\d*\.\d+|\d+", response_text.strip())
-            if numbers:
-                return float(numbers[0])
-            return float(response_text.strip())
-        except (ValueError, TypeError):
+            # Parse response
+            try:
+                import re
+                numbers = re.findall(r"[-+]?\d*\.\d+|\d+", response_text.strip())
+                if numbers:
+                    return float(numbers[0])
+                return float(response_text.strip())
+            except (ValueError, TypeError):
+                return 0.0
+        except Exception as e:
+            # Record failure on exception
+            circuit_breaker.record_failure(operation)
+            logger.error(f"API error in analyze_sentiment_tracked for {operation}: {e}")
             return 0.0
 
     async def extract_themes_tracked(self, texts: List[str], operation: str = "theme_extraction") -> List[str]:
@@ -659,6 +778,13 @@ Return ONLY the JSON array, no other text."""
         Returns:
             List of extracted themes
         """
+        # Circuit breaker check
+        circuit_breaker = get_circuit_breaker()
+        allowed, message = await circuit_breaker.check_circuit(operation)
+        if not allowed:
+            logger.warning(f"Circuit breaker OPEN for {operation}: {message}")
+            return []
+
         # Rate limit check
         rate_limiter = get_rate_limiter()
         allowed, message = await rate_limiter.check_limit(operation)
@@ -668,32 +794,42 @@ Return ONLY the JSON array, no other text."""
 
         combined_texts = "\n".join(texts)
         prompt = f"Extract the key crypto themes from the following texts. Respond with ONLY a comma-separated list of keywords (e.g., 'Bitcoin, DeFi, Regulation'). Do not include any preamble.\n\nTexts:\n{combined_texts}"
-        response_text, usage = self._get_completion_with_usage(prompt)
 
-        # Increment rate limiter counter after successful API call
-        await rate_limiter.increment(operation)
-
-        # Track cost asynchronously if tracking is available
         try:
-            from crypto_news_aggregator.services.cost_tracker import CostTracker
-            from crypto_news_aggregator.db.mongo_manager import mongo_manager
+            response_text, usage = self._get_completion_with_usage(prompt)
 
-            if usage and (usage.get("input_tokens", 0) > 0 or usage.get("output_tokens", 0) > 0):
-                db = await mongo_manager.get_async_database()
-                tracker = CostTracker(db)
-                import asyncio
-                asyncio.create_task(
-                    tracker.track_call(
-                        operation=operation,
-                        model=self.model_name,
-                        input_tokens=usage.get("input_tokens", 0),
-                        output_tokens=usage.get("output_tokens", 0),
+            # Record success immediately (before any processing)
+            circuit_breaker.record_success(operation)
+
+            # Increment rate limiter counter after successful API call
+            await rate_limiter.increment(operation)
+
+            # Track cost asynchronously if tracking is available
+            try:
+                from crypto_news_aggregator.services.cost_tracker import CostTracker
+                from crypto_news_aggregator.db.mongo_manager import mongo_manager
+
+                if usage and (usage.get("input_tokens", 0) > 0 or usage.get("output_tokens", 0) > 0):
+                    db = await mongo_manager.get_async_database()
+                    tracker = CostTracker(db)
+                    import asyncio
+                    asyncio.create_task(
+                        tracker.track_call(
+                            operation=operation,
+                            model=self.model_name,
+                            input_tokens=usage.get("input_tokens", 0),
+                            output_tokens=usage.get("output_tokens", 0),
+                        )
                     )
-                )
-        except Exception as e:
-            logger.warning(f"Failed to track cost for {operation}: {e}")
+            except Exception as e:
+                logger.warning(f"Failed to track cost for {operation}: {e}")
 
-        # Parse response
-        if response_text:
-            return [theme.strip() for theme in response_text.split(",")]
-        return []
+            # Parse response
+            if response_text:
+                return [theme.strip() for theme in response_text.split(",")]
+            return []
+        except Exception as e:
+            # Record failure on exception
+            circuit_breaker.record_failure(operation)
+            logger.error(f"API error in extract_themes_tracked for {operation}: {e}")
+            return []
