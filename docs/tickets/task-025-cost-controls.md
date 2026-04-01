@@ -3,13 +3,13 @@ ticket_id: TASK-025
 title: Implement Cost Controls
 priority: critical
 severity: high
-status: IN_PROGRESS (Session 2: Priorities 1-3 complete + test fixes; Session 3: daily limits/circuit breaker)
+status: IN_PROGRESS (Session 4: Stage 1 + Stage 2 COMPLETE)
 date_created: 2026-03-31
 date_started: 2026-03-31
 branch: feature/task-025-cost-controls
 pr: https://github.com/mikechavez/Backdrop/pull/227
 effort_estimate: 3 hr
-effort_actual: 3.5 hr (implementation + test fixes); remaining: daily limits, circuit breaker, spend logging
+effort_actual: 4 hr (impl + tests); remaining: spend logging (~30 min)
 ---
 
 # TASK-025: Implement Cost Controls
@@ -23,6 +23,79 @@ There are no guardrails preventing runaway LLM spend. When something goes wrong 
 ---
 
 ## Implementation Status
+
+### SESSION 4 SUMMARY (2026-04-01) - STAGE 1 & 2 COMPLETE
+
+**✅ CIRCUIT BREAKER SERVICE - COMPLETE**
+
+**Implemented CircuitBreaker service with full state machine:**
+- CLOSED state (normal operation): Calls allowed
+- OPEN state (service down): Calls blocked, returns 0.0/empty after N consecutive failures
+- HALF_OPEN state (recovery): Single test call allowed after 5 min cooldown
+- Auto-close on successful recovery test
+- Auto-reopen on failure during recovery
+
+**Integrated into all LLM methods:**
+- `analyze_sentiment_tracked()` - circuit check before rate limit
+- `extract_themes_tracked()` - circuit check before rate limit
+- `score_relevance_tracked()` - circuit check before rate limit
+- `enrich_articles_batch()` - circuit checks for both sentiment + theme systems
+- `extract_entities_batch()` - circuit check with sync-compatible state access
+
+**Error recording strategy:**
+- Record success immediately after successful API call (before processing)
+- Record failure immediately on any exception (before return)
+- Independent tracking per system (sentiment, theme, relevance, entity, briefing, narrative)
+- Configurable thresholds: failure_threshold (3), cooldown_seconds (300), success_threshold (1)
+
+**Test Coverage - 28 new tests (all passing):**
+
+Unit Tests (16):
+- `test_circuit_starts_closed` - initial state
+- `test_check_circuit_unknown_system` - graceful unknown handling
+- `test_record_success_resets_failures` - success resets counter
+- `test_circuit_opens_at_threshold` - opens after N failures
+- `test_circuit_blocks_calls_when_open` - blocks on open state
+- `test_half_open_state_after_cooldown` - half-open after cooldown
+- `test_closes_after_success_in_half_open` - closes on recovery success
+- `test_independent_per_system` - systems isolated
+- `test_reset_individual_system` - reset single system
+- `test_get_state_for_system` - monitoring/debugging
+- `test_get_all_states` - full state inspection
+- `test_get_state_unknown_system` - error on unknown
+- `test_custom_config` - custom thresholds
+- `test_uses_default_config_if_not_provided` - default fallback
+- `test_get_circuit_breaker_singleton` - singleton pattern
+- `test_reset_global_instance` - global reset
+
+Integration Tests (12):
+- `test_sentiment_blocked_when_circuit_open` - sentiment blocking
+- `test_themes_blocked_when_circuit_open` - theme blocking
+- `test_relevance_blocked_when_circuit_open` - relevance blocking
+- `test_batch_enrichment_blocked_when_circuit_open` - batch blocking
+- `test_sentiment_allowed_when_circuit_closed` - closed state allows calls
+- `test_records_success_after_api_call` - success tracking
+- `test_records_failure_on_exception` - failure tracking
+- `test_half_open_allows_one_test_call` - half-open recovery test
+- `test_half_open_closes_on_success` - recovery success closes
+- `test_half_open_opens_on_failure` - recovery failure reopens
+- `test_sentiment_trip_doesnt_affect_theme` - system independence
+- `test_entity_trip_doesnt_affect_others` - full isolation
+
+**Test Results:**
+- `tests/services/test_circuit_breaker.py` - 16/16 ✅ (NEW)
+- `tests/integration/test_circuit_breaker_integration.py` - 12/12 ✅ (NEW)
+- `tests/services/test_rate_limiter.py` - 10/10 ✅
+- `tests/integration/test_cost_tracking_e2e.py` - 6/6 ✅
+- `tests/integration/test_llm_cost_tracking.py` - 9/9 ✅
+- `tests/integration/test_rate_limit_integration.py` - 9/9 ✅
+- **Total: 62/62 cost control tests passing**
+
+**Commit:** `feat(cost-controls): Implement circuit breaker service (TASK-025 Stage 2)`
+
+**Next steps:**
+- Stage 3: Implement spend logging aggregation (~30 min)
+- Stage 4: End-to-end integration testing (~20 min)
 
 ### SESSION 4 SUMMARY (2026-04-01) - STAGE 1 COMPLETE
 
