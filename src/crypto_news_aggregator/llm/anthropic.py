@@ -78,6 +78,46 @@ class AnthropicProvider(LLMProvider):
             logger.error(f"An unexpected error occurred: {e}")
             return ""
 
+    def _get_completion_with_usage(self, prompt: str) -> tuple[str, dict]:
+        """
+        Get completion from Claude and return both response text and usage metrics.
+        Used internally for cost tracking.
+
+        Returns:
+            Tuple of (response_text, usage_dict) where usage_dict has input_tokens and output_tokens
+        """
+        model = self.model_name
+
+        headers = {
+            "x-api-key": self.api_key,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+        }
+        payload = {
+            "model": model,
+            "max_tokens": 2048,
+            "messages": [{"role": "user", "content": prompt}],
+        }
+        try:
+            with httpx.Client() as client:
+                response = client.post(
+                    self.API_URL, headers=headers, json=payload, timeout=30
+                )
+                response.raise_for_status()
+                data = response.json()
+                text = data.get("content", [{}])[0].get("text", "")
+                usage = data.get("usage", {})
+                return text, usage
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code != 403:
+                logger.error(
+                    f"Anthropic API request failed with status {e.response.status_code}: {e.response.text}"
+                )
+            return "", {}
+        except Exception as e:
+            logger.error(f"An unexpected error occurred: {e}")
+            return "", {}
+
     @track_usage
     def analyze_sentiment(self, text: str) -> float:
         prompt = f"Analyze the sentiment of this crypto text. Return ONLY a single number from -1.0 (very bearish) to 1.0 (very bullish). Do not include any explanation or additional text. Just the number:\n\n{text}"
@@ -350,3 +390,234 @@ Return ONLY the JSON array, no other text."""
         # All models failed
         logger.error(f"All entity extraction models failed. Last error: {last_error}")
         return {"results": [], "usage": {}}
+
+    async def enrich_articles_batch(self, articles: List[Dict[str, str]]) -> List[Dict[str, Any]]:
+        """
+        Batch enrich multiple articles with relevance, sentiment, and themes in a single prompt.
+        TASK-025 Priority 3: 50% cost reduction by batching 10 articles per call.
+
+        Args:
+            articles: List of dicts with "id" and "text" keys (max 10 articles per call)
+
+        Returns:
+            List of dicts with enrichment results: {
+                "id": article_id,
+                "relevance_score": float 0-1,
+                "sentiment_score": float -1-1,
+                "themes": [str]
+            }
+        """
+        if not articles or len(articles) == 0:
+            return []
+
+        # Limit to 10 articles per batch (tunable)
+        batch_articles = articles[:10]
+
+        # Build combined prompt for batch scoring
+        articles_text = []
+        for idx, article in enumerate(batch_articles):
+            article_id = article.get("id", f"article_{idx}")
+            text = article.get("text", "")[:2000]  # Limit text length
+            articles_text.append(f"Article {idx} (ID: {article_id}):\n{text}")
+
+        combined_articles = "\n---\n".join(articles_text)
+
+        prompt = f"""Analyze these {len(batch_articles)} cryptocurrency news articles and return ONLY valid JSON.
+
+For each article, provide:
+1. relevance_score: 0.0-1.0 (how relevant to crypto market movements)
+2. sentiment_score: -1.0-1.0 (bearish to bullish)
+3. themes: comma-separated keywords
+
+Return ONLY a JSON array with this structure:
+[
+  {{
+    "article_index": 0,
+    "article_id": "the_id_from_input",
+    "relevance_score": 0.8,
+    "sentiment_score": 0.3,
+    "themes": ["Bitcoin", "DeFi", "Regulation"]
+  }}
+]
+
+Articles:
+{combined_articles}
+
+Return ONLY the JSON array, no other text."""
+
+        response_text, usage = self._get_completion_with_usage(prompt)
+
+        # Track cost
+        try:
+            from crypto_news_aggregator.services.cost_tracker import CostTracker
+            from crypto_news_aggregator.db.mongo_manager import mongo_manager
+
+            if usage and (usage.get("input_tokens", 0) > 0 or usage.get("output_tokens", 0) > 0):
+                db = await mongo_manager.get_async_database()
+                tracker = CostTracker(db)
+                import asyncio
+                asyncio.create_task(
+                    tracker.track_call(
+                        operation="article_enrichment_batch",
+                        model=self.model_name,
+                        input_tokens=usage.get("input_tokens", 0),
+                        output_tokens=usage.get("output_tokens", 0),
+                    )
+                )
+                logger.info(
+                    f"Batch enriched {len(batch_articles)} articles: "
+                    f"{usage.get('input_tokens', 0)}+{usage.get('output_tokens', 0)} tokens"
+                )
+        except Exception as e:
+            logger.warning(f"Failed to track batch enrichment cost: {e}")
+
+        # Parse response
+        try:
+            import re
+            json_match = re.search(r"\[.*\]", response_text, re.DOTALL)
+            if json_match:
+                results = json.loads(json_match.group(0))
+            else:
+                results = json.loads(response_text)
+
+            # Validate and return
+            enriched = []
+            for result in results:
+                enriched.append({
+                    "id": result.get("article_id", ""),
+                    "relevance_score": float(result.get("relevance_score", 0.0)),
+                    "sentiment_score": float(result.get("sentiment_score", 0.0)),
+                    "themes": result.get("themes", []) if isinstance(result.get("themes", []), list) else [],
+                })
+            return enriched
+        except (json.JSONDecodeError, ValueError, TypeError) as e:
+            logger.error(f"Failed to parse batch enrichment response: {e}")
+            return []
+
+    async def score_relevance_tracked(self, text: str, operation: str = "relevance_scoring") -> float:
+        """
+        Score relevance with cost tracking (async version for RSS enrichment).
+
+        Args:
+            text: Text to score
+            operation: Operation name for tracking (default: "relevance_scoring")
+
+        Returns:
+            Relevance score 0.0-1.0
+        """
+        prompt = f"On a scale from 0.0 to 1.0, how relevant is this text to cryptocurrency market movements? Return ONLY a single floating-point number with no explanation:\n\n{text}"
+        response_text, usage = self._get_completion_with_usage(prompt)
+
+        # Track cost asynchronously if tracking is available
+        try:
+            from crypto_news_aggregator.services.cost_tracker import CostTracker
+            from crypto_news_aggregator.db.mongo_manager import mongo_manager
+
+            if usage and (usage.get("input_tokens", 0) > 0 or usage.get("output_tokens", 0) > 0):
+                db = await mongo_manager.get_async_database()
+                tracker = CostTracker(db)
+                import asyncio
+                asyncio.create_task(
+                    tracker.track_call(
+                        operation=operation,
+                        model=self.model_name,
+                        input_tokens=usage.get("input_tokens", 0),
+                        output_tokens=usage.get("output_tokens", 0),
+                    )
+                )
+        except Exception as e:
+            logger.warning(f"Failed to track cost for {operation}: {e}")
+
+        # Parse response
+        try:
+            import re
+            numbers = re.findall(r"[-+]?\d*\.\d+|\d+", response_text.strip())
+            if numbers:
+                return float(numbers[0])
+            return float(response_text.strip())
+        except (ValueError, TypeError):
+            return 0.0
+
+    async def analyze_sentiment_tracked(self, text: str, operation: str = "sentiment_analysis") -> float:
+        """
+        Analyze sentiment with cost tracking (async version for RSS enrichment).
+
+        Args:
+            text: Text to analyze
+            operation: Operation name for tracking (default: "sentiment_analysis")
+
+        Returns:
+            Sentiment score -1.0 to 1.0
+        """
+        prompt = f"Analyze the sentiment of this crypto text. Return ONLY a single number from -1.0 (very bearish) to 1.0 (very bullish). Do not include any explanation or additional text. Just the number:\n\n{text}"
+        response_text, usage = self._get_completion_with_usage(prompt)
+
+        # Track cost asynchronously if tracking is available
+        try:
+            from crypto_news_aggregator.services.cost_tracker import CostTracker
+            from crypto_news_aggregator.db.mongo_manager import mongo_manager
+
+            if usage and (usage.get("input_tokens", 0) > 0 or usage.get("output_tokens", 0) > 0):
+                db = await mongo_manager.get_async_database()
+                tracker = CostTracker(db)
+                import asyncio
+                asyncio.create_task(
+                    tracker.track_call(
+                        operation=operation,
+                        model=self.model_name,
+                        input_tokens=usage.get("input_tokens", 0),
+                        output_tokens=usage.get("output_tokens", 0),
+                    )
+                )
+        except Exception as e:
+            logger.warning(f"Failed to track cost for {operation}: {e}")
+
+        # Parse response
+        try:
+            import re
+            numbers = re.findall(r"[-+]?\d*\.\d+|\d+", response_text.strip())
+            if numbers:
+                return float(numbers[0])
+            return float(response_text.strip())
+        except (ValueError, TypeError):
+            return 0.0
+
+    async def extract_themes_tracked(self, texts: List[str], operation: str = "theme_extraction") -> List[str]:
+        """
+        Extract themes with cost tracking (async version for RSS enrichment).
+
+        Args:
+            texts: List of texts to extract themes from
+            operation: Operation name for tracking (default: "theme_extraction")
+
+        Returns:
+            List of extracted themes
+        """
+        combined_texts = "\n".join(texts)
+        prompt = f"Extract the key crypto themes from the following texts. Respond with ONLY a comma-separated list of keywords (e.g., 'Bitcoin, DeFi, Regulation'). Do not include any preamble.\n\nTexts:\n{combined_texts}"
+        response_text, usage = self._get_completion_with_usage(prompt)
+
+        # Track cost asynchronously if tracking is available
+        try:
+            from crypto_news_aggregator.services.cost_tracker import CostTracker
+            from crypto_news_aggregator.db.mongo_manager import mongo_manager
+
+            if usage and (usage.get("input_tokens", 0) > 0 or usage.get("output_tokens", 0) > 0):
+                db = await mongo_manager.get_async_database()
+                tracker = CostTracker(db)
+                import asyncio
+                asyncio.create_task(
+                    tracker.track_call(
+                        operation=operation,
+                        model=self.model_name,
+                        input_tokens=usage.get("input_tokens", 0),
+                        output_tokens=usage.get("output_tokens", 0),
+                    )
+                )
+        except Exception as e:
+            logger.warning(f"Failed to track cost for {operation}: {e}")
+
+        # Parse response
+        if response_text:
+            return [theme.strip() for theme in response_text.split(",")]
+        return []

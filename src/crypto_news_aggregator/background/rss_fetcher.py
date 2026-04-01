@@ -574,236 +574,253 @@ async def process_new_articles_from_mongodb():
         except Exception as e:
             logger.warning(f"Failed to get cache/cost stats: {e}")
 
-    # Now process articles individually for other enrichments
+    # Now process articles in batches for enrichment (TASK-025: 50% cost reduction via batching)
     processed = 0
     tier_counts = {1: 0, 2: 0, 3: 0}  # Track tier distribution
+
+    # Collect articles into enrichment batches
+    articles_for_enrichment = []
     async for article in collection.find(enrichment_query):
         article_id = article.get("_id")
+        title = article.get("title") or ""
+        body_parts = [
+            article.get("text") or "",
+            article.get("content") or "",
+            article.get("description") or "",
+        ]
+        combined_text = " ".join(
+            part.strip() for part in [title, *body_parts] if part
+        ).strip()
+
+        if combined_text:
+            articles_for_enrichment.append({
+                "article_id": article_id,
+                "combined_text": combined_text,
+                "title": title,
+                "source": article.get("source"),
+                "original_article": article
+            })
+
+    # Process articles in batches of 10 (TASK-025 Priority 3: batch enrichment)
+    BATCH_SIZE = 10
+    total_enriched = 0
+
+    for batch_start in range(0, len(articles_for_enrichment), BATCH_SIZE):
+        batch_end = min(batch_start + BATCH_SIZE, len(articles_for_enrichment))
+        batch = articles_for_enrichment[batch_start:batch_end]
+
+        logger.info(f"Enriching articles batch {batch_start}-{batch_end}/{len(articles_for_enrichment)}")
+
+        # Build prompt input for batch
+        batch_input = [
+            {"id": str(a["article_id"]), "text": a["combined_text"]}
+            for a in batch
+        ]
+
         try:
-            title = article.get("title") or ""
-            body_parts = [
-                article.get("text") or "",
-                article.get("content") or "",
-                article.get("description") or "",
-            ]
-            combined_text = " ".join(
-                part.strip() for part in [title, *body_parts] if part
-            ).strip()
+            enrichment_results = await llm_client.enrich_articles_batch(batch_input)
 
-            if not combined_text:
-                logger.debug("Skipping article %s due to missing text", article_id)
-                continue
-
-            # Classify article relevance tier (rule-based, no LLM cost)
-            classification = classify_article(
-                title=title,
-                text=combined_text[:1000],  # First 1000 chars for classification
-                source=article.get("source")
-            )
-            relevance_tier = classification["tier"]
-            relevance_reason = classification["reason"]
-
-            tier_emoji = {1: "🔥", 2: "📰", 3: "🔇"}[relevance_tier]
-            tier_counts[relevance_tier] += 1
-            logger.debug(
-                f"{tier_emoji} Article {article_id}: Tier {relevance_tier} ({relevance_reason})"
-            )
-
-            try:
-                relevance_score = float(llm_client.score_relevance(combined_text))
-            except Exception as exc:
-                logger.warning("Relevance scoring failed for %s: %s", article_id, exc)
-                relevance_score = 0.0
-
-            try:
-                sentiment_score = float(llm_client.analyze_sentiment(combined_text))
-            except Exception as exc:
-                logger.warning("Sentiment analysis failed for %s: %s", article_id, exc)
-                sentiment_score = 0.0
-
-            try:
-                extracted_themes = llm_client.extract_themes([combined_text])
-                themes: List[str] = (
-                    [str(theme) for theme in extracted_themes]
-                    if isinstance(extracted_themes, list)
-                    else []
+            # Map results back to articles
+            for enriched in enrichment_results:
+                # Find matching article in batch
+                article_data = next(
+                    (a for a in batch if str(a["article_id"]) == enriched["id"]),
+                    None
                 )
-            except Exception as exc:
-                logger.warning("Theme extraction failed for %s: %s", article_id, exc)
-                themes = []
 
-            sentiment_label = _derive_sentiment_label(sentiment_score)
+                if not article_data:
+                    continue
 
-            keyword_tokens = list(_tokenize_for_keywords(combined_text))
-            keywords = _select_keywords(keyword_tokens)
+                article = article_data["original_article"]
+                article_id = article.get("_id")
 
-            if themes:
-                for theme in themes:
-                    normalized_theme = theme.strip()
-                    if normalized_theme and normalized_theme not in keywords:
-                        keywords.append(normalized_theme)
-                        if len(keywords) >= _MAX_KEYWORDS:
-                            break
-
-            sentiment_payload = {
-                "score": sentiment_score,
-                "magnitude": abs(sentiment_score),
-                "label": sentiment_label,
-                "provider": str(
-                    getattr(llm_client, "model_name", llm_client.__class__.__name__)
-                ),
-                "updated_at": datetime.now(timezone.utc),
-            }
-
-            # Get entity extraction results for this article
-            article_id_str = str(article_id)
-            entity_data = entity_extraction_results.get(article_id_str, {})
-            
-            # Parse new structured entity format
-            primary_entities = entity_data.get("primary_entities", [])
-            context_entities = entity_data.get("context_entities", [])
-            entity_sentiment = entity_data.get("sentiment", sentiment_label)
-            
-            # Log entity extraction for this article
-            if primary_entities or context_entities:
-                logger.info(
-                    f"Article {article_id_str}: {len(primary_entities)} primary, {len(context_entities)} context entities"
+                # Classify article relevance tier (rule-based, no LLM cost)
+                classification = classify_article(
+                    title=article_data["title"],
+                    text=article_data["combined_text"][:1000],
+                    source=article_data["source"]
                 )
-            else:
-                logger.warning(f"Article {article_id_str}: No entities extracted")
-            
-            # Combine all entities for storage in article document
-            all_entities = []
-            for entity in primary_entities:
-                all_entities.append({
-                    "name": entity.get("name"),
-                    "type": entity.get("type"),
-                    "ticker": entity.get("ticker"),
-                    "confidence": entity.get("confidence", 1.0),
-                    "is_primary": True,
-                })
-            for entity in context_entities:
-                all_entities.append({
-                    "name": entity.get("name"),
-                    "type": entity.get("type"),
-                    "confidence": entity.get("confidence", 1.0),
-                    "is_primary": False,
-                })
+                relevance_tier = classification["tier"]
+                relevance_reason = classification["reason"]
 
-            update_operations = {
-                "$set": {
-                    "relevance_score": relevance_score,
-                    "relevance_tier": relevance_tier,
-                    "relevance_reason": relevance_reason,
-                    "sentiment_score": sentiment_score,
-                    "sentiment_label": sentiment_label,
-                    "sentiment": sentiment_payload,
-                    "themes": themes,
-                    "keywords": keywords,
-                    "entities": all_entities,
+                tier_emoji = {1: "🔥", 2: "📰", 3: "🔇"}[relevance_tier]
+                tier_counts[relevance_tier] += 1
+
+                relevance_score = enriched.get("relevance_score", 0.0)
+                sentiment_score = enriched.get("sentiment_score", 0.0)
+                themes = enriched.get("themes", [])
+
+                sentiment_label = _derive_sentiment_label(sentiment_score)
+
+                keyword_tokens = list(_tokenize_for_keywords(article_data["combined_text"]))
+                keywords = _select_keywords(keyword_tokens)
+
+                if themes:
+                    for theme in themes:
+                        normalized_theme = theme.strip()
+                        if normalized_theme and normalized_theme not in keywords:
+                            keywords.append(normalized_theme)
+                            if len(keywords) >= _MAX_KEYWORDS:
+                                break
+
+                sentiment_payload = {
+                    "score": sentiment_score,
+                    "magnitude": abs(sentiment_score),
+                    "label": sentiment_label,
+                    "provider": str(
+                        getattr(llm_client, "model_name", llm_client.__class__.__name__)
+                    ),
                     "updated_at": datetime.now(timezone.utc),
                 }
-            }
 
-            await collection.update_one({"_id": article_id}, update_operations)
+                # Get entity extraction results for this article
+                article_id_str = str(article_id)
+                entity_data = entity_extraction_results.get(article_id_str, {})
 
-            # Create entity mentions for tracking
-            article_source = article.get("source") or article.get("source_id") or "unknown"
-            
-            if primary_entities or context_entities:
-                mentions_to_create = []
-                logger.info(f"Preparing to create entity mentions for article {article_id_str}")
-                
-                # Process primary entities
-                for entity in primary_entities:
-                    entity_name = entity.get("name")
-                    entity_type = entity.get("type")
-                    ticker = entity.get("ticker")
-                    
-                    # Ensure entity name is normalized (defense in depth)
-                    if entity_name:
-                        normalized_name = normalize_entity_name(entity_name)
-                        if normalized_name != entity_name:
-                            logger.info(f"Entity mention normalized: '{entity_name}' → '{normalized_name}'")
-                            entity_name = normalized_name
-                    
-                    # Create mention for the entity name (already normalized by LLM + double-check above)
-                    if entity_name:
-                        mentions_to_create.append(
-                            {
-                                "entity": entity_name,
-                                "entity_type": entity_type,
-                                "article_id": article_id_str,
-                                "sentiment": entity_sentiment,
-                                "confidence": entity.get("confidence", 1.0),
-                                "source": article_source,
-                                "is_primary": True,
-                                "metadata": {
-                                    "article_title": title,
-                                    "extraction_batch": True,
-                                    "ticker": ticker,
-                                },
-                            }
-                        )
-                    
-                    # DO NOT create separate ticker mentions - they're already normalized to entity_name
-                
-                # Process context entities
-                for entity in context_entities:
-                    entity_name = entity.get("name")
-                    entity_type = entity.get("type")
-                    
-                    # Normalize context entities if they're crypto-related
-                    if entity_name and entity_type in ["cryptocurrency", "blockchain"]:
-                        normalized_name = normalize_entity_name(entity_name)
-                        if normalized_name != entity_name:
-                            logger.info(f"Context entity normalized: '{entity_name}' → '{normalized_name}'")
-                            entity_name = normalized_name
-                    
-                    if entity_name:
-                        mentions_to_create.append(
-                            {
-                                "entity": entity_name,
-                                "entity_type": entity_type,
-                                "article_id": article_id_str,
-                                "sentiment": entity_sentiment,
-                                "confidence": entity.get("confidence", 1.0),
-                                "source": article_source,
-                                "is_primary": False,
-                                "metadata": {
-                                    "article_title": title,
-                                    "extraction_batch": True,
-                                },
-                            }
-                        )
+                # Parse new structured entity format
+                primary_entities = entity_data.get("primary_entities", [])
+                context_entities = entity_data.get("context_entities", [])
+                entity_sentiment = entity_data.get("sentiment", sentiment_label)
 
-                try:
-                    logger.info(f"Attempting to save {len(mentions_to_create)} entity mentions to database")
-                    await create_entity_mentions_batch(mentions_to_create)
-                    logger.info(f"Successfully saved {len(mentions_to_create)} entity mentions")
-                except Exception as exc:
-                    logger.error(
-                        "Failed to create entity mentions for article %s: %s",
-                        article_id,
-                        exc,
+                # Log entity extraction for this article
+                if primary_entities or context_entities:
+                    logger.info(
+                        f"Article {article_id_str}: {len(primary_entities)} primary, {len(context_entities)} context entities"
                     )
+                else:
+                    logger.warning(f"Article {article_id_str}: No entities extracted")
 
-            processed += 1
-        except Exception as exc:
-            logger.exception("Failed to enrich article %s: %s", article_id, exc)
+                # Combine all entities for storage in article document
+                all_entities = []
+                for entity in primary_entities:
+                    all_entities.append({
+                        "name": entity.get("name"),
+                        "type": entity.get("type"),
+                        "ticker": entity.get("ticker"),
+                        "confidence": entity.get("confidence", 1.0),
+                        "is_primary": True,
+                    })
+                for entity in context_entities:
+                    all_entities.append({
+                        "name": entity.get("name"),
+                        "type": entity.get("type"),
+                        "confidence": entity.get("confidence", 1.0),
+                        "is_primary": False,
+                    })
 
-    if processed:
+                update_operations = {
+                    "$set": {
+                        "relevance_score": relevance_score,
+                        "relevance_tier": relevance_tier,
+                        "relevance_reason": relevance_reason,
+                        "sentiment_score": sentiment_score,
+                        "sentiment_label": sentiment_label,
+                        "sentiment": sentiment_payload,
+                        "themes": themes,
+                        "keywords": keywords,
+                        "entities": all_entities,
+                        "updated_at": datetime.now(timezone.utc),
+                    }
+                }
+
+                await collection.update_one({"_id": article_id}, update_operations)
+
+                # Create entity mentions for tracking
+                article_source = article.get("source") or article.get("source_id") or "unknown"
+
+                if primary_entities or context_entities:
+                    mentions_to_create = []
+                    logger.info(f"Preparing to create entity mentions for article {article_id_str}")
+
+                    # Process primary entities
+                    for entity in primary_entities:
+                        entity_name = entity.get("name")
+                        entity_type = entity.get("type")
+                        ticker = entity.get("ticker")
+
+                        # Ensure entity name is normalized (defense in depth)
+                        if entity_name:
+                            normalized_name = normalize_entity_name(entity_name)
+                            if normalized_name != entity_name:
+                                logger.info(f"Entity mention normalized: '{entity_name}' → '{normalized_name}'")
+                                entity_name = normalized_name
+
+                        # Create mention for the entity name (already normalized by LLM + double-check above)
+                        if entity_name:
+                            mentions_to_create.append(
+                                {
+                                    "entity": entity_name,
+                                    "entity_type": entity_type,
+                                    "article_id": article_id_str,
+                                    "sentiment": entity_sentiment,
+                                    "confidence": entity.get("confidence", 1.0),
+                                    "source": article_source,
+                                    "is_primary": True,
+                                    "metadata": {
+                                        "ticker": ticker,
+                                        "article_title": article.get("title", ""),
+                                        "article_source": article_source,
+                                    },
+                                    "created_at": datetime.now(timezone.utc),
+                                }
+                            )
+
+                    # Process context entities
+                    for entity in context_entities:
+                        entity_name = entity.get("name")
+                        entity_type = entity.get("type")
+
+                        # Normalize context entities too
+                        if entity_name:
+                            normalized_name = normalize_entity_name(entity_name)
+                            if normalized_name != entity_name:
+                                logger.info(f"Context entity normalized: '{entity_name}' → '{normalized_name}'")
+                                entity_name = normalized_name
+
+                        if entity_name:
+                            mentions_to_create.append(
+                                {
+                                    "entity": entity_name,
+                                    "entity_type": entity_type,
+                                    "article_id": article_id_str,
+                                    "sentiment": entity_sentiment,
+                                    "confidence": entity.get("confidence", 1.0),
+                                    "source": article_source,
+                                    "is_primary": False,
+                                    "metadata": {
+                                        "article_title": article.get("title", ""),
+                                        "article_source": article_source,
+                                    },
+                                    "created_at": datetime.now(timezone.utc),
+                                }
+                            )
+
+                    # Bulk insert mentions
+                    if mentions_to_create:
+                        try:
+                            await db.entity_mentions.insert_many(mentions_to_create)
+                            logger.info(f"Created {len(mentions_to_create)} entity mentions for article {article_id_str}")
+                        except Exception as e:
+                            logger.error(f"Failed to insert entity mentions for {article_id_str}: {e}")
+
+                processed += 1
+
+        except Exception as e:
+            logger.error(f"Error enriching batch {batch_start}-{batch_end}: {e}")
+            continue
+
+    total_enriched = processed
+
+    if total_enriched:
         logger.info(
-            "Enriched %s article(s) with sentiment, themes, keywords, and entities",
-            processed,
+            "✅ Batch enriched %s article(s) with sentiment, themes, keywords, and entities (TASK-025)",
+            total_enriched,
         )
         # Log tier distribution
         logger.info(
             f"📊 Relevance tiers: 🔥 High={tier_counts[1]}, 📰 Medium={tier_counts[2]}, 🔇 Low={tier_counts[3]}"
         )
-
-    return processed
-
+    return total_enriched
 
 async def schedule_rss_fetch(interval_seconds: int, run_immediately: bool = False) -> None:
     """Continuously run the RSS fetcher on a fixed interval.

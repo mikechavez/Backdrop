@@ -1,147 +1,79 @@
+# Sprint 12 — Backdrop Stability & Production-Grade Monitoring
+
+**Status:** Not Started
+**Started:**
+**Target:** Open-ended (until stable)
+
 ---
-created: 2026-02-25
-project: Backdrop (Context Owl)
-sprint_number: 11
-status: in-progress
+
+## Sprint Goal
+
+_Get Backdrop continuously operational and affordable, then integrate NVIDIA NeMo Agent Toolkit for production-grade observability and optimization._
+
 ---
-
-# Sprint 11 --- 48-Hour Launch: Substack + Interactive Site + Distribution
-
-**Status:** In Progress **Previous Sprint:** Sprint 10 Complete
-**Duration:** 2026-02-25 to 2026-02-27
-
-------------------------------------------------------------------------
 
 ## Sprint Order
 
-  -------------------------------------------------------------------------
-  #     Ticket             Title                Status             Est
-  ----- ------------------ -------------------- ------------------ --------
-  6     TASK-004           Create OG Image /    ✅ COMPLETE        1 hr
-                           Social Card + Final
-                           Meta Copy + Favicon
+| # | Ticket | Title | Status | Est |
+|---|--------|-------|--------|-----|
+| | | **--- PHASE 1: Triage & Stabilize ---** | | |
+| 1 | TASK-024 | LLM Spend Audit | ✅ COMPLETE | 2 hr |
+| 2 | TASK-025 | Implement Cost Controls | 🔲 OPEN | 3 hr |
+| 3 | TASK-026 | Fix Active LLM Failures (BUG-052) | 🔲 OPEN | 3 hr |
+| 4 | TASK-027 | Health Check & Site Status | 🔲 OPEN | 2 hr |
+| 5 | TASK-028 | Burn-in Validation (72hr) | 🔲 OPEN | 1 hr |
+| | | **--- PHASE 2: NeMo Agent Toolkit ---** | | |
+| 6 | TASK-029 | NeMo Research & Integration Plan | 🔲 OPEN | 2 hr |
+| 7 | FEATURE-051 | NeMo Setup & Workflow Instrumentation | 🔲 OPEN | 4 hr |
+| 8 | FEATURE-052 | Eval Framework & Baselines | 🔲 OPEN | 3 hr |
+| 9 | FEATURE-053 | Optimization & Cost Dashboards | 🔲 OPEN | 4 hr |
 
-  7     TASK-005           Final Polish         ✅ COMPLETE        1.5 hr
-                           Substack Draft
+---
 
-  8     TASK-019           Make Substack CTAs   ✅ COMPLETE        0.5 hr
-                           More Visible
+## Success Criteria
 
-  9     TASK-020           LinkedIn             ✅ DRAFT COMPLETE  0.5 hr
-                           Distribution Post    (needs publish)
+### Phase 1: Stable & Affordable
+- [ ] Root cause of LLM spend identified and documented in `_generated/evidence/13-llm-spend-audit.md`
+- [ ] Per-system cost controls in place (daily limits, circuit breakers)
+- [ ] All three LLM systems operational (briefing generation, entity extraction, sentiment analysis)
+- [ ] No silent failures — all LLM errors logged with context
+- [ ] `/health` endpoint live, frontend status indicator working
+- [ ] System runs 72 hours without intervention
+- [ ] Daily LLM spend under $X (define after audit)
 
-  10    TASK-021           Instagram Story      🔲 OPEN            0.25 hr
-                           (Friends/Family)
+### Phase 2: Production-Grade Monitoring
+- [ ] NeMo Agent Toolkit integrated and capturing telemetry
+- [ ] OpenTelemetry tracing on all three LLM workflows
+- [ ] Eval baselines established (briefing quality, entity accuracy, sentiment accuracy)
+- [ ] Hyperparameter optimization run (model selection, temperature, max_tokens)
+- [ ] Cost dashboard live via telemetry
+- [ ] Cost reduced vs. Phase 1 baseline with quality scores maintained
 
-  11    TASK-022           Facebook             🔲 OPEN            0.25 hr
-                           Distribution Post
-
-  12    TASK-023           LinkedIn Video Post   ✅ LINKEDIN POSTED  2 hr
-                           + X Distribution      (X draft ready)
-                           (Three Walls)
-
-  13    TASK-006/007       X / Reddit / HN      🔲 OPEN            TBD
-                           Distribution
-
-  14    FEATURE-050           Add Google Analytics  ✅ COMPLETE        0.5 hr
-                           (GA4) to Backdrop
-  -------------------------------------------------------------------------
-
-------------------------------------------------------------------------
+---
 
 ## Key Decisions
 
--   **TASK-004** --- ✅ COMPLETE (2026-02-26). Final launch copy locked
-    and deployed. All assets live on https://backdropxyz.vercel.app.
-    Facebook rendering verified. X preview awaiting cache refresh.
+_Decisions made during the sprint that affect scope, priority, or approach._
 
--   **TASK-005** --- ✅ COMPLETE (2026-02-26). Editorial pass
-    complete (revised-4). Final Substack draft assembled with pull-quotes
-    and image placements. Published to Substack. Vercel redeployed with
-    live Substack URLs.
+---
 
-    **Post-publish completion (2026-02-26):**
-    - [x] Published to Substack (live: https://open.substack.com/pub/earlysignalx/p/ai-lets-you-build-faster-than-you)
-    - [x] Grabbed live Substack URL → replaced 5x YOUR_SUBSTACK_URL_HERE in story.html
-    - [x] Redeployed story.html to Vercel
-    - [ ] Distribution posts live (X, LinkedIn, Reddit, HN) — in progress
+## Discovered Work
 
--   **TASK-019** --- ✅ COMPLETE (2026-02-26). Reader feedback: both
-    interactive companion CTAs were invisible when skimming. Bolded and
-    cleaned up copy for both top and bottom CTAs in Substack editor.
+- **TASK-030: Rename GitHub Repo & Update Public-Facing Metadata** — 15 min, manual (GitHub UI). Pre-sprint housekeeping before TASK-024. Repo name still shows legacy name; employers hitting GitHub links from resume/LinkedIn see the wrong project name. Full README rewrite deferred to Sprint 13 backlog.
 
--   **TASK-020** --- ✅ DRAFT COMPLETE (2026-02-26). LinkedIn post
-    drafted. Professional/authoritative tone. Leads with database
-    credentials hook, introduces "cognitive debt" concept, includes
-    concrete metrics. Final copy approved by Mike. Needs publishing +
-    link in first comment.
+---
 
-    **Final post copy:**
-    - Hook: database credentials to public GitHub repo
-    - Concept: cognitive debt (vs technical debt)
-    - Metrics: $100→$10 costs, 67%→90% accuracy
-    - CTA: link in comments to Substack article
-    - Hashtags: #AI #SoftwareEngineering #BuildInPublic #LLMs
+## Completed
 
--   **TASK-023** --- ✅ LINKEDIN POSTED (2026-02-28). New thought leadership
-    content separate from Substack distribution. Video clip from Lenny's Podcast
-    (Jeetu Patel, Cisco President) on three AI deployment constraints + Mike's
-    fourth wall (workforce gap). Positions Mike as practical voice in the
-    Shumer/Citrini AI doom conversation.
+| # | Ticket | Title | Status | Effort |
+|---|--------|-------|--------|--------|
+| 1 | TASK-024 | LLM Spend Audit | ✅ COMPLETE | 2 hr |
 
-    **Pipeline:** yt-dlp download → CapCut (1.15x speed, 9:16 vertical) →
-    Whisper base model (subtitle regen) → CapCut (burn-in captions, MP4 export)
+---
 
-    **LinkedIn performance insight:** No-link teaser posts (2,700 impressions)
-    outperform link posts (326) by 8x. Video post follows this pattern.
+## Next Sprint: RSS Feed Pivot (AI Content)
 
-    **X/Twitter adaptation:** Draft ready, pending final hook refinement and publish.
-    Targeting broader AI/tech builder audience beyond crypto. Riding viral
-    Shumer (85M views) / Citrini (22M views) AI doom conversation wave.
+**Note:** Sprint 13 will overhaul RSS feeds and content sourcing — replacing crypto sources with AI-related articles and information. The core ingestion/processing pipeline stays, but feed list, relevance classifiers, entity models, and briefing prompts all change. This is a major change requiring an ADR before implementation. No action needed this sprint beyond this note.
 
--   **FEATURE-050** --- ✅ COMPLETE (2026-03-02). Add Google Analytics (GA4) to both
-    the React SPA and static Vercel site (story.html). Implemented GA4 hook with
-    React Router integration, proper TypeScript types, and graceful fallback when
-    env var missing. Measurement ID: G-BLF9ZG7TBV. Frontend builds clean.
-
-------------------------------------------------------------------------
-
-## Remaining Work (prioritized)
-
-**✅ BRIEFING GENERATION RESTORED:** Credits added to Anthropic account on 2026-02-27.
-- BUG-050: Endpoint error handling improved to surface API errors clearly
-- Briefing generation tested & working: evening briefing successfully generated
-- BUG-051: Auto-detect briefing type based on time of day (in progress)
-
-1. **FEATURE-050** — ✅ Add Google Analytics (GA4) to React SPA + story.html (code complete, pending Vercel deploy)
-2. **BUG-051** — Auto-detect briefing type based on time of day (code ready, testing)
-3. **TASK-020** — Publish LinkedIn post + link in first comment
-4. **TASK-023** — Post X/Twitter adaptation of Three Walls video post
-5. **TASK-021** — Draft + post Instagram story (friends/family support)
-6. **TASK-022** — Draft + post Facebook distribution post
-7. **TASK-006/007** — X / Reddit / HN distribution posts (Substack article)
-
-------------------------------------------------------------------------
-
-## Success Metrics
-
-### Minimum Success
-
--   [x] Interactive page deployed and functional
--   [x] OG cards rendering correctly (Facebook verified, X awaiting cache refresh)
--   [x] Favicon rendering correctly in browser tab
--   [x] Article editorial pass complete
--   [x] Interactive companion linked from article (top + bottom)
--   [x] Pull-quotes and images placed in final Substack draft
--   [x] Article published on Substack
--   [x] story.html placeholders replaced with live URL (5 locations)
--   [x] Redeployed story.html to Vercel
--   [x] Substack CTAs made more visible (TASK-019)
--   [x] LinkedIn post drafted (TASK-020)
--   [ ] LinkedIn post published
--   [x] LinkedIn video post published (TASK-023 — Three Walls / workforce gap)
--   [ ] X post published (TASK-023 — Three Walls adaptation)
--   [ ] Instagram story posted (TASK-021)
--   [ ] Facebook post published (TASK-022)
--   [ ] X / Reddit / HN distribution posts live (TASK-006/007)
--   [x] Google Analytics live on React SPA + story.html (FEATURE-050 code complete)
+**Backlog for Sprint 13:**
+- Full README rewrite (pairs with RSS pivot — README should reflect what the app actually does post-pivot)

@@ -1,74 +1,77 @@
-# Session Start --- Google Analytics Integration + Distribution
+# Sprint 12 — Backdrop Stability & Production-Grade Monitoring
 
-**Date:** 2026-03-02 **Status:** 🔧 IN PROGRESS
+**Status:** Not Started
+**Started:**
+**Target:** Open-ended (until stable)
 
-------------------------------------------------------------------------
+---
 
-## Previous Session: ✅ COMPLETE
+## Sprint Goal
 
-- ✅ TASK-023: LinkedIn video post published (Three Walls / Jeetu Patel)
-- ✅ TASK-023: X/Twitter draft ready, pending final hook and publish
-- ✅ BUG-050: Briefing endpoint force parameter fixed, deployed, tested
-- ✅ BUG-051: Auto-detect briefing type (code implemented, testing)
-- ✅ TASK-019: Made Substack CTAs more visible
-- ✅ TASK-020: LinkedIn post drafted and finalized
+_Get Backdrop continuously operational and affordable, then integrate NVIDIA NeMo Agent Toolkit for production-grade observability and optimization._
 
-## Current Session: 🔧 IN PROGRESS
+---
 
-### FEATURE-050: Add Google Analytics (GA4) to Backdrop
-**Status:** ✅ COMPLETE (code implementation)
-**Ticket:** `feature-050-google-analytics.md`
-**Complexity:** Low (~25 min actual)
+## Sprint Order
 
-**✅ Implementation Complete (2026-03-02):**
-- Created `src/hooks/useGoogleAnalytics.ts` with `initGA()` and `usePageTracking()` hooks
-- Created `src/types/gtag.d.ts` with proper Window interface types
-- Modified `src/App.tsx` to initialize GA4 on mount, track route changes
-- Added `VITE_GA_MEASUREMENT_ID=G-BLF9ZG7TBV` to `.env`
-- Added GA4 gtag.js snippet to `public/story.html`
-- Frontend builds clean: 2147 modules, 145KB gzipped
-- Measurement ID: **G-BLF9ZG7TBV** (Mike's GA4 property)
+| # | Ticket | Title | Status | Est |
+|---|--------|-------|--------|-----|
+| | | **--- PHASE 1: Triage & Stabilize ---** | | |
+| 1 | TASK-024 | LLM Spend Audit | 🔲 COMPLETE | 2 hr |
+| 2 | TASK-025 | Implement Cost Controls | 🔲 OPEN | 3 hr |
+| 3 | TASK-026 | Fix Active LLM Failures (BUG-052) | 🔲 OPEN | 3 hr |
+| 4 | TASK-027 | Health Check & Site Status | 🔲 OPEN | 2 hr |
+| 5 | TASK-028 | Burn-in Validation (72hr) | 🔲 OPEN | 1 hr |
+| | | **--- PHASE 2: NeMo Agent Toolkit ---** | | |
+| 6 | TASK-029 | NeMo Research & Integration Plan | 🔲 OPEN | 2 hr |
+| 7 | FEATURE-051 | NeMo Setup & Workflow Instrumentation | 🔲 OPEN | 4 hr |
+| 8 | FEATURE-052 | Eval Framework & Baselines | 🔲 OPEN | 3 hr |
+| 9 | FEATURE-053 | Optimization & Cost Dashboards | 🔲 OPEN | 4 hr |
 
-**Remaining (manual — Mike):**
-1. Add `VITE_GA_MEASUREMENT_ID=G-BLF9ZG7TBV` to Vercel Environment Variables dashboard
-2. Redeploy: `vercel --prod`
-3. Verify GA4 Realtime dashboard shows traffic
+---
 
-**Files changed:**
+## Success Criteria
 
-| Action | File |
-|--------|------|
-| NEW    | `context-owl-ui/src/hooks/useGoogleAnalytics.ts` |
-| NEW    | `context-owl-ui/src/types/gtag.d.ts` |
-| EDIT   | `context-owl-ui/src/App.tsx` |
-| EDIT   | `context-owl-ui/.env` |
-| EDIT   | `context-owl-ui/public/story.html` |
-| CONFIG | Vercel dashboard (pending) |
+### Phase 1: Stable & Affordable
+- [ ] Root cause of LLM spend identified and documented in `_generated/evidence/13-llm-spend-audit.md`
+- [ ] Per-system cost controls in place (daily limits, circuit breakers)
+- [ ] All three LLM systems operational (briefing generation, entity extraction, sentiment analysis)
+- [ ] No silent failures — all LLM errors logged with context
+- [ ] `/health` endpoint live, frontend status indicator working
+- [ ] System runs 72 hours without intervention
+- [ ] Daily LLM spend under $X (define after audit)
 
-------------------------------------------------------------------------
+### Phase 2: Production-Grade Monitoring
+- [ ] NeMo Agent Toolkit integrated and capturing telemetry
+- [ ] OpenTelemetry tracing on all three LLM workflows
+- [ ] Eval baselines established (briefing quality, entity accuracy, sentiment accuracy)
+- [ ] Hyperparameter optimization run (model selection, temperature, max_tokens)
+- [ ] Cost dashboard live via telemetry
+- [ ] Cost reduced vs. Phase 1 baseline with quality scores maintained
 
-## Next Up (prioritized)
+---
 
-1. **FEATURE-050** — ✅ GA4 integration (code complete, awaiting Vercel env var + deploy)
-2. **TASK-023** — Finalize and post X/Twitter adaptation of Three Walls video
-3. **TASK-020** — Publish Substack LinkedIn post + link as first comment
-4. **TASK-021** — Draft + post Instagram story (friends/family support push)
-5. **TASK-022** — Draft + post Facebook distribution post
-6. **TASK-006/007** — X / Reddit / HN distribution posts (Substack article)
+## Key Decisions
 
-------------------------------------------------------------------------
+_Decisions made during the sprint that affect scope, priority, or approach._
 
-## Key Links
+---
 
-- **Substack article:** https://open.substack.com/pub/earlysignalx/p/ai-lets-you-build-faster-than-you
-- **Interactive companion:** https://backdropxyz.vercel.app/story.html
-- **Vercel site:** https://backdropxyz.vercel.app
-- **GA4 dashboard:** https://analytics.google.com (after setup)
+## Discovered Work
 
-------------------------------------------------------------------------
+- **TASK-030: Rename GitHub Repo & Update Public-Facing Metadata** — 15 min, manual (GitHub UI). Pre-sprint housekeeping before TASK-024. Repo name still shows legacy name; employers hitting GitHub links from resume/LinkedIn see the wrong project name. Full README rewrite deferred to Sprint 13 backlog.
 
-## Files
+---
 
-- **Sprint doc:** `current-sprint.md`
-- **This session ticket:** `feature-050-google-analytics.md`
-- **Other open tickets:** `task-020-linkedin-distribution-post.md`, `task-021-instagram-story.md`, `task-022-facebook-distribution-post.md`, `task-023-linkedin-video-x-distribution.md`
+## Completed
+
+_Move tickets here as they finish._
+
+---
+
+## Next Sprint: RSS Feed Pivot (AI Content)
+
+**Note:** Sprint 13 will overhaul RSS feeds and content sourcing — replacing crypto sources with AI-related articles and information. The core ingestion/processing pipeline stays, but feed list, relevance classifiers, entity models, and briefing prompts all change. This is a major change requiring an ADR before implementation. No action needed this sprint beyond this note.
+
+**Backlog for Sprint 13:**
+- Full README rewrite (pairs with RSS pivot — README should reflect what the app actually does post-pivot)
