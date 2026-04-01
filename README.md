@@ -1,4 +1,4 @@
-# Crypto News Aggregator
+# Backdrop
 
 A real-time cryptocurrency news aggregator that collects articles from various sources, performs sentiment analysis, and provides insights into market trends.
 
