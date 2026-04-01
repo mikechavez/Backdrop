@@ -20,6 +20,7 @@ from typing import Dict, Any, List, Optional
 from dataclasses import dataclass
 
 from crypto_news_aggregator.core.config import get_settings
+from crypto_news_aggregator.llm.exceptions import LLMError
 from crypto_news_aggregator.db.mongodb import mongo_manager
 from crypto_news_aggregator.db.operations.briefing import (
     insert_briefing,
@@ -158,6 +159,8 @@ class BriefingAgent:
             logger.info(f"Successfully generated {briefing_type} briefing")
             return briefing_doc
 
+        except LLMError:
+            raise
         except Exception as e:
             logger.exception(f"Failed to generate {briefing_type} briefing: {e}")
             return None
@@ -795,7 +798,7 @@ Return ONLY valid JSON in the same format as before."""
                         try:
                             error_data = response.json()
                             logger.error(f"API error response: {error_data}")
-                        except:
+                        except Exception:
                             logger.error(f"API error body: {response.text[:500]}")
                     response.raise_for_status()
                     data = response.json()
@@ -832,10 +835,10 @@ Return ONLY valid JSON in the same format as before."""
                 if e.response.status_code == 403:
                     logger.warning(f"403 Forbidden for model {model}, trying fallback...")
                     continue
-                logger.error(f"LLM API error: {e.response.status_code}")
+                logger.error(f"LLM API error: {e.response.status_code}", exc_info=True)
                 raise
             except Exception as e:
-                logger.error(f"LLM call failed: {e}")
+                logger.error(f"LLM call failed: {e}", exc_info=True)
                 raise
 
         raise RuntimeError("All LLM models failed")

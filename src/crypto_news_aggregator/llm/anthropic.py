@@ -5,6 +5,7 @@ from typing import List, Dict, Any
 import httpx
 from .base import LLMProvider
 from .tracking import track_usage
+from .exceptions import LLMError
 from ..services.entity_normalization import normalize_entity_name
 from ..services.rate_limiter import get_rate_limiter
 from ..services.circuit_breaker import get_circuit_breaker
@@ -35,6 +36,9 @@ class AnthropicProvider(LLMProvider):
         not just briefings. Sonnet fallback causes unnecessary 5x cost escalation.
         Sonnet is only used in briefing_agent.py which has its own separate model fallback chain.
         See BUG-039 for context.
+
+        Raises:
+            LLMError: On any API failure (auth, rate limit, server error, timeout, etc.)
         """
         # Use primary model only (Haiku) - no expensive fallback
         model = self.model_name
@@ -58,27 +62,31 @@ class AnthropicProvider(LLMProvider):
                 data = response.json()
                 return data.get("content", [{}])[0].get("text", "")
         except httpx.HTTPStatusError as e:
-            if e.response.status_code == 403:
-                logger.warning(
-                    f"403 Forbidden for model {model}. "
-                    f"NOT falling back to Sonnet (BUG-039). "
-                    f"Will retry or fail gracefully."
-                )
-                try:
-                    error_json = e.response.json()
-                    error_msg = error_json.get("error", {}).get("message", "")
-                    logger.debug(f"Error details: {error_msg}")
-                except:
-                    pass
+            status = e.response.status_code
+            try:
+                error_msg = e.response.json().get("error", {}).get("message", e.response.text[:200])
+            except Exception:
+                error_msg = e.response.text[:200]
+
+            if status == 403:
+                error_type = "auth_error"
+            elif status == 429:
+                error_type = "rate_limit"
+            elif status >= 500:
+                error_type = "server_error"
             else:
-                # For non-403 errors, log and return empty
-                logger.error(
-                    f"Anthropic API request failed with status {e.response.status_code}: {e.response.text}"
-                )
-            return ""
+                error_type = "unexpected"
+
+            logger.error(f"Anthropic API error {status} for model {model}: {error_msg}", exc_info=True)
+            raise LLMError(error_msg, error_type=error_type, model=model, status_code=status)
+        except httpx.TimeoutException as e:
+            logger.error(f"Anthropic API timeout for model {model}", exc_info=True)
+            raise LLMError("Request timed out", error_type="timeout", model=model)
+        except LLMError:
+            raise
         except Exception as e:
-            logger.error(f"An unexpected error occurred: {e}")
-            return ""
+            logger.error(f"Unexpected error calling Anthropic API: {e}", exc_info=True)
+            raise LLMError(str(e), error_type="unexpected", model=model)
 
     def _get_completion_with_usage(self, prompt: str) -> tuple[str, dict]:
         """
@@ -87,6 +95,9 @@ class AnthropicProvider(LLMProvider):
 
         Returns:
             Tuple of (response_text, usage_dict) where usage_dict has input_tokens and output_tokens
+
+        Raises:
+            LLMError: On any API failure (auth, rate limit, server error, timeout, etc.)
         """
         model = self.model_name
 
@@ -111,20 +122,37 @@ class AnthropicProvider(LLMProvider):
                 usage = data.get("usage", {})
                 return text, usage
         except httpx.HTTPStatusError as e:
-            if e.response.status_code != 403:
-                logger.error(
-                    f"Anthropic API request failed with status {e.response.status_code}: {e.response.text}"
-                )
-            return "", {}
+            status = e.response.status_code
+            try:
+                error_msg = e.response.json().get("error", {}).get("message", e.response.text[:200])
+            except Exception:
+                error_msg = e.response.text[:200]
+
+            if status == 403:
+                error_type = "auth_error"
+            elif status == 429:
+                error_type = "rate_limit"
+            elif status >= 500:
+                error_type = "server_error"
+            else:
+                error_type = "unexpected"
+
+            logger.error(f"Anthropic API error {status} for model {model}: {error_msg}", exc_info=True)
+            raise LLMError(error_msg, error_type=error_type, model=model, status_code=status)
+        except httpx.TimeoutException as e:
+            logger.error(f"Anthropic API timeout for model {model}", exc_info=True)
+            raise LLMError("Request timed out", error_type="timeout", model=model)
+        except LLMError:
+            raise
         except Exception as e:
-            logger.error(f"An unexpected error occurred: {e}")
-            return "", {}
+            logger.error(f"Unexpected error calling Anthropic API: {e}", exc_info=True)
+            raise LLMError(str(e), error_type="unexpected", model=model)
 
     @track_usage
     def analyze_sentiment(self, text: str) -> float:
         prompt = f"Analyze the sentiment of this crypto text. Return ONLY a single number from -1.0 (very bearish) to 1.0 (very bullish). Do not include any explanation or additional text. Just the number:\n\n{text}"
-        response = self._get_completion(prompt)
         try:
+            response = self._get_completion(prompt)
             # Extract the first number from the response (in case there's extra text)
             import re
 
@@ -132,6 +160,9 @@ class AnthropicProvider(LLMProvider):
             if numbers:
                 return float(numbers[0])
             return float(response.strip())
+        except LLMError:
+            logger.warning("analyze_sentiment: LLM unavailable, returning 0.0")
+            return 0.0
         except (ValueError, TypeError):
             return 0.0
 
@@ -139,10 +170,14 @@ class AnthropicProvider(LLMProvider):
     def extract_themes(self, texts: List[str]) -> List[str]:
         combined_texts = "\n".join(texts)
         prompt = f"Extract the key crypto themes from the following texts. Respond with ONLY a comma-separated list of keywords (e.g., 'Bitcoin, DeFi, Regulation'). Do not include any preamble.\n\nTexts:\n{combined_texts}"
-        response = self._get_completion(prompt)
-        if response:
-            return [theme.strip() for theme in response.split(",")]
-        return []
+        try:
+            response = self._get_completion(prompt)
+            if response:
+                return [theme.strip() for theme in response.split(",")]
+            return []
+        except LLMError:
+            logger.warning("extract_themes: LLM unavailable, returning empty list")
+            return []
 
     @track_usage
     def generate_insight(self, data: Dict[str, Any]) -> str:
@@ -154,8 +189,8 @@ class AnthropicProvider(LLMProvider):
     @track_usage
     def score_relevance(self, text: str) -> float:
         prompt = f"On a scale from 0.0 to 1.0, how relevant is this text to cryptocurrency market movements? Return ONLY a single floating-point number with no explanation:\n\n{text}"
-        response = self._get_completion(prompt)
         try:
+            response = self._get_completion(prompt)
             # Extract the first number from the response (in case there's extra text)
             import re
 
@@ -163,6 +198,9 @@ class AnthropicProvider(LLMProvider):
             if numbers:
                 return float(numbers[0])
             return float(response.strip())
+        except LLMError:
+            logger.warning("score_relevance: LLM unavailable, returning 0.0")
+            return 0.0
         except (ValueError, TypeError):
             return 0.0
 
