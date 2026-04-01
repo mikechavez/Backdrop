@@ -18,8 +18,8 @@ _Get Backdrop continuously operational and affordable, then integrate NVIDIA NeM
 |---|--------|-------|--------|-----|--------|
 | | | **--- PHASE 1: Triage & Stabilize ---** | | | |
 | 1 | TASK-024 | LLM Spend Audit | ✅ COMPLETE | 2 hr | 2 hr |
-| 2 | TASK-025 | Implement Cost Controls | 🟡 IN_PROGRESS | 3 hr | 4 hr (test fixes + daily limits ready) |
-| 3 | TASK-026 | Fix Active LLM Failures (BUG-052) | 🔲 OPEN | 3 hr | - |
+| 2 | TASK-025 | Implement Cost Controls | ✅ COMPLETE | 3 hr | 4 hr |
+| 3 | TASK-026 | Fix Active LLM Failures (BUG-052) | ✅ COMPLETE | 3 hr | 2.5 hr |
 | 4 | TASK-027 | Health Check & Site Status | 🔲 OPEN | 2 hr | - |
 | 5 | TASK-028 | Burn-in Validation (72hr) | 🔲 OPEN | 1 hr | - |
 | | | **--- PHASE 2: NeMo Agent Toolkit ---** | | |
@@ -33,10 +33,10 @@ _Get Backdrop continuously operational and affordable, then integrate NVIDIA NeM
 ## Success Criteria
 
 ### Phase 1: Stable & Affordable
-- [ ] Root cause of LLM spend identified and documented in `_generated/evidence/13-llm-spend-audit.md`
-- [ ] Per-system cost controls in place (daily limits, circuit breakers)
-- [ ] All three LLM systems operational (briefing generation, entity extraction, sentiment analysis)
-- [ ] No silent failures — all LLM errors logged with context
+- [x] Root cause of LLM spend identified and documented in `_generated/evidence/13-llm-spend-audit.md`
+- [x] Per-system cost controls in place (daily limits, circuit breakers)
+- [x] All three LLM systems operational (briefing generation, entity extraction, sentiment analysis)
+- [x] No silent failures — all LLM errors logged with context
 - [ ] `/health` endpoint live, frontend status indicator working
 - [ ] System runs 72 hours without intervention
 - [ ] Daily LLM spend under $X (define after audit)
@@ -48,6 +48,46 @@ _Get Backdrop continuously operational and affordable, then integrate NVIDIA NeM
 - [ ] Hyperparameter optimization run (model selection, temperature, max_tokens)
 - [ ] Cost dashboard live via telemetry
 - [ ] Cost reduced vs. Phase 1 baseline with quality scores maintained
+
+---
+
+## Session 6 Work Summary (2026-04-01) - TASK-026 COMPLETE ✅
+
+**TASK-026: Fix Active LLM Failures (BUG-052) - COMPLETE** ✅
+
+### Implementation Summary:
+Implemented comprehensive structured error handling across all LLM systems to eliminate silent failures and enable visibility into LLM errors.
+
+### Work Completed:
+- ✅ Created `LLMError` exception class with error_type classification
+- ✅ Fixed `anthropic.py` to raise exceptions instead of returning empty strings
+- ✅ Updated sentiment/relevance/themes methods to catch LLMError and return graceful defaults
+- ✅ Fixed `briefing_agent.py` to propagate LLM errors (don't swallow them)
+- ✅ Fixed `briefing_tasks.py` to distinguish LLM failures from clean skips
+- ✅ Added `error_type` field to API response with HTTP code mapping
+- ✅ Replaced bare except: with explicit Exception handling
+- ✅ Added exc_info=True to all error logging for stack traces
+
+### Test Results:
+- **test_llm_exceptions.py:** 10/10 ✅
+- **test_anthropic_error_handling.py:** 13/13 ✅
+- **test_briefing_agent_error_handling.py:** 5/5 ✅
+- **test_briefing_generate_endpoint.py:** 3/3 ✅
+- **Total:** 31/31 ✅
+
+### Impact:
+- No more silent failures — every LLM error logged with full context
+- Celery tasks can distinguish LLM failures from intentional skips
+- API returns machine-readable error types (auth_error→502, others→503)
+- Resolves BUG-052 completely
+
+### Commits:
+- `79a9fe1` - fix(llm): Implement structured error handling for LLM failures (TASK-026)
+- `325a8e5` - docs: Complete TASK-026 documentation
+
+### Remaining:
+- Create PR from `feature/task-025-cost-controls` to `main` (contains both TASK-025 & TASK-026)
+- Deploy to prod (Railway)
 
 ---
 
