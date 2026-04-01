@@ -51,6 +51,38 @@ _Get Backdrop continuously operational and affordable, then integrate NVIDIA NeM
 
 ---
 
+## Session 4 Work Summary (2026-04-01)
+
+**TASK-025 Stage 1: Rate Limit Integration - COMPLETE ✅**
+
+**Completed:**
+- ✅ Integrated rate limit checks into all LLM client methods:
+  - `analyze_sentiment_tracked()` - checks sentiment_analysis limit
+  - `extract_themes_tracked()` - checks theme_extraction limit
+  - `score_relevance_tracked()` - checks relevance_scoring limit
+  - `enrich_articles_batch()` - checks both sentiment_analysis + theme_extraction limits
+  - `extract_entities_batch()` - checks entity_extraction limit
+- ✅ Graceful degradation: methods return empty/0.0 when limit hit
+- ✅ Rate limiter incremented after successful API calls
+- ✅ Created 9 integration tests for rate limit enforcement, all passing
+- ✅ Committed: `feat(cost-controls): Integrate rate limits into LLM client methods (TASK-025 Stage 1)`
+
+**Test Status:**
+- Rate limit integration tests: 9/9 ✅
+- All earlier cost control tests: 25/25 ✅
+- Total: 34/34 ✅
+
+**Files Changed:**
+- `src/crypto_news_aggregator/llm/anthropic.py` - Added rate limit checks + increments (76 lines)
+- `tests/integration/test_rate_limit_integration.py` - New comprehensive test suite (230 lines)
+
+**Remaining for TASK-025:**
+- Implement circuit breaker for failure recovery (~45 min)
+- Implement spend logging aggregation (~30 min)
+- End-to-end integration testing (~20 min)
+
+**Estimated remaining:** ~1.5 hours to complete TASK-025
+
 ## Session 3 Work Summary (2026-04-01)
 
 **Completed:**
@@ -73,12 +105,6 @@ _Get Backdrop continuously operational and affordable, then integrate NVIDIA NeM
 - `tests/integration/test_llm_cost_tracking.py` - Updated model names
 - `tests/services/test_rate_limiter.py` - Added MockRedis implementation
 - `tests/integration/test_backfill_narratives.py` - Fixed async mock setup
-
-**Remaining for TASK-025:**
-- Integrate rate limits into API endpoints (briefing, entity_extraction, sentiment_analysis)
-- Implement circuit breaker for failure recovery
-- Implement spend logging aggregation
-- End-to-end integration testing
 
 ## Session 2 Work Summary (2026-03-31, afternoon)
 
