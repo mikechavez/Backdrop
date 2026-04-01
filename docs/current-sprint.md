@@ -51,6 +51,29 @@ _Get Backdrop continuously operational and affordable, then integrate NVIDIA NeM
 
 ---
 
+## Session 5 Work Summary (2026-04-01)
+
+**TASK-025 Stage 3: Spend Logging Aggregation - COMPLETE ✅**
+
+**Completed:**
+- ✅ Added cost tracking to `extract_entities_batch()` (async background task)
+- ✅ Implemented `get_cost_by_operation()` for per-operation spend aggregation
+- ✅ Implemented `get_cost_by_model()` for per-model spend aggregation
+- ✅ Created 9 comprehensive integration tests for spend logging
+
+**Cost Control Coverage (ALL SYSTEMS TRACKED):**
+1. **Briefing Generation** - tracked via briefing_agent.py ✅
+2. **Entity Extraction** - tracked via extract_entities_batch() ✅ (NEW)
+3. **Sentiment/Theme/Relevance** - tracked via *_tracked() methods ✅
+
+**Test Status:**
+- Total cost control tests: 36/36 ✅
+- New spend logging tests: 9/9 ✅
+- All stages (1-3) tests: 62/62 passing
+
+**Remaining for TASK-025:**
+- Stage 4: End-to-end integration testing (~20 min)
+
 ## Session 4 Work Summary (2026-04-01)
 
 **TASK-025 Stage 1: Rate Limit Integration - COMPLETE ✅**

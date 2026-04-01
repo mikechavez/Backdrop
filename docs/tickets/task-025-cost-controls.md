@@ -3,13 +3,13 @@ ticket_id: TASK-025
 title: Implement Cost Controls
 priority: critical
 severity: high
-status: IN_PROGRESS (Session 4: Stage 1 + Stage 2 COMPLETE)
+status: IN_PROGRESS (Session 4: Stage 1-3 COMPLETE)
 date_created: 2026-03-31
 date_started: 2026-03-31
 branch: feature/task-025-cost-controls
 pr: https://github.com/mikechavez/Backdrop/pull/227
 effort_estimate: 3 hr
-effort_actual: 4 hr (impl + tests); remaining: spend logging (~30 min)
+effort_actual: 4.5 hr (impl + tests); remaining: E2E testing (~20 min)
 ---
 
 # TASK-025: Implement Cost Controls
@@ -23,6 +23,58 @@ There are no guardrails preventing runaway LLM spend. When something goes wrong 
 ---
 
 ## Implementation Status
+
+### SESSION 4 SUMMARY (2026-04-01) - STAGE 3 COMPLETE (SPEND LOGGING AGGREGATION)
+
+**✅ SPEND LOGGING AGGREGATION - COMPLETE**
+
+**Added cost tracking to entity extraction:**
+- `extract_entities_batch()` now logs costs asynchronously via background task
+- Uses same pattern as async tracked methods (sentiment, theme, relevance)
+- Thread-safe async execution in sync context
+
+**Implemented spend aggregation methods in CostTracker:**
+- `get_cost_by_operation(days)` - Aggregates spend by operation type (sentiment_analysis, entity_extraction, theme_extraction, briefing_generation, etc.)
+- `get_cost_by_model(days)` - Aggregates spend by model (Haiku, Sonnet, Opus)
+- Both return: `{operation/model: {"cost": float, "calls": int}, ...}`
+
+**Cost tracking coverage (ALL systems now tracked):**
+- ✅ System 1 (Briefing Generation) - `briefing_agent.py` - tracked via `track_call()` async
+- ✅ System 2 (Entity Extraction) - `extract_entities_batch()` - NEW tracking added
+- ✅ System 3 (Sentiment/Theme/Relevance) - `*_tracked()` methods - tracked via `track_call()` async
+
+**Spend logging to MongoDB:**
+- Every LLM call logged: timestamp, operation, model, input_tokens, output_tokens, cost
+- Cost calculation: `(tokens / 1,000,000) * price_per_million` rounded to 6 decimals
+- Cached calls tracked with `cached: True, cost: 0.0`
+
+**Test Coverage - 9 new integration tests (all passing):**
+- `test_cost_tracker_logs_to_database` - Verify document structure and calculations
+- `test_entity_extraction_cost_tracking` - Entity extraction logging
+- `test_get_cost_by_operation` - Per-operation aggregation
+- `test_get_cost_by_model` - Per-model aggregation
+- `test_multiple_systems_cost_tracking` - Multi-system independence
+- `test_cached_call_zero_cost` - Cache hit handling
+- `test_get_daily_cost_aggregation` - Daily spend summary
+- `test_get_monthly_cost_aggregation` - Monthly spend summary
+- `test_empty_cost_aggregation` - Edge case handling
+
+**Test Results:**
+- `tests/integration/test_spend_logging_aggregation.py` - 9/9 ✅ (NEW)
+- `tests/integration/test_cost_tracking_e2e.py` - 6/6 ✅
+- `tests/integration/test_llm_cost_tracking.py` - 9/9 ✅
+- `tests/services/test_cost_tracker.py` - 8/8 ✅
+- **Total: 36/36 cost control tests passing** (was 27)
+
+**Files Modified:**
+- `src/crypto_news_aggregator/llm/anthropic.py` - Added cost tracking to `extract_entities_batch()`
+- `src/crypto_news_aggregator/services/cost_tracker.py` - Added `get_cost_by_operation()` and `get_cost_by_model()`
+- `tests/integration/test_spend_logging_aggregation.py` - New test suite (366 lines, 9 tests)
+
+**Commit:** `feat(cost-controls): Add entity extraction cost tracking and spend logging aggregation (TASK-025 Stage 3)`
+
+**Next steps:**
+- Stage 4: End-to-end integration testing (~20 min)
 
 ### SESSION 4 SUMMARY (2026-04-01) - STAGE 1 & 2 COMPLETE
 
