@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { BookOpen, TrendingUp, Newspaper, FileText, DollarSign, Moon, Sun, Sparkles } from 'lucide-react';
 import { cn } from '../lib/cn';
 import { useTheme } from '../contexts/ThemeContext';
+import { StatusIndicator } from './StatusIndicator';
 
 interface LayoutProps {
   children: ReactNode;
@@ -51,6 +52,7 @@ export function Layout({ children }: LayoutProps) {
               </div>
             </div>
             <div className="flex items-center gap-3">
+              <StatusIndicator />
               {/* Story page CTA — amber pill, visually distinct from blue product nav */}
               <a
                 href="/story.html"
