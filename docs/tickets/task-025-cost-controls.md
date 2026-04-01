@@ -3,10 +3,13 @@ ticket_id: TASK-025
 title: Implement Cost Controls
 priority: critical
 severity: high
-status: OPEN
+status: IN_PROGRESS (Priorities 1-3 implemented; testing deferred to next session)
 date_created: 2026-03-31
-branch:
+date_started: 2026-03-31
+branch: feature/task-025-cost-controls
+pr: https://github.com/mikechavez/Backdrop/pull/227
 effort_estimate: 3 hr
+effort_actual: 2 hr (implementation); testing TBD
 ---
 
 # TASK-025: Implement Cost Controls
@@ -19,7 +22,44 @@ There are no guardrails preventing runaway LLM spend. When something goes wrong 
 
 ---
 
-## Task
+## Implementation Status
+
+### ✅ COMPLETED (In This Session)
+
+#### Priority 1: Enable Cost Tracking for System 3
+- ✅ Added `_get_completion_with_usage()` method to extract token metrics from API responses
+- ✅ Created async tracked variants:
+  - `score_relevance_tracked()` — tracks relevance_scoring operation
+  - `analyze_sentiment_tracked()` — tracks sentiment_analysis operation
+  - `extract_themes_tracked()` — tracks theme_extraction operation
+- ✅ Integrated `CostTracker.track_call()` using asyncio.create_task() (non-blocking)
+- **Result:** System 3 (sentiment/theme/relevance) now has full cost visibility (was 100% untracked)
+
+#### Priority 2: Fix CostTracker Config Zeros
+- ✅ `ANTHROPIC_ENTITY_INPUT_COST_PER_1K_TOKENS`: 0.0 → **0.80** (config.py:50)
+- ✅ `ANTHROPIC_ENTITY_OUTPUT_COST_PER_1K_TOKENS`: 0.0 → **4.0** (config.py:51)
+- **Result:** Entity extraction cost now visible in logs (was reporting $0.00)
+
+#### Priority 3: Implement Request Batching (50% cost reduction)
+- ✅ Added `enrich_articles_batch()` method to batch up to 10 articles per API call
+- ✅ Refactored RSS enrichment loop from per-article to batch processing
+- ✅ Single LLM call returns: relevance_score, sentiment_score, themes for entire batch
+- **Impact:** Reduces HTTP calls from 3N → N/10 (e.g., 30 articles: 90 calls → 3 calls)
+
+### 🔴 TEST FAILURES DISCOVERED
+
+When running `poetry run pytest tests/ -k "cost"`, found 12 failing tests:
+- Cost tracker pricing model mismatch (tests expect `claude-3-5-haiku-20241022`, code has `claude-haiku-4-5-20251001`)
+- Pricing values in tests vs CostTracker.PRICING dict inconsistency
+- See: tests/services/test_cost_tracker.py failures
+
+**Decision:** Defer test fixes and full validation to next session (user request).
+
+### 🚀 NOT YET IMPLEMENTED
+
+Per the ticket spec, these remain for follow-up work:
+
+## Task (Original Scope - TBD Next Session)
 
 ### 1. Per-System Daily Call Limits
 - Implement a daily call counter per system (briefing, entity extraction, sentiment, narrative themes)

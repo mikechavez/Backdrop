@@ -14,14 +14,14 @@ _Get Backdrop continuously operational and affordable, then integrate NVIDIA NeM
 
 ## Sprint Order
 
-| # | Ticket | Title | Status | Est |
-|---|--------|-------|--------|-----|
-| | | **--- PHASE 1: Triage & Stabilize ---** | | |
-| 1 | TASK-024 | LLM Spend Audit | ✅ COMPLETE | 2 hr |
-| 2 | TASK-025 | Implement Cost Controls | 🔲 OPEN | 3 hr |
-| 3 | TASK-026 | Fix Active LLM Failures (BUG-052) | 🔲 OPEN | 3 hr |
-| 4 | TASK-027 | Health Check & Site Status | 🔲 OPEN | 2 hr |
-| 5 | TASK-028 | Burn-in Validation (72hr) | 🔲 OPEN | 1 hr |
+| # | Ticket | Title | Status | Est | Actual |
+|---|--------|-------|--------|-----|--------|
+| | | **--- PHASE 1: Triage & Stabilize ---** | | | |
+| 1 | TASK-024 | LLM Spend Audit | ✅ COMPLETE | 2 hr | 2 hr |
+| 2 | TASK-025 | Implement Cost Controls | 🟡 IN_PROGRESS | 3 hr | 2 hr (impl); testing TBD |
+| 3 | TASK-026 | Fix Active LLM Failures (BUG-052) | 🔲 OPEN | 3 hr | - |
+| 4 | TASK-027 | Health Check & Site Status | 🔲 OPEN | 2 hr | - |
+| 5 | TASK-028 | Burn-in Validation (72hr) | 🔲 OPEN | 1 hr | - |
 | | | **--- PHASE 2: NeMo Agent Toolkit ---** | | |
 | 6 | TASK-029 | NeMo Research & Integration Plan | 🔲 OPEN | 2 hr |
 | 7 | FEATURE-051 | NeMo Setup & Workflow Instrumentation | 🔲 OPEN | 4 hr |
@@ -51,9 +51,41 @@ _Get Backdrop continuously operational and affordable, then integrate NVIDIA NeM
 
 ---
 
+## Session 1 Work Summary (2026-03-31)
+
+**What was completed:**
+
+### Cost Tracking Enabled (System 3)
+- Implemented `_get_completion_with_usage()` to extract token metrics from Anthropic API responses
+- Created async tracked methods for sentiment, theme, and relevance scoring
+- All enrichment operations now tracked via CostTracker.track_call() (non-blocking async)
+- Operations tracked: `relevance_scoring`, `sentiment_analysis`, `theme_extraction`
+
+### Config Fix
+- Fixed pricing config zeros: `ENTITY_INPUT_COST=0.0→0.80`, `ENTITY_OUTPUT_COST=0.0→4.0`
+- Entity extraction cost now visible in cost tracking logs
+
+### Batch Enrichment (50% cost reduction)
+- Implemented `enrich_articles_batch()` for batch processing up to 10 articles/call
+- Refactored RSS enrichment loop from per-article (3N calls) to batched (N/10 calls)
+- Example: 30 articles now cost 3 API calls instead of 90
+
+### Branch & PR
+- Branch: `feature/task-025-cost-controls`
+- PR #227: feat(cost-controls): Implement LLM cost tracking and batching
+- Commit: 00ae29e
+
+**What's remaining:**
+- Fix test failures (12 tests failing due to model name/pricing mismatches)
+- Implement daily call limits (Priority task, not yet started)
+- Implement circuit breakers (Priority task, not yet started)
+- Full end-to-end testing
+
 ## Key Decisions
 
 _Decisions made during the sprint that affect scope, priority, or approach._
+
+- **TASK-025 deferred to multi-session:** Cost tracking (Priorities 1-3) implemented; testing and remaining items (daily limits, circuit breakers) deferred to next session per user request
 
 ---
 
