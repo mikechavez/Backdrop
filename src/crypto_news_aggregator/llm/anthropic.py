@@ -372,6 +372,38 @@ Return ONLY the JSON array, no other text."""
                     except Exception as e:
                         logger.warning(f"Failed to increment rate limiter for entity_extraction: {e}")
 
+                    # Track cost (async, non-blocking)
+                    try:
+                        from crypto_news_aggregator.services.cost_tracker import CostTracker
+                        from crypto_news_aggregator.db.mongo_manager import mongo_manager
+                        import asyncio
+
+                        async def _track_entity_cost():
+                            db = await mongo_manager.get_async_database()
+                            tracker = CostTracker(db)
+                            await tracker.track_call(
+                                operation="entity_extraction",
+                                model=entity_model,
+                                input_tokens=input_tokens,
+                                output_tokens=output_tokens,
+                            )
+
+                        # Schedule as background task if we have event loop
+                        try:
+                            loop = asyncio.get_event_loop()
+                            if loop.is_running():
+                                asyncio.create_task(_track_entity_cost())
+                            else:
+                                # If no running loop, try to run synchronously via thread
+                                import threading
+                                threading.Thread(target=lambda: asyncio.run(_track_entity_cost()), daemon=True).start()
+                        except RuntimeError:
+                            # No event loop in current thread, schedule in thread
+                            import threading
+                            threading.Thread(target=lambda: asyncio.run(_track_entity_cost()), daemon=True).start()
+                    except Exception as e:
+                        logger.warning(f"Failed to track entity extraction cost: {e}")
+
                     return {
                         "results": results,
                         "usage": {
