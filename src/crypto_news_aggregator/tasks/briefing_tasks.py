@@ -16,6 +16,7 @@ from typing import Optional, Dict, Any
 from celery import shared_task
 
 from crypto_news_aggregator.db.mongodb import initialize_mongodb, mongo_manager
+from crypto_news_aggregator.llm.exceptions import LLMError
 from crypto_news_aggregator.services.briefing_agent import (
     get_briefing_agent,
     generate_morning_briefing,
@@ -120,6 +121,12 @@ def generate_morning_briefing_task(self, force: bool = False, is_smoke: bool = F
                 "reason": "briefing_already_exists",
             }
 
+    except LLMError as exc:
+        logger.error(
+            f"Morning briefing LLM failure [error_type={exc.error_type}, model={exc.model}]: {exc}",
+            exc_info=True,
+        )
+        raise self.retry(exc=exc)
     except Exception as exc:
         logger.exception(f"Morning briefing generation failed: {exc}")
         # Retry on failure
@@ -181,6 +188,12 @@ def generate_evening_briefing_task(self, force: bool = False, is_smoke: bool = F
                 "reason": "briefing_already_exists",
             }
 
+    except LLMError as exc:
+        logger.error(
+            f"Evening briefing LLM failure [error_type={exc.error_type}, model={exc.model}]: {exc}",
+            exc_info=True,
+        )
+        raise self.retry(exc=exc)
     except Exception as exc:
         logger.exception(f"Evening briefing generation failed: {exc}")
         # Retry on failure
@@ -243,6 +256,12 @@ def generate_afternoon_briefing_task(self, force: bool = False, is_smoke: bool =
                 "reason": "briefing_already_exists",
             }
 
+    except LLMError as exc:
+        logger.error(
+            f"Afternoon briefing LLM failure [error_type={exc.error_type}, model={exc.model}]: {exc}",
+            exc_info=True,
+        )
+        raise self.retry(exc=exc)
     except Exception as exc:
         logger.exception(f"Afternoon briefing generation failed: {exc}")
         # Retry on failure

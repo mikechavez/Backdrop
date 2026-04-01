@@ -11,6 +11,7 @@ from fastapi import APIRouter, Query, HTTPException
 from pydantic import BaseModel, Field
 
 from ....db.mongodb import mongo_manager
+from ....llm.exceptions import LLMError
 from ....db.operations.briefing import (
     get_latest_briefing,
     get_briefing_by_type_and_date,
@@ -409,6 +410,7 @@ class GenerateBriefingResponse(BaseModel):
     success: bool
     message: str
     briefing_id: Optional[str] = None
+    error_type: Optional[str] = None
 
 
 def _get_briefing_type_from_time(now: datetime) -> str:
@@ -428,6 +430,17 @@ def _get_briefing_type_from_time(now: datetime) -> str:
         return "afternoon"
     else:  # 17 <= hour or hour < 2
         return "evening"
+
+
+_LLM_ERROR_HTTP_CODES = {
+    "auth_error": 502,
+    "rate_limit": 503,
+    "server_error": 503,
+    "timeout": 503,
+    "all_models_failed": 503,
+    "parse_error": 502,
+    "unexpected": 503,
+}
 
 
 @router.post("/generate", response_model=GenerateBriefingResponse)
@@ -492,6 +505,20 @@ async def generate_briefing_endpoint(request: GenerateBriefingRequest):
     except HTTPException:
         # Re-raise HTTP exceptions (like 400 for invalid type)
         raise
+    except LLMError as e:
+        status_code = _LLM_ERROR_HTTP_CODES.get(e.error_type, 503)
+        logger.error(
+            f"LLM failure generating {briefing_type} briefing [error_type={e.error_type}]: {e}",
+            exc_info=True
+        )
+        raise HTTPException(
+            status_code=status_code,
+            detail={
+                "error_type": e.error_type,
+                "message": str(e),
+                "model": e.model,
+            },
+        )
     except Exception as e:
         logger.exception(f"Error generating briefing: {e}")
         # Return error response instead of 500, so the client gets actionable feedback
