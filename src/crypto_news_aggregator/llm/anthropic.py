@@ -6,6 +6,7 @@ import httpx
 from .base import LLMProvider
 from .tracking import track_usage
 from ..services.entity_normalization import normalize_entity_name
+from ..services.rate_limiter import get_rate_limiter
 
 logger = logging.getLogger(__name__)
 
@@ -171,6 +172,25 @@ class AnthropicProvider(LLMProvider):
         No fallback to Sonnet (see BUG-039).
         """
         from ..core.config import settings
+        import asyncio
+
+        # Rate limit check: entity_extraction
+        try:
+            rate_limiter = get_rate_limiter()
+            # Use sync-style check since this method is synchronous
+            key = rate_limiter._get_daily_key("entity_extraction")
+            count = rate_limiter.redis.get(key)
+            current_count = int(count) if count else 0
+            limit = rate_limiter.limits.get("entity_extraction", 5000)
+
+            if current_count >= limit:
+                logger.warning(
+                    f"Daily limit for 'entity_extraction' hit ({limit} calls). "
+                    f"Resets tomorrow at midnight UTC."
+                )
+                return {"results": [], "usage": {}}
+        except Exception as e:
+            logger.warning(f"Failed to check rate limit for entity_extraction: {e}")
 
         # Build the batch prompt
         articles_text = []
@@ -321,6 +341,15 @@ Return ONLY the JSON array, no other text."""
                             logger.info(f"Sample context entities: {first_result.get('context_entities', [])[:3]}")
 
                     logger.info(f"Successfully extracted entities using {model_label}")
+
+                    # Increment rate limiter counter after successful extraction
+                    try:
+                        rate_limiter = get_rate_limiter()
+                        rate_limiter.redis.incr(rate_limiter._get_daily_key("entity_extraction"))
+                        rate_limiter.redis.expire(rate_limiter._get_daily_key("entity_extraction"), 24 * 60 * 60)
+                    except Exception as e:
+                        logger.warning(f"Failed to increment rate limiter for entity_extraction: {e}")
+
                     return {
                         "results": results,
                         "usage": {
@@ -410,6 +439,18 @@ Return ONLY the JSON array, no other text."""
         if not articles or len(articles) == 0:
             return []
 
+        # Rate limit check: enrich_articles_batch uses both sentiment_analysis and theme_extraction
+        rate_limiter = get_rate_limiter()
+        allowed, message = await rate_limiter.check_limit("sentiment_analysis")
+        if not allowed:
+            logger.warning(f"Rate limit hit for sentiment_analysis: {message}")
+            return []
+
+        allowed, message = await rate_limiter.check_limit("theme_extraction")
+        if not allowed:
+            logger.warning(f"Rate limit hit for theme_extraction: {message}")
+            return []
+
         # Limit to 10 articles per batch (tunable)
         batch_articles = articles[:10]
 
@@ -446,6 +487,11 @@ Articles:
 Return ONLY the JSON array, no other text."""
 
         response_text, usage = self._get_completion_with_usage(prompt)
+
+        # Increment rate limiter counters after successful API call
+        rate_limiter = get_rate_limiter()
+        await rate_limiter.increment("sentiment_analysis")
+        await rate_limiter.increment("theme_extraction")
 
         # Track cost
         try:
@@ -505,8 +551,18 @@ Return ONLY the JSON array, no other text."""
         Returns:
             Relevance score 0.0-1.0
         """
+        # Rate limit check
+        rate_limiter = get_rate_limiter()
+        allowed, message = await rate_limiter.check_limit(operation)
+        if not allowed:
+            logger.warning(f"Rate limit hit for {operation}: {message}")
+            return 0.0
+
         prompt = f"On a scale from 0.0 to 1.0, how relevant is this text to cryptocurrency market movements? Return ONLY a single floating-point number with no explanation:\n\n{text}"
         response_text, usage = self._get_completion_with_usage(prompt)
+
+        # Increment rate limiter counter after successful API call
+        await rate_limiter.increment(operation)
 
         # Track cost asynchronously if tracking is available
         try:
@@ -549,8 +605,18 @@ Return ONLY the JSON array, no other text."""
         Returns:
             Sentiment score -1.0 to 1.0
         """
+        # Rate limit check
+        rate_limiter = get_rate_limiter()
+        allowed, message = await rate_limiter.check_limit(operation)
+        if not allowed:
+            logger.warning(f"Rate limit hit for {operation}: {message}")
+            return 0.0
+
         prompt = f"Analyze the sentiment of this crypto text. Return ONLY a single number from -1.0 (very bearish) to 1.0 (very bullish). Do not include any explanation or additional text. Just the number:\n\n{text}"
         response_text, usage = self._get_completion_with_usage(prompt)
+
+        # Increment rate limiter counter after successful API call
+        await rate_limiter.increment(operation)
 
         # Track cost asynchronously if tracking is available
         try:
@@ -593,9 +659,19 @@ Return ONLY the JSON array, no other text."""
         Returns:
             List of extracted themes
         """
+        # Rate limit check
+        rate_limiter = get_rate_limiter()
+        allowed, message = await rate_limiter.check_limit(operation)
+        if not allowed:
+            logger.warning(f"Rate limit hit for {operation}: {message}")
+            return []
+
         combined_texts = "\n".join(texts)
         prompt = f"Extract the key crypto themes from the following texts. Respond with ONLY a comma-separated list of keywords (e.g., 'Bitcoin, DeFi, Regulation'). Do not include any preamble.\n\nTexts:\n{combined_texts}"
         response_text, usage = self._get_completion_with_usage(prompt)
+
+        # Increment rate limiter counter after successful API call
+        await rate_limiter.increment(operation)
 
         # Track cost asynchronously if tracking is available
         try:

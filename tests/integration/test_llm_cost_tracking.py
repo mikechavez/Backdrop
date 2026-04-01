@@ -45,7 +45,7 @@ async def test_cost_tracker_tracks_api_call(test_db):
     # Track a call
     cost = await tracker.track_call(
         operation="entity_extraction",
-        model="claude-3-5-haiku-20241022",
+        model="claude-haiku-4-5-20251001",
         input_tokens=100,
         output_tokens=50,
         cached=False
@@ -58,7 +58,7 @@ async def test_cost_tracker_tracks_api_call(test_db):
     # Verify database entry
     doc = await test_db.api_costs.find_one({"operation": "entity_extraction"})
     assert doc is not None
-    assert doc["model"] == "claude-3-5-haiku-20241022"
+    assert doc["model"] == "claude-haiku-4-5-20251001"
     assert doc["input_tokens"] == 100
     assert doc["output_tokens"] == 50
     assert doc["cost"] == cost
@@ -73,7 +73,7 @@ async def test_cost_tracker_tracks_cached_call(test_db):
     # Track a cached call
     cost = await tracker.track_call(
         operation="entity_extraction",
-        model="claude-3-5-haiku-20241022",
+        model="claude-haiku-4-5-20251001",
         input_tokens=100,
         output_tokens=50,
         cached=True
@@ -97,7 +97,7 @@ async def test_cost_tracker_different_models(test_db):
     # Haiku call
     haiku_cost = await tracker.track_call(
         operation="test",
-        model="claude-3-5-haiku-20241022",
+        model="claude-haiku-4-5-20251001",
         input_tokens=1000,
         output_tokens=1000,
         cached=False
@@ -106,7 +106,7 @@ async def test_cost_tracker_different_models(test_db):
     # Sonnet call (more expensive)
     sonnet_cost = await tracker.track_call(
         operation="test",
-        model="claude-3-5-sonnet-20241022",
+        model="claude-sonnet-4-5-20250929",
         input_tokens=1000,
         output_tokens=1000,
         cached=False
@@ -115,7 +115,7 @@ async def test_cost_tracker_different_models(test_db):
     # Opus call (most expensive)
     opus_cost = await tracker.track_call(
         operation="test",
-        model="claude-opus-4-5-20251101",
+        model="claude-opus-4-6",
         input_tokens=1000,
         output_tokens=1000,
         cached=False
@@ -222,7 +222,7 @@ async def test_cost_tracker_multiple_operations(test_db):
     # Track different operations
     await tracker.track_call(
         operation="entity_extraction",
-        model="claude-3-5-haiku-20241022",
+        model="claude-haiku-4-5-20251001",
         input_tokens=100,
         output_tokens=50,
         cached=False
@@ -238,7 +238,7 @@ async def test_cost_tracker_multiple_operations(test_db):
 
     await tracker.track_call(
         operation="narrative_summary",
-        model="claude-3-5-sonnet-20241022",
+        model="claude-sonnet-4-5-20250929",
         input_tokens=500,
         output_tokens=300,
         cached=False
@@ -254,9 +254,9 @@ async def test_cost_tracker_multiple_operations(test_db):
     assert narrative_doc is not None
 
     # Verify models
-    assert entity_doc["model"] == "claude-3-5-haiku-20241022"
+    assert entity_doc["model"] == "claude-haiku-4-5-20251001"
     assert briefing_doc["model"] == "claude-sonnet-4-5-20250929"
-    assert narrative_doc["model"] == "claude-3-5-sonnet-20241022"
+    assert narrative_doc["model"] == "claude-sonnet-4-5-20250929"
 
 
 @pytest.mark.asyncio
@@ -268,7 +268,7 @@ async def test_cost_tracker_monthly_cost(test_db):
     for i in range(5):
         await tracker.track_call(
             operation="entity_extraction",
-            model="claude-3-5-haiku-20241022",
+            model="claude-haiku-4-5-20251001",
             input_tokens=100 + i * 10,
             output_tokens=50 + i * 5,
             cached=False
@@ -290,7 +290,7 @@ async def test_cost_tracker_timestamp_recorded(test_db):
 
     await tracker.track_call(
         operation="test_operation",
-        model="claude-3-5-haiku-20241022",
+        model="claude-haiku-4-5-20251001",
         input_tokens=100,
         output_tokens=50,
         cached=False

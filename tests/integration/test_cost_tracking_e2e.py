@@ -24,8 +24,8 @@ class TestCostTrackingE2E:
 
         # Verify tracker has pricing table
         assert hasattr(tracker, "PRICING")
-        assert "claude-3-5-haiku-20241022" in tracker.PRICING
-        assert "claude-3-5-sonnet-20241022" in tracker.PRICING
+        assert "claude-haiku-4-5-20251001" in tracker.PRICING
+        assert "claude-sonnet-4-5-20250929" in tracker.PRICING
 
     async def test_cost_calculation_accuracy(self):
         """Test that cost calculations are accurate."""
@@ -39,17 +39,17 @@ class TestCostTrackingE2E:
 
         # Test Haiku pricing
         haiku_cost = tracker.calculate_cost(
-            model="claude-3-5-haiku-20241022",
+            model="claude-haiku-4-5-20251001",
             input_tokens=1000000,  # 1M tokens
             output_tokens=1000000  # 1M tokens
         )
 
-        # Haiku: input $0.80/1M, output $4.00/1M = $4.80 total
-        assert haiku_cost == pytest.approx(4.80, abs=0.0001)
+        # Haiku: input $1.00/1M, output $5.00/1M = $6.00 total
+        assert haiku_cost == pytest.approx(6.00, abs=0.0001)
 
         # Test Sonnet pricing
         sonnet_cost = tracker.calculate_cost(
-            model="claude-3-5-sonnet-20241022",
+            model="claude-sonnet-4-5-20250929",
             input_tokens=1000000,
             output_tokens=1000000
         )
@@ -73,7 +73,7 @@ class TestCostTrackingE2E:
         # Track a call marked as cached
         cost = await tracker.track_call(
             operation="test_op",
-            model="claude-3-5-haiku-20241022",
+            model="claude-haiku-4-5-20251001",
             input_tokens=1000000,
             output_tokens=1000000,
             cached=True
@@ -94,9 +94,9 @@ class TestCostTrackingE2E:
 
         # Required models
         required_models = [
-            "claude-3-5-haiku-20241022",
-            "claude-3-5-sonnet-20241022",
-            "claude-opus-4-20250514",  # Or similar Opus model
+            "claude-haiku-4-5-20251001",
+            "claude-sonnet-4-5-20250929",
+            "claude-opus-4-6",
         ]
 
         for model in required_models[:2]:  # At least check Haiku and Sonnet
@@ -114,13 +114,13 @@ class TestCostTrackingE2E:
 
         # Test with 100 tokens
         cost = tracker.calculate_cost(
-            model="claude-3-5-haiku-20241022",
+            model="claude-haiku-4-5-20251001",
             input_tokens=100,
             output_tokens=100
         )
 
-        # Haiku: (100/1M * $0.80) + (100/1M * $4.00) = $0.00048
-        assert cost == pytest.approx(0.00048, abs=0.000001)
+        # Haiku: (100/1M * $1.00) + (100/1M * $5.00) = $0.0006
+        assert cost == pytest.approx(0.0006, abs=0.000001)
 
     async def test_multiple_model_pricing(self):
         """Test pricing consistency across models."""
@@ -132,8 +132,8 @@ class TestCostTrackingE2E:
 
         tracker = CostTracker(mock_db)
 
-        haiku_cost = tracker.calculate_cost("claude-3-5-haiku-20241022", 1000, 1000)
-        sonnet_cost = tracker.calculate_cost("claude-3-5-sonnet-20241022", 1000, 1000)
+        haiku_cost = tracker.calculate_cost("claude-haiku-4-5-20251001", 1000, 1000)
+        sonnet_cost = tracker.calculate_cost("claude-sonnet-4-5-20250929", 1000, 1000)
 
         # Sonnet should be more expensive than Haiku
         assert sonnet_cost > haiku_cost

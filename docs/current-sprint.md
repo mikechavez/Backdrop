@@ -14,14 +14,14 @@ _Get Backdrop continuously operational and affordable, then integrate NVIDIA NeM
 
 ## Sprint Order
 
-| # | Ticket | Title | Status | Est |
-|---|--------|-------|--------|-----|
-| | | **--- PHASE 1: Triage & Stabilize ---** | | |
-| 1 | TASK-024 | LLM Spend Audit | ✅ COMPLETE | 2 hr |
-| 2 | TASK-025 | Implement Cost Controls | 🔲 OPEN | 3 hr |
-| 3 | TASK-026 | Fix Active LLM Failures (BUG-052) | 🔲 OPEN | 3 hr |
-| 4 | TASK-027 | Health Check & Site Status | 🔲 OPEN | 2 hr |
-| 5 | TASK-028 | Burn-in Validation (72hr) | 🔲 OPEN | 1 hr |
+| # | Ticket | Title | Status | Est | Actual |
+|---|--------|-------|--------|-----|--------|
+| | | **--- PHASE 1: Triage & Stabilize ---** | | | |
+| 1 | TASK-024 | LLM Spend Audit | ✅ COMPLETE | 2 hr | 2 hr |
+| 2 | TASK-025 | Implement Cost Controls | 🟡 IN_PROGRESS | 3 hr | 4 hr (test fixes + daily limits ready) |
+| 3 | TASK-026 | Fix Active LLM Failures (BUG-052) | 🔲 OPEN | 3 hr | - |
+| 4 | TASK-027 | Health Check & Site Status | 🔲 OPEN | 2 hr | - |
+| 5 | TASK-028 | Burn-in Validation (72hr) | 🔲 OPEN | 1 hr | - |
 | | | **--- PHASE 2: NeMo Agent Toolkit ---** | | |
 | 6 | TASK-029 | NeMo Research & Integration Plan | 🔲 OPEN | 2 hr |
 | 7 | FEATURE-051 | NeMo Setup & Workflow Instrumentation | 🔲 OPEN | 4 hr |
@@ -51,9 +51,106 @@ _Get Backdrop continuously operational and affordable, then integrate NVIDIA NeM
 
 ---
 
+## Session 4 Work Summary (2026-04-01)
+
+**TASK-025 Stage 1: Rate Limit Integration - COMPLETE ✅**
+
+**Completed:**
+- ✅ Integrated rate limit checks into all LLM client methods:
+  - `analyze_sentiment_tracked()` - checks sentiment_analysis limit
+  - `extract_themes_tracked()` - checks theme_extraction limit
+  - `score_relevance_tracked()` - checks relevance_scoring limit
+  - `enrich_articles_batch()` - checks both sentiment_analysis + theme_extraction limits
+  - `extract_entities_batch()` - checks entity_extraction limit
+- ✅ Graceful degradation: methods return empty/0.0 when limit hit
+- ✅ Rate limiter incremented after successful API calls
+- ✅ Created 9 integration tests for rate limit enforcement, all passing
+- ✅ Committed: `feat(cost-controls): Integrate rate limits into LLM client methods (TASK-025 Stage 1)`
+
+**Test Status:**
+- Rate limit integration tests: 9/9 ✅
+- All earlier cost control tests: 25/25 ✅
+- Total: 34/34 ✅
+
+**Files Changed:**
+- `src/crypto_news_aggregator/llm/anthropic.py` - Added rate limit checks + increments (76 lines)
+- `tests/integration/test_rate_limit_integration.py` - New comprehensive test suite (230 lines)
+
+**Remaining for TASK-025:**
+- Implement circuit breaker for failure recovery (~45 min)
+- Implement spend logging aggregation (~30 min)
+- End-to-end integration testing (~20 min)
+
+**Estimated remaining:** ~1.5 hours to complete TASK-025
+
+## Session 3 Work Summary (2026-04-01)
+
+**Completed:**
+- ✅ Fixed `RedisRESTClient.incr()` None handling bug
+- ✅ Updated 14 cost tracker tests to use current Claude models
+- ✅ Implemented `MockRedis` for rate limiter unit tests  
+- ✅ Fixed backfill narrative test async mocks
+- ✅ All 25 core cost control tests now passing
+- ✅ Committed fixes: `fix(cost-controls): Fix test failures for TASK-025`
+
+**Test Status:**
+- Rate limiter: 10/10 ✅
+- Cost tracking E2E: 6/6 ✅
+- LLM cost tracking: 9/9 ✅
+- Total cost controls: 25/25 ✅
+
+**Files Changed:**
+- `src/crypto_news_aggregator/core/redis_rest_client.py` - Fixed incr() None handling
+- `tests/integration/test_cost_tracking_e2e.py` - Updated model names (haiku-4-5, sonnet-4-5, opus-4-6)
+- `tests/integration/test_llm_cost_tracking.py` - Updated model names
+- `tests/services/test_rate_limiter.py` - Added MockRedis implementation
+- `tests/integration/test_backfill_narratives.py` - Fixed async mock setup
+
+## Session 2 Work Summary (2026-03-31, afternoon)
+
+**Completed:**
+- ✅ Fixed all 8 cost tracker test failures (model/pricing mismatches)
+- ✅ Created RateLimiter service with Redis backing for per-system daily limits
+- ✅ Added `incr()` method to RedisRESTClient
+- ✅ Created 10 unit tests for RateLimiter (needed mock fix)
+
+---
+
+## Session 1 Work Summary (2026-03-31)
+
+**What was completed:**
+
+### Cost Tracking Enabled (System 3)
+- Implemented `_get_completion_with_usage()` to extract token metrics from Anthropic API responses
+- Created async tracked methods for sentiment, theme, and relevance scoring
+- All enrichment operations now tracked via CostTracker.track_call() (non-blocking async)
+- Operations tracked: `relevance_scoring`, `sentiment_analysis`, `theme_extraction`
+
+### Config Fix
+- Fixed pricing config zeros: `ENTITY_INPUT_COST=0.0→0.80`, `ENTITY_OUTPUT_COST=0.0→4.0`
+- Entity extraction cost now visible in cost tracking logs
+
+### Batch Enrichment (50% cost reduction)
+- Implemented `enrich_articles_batch()` for batch processing up to 10 articles/call
+- Refactored RSS enrichment loop from per-article (3N calls) to batched (N/10 calls)
+- Example: 30 articles now cost 3 API calls instead of 90
+
+### Branch & PR
+- Branch: `feature/task-025-cost-controls`
+- PR #227: feat(cost-controls): Implement LLM cost tracking and batching
+- Commit: 00ae29e
+
+**What's remaining:**
+- Fix test failures (12 tests failing due to model name/pricing mismatches)
+- Implement daily call limits (Priority task, not yet started)
+- Implement circuit breakers (Priority task, not yet started)
+- Full end-to-end testing
+
 ## Key Decisions
 
 _Decisions made during the sprint that affect scope, priority, or approach._
+
+- **TASK-025 deferred to multi-session:** Cost tracking (Priorities 1-3) implemented; testing and remaining items (daily limits, circuit breakers) deferred to next session per user request
 
 ---
 

@@ -31,19 +31,19 @@ class TestCostCalculation:
     def test_haiku_pricing(self, tracker):
         """Test Haiku model pricing."""
         cost = tracker.calculate_cost(
-            "claude-3-5-haiku-20241022",
+            "claude-haiku-4-5-20251001",
             input_tokens=1000,
             output_tokens=1000
         )
-        # 1K input @ $0.80/1M = $0.0008
-        # 1K output @ $4.00/1M = $0.004
-        # Total = $0.0048
-        assert cost == pytest.approx(0.0048, abs=0.0001)
+        # 1K input @ $1.00/1M = $0.001
+        # 1K output @ $5.00/1M = $0.005
+        # Total = $0.006
+        assert cost == pytest.approx(0.006, abs=0.0001)
 
     def test_sonnet_pricing(self, tracker):
         """Test Sonnet model pricing."""
         cost = tracker.calculate_cost(
-            "claude-3-5-sonnet-20241022",
+            "claude-sonnet-4-5-20250929",
             input_tokens=1000,
             output_tokens=1000
         )
@@ -55,7 +55,7 @@ class TestCostCalculation:
     def test_opus_pricing(self, tracker):
         """Test Opus model pricing."""
         cost = tracker.calculate_cost(
-            "claude-opus-4-5-20251101",
+            "claude-opus-4-6",
             input_tokens=1000,
             output_tokens=1000
         )
@@ -71,8 +71,8 @@ class TestCostCalculation:
             input_tokens=1000,
             output_tokens=1000
         )
-        # Should use Haiku pricing
-        assert cost == pytest.approx(0.0048, abs=0.0001)
+        # Should use Haiku pricing: $1.00 input + $5.00 output = $0.006
+        assert cost == pytest.approx(0.006, abs=0.0001)
 
 
 @pytest.mark.asyncio
@@ -83,7 +83,7 @@ class TestCostTracking:
         """Test that track_call writes to database."""
         cost = await tracker.track_call(
             operation="entity_extraction",
-            model="claude-3-5-haiku-20241022",
+            model="claude-haiku-4-5-20251001",
             input_tokens=500,
             output_tokens=200,
             cached=False
@@ -95,7 +95,7 @@ class TestCostTracking:
         # Verify database write
         doc = await db.api_costs.find_one({"operation": "entity_extraction"})
         assert doc is not None
-        assert doc["model"] == "claude-3-5-haiku-20241022"
+        assert doc["model"] == "claude-haiku-4-5-20251001"
         assert doc["input_tokens"] == 500
         assert doc["output_tokens"] == 200
         assert doc["cost"] == pytest.approx(cost, abs=0.0001)
@@ -105,7 +105,7 @@ class TestCostTracking:
         """Test that cache hits have zero cost."""
         cost = await tracker.track_call(
             operation="entity_extraction",
-            model="claude-3-5-haiku-20241022",
+            model="claude-haiku-4-5-20251001",
             input_tokens=500,
             output_tokens=200,
             cached=True,
@@ -125,28 +125,28 @@ class TestCostTracking:
         """Test daily cost aggregation."""
         # Track two calls
         await tracker.track_call(
-            "test_op", "claude-3-5-haiku-20241022",
+            "test_op", "claude-haiku-4-5-20251001",
             1000, 1000, cached=False
         )
         await tracker.track_call(
-            "test_op", "claude-3-5-haiku-20241022",
+            "test_op", "claude-haiku-4-5-20251001",
             1000, 1000, cached=False
         )
 
         daily_cost = await tracker.get_daily_cost(days=1)
 
-        # Should be 2 × $0.0048 = $0.0096
-        assert daily_cost == pytest.approx(0.0096, abs=0.0001)
+        # Should be 2 × $0.006 = $0.012
+        assert daily_cost == pytest.approx(0.012, abs=0.0001)
 
     async def test_get_monthly_cost(self, tracker, db):
         """Test monthly cost aggregation."""
         # Track a call
         await tracker.track_call(
-            "test_op", "claude-3-5-haiku-20241022",
+            "test_op", "claude-haiku-4-5-20251001",
             1000, 1000, cached=False
         )
 
         monthly_cost = await tracker.get_monthly_cost()
 
-        # Should be $0.0048
-        assert monthly_cost == pytest.approx(0.0048, abs=0.0001)
+        # Should be $0.006
+        assert monthly_cost == pytest.approx(0.006, abs=0.0001)

@@ -65,7 +65,52 @@ _Decisions made during the sprint that affect scope, priority, or approach._
 
 ## Completed
 
-_Move tickets here as they finish._
+| # | Ticket | Title | Effort | Status |
+|---|--------|-------|--------|--------|
+| 1 | TASK-024 | LLM Spend Audit | 2 hr | ✅ Complete |
+
+## In Progress
+
+| # | Ticket | Title | Status | Branch | PR |
+|---|--------|-------|--------|--------|-----|
+| 2 | TASK-025 | Implement Cost Controls | 🟡 Tests fixed; daily limits WIP; needs circuit breaker & logging | feature/task-025-cost-controls | #227 |
+
+## What to Work On Next (Session 3)
+
+**Continue TASK-025:** Per-system daily call limits (in progress)
+
+1. **Fix rate limiter tests** — Create mock Redis client so tests don't depend on real Redis
+   - ~20 min (tests already written, just need mocking pattern)
+2. **Circuit breaker for LLM calls** — Prevent retry storms after N consecutive failures
+   - ~45 min (implement + tests)
+3. **Spend logging** — Log every LLM call with tokens/cost to MongoDB
+   - ~30 min (integrate with existing CostTracker)
+4. **End-to-end testing** — Verify all cost controls work together
+   - ~20 min
+
+**Estimated total:** ~2 hours to complete TASK-025
+
+---
+
+## What Happened in Last Session
+
+**TASK-024 (LLM Spend Audit) - COMPLETE**
+- Identified 4,320+ Haiku calls/day from System 3 (sentiment/theme/relevance enrichment)
+- Found $9/day hidden cost (untracked)
+- Root cause: AnthropicProvider._get_completion() never calls CostTracker
+- Evidence: docs/_generated/evidence/13-llm-spend-audit.md
+
+**TASK-025 (Cost Controls) - IN PROGRESS**
+- Priority 1 ✅: Cost tracking enabled for System 3
+  - Created async tracked methods
+  - Integrated CostTracker.track_call()
+  - Result: 70% of spend now visible
+- Priority 2 ✅: Fixed config zeros (pricing now $0.80 and $4.0 instead of $0.0)
+- Priority 3 ✅: Implemented batch enrichment (50% cost reduction)
+  - 30 articles: 90 API calls → 3 calls
+- **Test failures found:** 12 cost tracker tests failing (model name/pricing mismatch) — deferred to next session
+
+**Next Task:** TASK-026 (Fix Active LLM Failures - BUG-052)
 
 ---
 

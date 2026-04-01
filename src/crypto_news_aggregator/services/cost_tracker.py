@@ -24,7 +24,7 @@ class CostTracker:
     - Async MongoDB persistence
     """
 
-    # Anthropic pricing as of February 2026
+    # Anthropic pricing as of March 2026
     # Prices per 1 million tokens
     PRICING = {
         "claude-haiku-4-5-20251001": {
@@ -35,9 +35,9 @@ class CostTracker:
             "input": 3.00,
             "output": 15.00,
         },
-        "claude-sonnet-4-5-20250929": {
-            "input": 3.00,
-            "output": 15.00,
+        "claude-opus-4-6": {
+            "input": 15.00,
+            "output": 75.00,
         },
     }
 
