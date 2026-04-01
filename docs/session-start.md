@@ -73,7 +73,24 @@ _Decisions made during the sprint that affect scope, priority, or approach._
 
 | # | Ticket | Title | Status | Branch | PR |
 |---|--------|-------|--------|--------|-----|
-| 2 | TASK-025 | Implement Cost Controls | 🟡 Priorities 1-3 done; testing deferred | feature/task-025-cost-controls | #227 |
+| 2 | TASK-025 | Implement Cost Controls | 🟡 Tests fixed; daily limits WIP; needs circuit breaker & logging | feature/task-025-cost-controls | #227 |
+
+## What to Work On Next (Session 3)
+
+**Continue TASK-025:** Per-system daily call limits (in progress)
+
+1. **Fix rate limiter tests** — Create mock Redis client so tests don't depend on real Redis
+   - ~20 min (tests already written, just need mocking pattern)
+2. **Circuit breaker for LLM calls** — Prevent retry storms after N consecutive failures
+   - ~45 min (implement + tests)
+3. **Spend logging** — Log every LLM call with tokens/cost to MongoDB
+   - ~30 min (integrate with existing CostTracker)
+4. **End-to-end testing** — Verify all cost controls work together
+   - ~20 min
+
+**Estimated total:** ~2 hours to complete TASK-025
+
+---
 
 ## What Happened in Last Session
 

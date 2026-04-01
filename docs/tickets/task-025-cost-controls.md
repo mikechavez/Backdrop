@@ -3,13 +3,13 @@ ticket_id: TASK-025
 title: Implement Cost Controls
 priority: critical
 severity: high
-status: IN_PROGRESS (Priorities 1-3 implemented; testing deferred to next session)
+status: IN_PROGRESS (Session 2: Priorities 1-3 complete + test fixes; Session 3: daily limits/circuit breaker)
 date_created: 2026-03-31
 date_started: 2026-03-31
 branch: feature/task-025-cost-controls
 pr: https://github.com/mikechavez/Backdrop/pull/227
 effort_estimate: 3 hr
-effort_actual: 2 hr (implementation); testing TBD
+effort_actual: 3.5 hr (implementation + test fixes); remaining: daily limits, circuit breaker, spend logging
 ---
 
 # TASK-025: Implement Cost Controls
@@ -24,7 +24,30 @@ There are no guardrails preventing runaway LLM spend. When something goes wrong 
 
 ## Implementation Status
 
-### ✅ COMPLETED (In This Session)
+### SESSION 2 SUMMARY (2026-03-31, Session 2)
+
+**Fixed all test failures** ✅
+- Updated 8 cost tracker tests to use current Claude models (claude-haiku-4-5-20251001, claude-sonnet-4-5-20250929, claude-opus-4-6)
+- Updated pricing expectations to match CostTracker: Haiku $1.00 input + $5.00 output
+- Fixed duplicate Sonnet entry in PRICING dict
+- Added `incr()` method to RedisRESTClient for rate limiter support
+- All 8 tests now passing
+
+**Started implementation of per-system daily call limits** 🟡
+- Created `RateLimiter` service with Redis backing
+- Supports configurable limits per system (briefing, entity_extraction, sentiment_analysis, etc.)
+- Methods: `get_remaining()`, `check_limit()`, `increment()`, `reset_daily_counts()`
+- Syncs with RedisRESTClient (sync operations, daily TTL via Redis expire)
+- Created 10 unit tests (need mock Redis fix for test execution)
+- Tests pending: mocking Redis for sync operations
+
+**Next session:**
+- Fix rate limiter test mocking (mock Redis instead of using real instance)
+- Complete daily call limits tests
+- Implement circuit breaker
+- Implement spend logging
+
+### ✅ COMPLETED (In Session 1)
 
 #### Priority 1: Enable Cost Tracking for System 3
 - ✅ Added `_get_completion_with_usage()` method to extract token metrics from API responses

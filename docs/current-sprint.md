@@ -18,7 +18,7 @@ _Get Backdrop continuously operational and affordable, then integrate NVIDIA NeM
 |---|--------|-------|--------|-----|--------|
 | | | **--- PHASE 1: Triage & Stabilize ---** | | | |
 | 1 | TASK-024 | LLM Spend Audit | ✅ COMPLETE | 2 hr | 2 hr |
-| 2 | TASK-025 | Implement Cost Controls | 🟡 IN_PROGRESS | 3 hr | 2 hr (impl); testing TBD |
+| 2 | TASK-025 | Implement Cost Controls | 🟡 IN_PROGRESS | 3 hr | 3.5 hr (test fixes + daily limits WIP) |
 | 3 | TASK-026 | Fix Active LLM Failures (BUG-052) | 🔲 OPEN | 3 hr | - |
 | 4 | TASK-027 | Health Check & Site Status | 🔲 OPEN | 2 hr | - |
 | 5 | TASK-028 | Burn-in Validation (72hr) | 🔲 OPEN | 1 hr | - |
@@ -48,6 +48,32 @@ _Get Backdrop continuously operational and affordable, then integrate NVIDIA NeM
 - [ ] Hyperparameter optimization run (model selection, temperature, max_tokens)
 - [ ] Cost dashboard live via telemetry
 - [ ] Cost reduced vs. Phase 1 baseline with quality scores maintained
+
+---
+
+## Session 2 Work Summary (2026-03-31, afternoon)
+
+**Completed:**
+- ✅ Fixed all 8 cost tracker test failures (model/pricing mismatches)
+- ✅ Created RateLimiter service with Redis backing for per-system daily limits
+- ✅ Added `incr()` method to RedisRESTClient
+- ✅ Created 10 unit tests for RateLimiter (need mock Redis fix)
+
+**In Progress:**
+- 🟡 Daily call limits implementation (core logic done, tests need mocking)
+
+**Files Changed:**
+- `tests/services/test_cost_tracker.py` - Updated all 8 tests to current models/pricing
+- `src/crypto_news_aggregator/services/cost_tracker.py` - Fixed duplicate PRICING entry, added claude-opus-4-6
+- `src/crypto_news_aggregator/core/redis_rest_client.py` - Added `incr()` method
+- `src/crypto_news_aggregator/services/rate_limiter.py` - New RateLimiter service
+- `tests/services/test_rate_limiter.py` - New test file (10 tests)
+
+**Remaining for TASK-025:**
+- Fix rate limiter test mocking
+- Implement circuit breaker 
+- Implement spend logging
+- End-to-end testing
 
 ---
 
