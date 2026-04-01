@@ -18,7 +18,7 @@ _Get Backdrop continuously operational and affordable, then integrate NVIDIA NeM
 |---|--------|-------|--------|-----|--------|
 | | | **--- PHASE 1: Triage & Stabilize ---** | | | |
 | 1 | TASK-024 | LLM Spend Audit | ✅ COMPLETE | 2 hr | 2 hr |
-| 2 | TASK-025 | Implement Cost Controls | 🟡 IN_PROGRESS | 3 hr | 3.5 hr (test fixes + daily limits WIP) |
+| 2 | TASK-025 | Implement Cost Controls | 🟡 IN_PROGRESS | 3 hr | 4 hr (test fixes + daily limits ready) |
 | 3 | TASK-026 | Fix Active LLM Failures (BUG-052) | 🔲 OPEN | 3 hr | - |
 | 4 | TASK-027 | Health Check & Site Status | 🔲 OPEN | 2 hr | - |
 | 5 | TASK-028 | Burn-in Validation (72hr) | 🔲 OPEN | 1 hr | - |
@@ -51,29 +51,42 @@ _Get Backdrop continuously operational and affordable, then integrate NVIDIA NeM
 
 ---
 
+## Session 3 Work Summary (2026-04-01)
+
+**Completed:**
+- ✅ Fixed `RedisRESTClient.incr()` None handling bug
+- ✅ Updated 14 cost tracker tests to use current Claude models
+- ✅ Implemented `MockRedis` for rate limiter unit tests  
+- ✅ Fixed backfill narrative test async mocks
+- ✅ All 25 core cost control tests now passing
+- ✅ Committed fixes: `fix(cost-controls): Fix test failures for TASK-025`
+
+**Test Status:**
+- Rate limiter: 10/10 ✅
+- Cost tracking E2E: 6/6 ✅
+- LLM cost tracking: 9/9 ✅
+- Total cost controls: 25/25 ✅
+
+**Files Changed:**
+- `src/crypto_news_aggregator/core/redis_rest_client.py` - Fixed incr() None handling
+- `tests/integration/test_cost_tracking_e2e.py` - Updated model names (haiku-4-5, sonnet-4-5, opus-4-6)
+- `tests/integration/test_llm_cost_tracking.py` - Updated model names
+- `tests/services/test_rate_limiter.py` - Added MockRedis implementation
+- `tests/integration/test_backfill_narratives.py` - Fixed async mock setup
+
+**Remaining for TASK-025:**
+- Integrate rate limits into API endpoints (briefing, entity_extraction, sentiment_analysis)
+- Implement circuit breaker for failure recovery
+- Implement spend logging aggregation
+- End-to-end integration testing
+
 ## Session 2 Work Summary (2026-03-31, afternoon)
 
 **Completed:**
 - ✅ Fixed all 8 cost tracker test failures (model/pricing mismatches)
 - ✅ Created RateLimiter service with Redis backing for per-system daily limits
 - ✅ Added `incr()` method to RedisRESTClient
-- ✅ Created 10 unit tests for RateLimiter (need mock Redis fix)
-
-**In Progress:**
-- 🟡 Daily call limits implementation (core logic done, tests need mocking)
-
-**Files Changed:**
-- `tests/services/test_cost_tracker.py` - Updated all 8 tests to current models/pricing
-- `src/crypto_news_aggregator/services/cost_tracker.py` - Fixed duplicate PRICING entry, added claude-opus-4-6
-- `src/crypto_news_aggregator/core/redis_rest_client.py` - Added `incr()` method
-- `src/crypto_news_aggregator/services/rate_limiter.py` - New RateLimiter service
-- `tests/services/test_rate_limiter.py` - New test file (10 tests)
-
-**Remaining for TASK-025:**
-- Fix rate limiter test mocking
-- Implement circuit breaker 
-- Implement spend logging
-- End-to-end testing
+- ✅ Created 10 unit tests for RateLimiter (needed mock fix)
 
 ---
 
