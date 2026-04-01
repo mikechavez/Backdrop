@@ -3,10 +3,13 @@ ticket_id: TASK-026
 title: Fix Active LLM Failures (BUG-052 Resolution)
 priority: critical
 severity: critical
-status: OPEN
+status: COMPLETE
 date_created: 2026-03-31
-branch: feature/task-026-fix-llm-failures
+date_completed: 2026-04-01
+branch: feature/task-025-cost-controls
+commit: 79a9fe1
 effort_estimate: 3 hr
+effort_actual: 2.5 hr
 ---
 
 # TASK-026: Fix Active LLM Failures (BUG-052 Resolution)
@@ -301,3 +304,84 @@ Resolves BUG-052 and the recurring pattern of silent LLM failures. Combined with
 - TASK-024: LLM Spend Audit (blocks this ticket)
 - TASK-025: Implement Cost Controls (parallel work)
 - TASK-027: Health Check & Site Status (depends on this ticket)
+
+---
+
+## Completion Summary
+
+**Status:** ✅ COMPLETE (2026-04-01)
+
+### What Was Done
+
+Implemented comprehensive structured error handling across all LLM systems to eliminate silent failures and provide machine-readable error responses.
+
+### Files Modified
+
+1. **`src/crypto_news_aggregator/llm/exceptions.py`** (NEW)
+   - Created `LLMError` exception class with structured fields
+   - Supports error type classification and metadata tracking
+
+2. **`src/crypto_news_aggregator/llm/anthropic.py`**
+   - Fixed `_get_completion()` and `_get_completion_with_usage()` to raise `LLMError` instead of returning empty strings
+   - Added HTTP status-to-error-type mapping (403→auth_error, 429→rate_limit, 5xx→server_error)
+   - Updated `analyze_sentiment()`, `score_relevance()`, `extract_themes()` to catch `LLMError` and return graceful defaults
+
+3. **`src/crypto_news_aggregator/services/briefing_agent.py`**
+   - Fixed `generate_briefing()` to propagate `LLMError` (don't catch and return None)
+   - Replaced bare `except:` with explicit `except Exception:`
+   - Added `exc_info=True` to error logging for stack traces
+
+4. **`src/crypto_news_aggregator/tasks/briefing_tasks.py`**
+   - Added explicit `LLMError` catch block before generic exception handler
+   - Distinguishes LLM failures from clean skips (None result when briefing already exists)
+   - Logs error context: error_type, model name
+
+5. **`src/crypto_news_aggregator/api/v1/endpoints/briefing.py`**
+   - Added `error_type: Optional[str]` field to `GenerateBriefingResponse`
+   - Created `_LLM_ERROR_HTTP_CODES` mapping for error-to-HTTP conversion
+   - Catches `LLMError` and raises `HTTPException` with correct status code
+   - Returns structured error details including error_type, message, model
+
+### Test Coverage
+
+**31 tests - ALL PASSING:**
+- `tests/llm/test_llm_exceptions.py` - 10 tests (exception class behavior)
+- `tests/llm/test_anthropic_error_handling.py` - 13 tests (HTTP error handling, graceful degradation)
+- `tests/services/test_briefing_agent_error_handling.py` - 5 tests (error propagation patterns)
+- `tests/api/test_briefing_generate_endpoint.py` - 3 tests (endpoint error mapping)
+
+### Key Improvements
+
+1. **Visibility:** All LLM failures now logged with full stack traces and error context
+2. **Reliability:** Graceful degradation for sentiment/relevance/themes (return safe defaults)
+3. **Debuggability:** Error types enable quick classification of failure root cause
+4. **API Usability:** Frontend can distinguish auth failures, rate limits, and server errors
+5. **Task Reliability:** Celery tasks can distinguish true failures from intentional skips
+
+### Root Cause Resolution
+
+**Original Problem:** Every LLM exception was caught and converted to `None` or `""`, making failures indistinguishable from skips.
+
+**Solution:** Structured exceptions propagate through the stack until caught at appropriate layers (service layer for graceful degradation, API layer for HTTP mapping).
+
+### Acceptance Criteria Met
+
+- ✅ Root cause identified and fixed (silent exception handling)
+- ✅ All three LLM systems operational and error-aware
+- ✅ No silent failures — every error logged with context
+- ✅ Structured error responses propagate to API layer
+- ✅ All error handling changes documented
+- ✅ Integration tests passing for happy path + error paths (31/31 passing)
+
+### Effort
+
+- **Estimated:** 3 hours
+- **Actual:** 2.5 hours
+- **Complexity:** Medium (required changes across 5 files, solid understanding of error flow)
+
+### Next Steps
+
+1. Create PR from `feature/task-025-cost-controls` to `main`
+2. Deploy to production (Railway)
+3. Monitor logs for error type distribution
+4. Proceed to TASK-027 (Health Check & Site Status)
