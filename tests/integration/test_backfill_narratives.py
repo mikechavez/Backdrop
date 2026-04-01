@@ -45,15 +45,15 @@ def mock_narrative_data():
 def setup_mongo_mocks(articles_list):
     """Helper to setup MongoDB mocks properly."""
     mock_db = AsyncMock()
-    mock_collection = Mock()
-    mock_cursor = Mock()
-    mock_cursor.limit = Mock(return_value=mock_cursor)  # limit() returns cursor
+    mock_collection = AsyncMock()
+    mock_cursor = AsyncMock()
+    mock_cursor.limit = Mock(return_value=mock_cursor)  # limit() returns cursor itself
     mock_cursor.to_list = AsyncMock(return_value=articles_list)
-    
+
     mock_collection.find.return_value = mock_cursor
     mock_collection.update_one = AsyncMock()
     mock_db.articles = mock_collection
-    
+
     return mock_db, mock_collection, mock_cursor
 
 
@@ -81,21 +81,14 @@ class TestBackfillRateLimiting:
     async def test_actual_throughput_monitoring(self, mock_articles, mock_narrative_data, caplog):
         """Test that actual throughput is calculated and logged per batch."""
         from scripts.backfill_narratives import backfill_with_rate_limiting
-        
+
         with patch('scripts.backfill_narratives.mongo_manager') as mock_mongo, \
              patch('scripts.backfill_narratives.discover_narrative_from_article') as mock_discover:
-            
-            # Setup mocks
-            mock_db = AsyncMock()
-            mock_collection = Mock()
-            mock_cursor = Mock()
-            
+
+            # Setup mocks using helper
+            mock_db, mock_collection, mock_cursor = setup_mongo_mocks(mock_articles[:15])
             mock_mongo.get_async_database = AsyncMock(return_value=mock_db)
-            mock_db.articles = mock_collection
-            mock_collection.find.return_value = mock_cursor
-            mock_cursor.to_list = AsyncMock(return_value=mock_articles[:15])  # One batch
-            mock_collection.update_one = AsyncMock()
-            
+
             # Mock narrative discovery
             mock_discover.return_value = mock_narrative_data
             
@@ -115,21 +108,14 @@ class TestBackfillRateLimiting:
     async def test_batch_processing_with_delays(self, mock_articles, mock_narrative_data):
         """Test that delays are applied correctly between articles and batches."""
         from scripts.backfill_narratives import backfill_with_rate_limiting
-        
+
         with patch('scripts.backfill_narratives.mongo_manager') as mock_mongo, \
              patch('scripts.backfill_narratives.discover_narrative_from_article') as mock_discover, \
              patch('asyncio.sleep', new_callable=AsyncMock) as mock_sleep:
-            
-            # Setup mocks
-            mock_db = AsyncMock()
-            mock_collection = Mock()
-            mock_cursor = Mock()
-            
+
+            # Setup mocks using helper
+            mock_db, mock_collection, mock_cursor = setup_mongo_mocks(mock_articles[:30])
             mock_mongo.get_async_database = AsyncMock(return_value=mock_db)
-            mock_db.articles = mock_collection
-            mock_collection.find.return_value = mock_cursor
-            mock_cursor.to_list = AsyncMock(return_value=mock_articles[:30])  # 2 batches
-            mock_collection.update_one = AsyncMock()
             mock_discover.return_value = mock_narrative_data
             
             # Run backfill
@@ -157,20 +143,13 @@ class TestBackfillRateLimiting:
     async def test_rate_limit_warning_triggers(self, mock_articles, mock_narrative_data, caplog):
         """Test that warnings trigger when throughput exceeds threshold."""
         from scripts.backfill_narratives import backfill_with_rate_limiting
-        
+
         with patch('scripts.backfill_narratives.mongo_manager') as mock_mongo, \
              patch('scripts.backfill_narratives.discover_narrative_from_article') as mock_discover:
-            
-            # Setup mocks
-            mock_db = AsyncMock()
-            mock_collection = Mock()
-            mock_cursor = Mock()
-            
+
+            # Setup mocks using helper
+            mock_db, mock_collection, mock_cursor = setup_mongo_mocks(mock_articles[:20])
             mock_mongo.get_async_database = AsyncMock(return_value=mock_db)
-            mock_db.articles = mock_collection
-            mock_collection.find.return_value = mock_cursor
-            mock_cursor.to_list = AsyncMock(return_value=mock_articles[:20])  # One batch
-            mock_collection.update_one = AsyncMock()
             mock_discover.return_value = mock_narrative_data
             
             # Run with aggressive settings that should trigger warning
@@ -190,20 +169,13 @@ class TestBackfillRateLimiting:
     async def test_conservative_defaults_stay_under_limit(self, mock_articles, mock_narrative_data):
         """Test that default conservative settings stay under rate limits."""
         from scripts.backfill_narratives import backfill_with_rate_limiting
-        
+
         with patch('scripts.backfill_narratives.mongo_manager') as mock_mongo, \
              patch('scripts.backfill_narratives.discover_narrative_from_article') as mock_discover:
-            
-            # Setup mocks
-            mock_db = AsyncMock()
-            mock_collection = Mock()
-            mock_cursor = Mock()
-            
+
+            # Setup mocks using helper
+            mock_db, mock_collection, mock_cursor = setup_mongo_mocks(mock_articles[:15])
             mock_mongo.get_async_database = AsyncMock(return_value=mock_db)
-            mock_db.articles = mock_collection
-            mock_collection.find.return_value = mock_cursor
-            mock_cursor.to_list = AsyncMock(return_value=mock_articles[:15])
-            mock_collection.update_one = AsyncMock()
             mock_discover.return_value = mock_narrative_data
             
             start_time = time.time()
@@ -227,17 +199,11 @@ class TestBackfillRateLimiting:
     async def test_empty_articles_returns_zero(self):
         """Test that backfill returns 0 when no articles need processing."""
         from scripts.backfill_narratives import backfill_with_rate_limiting
-        
+
         with patch('scripts.backfill_narratives.mongo_manager') as mock_mongo:
-            # Setup mocks
-            mock_db = AsyncMock()
-            mock_collection = Mock()
-            mock_cursor = Mock()
-            
+            # Setup mocks using helper
+            mock_db, mock_collection, mock_cursor = setup_mongo_mocks([])
             mock_mongo.get_async_database = AsyncMock(return_value=mock_db)
-            mock_db.articles = mock_collection
-            mock_collection.find.return_value = mock_cursor
-            mock_cursor.to_list = AsyncMock(return_value=[])  # No articles
             
             result = await backfill_with_rate_limiting(hours=24, limit=10)
             
@@ -246,21 +212,14 @@ class TestBackfillRateLimiting:
     async def test_failed_narrative_extraction_counted(self, mock_articles):
         """Test that failed narrative extractions are counted."""
         from scripts.backfill_narratives import backfill_with_rate_limiting
-        
+
         with patch('scripts.backfill_narratives.mongo_manager') as mock_mongo, \
              patch('scripts.backfill_narratives.discover_narrative_from_article') as mock_discover, \
              patch('asyncio.sleep', new_callable=AsyncMock):
-            
-            # Setup mocks
-            mock_db = AsyncMock()
-            mock_collection = Mock()
-            mock_cursor = Mock()
-            
+
+            # Setup mocks using helper
+            mock_db, mock_collection, mock_cursor = setup_mongo_mocks(mock_articles[:5])
             mock_mongo.get_async_database = AsyncMock(return_value=mock_db)
-            mock_db.articles = mock_collection
-            mock_collection.find.return_value = mock_cursor
-            mock_cursor.to_list = AsyncMock(return_value=mock_articles[:5])
-            mock_collection.update_one = AsyncMock()
             
             # Mock narrative discovery to return None (failure)
             mock_discover.return_value = None
@@ -279,22 +238,15 @@ class TestBackfillRateLimiting:
     async def test_successful_narrative_extraction_counted(self, mock_articles, mock_narrative_data):
         """Test that successful narrative extractions are counted."""
         from scripts.backfill_narratives import backfill_with_rate_limiting
-        
+
         with patch('scripts.backfill_narratives.mongo_manager') as mock_mongo, \
              patch('scripts.backfill_narratives.discover_narrative_from_article') as mock_discover, \
              patch('asyncio.sleep', new_callable=AsyncMock):
-            
-            # Setup mocks
-            mock_db = AsyncMock()
-            mock_collection = Mock()
-            mock_cursor = Mock()
-            
+
+            # Setup mocks using helper
+            mock_db, mock_collection, mock_cursor = setup_mongo_mocks(mock_articles[:5])
             mock_mongo.get_async_database = AsyncMock(return_value=mock_db)
-            mock_db.articles = mock_collection
-            mock_collection.find.return_value = mock_cursor
-            mock_cursor.to_list = AsyncMock(return_value=mock_articles[:5])
-            mock_collection.update_one = AsyncMock()
-            
+
             # Mock narrative discovery to return data
             mock_discover.return_value = mock_narrative_data
             

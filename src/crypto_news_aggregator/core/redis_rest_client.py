@@ -88,7 +88,8 @@ class RedisRESTClient:
     def incr(self, key: str) -> int:
         """Increment a key's value by 1."""
         response = self._make_request("POST", f"incr/{key}")
-        return int(response.get("result", 0))
+        result = response.get("result")
+        return int(result) if result is not None else 0
 
     def ping(self) -> bool:
         """Ping the Redis server."""

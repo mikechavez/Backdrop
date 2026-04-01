@@ -4,18 +4,49 @@ Tests for rate limiting service.
 
 import pytest
 from datetime import datetime, timezone
+from unittest.mock import Mock
 from crypto_news_aggregator.services.rate_limiter import RateLimiter
+
+
+class MockRedis:
+    """Mock Redis client for testing."""
+
+    def __init__(self):
+        self.data = {}
+
+    def get(self, key: str):
+        """Get value from mock store."""
+        return self.data.get(key)
+
+    def incr(self, key: str) -> int:
+        """Increment value in mock store."""
+        current = self.data.get(key, 0)
+        new_value = int(current) + 1
+        self.data[key] = str(new_value)
+        return new_value
+
+    def expire(self, key: str, seconds: int) -> bool:
+        """Mock expire (no-op for tests)."""
+        return True
+
+    def delete(self, key: str) -> int:
+        """Delete from mock store."""
+        if key in self.data:
+            del self.data[key]
+            return 1
+        return 0
 
 
 @pytest.fixture
 def rate_limiter():
-    """Create rate limiter instance with test limits."""
+    """Create rate limiter instance with test limits and mock Redis."""
     limits = {
         "entity_extraction": 100,
         "sentiment_analysis": 50,
         "briefing_generation": 10,
     }
-    return RateLimiter(limits=limits)
+    mock_redis = MockRedis()
+    return RateLimiter(limits=limits, redis=mock_redis)
 
 
 @pytest.mark.asyncio
