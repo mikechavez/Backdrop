@@ -499,3 +499,48 @@ async def trigger_briefing(
             status_code=500,
             detail=f"Failed to queue task: {str(e)}"
         )
+
+
+@router.post("/trigger-fetch", response_model=TaskResponse)
+async def trigger_fetch() -> TaskResponse:
+    """
+    Manually trigger a news fetch task for testing.
+
+    This endpoint dispatches fetch_news to collect articles from all RSS sources.
+    Useful for verifying the ingestion pipeline works after deployments.
+
+    Returns:
+        Task ID and details for monitoring in worker logs
+
+    Usage:
+        POST /admin/trigger-fetch
+
+    Success response:
+        {
+            "task_id": "abc123...",
+            "task_name": "fetch_news",
+            "kwargs": {},
+            "message": "✅ News fetch task queued. Check celery-worker logs for task_id=abc123..."
+        }
+    """
+    from crypto_news_aggregator.tasks.news import fetch_news
+
+    try:
+        result = fetch_news.apply_async()
+        logger.info(f"🔬 Manual news fetch trigger - task_id={result.id}")
+
+        return TaskResponse(
+            task_id=result.id,
+            task_name=fetch_news.name,
+            kwargs={},
+            message=(
+                f"✅ News fetch task queued. "
+                f"Check celery-worker logs for task_id={result.id}"
+            )
+        )
+    except Exception as e:
+        logger.error(f"Failed to queue fetch_news task: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to queue task: {str(e)}"
+        )
