@@ -25,8 +25,8 @@ _Get Backdrop continuously operational and affordable, then integrate NVIDIA NeM
 | 6 | BUG-053 | Remove Hardcoded SMTP Password | ✅ COMPLETE | 20 min | 20 min |
 | 7 | TASK-032 | Clean Up Stale Anthropic Env Vars | ✅ COMPLETE | 10 min | 10 min |
 | 8 | TASK-028 | Burn-in Validation (72hr via UptimeRobot) | ⏳ IN PROGRESS | 15 min | - |
-| 9 | BUG-055 | SMOKE_BRIEFINGS Leak + MongoDB Quota Full | 🔴 OPEN | 45 min | - |
-| 10 | BUG-054 | RSS Ingestion Not Running (fetch_news disabled) | 🔲 CODE READY (blocked by BUG-055) | 30 min | - |
+| 9 | BUG-055 | SMOKE_BRIEFINGS Leak + MongoDB Quota Full | ✅ CODE COMPLETE (manual steps pending) | 45 min | - |
+| 10 | BUG-054 | RSS Ingestion Not Running (fetch_news disabled) | 🔲 BLOCKED (awaiting BUG-055 manual steps) | 30 min | - |
 | | | **--- PHASE 2: NeMo Agent Toolkit ---** | | |
 | 6 | TASK-029 | NeMo Research & Integration Plan | 🔲 OPEN | 2 hr |
 | 7 | FEATURE-051 | NeMo Setup & Workflow Instrumentation | 🔲 OPEN | 4 hr |
@@ -59,6 +59,28 @@ _Get Backdrop continuously operational and affordable, then integrate NVIDIA NeM
 - [ ] Hyperparameter optimization run (model selection, temperature, max_tokens)
 - [ ] Cost dashboard live via telemetry
 - [ ] Cost reduced vs. Phase 1 baseline with quality scores maintained
+
+---
+
+## Session 14 Work Summary (2026-04-02) - BUG-055 CODE COMPLETE ✅
+
+**BUG-055: SMOKE_BRIEFINGS=1 Left On, Burning API Credits Against Full MongoDB** (Code Fixed)
+
+### Work Completed:
+- ✅ Added empty-data guard to `briefing_agent.py` (skip generation when signals/narratives empty)
+- ✅ Removed dead smoke test block from `beat_schedule.py` (deleted lines 109-129)
+- ✅ Fixed event loop bug in cost tracker (changed asyncio.create_task() to await)
+- ✅ Committed all changes: `fix(briefings): Add empty-data guard and remove smoke test schedule` (f119256)
+- ✅ Branch pushed to remote: `fix/bug-055-smoke-briefings-api-credits`
+
+### Remaining Manual Steps:
+1. 🔴 Remove `SMOKE_BRIEFINGS` env var from Railway celery-beat service (1 min)
+2. 🔴 Prune MongoDB collections to free storage below 512 MB (15 min)
+
+### Impact:
+- Prevents 480+ wasted API calls/day even if env var accidentally left on again
+- Fixes cost tracker event loop bug that silently breaks tracking after first task
+- Code is production-ready, awaiting Railway/MongoDB manual operations before deployment
 
 ---
 

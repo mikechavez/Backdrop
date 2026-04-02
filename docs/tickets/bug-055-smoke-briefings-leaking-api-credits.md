@@ -1,7 +1,7 @@
 ---
 id: BUG-055
 type: bug
-status: open
+status: in-progress
 priority: critical
 severity: critical
 created: 2026-04-02
@@ -86,23 +86,28 @@ Candidates for cleanup:
 
 Target: get below 450 MB to leave headroom for BUG-054 article ingestion.
 
-### Step 3: Add empty-data guard to briefing generation (CC session, 10 min)
-In `services/briefing_agent.py`, add a pre-flight check before LLM calls:
-```python
-# After gathering signals, narratives, patterns
-total_inputs = len(trending_signals) + len(active_narratives) + sum([
-    len(surges), len(sentiment_shifts), len(expected_events), len(emergences)
-])
-if total_inputs == 0:
-    logger.info("Skipping briefing generation: no fresh data available")
-    return {"status": "skipped", "reason": "no_fresh_data"}
-```
+### Step 3: Add empty-data guard to briefing generation (CC session, 10 min) ✅ DONE
+In `services/briefing_agent.py`, added pre-flight check before LLM calls to skip generation when signals/narratives are empty. Prevents wasted API calls when data pipeline is offline.
 
-### Step 4: Remove smoke test block from beat_schedule.py (CC session, 5 min)
-Delete lines 106-123 entirely. The smoke test served its purpose. If needed again, it can be re-added. Leaving dead env-var-gated code in production schedules is a liability.
+### Step 4: Remove smoke test block from beat_schedule.py (CC session, 5 min) ✅ DONE
+Deleted lines 106-123 entirely. The smoke test served its purpose. Leaving dead env-var-gated code in production schedules is a liability.
 
-### Step 5: Fix event loop bug in cost tracker (CC session, 15 min)
-Investigate the Motor client lifecycle in cost tracking. The pattern of "Event loop changed - recreating Motor client" in the main task works, but the cost tracker's reference goes stale. Likely needs the same loop-detection logic applied to the cost tracking code path.
+### Step 5: Fix event loop bug in cost tracker (CC session, 15 min) ✅ DONE
+Changed `asyncio.create_task()` to direct `await` in cost tracker. Event loop may be closed after task completion, so use direct await instead of fire-and-forget task creation.
+
+## Implementation Complete ✅
+
+**Branch:** `fix/bug-055-smoke-briefings-api-credits`
+**Commit:** f119256 - fix(briefings): Add empty-data guard and remove smoke test schedule
+
+### Changes Made:
+1. ✅ Empty-data guard: Skip briefing generation when signals/narratives empty (briefing_agent.py:145-153)
+2. ✅ Remove smoke test block: Deleted conditional schedule from beat_schedule.py (removed lines 109-129)
+3. ✅ Fix cost tracker event loop: Changed asyncio.create_task() to await (briefing_agent.py:830)
+
+### Remaining Manual Steps (required before deployment):
+1. 🔴 **Remove SMOKE_BRIEFINGS env var** from Railway celery-beat service (1 min)
+2. 🔴 **Prune MongoDB collections** to free storage below 512 MB (15 min)
 
 ## Files to Change
 - **Railway celery-beat env vars** -- remove `SMOKE_BRIEFINGS`

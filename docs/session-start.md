@@ -62,14 +62,22 @@ GET https://context-owl-production.up.railway.app/api/v1/health
 
 ## Completed This Session
 
-**Session 12 (2026-04-02, current):**
-- ✅ **BUG-054: Code fixes complete, awaiting manual test** -- all code changes done, branch ready
+**Session 14 (2026-04-02, current) - BUG-055 CODE COMPLETE ✅**
+- ✅ **BUG-055: Code fixes complete, awaiting manual Railway/MongoDB steps**
+  - ✅ Empty-data guard: Skip briefing generation when signals/narratives empty (prevents wasted LLM calls)
+  - ✅ Remove smoke test block: Deleted conditional schedule from beat_schedule.py
+  - ✅ Fix event loop bug: Change asyncio.create_task() to await in cost tracker
+  - Branch: `fix/bug-055-smoke-briefings-api-credits` with 1 commit (f119256)
+  - Next: Remove SMOKE_BRIEFINGS env var (manual), prune MongoDB (manual), then deploy to prod
+
+**Session 12 (2026-04-02)**
+- ✅ **BUG-054: Code fixes complete, awaiting deployment** -- all code changes done, branch ready
   - Root cause: `fetch_news` commented out in `beat_schedule.py` (BUG-019)
   - Secondary: task name mismatch (no `name=` in decorator) — FIXED
   - Tertiary: dead smoke test code after `return` — FIXED
   - Added `/admin/trigger-fetch` endpoint for HTTP-based manual testing (no shell access needed)
   - Branch: `fix/bug-054-rss-pipeline-not-running` with 2 commits
-  - Next: Deploy, test via curl, monitor worker logs, merge
+  - Status: Blocked by BUG-055 (MongoDB full blocks article writes)
 
 **Session 11 (2026-04-02):**
 - ✅ **TASK-032: Clean Up Anthropic Env Vars** (10 min) — Railway configuration
@@ -93,11 +101,11 @@ GET https://context-owl-production.up.railway.app/api/v1/health
 ## Next Up (execution order)
 
 **IMMEDIATE — BUG-055 (blocks BUG-054, actively costing money):**
-1. 🔴 Remove `SMOKE_BRIEFINGS` env var from Railway celery-beat service (1 min, manual)
-2. 🔴 Free MongoDB storage below 512 MB — prune old collections via Atlas UI or shell (15 min, manual)
-3. 🔲 CC session: Add empty-data guard to briefing_agent.py (skip LLM calls when 0 inputs)
-4. 🔲 CC session: Remove smoke test block from beat_schedule.py (lines 106-123)
-5. 🔲 CC session: Fix cost tracker event loop bug
+1. ✅ Add empty-data guard to briefing_agent.py (skip LLM calls when 0 inputs) — DONE
+2. ✅ Remove smoke test block from beat_schedule.py (lines 106-123) — DONE
+3. ✅ Fix cost tracker event loop bug — DONE
+4. 🔴 Remove `SMOKE_BRIEFINGS` env var from Railway celery-beat service (1 min, manual)
+5. 🔴 Free MongoDB storage below 512 MB — prune old collections via Atlas UI or shell (15 min, manual)
 
 **THEN — BUG-054 (blocked until MongoDB has headroom):**
 1. ✅ Add `name="fetch_news"` to `@shared_task` decorator in `tasks/news.py`
