@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 @shared_task(
     bind=True,
+    name="fetch_news",
     max_retries=3,
     default_retry_delay=300,  # 5 minutes
     acks_late=True,

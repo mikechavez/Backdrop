@@ -1,25 +1,27 @@
 # Session Start
 
 **Date:** 2026-04-02
-**Status:** Sprint 12, Phase 1 — 4 of 5 original tickets complete, 3 new tickets added
-**Branch:** `main` (TASK-031 will create `feature/task-031-railway-redis`)
+**Status:** Sprint 12, Phase 1 — BUG-054 diagnosed, ready for CC fix session
+**Branch:** `main`
 
 ---
 
-## Session 8 Work Summary (2026-04-01/04-02) - TRIAGE & TICKETS
+## Session 12 Work Summary (2026-04-02) - BUG-054 DIAGNOSED
 
 ### What Happened:
-Diagnosed production health, found Redis (Upstash deleted), LLM (zero credits), and data freshness (10+ days stale) all failing. Fixed Celery memory blowout ($32/mo → projected $5-8/mo). Created three tickets to unblock getting Backdrop back online safely.
+All four frontend pages broken despite health endpoint green. Traced through Celery Beat and Worker logs. Root cause: `fetch_news` was commented out of `beat_schedule.py` during BUG-019 and never replaced. Secondary issue: task name mismatch (decorator uses auto-generated full path name, old schedule entry used short name). Tertiary: dead smoke test code after `return` statement.
 
-### Fixes Applied (already live on Railway):
-- ✅ Celery worker: `--pool=solo --max-tasks-per-child=50` (was spawning 4+ processes, caused OOM)
-- ✅ Memory limits: 1 GB cap on celery-worker, crypto-news-aggregator, celery-beat
-- ✅ Daily LLM spend target defined: $0.33/day ($10/month)
+### Bug Ticket Created:
+- **BUG-054:** RSS Ingestion Pipeline Not Running (fetch_news disabled in Beat Schedule)
+- **Priority:** Critical
+- **Estimated fix:** 30 min CC session
 
-### Tickets Created:
-- **TASK-031:** Switch Redis from Upstash REST to Railway Redis (redis-py) — CRITICAL, blocks everything
-- **TASK-032:** Clean Up Stale Anthropic Model Env Vars — 10 min manual config
-- **BUG-053:** Remove Hardcoded SMTP Password from config.py — security fix
+### Fix Plan:
+1. Manual trigger test: `celery call crypto_news_aggregator.tasks.news.fetch_news`
+2. Add `name="fetch_news"` to `@shared_task` decorator in `tasks/news.py`
+3. Add 3-hour schedule entry in `beat_schedule.py`
+4. Fix dead smoke test code block
+5. Deploy and verify end-to-end
 
 ---
 
@@ -32,14 +34,35 @@ GET https://context-owl-production.up.railway.app/api/v1/health
 | Check | Status | Notes |
 |-------|--------|-------|
 | Database | ✅ ok | MongoDB healthy, ~3ms |
-| Redis | ❌ error | Upstash DB deleted; needs TASK-031 |
-| LLM | ❌ error | $0 Anthropic credits; add after TASK-031 |
-| Data freshness | ⚠️ warning | 10+ days stale; will resolve once pipeline runs |
+| Redis | ✅ ok | Railway Redis, ~6ms |
+| LLM | ✅ ok | claude-haiku-4-5-20251001 |
+| Data freshness | ⚠️ warning | 11+ days stale -- BUG-054, pipeline not dispatching fetch_news |
+
+**Key insight:** Health endpoint is green but only checks connectivity, not data flow. TASK-028 burn-in validates uptime, not pipeline functionality.
 
 ---
 
 ## Completed This Session
 
+**Session 12 (2026-04-02, current):**
+- ✅ **BUG-054: Diagnosed RSS Ingestion Failure** -- ticket created, fix plan ready
+  - Root cause: `fetch_news` commented out in `beat_schedule.py` (BUG-019)
+  - Secondary: task name mismatch (no `name=` in decorator)
+  - Tertiary: dead smoke test code after `return`
+
+**Session 11 (2026-04-02):**
+- ✅ **TASK-032: Clean Up Anthropic Env Vars** (10 min) — Railway configuration
+  - Deleted deprecated `ANTHROPIC_ENTITY_FALLBACK_MODEL`
+  - Updated `ANTHROPIC_ENTITY_MODEL` to `claude-haiku-4-5-20251001`
+  - Added Anthropic credits ($10-15)
+  - Verified health endpoint all green ✅
+  - Set up UptimeRobot for 72-hour burn-in monitoring ⏳
+
+**Session 10 (2026-04-02):**
+- ✅ **BUG-053: Remove Hardcoded SMTP Credentials** (20 min)
+  - Removed plaintext SMTP password from config.py
+
+**Session 9 (2026-04-02):**
 - ✅ **TASK-031: Switch to Railway Redis** (1 hr) — Upstash REST → redis-py
   - Rewrite `redis_rest_client.py` to use redis-py with Railway Redis
   - Same interface, zero changes to rate_limiter.py / circuit_breaker.py / health.py
@@ -48,23 +71,21 @@ GET https://context-owl-production.up.railway.app/api/v1/health
 
 ## Next Up (execution order)
 
-1. **Merge PR #233** — TASK-031 complete, ready to merge to main
+**IMMEDIATE — BUG-054 (blocks everything):**
+1. 🔲 Manual trigger test: verify `fetch_news` runs clean from Railway shell
+2. 🔲 Add `name="fetch_news"` to `@shared_task` decorator in `tasks/news.py`
+3. 🔲 Add 3-hour schedule entry in `beat_schedule.py`
+4. 🔲 Fix dead smoke test code (move above `return schedule`)
+5. 🔲 Deploy to Railway
+6. 🔲 Verify articles flowing, signals populating, next briefing generates with fresh data
 
-2. **BUG-053: Remove Hardcoded SMTP Password** — CC session, ~20 min. Do alongside TASK-031.
-   - Rotate SMTP credential first (manual)
-   - Empty SMTP defaults in config.py
-   - Verify SMTP code paths are disabled
-   - Ticket: `bug-053-hardcoded-smtp.md`
+**Phase 1 remaining after BUG-054:**
+- ⏳ TASK-028: 72-hour burn-in (monitoring active, but should restart timer after BUG-054 fix)
+- 🔲 TASK-030: Rename GitHub repo (15 min, manual)
 
-3. **TASK-032: Clean Up Anthropic Env Vars** — Manual, 10 min. Do in Railway UI.
-   - Delete `ANTHROPIC_ENTITY_FALLBACK_MODEL` (deprecated by BUG-039)
-   - Update `ANTHROPIC_ENTITY_MODEL` → `claude-haiku-4-5-20251001`
-
-4. **Add Anthropic credits** — Manual. Add $10-15 to console.anthropic.com.
-
-5. **Verify health endpoint is fully green** — All 4 checks should pass.
-
-6. **Set up UptimeRobot** — Point at health endpoint, 5-min interval, keyword check for `"status":"healthy"`. Start 72-hour burn-in clock (replaces custom script approach for TASK-028).
+**Phase 2 (after Phase 1 stable):**
+- TASK-029: NeMo Research & Integration Plan (2 hr)
+- FEATURE-051 through FEATURE-053
 
 ---
 
@@ -79,28 +100,18 @@ GET https://context-owl-production.up.railway.app/api/v1/health
 
 ## Known Issues / Blockers
 
-- **Redis not connected** — rate limiter and circuit breaker silently disabled (TASK-031 fixes this)
-- **Anthropic credits at $0** — all LLM systems down (add credits after TASK-031)
+- **🔴 BUG-054: fetch_news not running** — entire data pipeline dead. No articles, signals, briefings, or cost data. CRITICAL, fix plan ready for CC session.
+- **TASK-028 burn-in is incomplete** — currently only validates health endpoint (connectivity), not data flow. Should restart 72hr timer after BUG-054 is fixed.
 - **SMTP password in Git history** — BUG-053 addresses config, but password remains in Git history (low priority for private repo)
 - **TASK-030 (Rename GitHub Repo)** still open — manual GitHub UI task, 15 min
-- **PR #232 (TASK-027)** needs merge to main before TASK-031 branch
 
 ---
 
 ## Key Files
 
-**TASK-031 (modify/create):**
-- `src/crypto_news_aggregator/core/redis_rest_client.py` — REWRITE: Upstash REST → redis-py
-- `src/crypto_news_aggregator/core/config.py` — add REDIS_URL field, remove Upstash fields
-- `tests/unit/test_redis_client.py` — NEW: 8 unit tests for new client
-
-**TASK-031 (verify unchanged — same interface):**
-- `src/crypto_news_aggregator/services/rate_limiter.py` — imports redis_client, calls get/incr/expire/delete
-- `src/crypto_news_aggregator/services/circuit_breaker.py` — imports redis_client, calls get/set/incr/expire/delete
-- `src/crypto_news_aggregator/api/v1/health.py` — imports redis_client, calls ping()
-
-**BUG-053 (modify):**
-- `src/crypto_news_aggregator/core/config.py` — remove hardcoded SMTP credentials
+**BUG-054 (modify):**
+- `src/crypto_news_aggregator/tasks/news.py` -- add `name="fetch_news"` to `@shared_task` decorator
+- `src/crypto_news_aggregator/tasks/beat_schedule.py` -- add 3-hour schedule entry, fix dead smoke test code
 
 **Reference (do not modify):**
 - `src/crypto_news_aggregator/db/mongodb.py` — mongo_manager

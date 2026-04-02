@@ -15,20 +15,19 @@ def get_schedule():
     This function allows for dynamic schedule configuration based on settings.
     """
     settings = get_settings()
-    return {
-        # DISABLED (BUG-019): API-based news fetching deprecated
-        # CoinDesk and Bloomberg APIs are blocked/failing
-        # RSS-based system provides articles successfully
-        # Uncomment if APIs are fixed or when switching news sources
-        # "fetch-news-every-5-minutes": {
-        #     "task": "fetch_news",  # Task registered with short name in tasks/__init__.py
-        #     "schedule": timedelta(seconds=settings.NEWS_FETCH_INTERVAL),
-        #     "args": (None,),  # None means fetch from all enabled sources
-        #     "options": {
-        #         "expires": settings.NEWS_FETCH_INTERVAL / 2,  # Prevent duplicate tasks
-        #         "time_limit": 600,  # 10 minutes
-        #     },
-        # },
+    schedule = {
+        # Fetch news from all RSS sources every 3 hours
+        # RSS feeds don't update frequently; 3-hour interval = 8 cycles/day, 100-500 articles/cycle
+        # Task name must match @shared_task(name="fetch_news") decorator in tasks/news.py
+        "fetch-news-every-3-hours": {
+            "task": "fetch_news",
+            "schedule": timedelta(hours=3),
+            "args": (None,),  # None means fetch from all enabled sources
+            "options": {
+                "expires": 600,  # 10 minutes to prevent duplicate tasks
+                "time_limit": 1800,  # 30 minutes hard limit
+            },
+        },
         # Check and process price alerts every 5 minutes
         "check-price-alerts": {
             "task": "check_price_alerts",  # Task registered with short name in tasks/__init__.py

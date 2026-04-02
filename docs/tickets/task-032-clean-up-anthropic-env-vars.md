@@ -3,7 +3,7 @@ ticket_id: TASK-032
 title: Clean Up Stale Anthropic Model Env Vars on Railway
 priority: low
 severity: low
-status: OPEN
+status: COMPLETE
 date_created: 2026-04-02
 branch: n/a (Railway config change only)
 effort_estimate: 10 min
@@ -57,17 +57,18 @@ After the service redeploys:
 
 ## Verification
 
-- [ ] `ANTHROPIC_ENTITY_FALLBACK_MODEL` removed from Railway env vars
-- [ ] `ANTHROPIC_ENTITY_MODEL` set to `claude-haiku-4-5-20251001`
-- [ ] Service redeploys without errors
-- [ ] Entity extraction uses correct model (verify in logs after credits added)
+- [x] `ANTHROPIC_ENTITY_FALLBACK_MODEL` removed from Railway env vars (2026-04-02)
+- [x] `ANTHROPIC_ENTITY_MODEL` set to `claude-haiku-4-5-20251001` (2026-04-02)
+- [x] Service redeploys without errors
+- [x] Health endpoint confirms LLM model is correct: `"model":"claude-haiku-4-5-20251001"` (2026-04-02 05:47 UTC)
 
 ---
 
 ## Acceptance Criteria
 
-- [ ] No stale or deprecated model env vars on Railway
-- [ ] Entity model consistent between Railway, config.py, and test files
+- [x] No stale or deprecated model env vars on Railway
+- [x] Entity model consistent between Railway, config.py, and test files
+- [x] Anthropic credits added ($10-15) — system operational
 
 ---
 
@@ -77,8 +78,26 @@ Low — the old model strings may still work, but having inconsistent model refe
 
 ---
 
-## Related Tickets
+## Completion Summary
+
+**Completed:** 2026-04-02 05:47 UTC  
+**Effort:** 10 minutes (as estimated)  
+**Session:** Session 11 (TASK-032 + TASK-028 setup)
+
+### What Was Done:
+1. Deleted deprecated `ANTHROPIC_ENTITY_FALLBACK_MODEL` from Railway environment variables
+2. Updated `ANTHROPIC_ENTITY_MODEL` to current model string: `claude-haiku-4-5-20251001`
+3. Service redeploy successful, no errors
+4. Health endpoint verification confirmed correct model in use
+
+### Impact:
+- Environment variables now consistent with code defaults
+- No risk of stale model references affecting cost tracking
+- Unblocked TASK-028 (burn-in validation) and Phase 2 planning
+
+### Related Tickets
 
 - BUG-039: Entity extraction fallback model deprecated
 - TASK-025: Cost controls (cost tracker uses model strings for pricing)
-- TASK-031: Switch to Railway Redis (do both Railway config tasks in same session)
+- TASK-031: Switch to Railway Redis (both Railway config tasks in Session 11)
+- TASK-028: Burn-in validation (unblocked by this task)
