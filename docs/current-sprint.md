@@ -25,7 +25,8 @@ _Get Backdrop continuously operational and affordable, then integrate NVIDIA NeM
 | 6 | BUG-053 | Remove Hardcoded SMTP Password | ✅ COMPLETE | 20 min | 20 min |
 | 7 | TASK-032 | Clean Up Stale Anthropic Env Vars | ✅ COMPLETE | 10 min | 10 min |
 | 8 | TASK-028 | Burn-in Validation (72hr via UptimeRobot) | ⏳ IN PROGRESS | 15 min | - |
-| 9 | BUG-054 | RSS Ingestion Not Running (fetch_news disabled) | 🔲 CODE READY | 30 min | - |
+| 9 | BUG-055 | SMOKE_BRIEFINGS Leak + MongoDB Quota Full | 🔴 OPEN | 45 min | - |
+| 10 | BUG-054 | RSS Ingestion Not Running (fetch_news disabled) | 🔲 CODE READY (blocked by BUG-055) | 30 min | - |
 | | | **--- PHASE 2: NeMo Agent Toolkit ---** | | |
 | 6 | TASK-029 | NeMo Research & Integration Plan | 🔲 OPEN | 2 hr |
 | 7 | FEATURE-051 | NeMo Setup & Workflow Instrumentation | 🔲 OPEN | 4 hr |
@@ -47,7 +48,9 @@ _Get Backdrop continuously operational and affordable, then integrate NVIDIA NeM
 - [x] Stale Anthropic env vars cleaned up (TASK-032 ✅)
 - [ ] System runs 72 hours without intervention (TASK-028 via UptimeRobot) — IN PROGRESS
 - [ ] Daily LLM spend under $0.33 (~$10/month target)
-- [ ] RSS ingestion pipeline running on schedule (BUG-054) — code ready, awaiting manual test
+- [ ] SMOKE_BRIEFINGS disabled, smoke test block removed from beat_schedule.py (BUG-055)
+- [ ] MongoDB Atlas under 512 MB quota with headroom for ingestion (BUG-055)
+- [ ] RSS ingestion pipeline running on schedule (BUG-054) — code ready, blocked by BUG-055 (MongoDB full)
 
 ### Phase 2: Production-Grade Monitoring
 - [ ] NeMo Agent Toolkit integrated and capturing telemetry
@@ -56,6 +59,30 @@ _Get Backdrop continuously operational and affordable, then integrate NVIDIA NeM
 - [ ] Hyperparameter optimization run (model selection, temperature, max_tokens)
 - [ ] Cost dashboard live via telemetry
 - [ ] Cost reduced vs. Phase 1 baseline with quality scores maintained
+
+---
+
+## Session 13 Work Summary (2026-04-02) - BUG-055 DIAGNOSED
+
+**BUG-055: SMOKE_BRIEFINGS=1 Left On, Burning API Credits Against Full MongoDB** (Ticket Created)
+
+### Discovery:
+Reviewed celery-worker logs and found `generate_morning_briefing` firing every 3 minutes (not every 3 hours). Traced to `SMOKE_BRIEFINGS=1` still set on Railway celery-beat service, activating the smoke test schedule in `beat_schedule.py` (lines 106-123). Every cycle makes 4 LLM calls to `claude-sonnet-4-5-20250929` that all succeed (200 OK), but the briefing save fails because MongoDB Atlas is at 516/512 MB quota. All LLM spend is wasted.
+
+### Issues Found:
+1. **SMOKE_BRIEFINGS=1 left on** — smoke test schedule active in prod, 480+ wasted API calls/day
+2. **MongoDB Atlas at 516/512 MB** — all writes blocked (briefings, cost tracking, and will block BUG-054 article ingestion)
+3. **No empty-data guard** — briefings generate with 0 signals, 0 narratives, 0 articles (pure waste)
+4. **Cost tracker event loop bug** — "Event loop is closed" after first task run per worker lifecycle
+
+### Ticket Created:
+- **BUG-055:** `BUG-055-smoke-briefings-leaking-api-credits.md`
+- **Priority:** Critical (actively costing money)
+- **Blocks:** BUG-054 deployment (article writes will also fail against full MongoDB)
+
+### Immediate Action Required (Manual):
+1. Remove `SMOKE_BRIEFINGS` env var from Railway celery-beat service (1 min)
+2. Free MongoDB storage below 512 MB via Atlas UI or shell (15 min)
 
 ---
 
@@ -443,6 +470,7 @@ _Decisions made during the sprint that affect scope, priority, or approach._
 
 ## Discovered Work
 
+- **BUG-055: SMOKE_BRIEFINGS=1 Left On + MongoDB Quota Full** — Critical. Smoke test schedule firing every 3 min, burning Anthropic API credits on empty briefings that fail to save (516/512 MB quota). Step 1: remove env var (1 min manual). Step 2: prune MongoDB (15 min). Step 3: CC session for empty-data guard + remove smoke block + fix event loop bug (30 min). Blocks BUG-054 deployment.
 - **TASK-030: Rename GitHub Repo & Update Public-Facing Metadata** — 15 min, manual (GitHub UI). Pre-sprint housekeeping before TASK-024. Repo name still shows legacy name; employers hitting GitHub links from resume/LinkedIn see the wrong project name. Full README rewrite deferred to Sprint 13 backlog.
 - **TASK-031: Switch Redis from Upstash REST to Railway Redis (redis-py)** — 1 hr, CC session. Upstash database deleted; Railway Redis already running at $0.07/mo. Rewrite redis_rest_client.py to use redis-py with identical interface. Blocks safe re-enabling of Anthropic credits.
 - **TASK-032: Clean Up Stale Anthropic Model Env Vars** — 10 min, manual Railway config. Delete deprecated `ANTHROPIC_ENTITY_FALLBACK_MODEL`, update `ANTHROPIC_ENTITY_MODEL` to current string.

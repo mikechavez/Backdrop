@@ -142,6 +142,14 @@ class BriefingAgent:
             # Step 1: Gather inputs
             briefing_input = await self._gather_inputs(briefing_type, now)
 
+            # Guard: Skip generation if no data available (prevents wasted LLM calls)
+            if not briefing_input.signals or not briefing_input.narratives:
+                logger.warning(
+                    f"Skipping {briefing_type} briefing: insufficient data "
+                    f"(signals={len(briefing_input.signals)}, narratives={len(briefing_input.narratives)})"
+                )
+                return None
+
             # Step 2: Generate initial briefing
             generated = await self._generate_with_llm(briefing_input)
 
@@ -809,7 +817,7 @@ Return ONLY valid JSON in the same format as before."""
                     # Extract response text
                     text = data.get("content", [{}])[0].get("text", "")
 
-                    # Track cost (async, non-blocking)
+                    # Track cost (fire and forget, don't block on tracking)
                     try:
                         usage = data.get("usage", {})
                         input_tokens = usage.get("input_tokens", 0)
@@ -817,14 +825,14 @@ Return ONLY valid JSON in the same format as before."""
 
                         if input_tokens > 0 or output_tokens > 0:
                             tracker = await self._get_cost_tracker()
-                            asyncio.create_task(
-                                tracker.track_call(
-                                    operation="briefing_generation",
-                                    model=model,
-                                    input_tokens=input_tokens,
-                                    output_tokens=output_tokens,
-                                    cached=False
-                                )
+                            # Await the tracking call to ensure it completes
+                            # (don't create_task - event loop may be closed)
+                            await tracker.track_call(
+                                operation="briefing_generation",
+                                model=model,
+                                input_tokens=input_tokens,
+                                output_tokens=output_tokens,
+                                cached=False
                             )
                     except Exception as e:
                         logger.error(f"Cost tracking failed: {e}")

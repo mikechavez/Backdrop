@@ -106,26 +106,4 @@ def get_schedule():
         },
     }
 
-    # ============================================================
-    # SMOKE TEST: Temporary testing of briefing generation
-    # Enable by setting SMOKE_BRIEFINGS=1 in Beat service only
-    # ============================================================
-    import os
-    if os.getenv("SMOKE_BRIEFINGS") == "1":
-        schedule["smoke-briefing-every-3min"] = {
-            # CRITICAL: Use EXACT task name from existing schedule entry
-            # This MUST match the name="..." in the @shared_task decorator
-            # Currently: "generate_morning_briefing" (verified in beat_schedule.py)
-            "task": "generate_morning_briefing",
-            # Every 3 minutes (safer than 2min to avoid stacking if runs are slow)
-            "schedule": crontab(minute="*/3"),
-            "kwargs": {"is_smoke": True},
-            "options": {
-                "expires": 180,  # 3 minutes - prevents late execution
-                "time_limit": 600,  # 10 minutes hard limit
-                "soft_time_limit": 540,  # 9 minutes soft limit (allows cleanup)
-                # Note: time_limit/soft_time_limit enforced by worker; confirm worker honors it
-            },
-        }
-
     return schedule
