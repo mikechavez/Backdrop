@@ -45,10 +45,13 @@ GET https://context-owl-production.up.railway.app/api/v1/health
 ## Completed This Session
 
 **Session 12 (2026-04-02, current):**
-- ✅ **BUG-054: Diagnosed RSS Ingestion Failure** -- ticket created, fix plan ready
+- ✅ **BUG-054: Code fixes complete, awaiting manual test** -- all code changes done, branch ready
   - Root cause: `fetch_news` commented out in `beat_schedule.py` (BUG-019)
-  - Secondary: task name mismatch (no `name=` in decorator)
-  - Tertiary: dead smoke test code after `return`
+  - Secondary: task name mismatch (no `name=` in decorator) — FIXED
+  - Tertiary: dead smoke test code after `return` — FIXED
+  - Added `/admin/trigger-fetch` endpoint for HTTP-based manual testing (no shell access needed)
+  - Branch: `fix/bug-054-rss-pipeline-not-running` with 2 commits
+  - Next: Deploy, test via curl, monitor worker logs, merge
 
 **Session 11 (2026-04-02):**
 - ✅ **TASK-032: Clean Up Anthropic Env Vars** (10 min) — Railway configuration
@@ -72,12 +75,13 @@ GET https://context-owl-production.up.railway.app/api/v1/health
 ## Next Up (execution order)
 
 **IMMEDIATE — BUG-054 (blocks everything):**
-1. 🔲 Manual trigger test: verify `fetch_news` runs clean from Railway shell
-2. 🔲 Add `name="fetch_news"` to `@shared_task` decorator in `tasks/news.py`
-3. 🔲 Add 3-hour schedule entry in `beat_schedule.py`
-4. 🔲 Fix dead smoke test code (move above `return schedule`)
-5. 🔲 Deploy to Railway
-6. 🔲 Verify articles flowing, signals populating, next briefing generates with fresh data
+1. ✅ Add `name="fetch_news"` to `@shared_task` decorator in `tasks/news.py`
+2. ✅ Add 3-hour schedule entry in `beat_schedule.py`
+3. ✅ Fix dead smoke test code (converted to assignable `schedule` variable)
+4. ✅ Add POST `/admin/trigger-fetch` endpoint for HTTP-based manual testing
+5. ⏳ Deploy to Railway
+6. ⏳ Manual trigger test: `curl -X POST https://context-owl-production.up.railway.app/admin/trigger-fetch`
+7. ⏳ Verify articles flowing in worker logs, signals populating, next briefing generates with fresh data
 
 **Phase 1 remaining after BUG-054:**
 - ⏳ TASK-028: 72-hour burn-in (monitoring active, but should restart timer after BUG-054 fix)

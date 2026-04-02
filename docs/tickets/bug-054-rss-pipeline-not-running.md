@@ -106,18 +106,54 @@ Move the smoke test block above `return schedule` so it can actually execute whe
 
 ## Resolution
 
-**Status:** Open
-**Fixed:**
-**Branch:**
-**Commit:**
+**Status:** Code Complete, Awaiting Manual Test
+**Branch:** `fix/bug-054-rss-pipeline-not-running`
+**Commits:** 
+- `b5c0dd7` - fix(tasks): Re-enable RSS ingestion pipeline (BUG-054)
+- `cacfd24` - feat(admin): Add /admin/trigger-fetch endpoint for manual testing
 
 ### Root Cause
-fetch_news disabled in BUG-019, never replaced. Task name mismatch would have prevented re-enabling without code change.
+fetch_news disabled in BUG-019, never replaced. Task name mismatch (no `name=` in decorator) would have prevented re-enabling without code change.
 
 ### Changes Made
 
+1. **tasks/news.py (line 19):** Added `name="fetch_news"` to `@shared_task` decorator
+2. **tasks/beat_schedule.py (lines 18-30):** Re-enabled fetch_news with 3-hour schedule (8 cycles/day)
+   - Changed from direct `return {` to `schedule = {` to allow smoke test code to execute
+   - Fixed dead smoke test code that fell after `return` statement
+3. **api/admin.py (lines 506-551):** Added POST `/admin/trigger-fetch` endpoint
+   - Allows manual triggering of fetch_news from HTTP without shell access
+   - Returns task_id for monitoring in worker logs
 
 ### Testing
 
+**Manual trigger test (PENDING):**
+```bash
+curl -X POST https://context-owl-production.up.railway.app/admin/trigger-fetch
+```
+
+Expected response:
+```json
+{
+  "task_id": "abc123...",
+  "task_name": "fetch_news",
+  "kwargs": {},
+  "message": "✅ News fetch task queued. Check celery-worker logs for task_id=abc123..."
+}
+```
+
+Then check celery-worker logs for:
+- Article count fetched
+- Processing time
+- Any errors during RSS collection
 
 ### Files Changed
+- `src/crypto_news_aggregator/tasks/news.py`
+- `src/crypto_news_aggregator/tasks/beat_schedule.py`
+- `src/crypto_news_aggregator/api/admin.py`
+
+### Deployment Steps
+1. Deploy branch to Railway (crypto-news-aggregator service)
+2. Run manual trigger test via curl
+3. Monitor worker logs for article ingestion
+4. Once verified, merge PR and watch beat schedule dispatches every 3 hours
