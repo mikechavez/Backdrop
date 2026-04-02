@@ -22,9 +22,10 @@ _Get Backdrop continuously operational and affordable, then integrate NVIDIA NeM
 | 3 | TASK-026 | Fix Active LLM Failures (BUG-052) | ✅ COMPLETE | 3 hr | 2.5 hr |
 | 4 | TASK-027 | Health Check & Site Status | ✅ COMPLETE | 2 hr | 1 hr |
 | 5 | TASK-031 | Switch Redis to Railway (redis-py) | ✅ COMPLETE | 1 hr | 1 hr |
-| 6 | BUG-053 | Remove Hardcoded SMTP Password | 🔲 OPEN | 20 min | - |
-| 7 | TASK-032 | Clean Up Stale Anthropic Env Vars | 🔲 OPEN | 10 min | - |
-| 8 | TASK-028 | Burn-in Validation (72hr via UptimeRobot) | 🔲 OPEN | 15 min | - |
+| 6 | BUG-053 | Remove Hardcoded SMTP Password | ✅ COMPLETE | 20 min | 20 min |
+| 7 | TASK-032 | Clean Up Stale Anthropic Env Vars | ✅ COMPLETE | 10 min | 10 min |
+| 8 | TASK-028 | Burn-in Validation (72hr via UptimeRobot) | ⏳ IN PROGRESS | 15 min | - |
+| 9 | BUG-054 | RSS Ingestion Not Running (fetch_news disabled) | 🔲 CODE READY | 30 min | - |
 | | | **--- PHASE 2: NeMo Agent Toolkit ---** | | |
 | 6 | TASK-029 | NeMo Research & Integration Plan | 🔲 OPEN | 2 hr |
 | 7 | FEATURE-051 | NeMo Setup & Workflow Instrumentation | 🔲 OPEN | 4 hr |
@@ -42,8 +43,11 @@ _Get Backdrop continuously operational and affordable, then integrate NVIDIA NeM
 - [x] No silent failures — all LLM errors logged with context
 - [x] `/health` endpoint live, frontend status indicator working (TASK-027 ✅)
 - [x] Redis connected and functional — rate limiter + circuit breaker active (TASK-031 ✅)
-- [ ] System runs 72 hours without intervention (TASK-028 via UptimeRobot)
+- [x] SMTP credentials removed from config (BUG-053 ✅)
+- [x] Stale Anthropic env vars cleaned up (TASK-032 ✅)
+- [ ] System runs 72 hours without intervention (TASK-028 via UptimeRobot) — IN PROGRESS
 - [ ] Daily LLM spend under $0.33 (~$10/month target)
+- [ ] RSS ingestion pipeline running on schedule (BUG-054) — code ready, awaiting manual test
 
 ### Phase 2: Production-Grade Monitoring
 - [ ] NeMo Agent Toolkit integrated and capturing telemetry
@@ -52,6 +56,48 @@ _Get Backdrop continuously operational and affordable, then integrate NVIDIA NeM
 - [ ] Hyperparameter optimization run (model selection, temperature, max_tokens)
 - [ ] Cost dashboard live via telemetry
 - [ ] Cost reduced vs. Phase 1 baseline with quality scores maintained
+
+---
+
+## Session 12 Work Summary (2026-04-02) - BUG-054 CODE COMPLETE ✅
+
+**BUG-054: RSS Ingestion Pipeline Not Running - CODE FIXES COMPLETE** ✅ (Awaiting Manual Test)
+
+### Work Completed:
+- ✅ Added `name="fetch_news"` to `@shared_task` decorator in `tasks/news.py` (line 19)
+- ✅ Re-enabled `fetch_news` in beat schedule with 3-hour interval (tasks/beat_schedule.py, lines 18-30)
+- ✅ Fixed dead smoke test code by converting direct `return {` to assignable `schedule` variable
+- ✅ Added POST `/admin/trigger-fetch` endpoint for HTTP-based manual testing (api/admin.py, lines 506-551)
+
+### Branch & Commits:
+- **Branch:** `fix/bug-054-rss-pipeline-not-running`
+- **Commits:**
+  - `b5c0dd7` - fix(tasks): Re-enable RSS ingestion pipeline (BUG-054)
+  - `cacfd24` - feat(admin): Add /admin/trigger-fetch endpoint for manual testing
+
+### Next Steps (Manual):
+1. Deploy branch to Railway
+2. Run manual trigger test: `curl -X POST https://context-owl-production.up.railway.app/admin/trigger-fetch`
+3. Monitor celery-worker logs for article ingestion success
+4. Verify signals page populates within 3 hours
+5. Merge PR and watch beat schedule auto-dispatch every 3 hours
+
+### Impact:
+- Restores entire data pipeline (articles → entities → signals → briefings)
+- Articles stale since March 22 should refresh within 3 hours of deployment
+
+---
+
+## Session 11 Work Summary (2026-04-02) - TASK-032 & BUG-053 COMPLETE ✅
+
+**TASK-032: Clean Up Anthropic Env Vars - COMPLETE** ✅
+**BUG-053: Remove Hardcoded SMTP Credentials - COMPLETE** ✅
+
+### Work Completed:
+- ✅ **TASK-032:** Deleted `ANTHROPIC_ENTITY_FALLBACK_MODEL`, updated `ANTHROPIC_ENTITY_MODEL` to `claude-haiku-4-5-20251001`
+- ✅ **BUG-053:** Removed plaintext SMTP password from config.py
+- ✅ Verified health endpoint all green
+- ✅ Set up UptimeRobot for 72-hour burn-in monitoring (TASK-028)
 
 ---
 
