@@ -20,8 +20,11 @@ _Get Backdrop continuously operational and affordable, then integrate NVIDIA NeM
 | 1 | TASK-024 | LLM Spend Audit | ✅ COMPLETE | 2 hr | 2 hr |
 | 2 | TASK-025 | Implement Cost Controls | ✅ COMPLETE | 3 hr | 4 hr |
 | 3 | TASK-026 | Fix Active LLM Failures (BUG-052) | ✅ COMPLETE | 3 hr | 2.5 hr |
-| 4 | TASK-027 | Health Check & Site Status | 🔲 OPEN | 2 hr | - |
-| 5 | TASK-028 | Burn-in Validation (72hr) | 🔲 OPEN | 1 hr | - |
+| 4 | TASK-027 | Health Check & Site Status | ✅ COMPLETE | 2 hr | 1 hr |
+| 5 | TASK-031 | Switch Redis to Railway (redis-py) | 🔲 OPEN | 1 hr | - |
+| 6 | BUG-053 | Remove Hardcoded SMTP Password | 🔲 OPEN | 20 min | - |
+| 7 | TASK-032 | Clean Up Stale Anthropic Env Vars | 🔲 OPEN | 10 min | - |
+| 8 | TASK-028 | Burn-in Validation (72hr via UptimeRobot) | 🔲 OPEN | 15 min | - |
 | | | **--- PHASE 2: NeMo Agent Toolkit ---** | | |
 | 6 | TASK-029 | NeMo Research & Integration Plan | 🔲 OPEN | 2 hr |
 | 7 | FEATURE-051 | NeMo Setup & Workflow Instrumentation | 🔲 OPEN | 4 hr |
@@ -37,9 +40,10 @@ _Get Backdrop continuously operational and affordable, then integrate NVIDIA NeM
 - [x] Per-system cost controls in place (daily limits, circuit breakers)
 - [x] All three LLM systems operational (briefing generation, entity extraction, sentiment analysis)
 - [x] No silent failures — all LLM errors logged with context
-- [ ] `/health` endpoint live, frontend status indicator working
-- [ ] System runs 72 hours without intervention
-- [ ] Daily LLM spend under $X (define after audit)
+- [x] `/health` endpoint live, frontend status indicator working (TASK-027 ✅)
+- [ ] Redis connected and functional — rate limiter + circuit breaker active (TASK-031)
+- [ ] System runs 72 hours without intervention (TASK-028 via UptimeRobot)
+- [ ] Daily LLM spend under $0.33 (~$10/month target)
 
 ### Phase 2: Production-Grade Monitoring
 - [ ] NeMo Agent Toolkit integrated and capturing telemetry
@@ -48,6 +52,62 @@ _Get Backdrop continuously operational and affordable, then integrate NVIDIA NeM
 - [ ] Hyperparameter optimization run (model selection, temperature, max_tokens)
 - [ ] Cost dashboard live via telemetry
 - [ ] Cost reduced vs. Phase 1 baseline with quality scores maintained
+
+---
+
+## Session 8 Work Summary (2026-04-01/04-02) - TRIAGE & TICKETS
+
+### Production Diagnostics:
+Investigated current production state via health endpoint. Findings:
+- **Database:** OK
+- **Redis:** ERROR — Upstash database was deleted; REST client returning "PING returned False"
+- **LLM:** ERROR — Anthropic credit balance is $0 (400 Bad Request)
+- **Data freshness:** WARNING — 10+ days stale (nothing running)
+
+Attempted Upstash reconnection (new free-tier DB created, env vars set on Railway) but could not resolve — client connects (1.2ms latency) but response doesn't match expected format. Root cause unclear. Decision: abandon Upstash, switch to Railway-hosted Redis that's already running and costs $0.07/month.
+
+### Railway Cost Investigation:
+Reviewed Railway invoice — total ~$43/month, with **$32.55 on memory** (75% of bill). Root cause: Celery worker running without memory limits or pool configuration, averaging ~3.2 GB RAM.
+- **celery-worker:** $17.07 RAM (biggest offender)
+- **crypto-news-aggregator:** $5.95 RAM
+- **celery-beat:** $0.70 RAM
+- **Redis:** $0.04 RAM (negligible)
+
+### Fixes Applied:
+- ✅ Set 1 GB memory limits on all three app services (Railway minimum)
+- ✅ Updated celery-worker start command: added `--pool=solo --max-tasks-per-child=50`
+  - `--pool=solo`: single process instead of 4+ forked workers
+  - `--max-tasks-per-child=50`: auto-recycle to prevent memory leaks
+  - Previous command: `cd src && celery -A crypto_news_aggregator.tasks worker --loglevel=info --queues=default,news,price,alerts,briefings`
+  - New command: `cd src && celery -A crypto_news_aggregator.tasks worker --loglevel=info --queues=default,news,price,alerts,briefings --pool=solo --max-tasks-per-child=50`
+- ✅ Celery worker confirmed back online after initial OOM crash (was over 1 GB at time of limit)
+
+### Projected Cost Savings:
+| Item | Before | After (projected) |
+|------|--------|--------------------|
+| Railway Memory | ~$32/mo | ~$5-8/mo |
+| Railway Total | ~$43/mo | ~$16-19/mo |
+| Anthropic LLM | unknown | ~$10/mo (target) |
+| **Total** | **$50+/mo** | **~$26-29/mo** |
+
+### Key Decisions:
+- **Daily LLM spend target defined:** $0.33/day ($10/month ÷ 30)
+- **TASK-028 approach changed:** Use UptimeRobot (free tier) instead of custom script — external monitoring is more credible and requires no hosting
+- **Abandon Upstash, use Railway Redis:** Less external dependencies, already paying for it, simpler architecture
+- **Execution order:** TASK-031 (Redis) → TASK-032 (env vars) → BUG-053 (SMTP) → add Anthropic credits → UptimeRobot → TASK-028 burn-in
+
+### Tickets Created:
+- **TASK-031:** Switch Redis from Upstash REST to Railway Redis (redis-py) — 1 hr, CC session
+- **TASK-032:** Clean Up Stale Anthropic Model Env Vars — 10 min, manual Railway config
+- **BUG-053:** Remove Hardcoded SMTP Password from config.py — 20 min, CC session
+
+### Security Issue Found:
+- `config.py` contains hardcoded SMTP password in plain text (BUG-053 created)
+- SMTP not actively used but credentials are live and committed to Git history
+
+### Also Noted:
+- `ANTHROPIC_ENTITY_FALLBACK_MODEL` env var on Railway is deprecated (removed by BUG-039) — delete it
+- `ANTHROPIC_ENTITY_MODEL` env var uses old model string `claude-3-5-haiku-20241022` — update to `claude-haiku-4-5-20251001`
 
 ---
 
@@ -260,6 +320,9 @@ _Decisions made during the sprint that affect scope, priority, or approach._
 ## Discovered Work
 
 - **TASK-030: Rename GitHub Repo & Update Public-Facing Metadata** — 15 min, manual (GitHub UI). Pre-sprint housekeeping before TASK-024. Repo name still shows legacy name; employers hitting GitHub links from resume/LinkedIn see the wrong project name. Full README rewrite deferred to Sprint 13 backlog.
+- **TASK-031: Switch Redis from Upstash REST to Railway Redis (redis-py)** — 1 hr, CC session. Upstash database deleted; Railway Redis already running at $0.07/mo. Rewrite redis_rest_client.py to use redis-py with identical interface. Blocks safe re-enabling of Anthropic credits.
+- **TASK-032: Clean Up Stale Anthropic Model Env Vars** — 10 min, manual Railway config. Delete deprecated `ANTHROPIC_ENTITY_FALLBACK_MODEL`, update `ANTHROPIC_ENTITY_MODEL` to current string.
+- **BUG-053: Remove Hardcoded SMTP Password from config.py** — 20 min, CC session. Plaintext password committed to repo. Rotate credential, empty defaults, verify SMTP disabled.
 
 ---
 
