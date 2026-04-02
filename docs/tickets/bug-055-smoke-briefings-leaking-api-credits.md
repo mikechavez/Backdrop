@@ -1,7 +1,7 @@
 ---
 id: BUG-055
 type: bug
-status: in-progress
+status: complete
 priority: critical
 severity: critical
 created: 2026-04-02
@@ -105,9 +105,9 @@ Changed `asyncio.create_task()` to direct `await` in cost tracker. Event loop ma
 2. ✅ Remove smoke test block: Deleted conditional schedule from beat_schedule.py (removed lines 109-129)
 3. ✅ Fix cost tracker event loop: Changed asyncio.create_task() to await (briefing_agent.py:830)
 
-### Remaining Manual Steps (required before deployment):
-1. 🔴 **Remove SMOKE_BRIEFINGS env var** from Railway celery-beat service (1 min)
-2. 🔴 **Prune MongoDB collections** to free storage below 512 MB (15 min)
+### Manual Steps (completed 2026-04-02):
+1. ✅ **Remove SMOKE_BRIEFINGS env var** from Railway celery-beat service — removed and redeployed
+2. ✅ **Prune MongoDB collections** — deleted 611,470 entity_mentions + 35,395 articles via Atlas mongosh. Storage dropped from 516 MB to 253 MB (~263 MB freed). `api_costs` retained (61K docs, ~4 MB, negligible and useful for historical reference). All deleted data was stale (no ingestion since March 22 due to BUG-054).
 
 ## Files to Change
 - **Railway celery-beat env vars** -- remove `SMOKE_BRIEFINGS`

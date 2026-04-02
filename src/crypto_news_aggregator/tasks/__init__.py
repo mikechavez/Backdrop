@@ -1,3 +1,16 @@
+# Initialize Sentry error monitoring (must be before Celery app creation)
+import sentry_sdk
+from sentry_sdk.integrations.celery import CeleryIntegration
+from crypto_news_aggregator.core.config import get_settings
+_sentry_settings = get_settings()
+if _sentry_settings.SENTRY_DSN:
+    sentry_sdk.init(
+        dsn=_sentry_settings.SENTRY_DSN,
+        integrations=[CeleryIntegration()],
+        traces_sample_rate=0.1,
+        environment="production",
+    )
+
 from celery import Celery
 from .celery_config import *
 from .celery_config import get_beat_schedule

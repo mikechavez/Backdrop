@@ -25,13 +25,17 @@ _Get Backdrop continuously operational and affordable, then integrate NVIDIA NeM
 | 6 | BUG-053 | Remove Hardcoded SMTP Password | ✅ COMPLETE | 20 min | 20 min |
 | 7 | TASK-032 | Clean Up Stale Anthropic Env Vars | ✅ COMPLETE | 10 min | 10 min |
 | 8 | TASK-028 | Burn-in Validation (72hr via UptimeRobot) | ⏳ IN PROGRESS | 15 min | - |
-| 9 | BUG-055 | SMOKE_BRIEFINGS Leak + MongoDB Quota Full | ✅ CODE COMPLETE (manual steps pending) | 45 min | - |
-| 10 | BUG-054 | RSS Ingestion Not Running (fetch_news disabled) | 🔲 BLOCKED (awaiting BUG-055 manual steps) | 30 min | - |
+| 9 | BUG-055 | SMOKE_BRIEFINGS Leak + MongoDB Quota Full | ✅ COMPLETE | 45 min | 45 min |
+| 10 | BUG-054 | RSS Ingestion Not Running (fetch_news disabled) | ⏳ DEPLOYED (awaiting pipeline verification) | 30 min | - |
+| 11 | TASK-030 | Rename GitHub Repo | 🔲 OPEN | 15 min | - |
+| 12 | TASK-033 | Add Sentry Error Monitoring | 🔲 OPEN | 30 min | - |
+| 13 | TASK-034 | Pipeline Heartbeat Health Check | 🔲 OPEN | 1 hr | - |
+| 14 | TASK-035 | Daily Pipeline Digest via Slack | 🔲 OPEN | 1 hr | - |
 | | | **--- PHASE 2: NeMo Agent Toolkit ---** | | |
-| 6 | TASK-029 | NeMo Research & Integration Plan | 🔲 OPEN | 2 hr |
-| 7 | FEATURE-051 | NeMo Setup & Workflow Instrumentation | 🔲 OPEN | 4 hr |
-| 8 | FEATURE-052 | Eval Framework & Baselines | 🔲 OPEN | 3 hr |
-| 9 | FEATURE-053 | Optimization & Cost Dashboards | 🔲 OPEN | 4 hr |
+| 15 | TASK-029 | NeMo Research & Integration Plan | 🔲 OPEN | 2 hr |
+| 16 | FEATURE-051 | NeMo Setup & Workflow Instrumentation | 🔲 OPEN | 4 hr |
+| 17 | FEATURE-052 | Eval Framework & Baselines | 🔲 OPEN | 3 hr |
+| 18 | FEATURE-053 | Optimization & Cost Dashboards | 🔲 OPEN | 4 hr |
 
 ---
 
@@ -48,9 +52,12 @@ _Get Backdrop continuously operational and affordable, then integrate NVIDIA NeM
 - [x] Stale Anthropic env vars cleaned up (TASK-032 ✅)
 - [ ] System runs 72 hours without intervention (TASK-028 via UptimeRobot) — IN PROGRESS
 - [ ] Daily LLM spend under $0.33 (~$10/month target)
-- [ ] SMOKE_BRIEFINGS disabled, smoke test block removed from beat_schedule.py (BUG-055)
-- [ ] MongoDB Atlas under 512 MB quota with headroom for ingestion (BUG-055)
-- [ ] RSS ingestion pipeline running on schedule (BUG-054) — code ready, blocked by BUG-055 (MongoDB full)
+- [x] SMOKE_BRIEFINGS disabled, smoke test block removed from beat_schedule.py (BUG-055)
+- [x] MongoDB Atlas under 512 MB quota with headroom for ingestion (BUG-055) — pruned to 253 MB
+- [ ] RSS ingestion pipeline running on schedule (BUG-054) — deployed, awaiting pipeline verification
+- [ ] Sentry error monitoring active on all three Railway services (TASK-033)
+- [ ] Pipeline heartbeat health check returning 500 on stale data, UptimeRobot alerting (TASK-034)
+- [ ] Daily Slack digest reporting pipeline stats (TASK-035)
 
 ### Phase 2: Production-Grade Monitoring
 - [ ] NeMo Agent Toolkit integrated and capturing telemetry
@@ -59,6 +66,32 @@ _Get Backdrop continuously operational and affordable, then integrate NVIDIA NeM
 - [ ] Hyperparameter optimization run (model selection, temperature, max_tokens)
 - [ ] Cost dashboard live via telemetry
 - [ ] Cost reduced vs. Phase 1 baseline with quality scores maintained
+
+---
+
+## Session 15 Work Summary (2026-04-02) - BUG-055 FULLY COMPLETE ✅
+
+**BUG-055: Manual Steps Complete — SMOKE_BRIEFINGS Removed + MongoDB Pruned**
+
+### Work Completed:
+- ✅ Removed `SMOKE_BRIEFINGS` env var from Railway celery-beat service, redeployed
+- ✅ Pruned MongoDB via Atlas mongosh:
+  - `db.entity_mentions.deleteMany({})` — 611,470 docs deleted
+  - `db.articles.deleteMany({})` — 35,395 docs deleted
+  - Storage: 516 MB → 253 MB (~263 MB freed, well under 512 MB quota)
+  - `api_costs` retained (61K docs, ~4 MB — negligible, useful for spend history)
+- ✅ BUG-054 already deployed — blocker cleared, pipeline ready for verification
+
+### Impact:
+- API credit bleed stopped (was ~480 wasted calls/day)
+- MongoDB has ~259 MB headroom for article ingestion
+- BUG-054 unblocked — `fetch_news` can write to database
+- All deleted data was stale (no ingestion since March 22)
+
+### Next:
+- Trigger manual fetch test: `curl -X POST https://context-owl-production.up.railway.app/admin/trigger-fetch`
+- Verify articles landing in worker logs
+- If successful, full pipeline is live and TASK-028 72-hour burn-in starts for real
 
 ---
 
@@ -492,6 +525,9 @@ _Decisions made during the sprint that affect scope, priority, or approach._
 
 ## Discovered Work
 
+- **TASK-033: Add Sentry Error Monitoring** — High priority, 30 min. Install sentry-sdk, init in FastAPI + Celery worker, add SENTRY_DSN env var. Catches MongoDB errors, LLM failures, task crashes. Sentry already connected to Slack for real-time error alerts. Free tier (5K events/month). Independent of TASK-034/035.
+- **TASK-034: Pipeline Heartbeat Health Check** — High priority, 1 hr. Write heartbeat timestamps after pipeline stages, health endpoint returns 500 when stale (6hr fetch, 18hr briefing). UptimeRobot alerts automatically. Catches silent failures like BUG-054. Depends on BUG-054 verified.
+- **TASK-035: Daily Pipeline Digest via Slack** — Medium priority, 1 hr. Celery Beat task sends daily Slack message with articles ingested, briefings generated, storage %, heartbeat ages. Throughput/health metrics only (Sentry handles errors). Schedule: 9 AM Eastern (Celery timezone confirmed America/New_York). Depends on TASK-034. Note: `hooks.slack.com` may need Railway egress allowlist.
 - **BUG-055: SMOKE_BRIEFINGS=1 Left On + MongoDB Quota Full** — Critical. Smoke test schedule firing every 3 min, burning Anthropic API credits on empty briefings that fail to save (516/512 MB quota). Step 1: remove env var (1 min manual). Step 2: prune MongoDB (15 min). Step 3: CC session for empty-data guard + remove smoke block + fix event loop bug (30 min). Blocks BUG-054 deployment.
 - **TASK-030: Rename GitHub Repo & Update Public-Facing Metadata** — 15 min, manual (GitHub UI). Pre-sprint housekeeping before TASK-024. Repo name still shows legacy name; employers hitting GitHub links from resume/LinkedIn see the wrong project name. Full README rewrite deferred to Sprint 13 backlog.
 - **TASK-031: Switch Redis from Upstash REST to Railway Redis (redis-py)** — 1 hr, CC session. Upstash database deleted; Railway Redis already running at $0.07/mo. Rewrite redis_rest_client.py to use redis-py with identical interface. Blocks safe re-enabling of Anthropic credits.

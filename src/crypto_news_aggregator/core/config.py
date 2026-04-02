@@ -129,6 +129,9 @@ class Settings(BaseSettings):
     EMAIL_MAX_RETRIES: int = 3  # Max retry attempts for failed sends
     EMAIL_RETRY_DELAY: int = 60  # Delay between retries in seconds
 
+    # Monitoring
+    SENTRY_DSN: Optional[str] = None  # Sentry error monitoring DSN
+
     # Alert Settings
     ALERT_COOLDOWN_MINUTES: int = 60  # 1 hour between alerts for same condition
     PRICE_CHECK_INTERVAL: int = 300  # 5 minutes between price checks

@@ -1,7 +1,7 @@
 # Session Start
 
 **Date:** 2026-04-02
-**Status:** Sprint 12, Phase 1 — BUG-055 diagnosed (blocks BUG-054), needs manual steps + CC session
+**Status:** Sprint 12, Phase 1 — BUG-055 complete, BUG-054 deployed, awaiting pipeline verification
 **Branch:** `main`
 
 ---
@@ -62,7 +62,15 @@ GET https://context-owl-production.up.railway.app/api/v1/health
 
 ## Completed This Session
 
-**Session 14 (2026-04-02, current) - BUG-055 CODE COMPLETE ✅**
+**Session 15 (2026-04-02, current) - BUG-055 FULLY COMPLETE ✅**
+- ✅ **BUG-055: All manual steps complete**
+  - ✅ Removed `SMOKE_BRIEFINGS` env var from Railway celery-beat, redeployed
+  - ✅ Pruned MongoDB via Atlas mongosh: deleted 611,470 entity_mentions + 35,395 stale articles
+  - ✅ Storage: 516 MB → 253 MB (~263 MB freed, well under 512 MB quota)
+  - ✅ `api_costs` retained (negligible size, useful for history)
+  - ✅ BUG-054 blocker cleared — already deployed, pipeline ready for verification
+
+**Session 14 (2026-04-02) - BUG-055 CODE COMPLETE ✅**
 - ✅ **BUG-055: Code fixes complete, awaiting manual Railway/MongoDB steps**
   - ✅ Empty-data guard: Skip briefing generation when signals/narratives empty (prevents wasted LLM calls)
   - ✅ Remove smoke test block: Deleted conditional schedule from beat_schedule.py
@@ -100,25 +108,24 @@ GET https://context-owl-production.up.railway.app/api/v1/health
 
 ## Next Up (execution order)
 
-**IMMEDIATE — BUG-055 (blocks BUG-054, actively costing money):**
-1. ✅ Add empty-data guard to briefing_agent.py (skip LLM calls when 0 inputs) — DONE
-2. ✅ Remove smoke test block from beat_schedule.py (lines 106-123) — DONE
-3. ✅ Fix cost tracker event loop bug — DONE
-4. 🔴 Remove `SMOKE_BRIEFINGS` env var from Railway celery-beat service (1 min, manual)
-5. 🔴 Free MongoDB storage below 512 MB — prune old collections via Atlas UI or shell (15 min, manual)
+**IMMEDIATE — BUG-054 Pipeline Verification:**
+1. ✅ Code deployed to Railway
+2. ✅ MongoDB has headroom (253 MB of 512 MB)
+3. ⏳ Manual trigger test: `curl -X POST https://context-owl-production.up.railway.app/admin/trigger-fetch`
+4. ⏳ Verify articles flowing in worker logs, signals populating, next briefing generates with fresh data
+5. ⏳ Confirm 3-hour beat schedule auto-dispatches on next cycle
 
-**THEN — BUG-054 (blocked until MongoDB has headroom):**
-1. ✅ Add `name="fetch_news"` to `@shared_task` decorator in `tasks/news.py`
-2. ✅ Add 3-hour schedule entry in `beat_schedule.py`
-3. ✅ Fix dead smoke test code (converted to assignable `schedule` variable)
-4. ✅ Add POST `/admin/trigger-fetch` endpoint for HTTP-based manual testing
-5. ⏳ Deploy to Railway
-6. ⏳ Manual trigger test: `curl -X POST https://context-owl-production.up.railway.app/admin/trigger-fetch`
-7. ⏳ Verify articles flowing in worker logs, signals populating, next briefing generates with fresh data
+**THEN — TASK-028 Burn-in (restart 72hr timer):**
+- Full pipeline now operational — articles → entities → signals → briefings
+- Restart TASK-028 72-hour validation window with all systems running
 
-**Phase 1 remaining after BUG-054:**
-- ⏳ TASK-028: 72-hour burn-in (monitoring active, but should restart timer after BUG-054 fix)
+**Phase 1 remaining:**
 - 🔲 TASK-030: Rename GitHub repo (15 min, manual)
+
+**Phase 1 monitoring (after pipeline verified + burn-in started):**
+- 🔲 TASK-033: Add Sentry Error Monitoring (30 min) — independent, can start anytime. Sentry already connected to Slack for error alerts.
+- 🔲 TASK-034: Pipeline Heartbeat Health Check (1 hr) — depends on BUG-054 verified. Briefing threshold: 18hr (2x/day schedule).
+- 🔲 TASK-035: Daily Pipeline Digest via Slack (1 hr) — depends on TASK-034. Throughput/health metrics only (Sentry handles errors). Note: `hooks.slack.com` may need Railway egress allowlist.
 
 **Phase 2 (after Phase 1 stable):**
 - TASK-029: NeMo Research & Integration Plan (2 hr)
@@ -137,9 +144,8 @@ GET https://context-owl-production.up.railway.app/api/v1/health
 
 ## Known Issues / Blockers
 
-- **🔴 BUG-055: SMOKE_BRIEFINGS=1 left on + MongoDB full** — smoke schedule firing every 3 min, burning Anthropic API credits on empty briefings. MongoDB at 516/512 MB blocks all writes. CRITICAL, fix plan ready (manual steps + CC session). Blocks BUG-054.
-- **🔴 BUG-054: fetch_news not running** — entire data pipeline dead. No articles, signals, briefings, or cost data. Code fixes complete, but deployment blocked by BUG-055 (MongoDB full means article writes will also fail).
-- **TASK-028 burn-in is incomplete** — currently only validates health endpoint (connectivity), not data flow. Should restart 72hr timer after BUG-054 is fixed.
+- **⏳ BUG-054: fetch_news deployed, awaiting verification** — code deployed, MongoDB has headroom. Need to trigger manual fetch and confirm articles landing. Full pipeline should be live once verified.
+- **TASK-028 burn-in should restart** — 72hr timer is meaningful now that pipeline is unblocked. Restart once BUG-054 pipeline verification passes.
 - **SMTP password in Git history** — BUG-053 addresses config, but password remains in Git history (low priority for private repo)
 - **TASK-030 (Rename GitHub Repo)** still open — manual GitHub UI task, 15 min
 
