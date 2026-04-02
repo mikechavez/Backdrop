@@ -99,17 +99,15 @@ class Settings(BaseSettings):
     CORS_ORIGINS: str = "*"  # In production, replace with specific origins
 
     # Email Settings
-    SMTP_SERVER: str = "smtp.mailtrap.io"  # SMTP server address
-    SMTP_PORT: int = 2525  # 587 for TLS, 465 for SSL
-    SMTP_USERNAME: str = "snotboogy"  # SMTP auth username
-    SMTP_PASSWORD: str = "01Mc0066$$420"  # SMTP auth password or app password
+    SMTP_SERVER: str = ""  # SMTP server address (set via env var if needed)
+    SMTP_PORT: int = 587  # 587 for TLS, 465 for SSL
+    SMTP_USERNAME: str = ""  # SMTP auth username (set via env var if needed)
+    SMTP_PASSWORD: str = ""  # SMTP auth password (set via env var if needed)
     SMTP_USE_TLS: bool = True  # Use TLS for encryption
     SMTP_TIMEOUT: int = 10  # Connection timeout in seconds
 
     # Email Sender Information
-    EMAIL_FROM: str = (
-        "snotboogy@cryptochime.com"  # Sender email address (defaults to SMTP_USERNAME if empty)
-    )
+    EMAIL_FROM: str = ""  # Sender email address (set via env var if needed)
     EMAIL_FROM_NAME: str = "Crypto News Aggregator"  # Sender display name
     SUPPORT_EMAIL: str = "support@example.com"  # Support contact email
     ALERT_EMAIL: str = ""  # Email address for receiving test alerts
