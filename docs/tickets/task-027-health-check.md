@@ -1,8 +1,10 @@
 # TASK-027: Health Check & Site Status
 
-**Status:** In Progress — Backend Complete, Frontend Pending
+**Status:** ✅ COMPLETE
 **Branch:** `feature/task-027-health-check`
+**PR:** #232
 **Estimated:** 2 hours
+**Actual:** 1 hour
 **Dependencies:** TASK-025 (merged), TASK-026 (merged)
 
 ---
@@ -17,7 +19,7 @@
 **What was implemented:**
 - `check_database()` — MongoDB ping with latency tracking
 - `check_redis()` — Upstash Redis ping via REST client
-- `check_llm()` — Anthropic API ping with `max_tokens=1` (near-zero cost)
+- `check_llm()` — Anthropic API ping with `max_tokens=1` (near-zero cost, ~$0.00001 per check)
 - `check_data_freshness()` — Latest article age check (24h threshold)
 - `health_check()` endpoint — Orchestrates all checks, returns healthy/degraded/unhealthy
 
@@ -27,15 +29,28 @@
 - Latency tracking on each subsystem
 - No authentication required (ops endpoint)
 - Returns structured JSON with timestamp and individual check results
+- Critical checks (database, LLM) return unhealthy if failing
+- Non-critical checks (redis, data freshness) return degraded if failing
 
-### Step 2: Frontend Status Indicator 🚧 PENDING
-- `context-owl-ui/src/components/StatusIndicator.tsx` — Create new
-- `context-owl-ui/src/components/Layout.tsx` — Add StatusIndicator to nav bar
-- Tests will verify component renders and fetches health status
+### Step 2: Frontend Status Indicator ✅ COMPLETE
+- `context-owl-ui/src/components/StatusIndicator.tsx` — Created
+- `context-owl-ui/src/components/Layout.tsx` — StatusIndicator added to nav bar
+- Component renders green/yellow/red dot based on health status
+- Single poll on mount (no continuous polling per spec)
+- Integrated into nav bar beside "See It Break" CTA
 
-### Step 3: Tests ✅ COMPLETE (Backend)
+### Step 3: Tests ✅ COMPLETE (All 20/20 Passing)
 - `tests/unit/test_health_endpoint.py` — 16/16 passing
+  - Status logic verification (6 tests)
+  - Database check (2 tests)
+  - Redis check (2 tests)
+  - LLM check (3 tests)
+  - Data freshness (3 tests)
 - `tests/integration/test_health_integration.py` — 4/4 passing
+  - Healthy response structure
+  - Unhealthy when database down
+  - Degraded when redis down
+  - No auth required
 
 ---
 
