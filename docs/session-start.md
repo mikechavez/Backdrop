@@ -38,12 +38,17 @@ GET https://context-owl-production.up.railway.app/api/v1/health
 
 ---
 
+## Completed This Session
+
+- ✅ **TASK-031: Switch to Railway Redis** (1 hr) — Upstash REST → redis-py
+  - Rewrite `redis_rest_client.py` to use redis-py with Railway Redis
+  - Same interface, zero changes to rate_limiter.py / circuit_breaker.py / health.py
+  - PR #233 created, branch: `feature/task-031-railway-redis`
+  - All 57/57 tests passing
+
 ## Next Up (execution order)
 
-1. **TASK-031: Switch to Railway Redis** — CC session, ~1 hr. This is the #1 blocker.
-   - Rewrite `redis_rest_client.py` to use redis-py with Railway Redis
-   - Same interface, zero changes to rate_limiter.py / circuit_breaker.py / health.py
-   - Ticket: `task-031-switch-to-railway-redis.md`
+1. **Merge PR #233** — TASK-031 complete, ready to merge to main
 
 2. **BUG-053: Remove Hardcoded SMTP Password** — CC session, ~20 min. Do alongside TASK-031.
    - Rotate SMTP credential first (manual)

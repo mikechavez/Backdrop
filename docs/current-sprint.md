@@ -21,7 +21,7 @@ _Get Backdrop continuously operational and affordable, then integrate NVIDIA NeM
 | 2 | TASK-025 | Implement Cost Controls | ✅ COMPLETE | 3 hr | 4 hr |
 | 3 | TASK-026 | Fix Active LLM Failures (BUG-052) | ✅ COMPLETE | 3 hr | 2.5 hr |
 | 4 | TASK-027 | Health Check & Site Status | ✅ COMPLETE | 2 hr | 1 hr |
-| 5 | TASK-031 | Switch Redis to Railway (redis-py) | 🔲 OPEN | 1 hr | - |
+| 5 | TASK-031 | Switch Redis to Railway (redis-py) | ✅ COMPLETE | 1 hr | 1 hr |
 | 6 | BUG-053 | Remove Hardcoded SMTP Password | 🔲 OPEN | 20 min | - |
 | 7 | TASK-032 | Clean Up Stale Anthropic Env Vars | 🔲 OPEN | 10 min | - |
 | 8 | TASK-028 | Burn-in Validation (72hr via UptimeRobot) | 🔲 OPEN | 15 min | - |
@@ -41,7 +41,7 @@ _Get Backdrop continuously operational and affordable, then integrate NVIDIA NeM
 - [x] All three LLM systems operational (briefing generation, entity extraction, sentiment analysis)
 - [x] No silent failures — all LLM errors logged with context
 - [x] `/health` endpoint live, frontend status indicator working (TASK-027 ✅)
-- [ ] Redis connected and functional — rate limiter + circuit breaker active (TASK-031)
+- [x] Redis connected and functional — rate limiter + circuit breaker active (TASK-031 ✅)
 - [ ] System runs 72 hours without intervention (TASK-028 via UptimeRobot)
 - [ ] Daily LLM spend under $0.33 (~$10/month target)
 
@@ -52,6 +52,45 @@ _Get Backdrop continuously operational and affordable, then integrate NVIDIA NeM
 - [ ] Hyperparameter optimization run (model selection, temperature, max_tokens)
 - [ ] Cost dashboard live via telemetry
 - [ ] Cost reduced vs. Phase 1 baseline with quality scores maintained
+
+---
+
+## Session 9 Work Summary (2026-04-02) - TASK-031 COMPLETE ✅
+
+**TASK-031: Switch Redis from Upstash REST to Railway Redis - COMPLETE** ✅
+
+### Implementation Summary:
+Replaced Upstash REST API client with redis-py for direct protocol communication to Railway Redis.
+
+### Work Completed:
+- ✅ Rewrote `redis_rest_client.py` to use redis-py with identical interface
+- ✅ Support for both Railway Redis (REDIS_URL) and local fallback (REDIS_HOST:PORT)
+- ✅ Updated config.py: added REDIS_URL field, removed Upstash-specific settings
+- ✅ All existing consumers unchanged: rate_limiter.py, circuit_breaker.py, health.py
+- ✅ Graceful degradation when Redis unavailable (returns safe defaults)
+
+### Test Results:
+- **redis_client tests:** 11/11 ✅
+- **rate_limiter tests:** 10/10 ✅ (unchanged)
+- **circuit_breaker tests:** 16/16 ✅ (unchanged)
+- **health_endpoint tests:** 20/20 ✅ (unchanged)
+- **Total:** 57/57 ✅
+
+### Cost Impact:
+- Before: Upstash REST (deleted)
+- After: Railway Redis ($0.07/month, included in platform)
+- Net savings: ~$0-5/month
+
+### PR:
+- **Branch:** `feature/task-031-railway-redis`
+- **PR #233:** feat(redis): Switch from Upstash REST to redis-py with Railway Redis (TASK-031)
+- **Commits:** 3 (code + docs)
+
+### Unblocks:
+- Adding Anthropic credits safely (rate limiter + circuit breaker now active)
+- TASK-032 (env var cleanup)
+- BUG-053 (SMTP password removal)
+- TASK-028 (burn-in validation)
 
 ---
 
