@@ -140,6 +140,45 @@ Replaced Upstash REST API client with redis-py for direct protocol communication
 
 ---
 
+## Session 10 Work Summary (2026-04-02) - BUG-053 COMPLETE ✅
+
+**BUG-053: Remove Hardcoded SMTP Credentials - COMPLETE** ✅
+
+### Security Issue Fixed:
+`src/crypto_news_aggregator/core/config.py` contained plaintext SMTP password and credentials committed to Git. These are now removed and must be provided via environment variables.
+
+### Changes Made:
+- ✅ Removed hardcoded SMTP_PASSWORD from line 105
+- ✅ Removed hardcoded SMTP_USERNAME (was "snotboogy")
+- ✅ Removed hardcoded EMAIL_FROM email address
+- ✅ Set all SMTP settings to empty defaults: `SMTP_SERVER=""`, `SMTP_USERNAME=""`, `SMTP_PASSWORD=""`, `EMAIL_FROM=""`
+- ✅ Updated SMTP_PORT from 2525 to standard 587 (TLS)
+- ✅ Added comments indicating settings should be provided via environment variables
+
+### Configuration:
+- **Branch:** `fix/bug-053-remove-hardcoded-smtp`
+- **Commit:** `851f655` - `fix(config): Remove hardcoded SMTP credentials (BUG-053)`
+- **Files Changed:** 1 (config.py, 5 insertions, 7 deletions)
+
+### Security Notes:
+- Credentials were in Git history (low risk for private repo, but rotated if possible)
+- SMTP functionality is not actively used in production
+- Production (Railway) uses environment variables for any SMTP setup needed
+- No regressions: app starts successfully with empty SMTP settings
+
+### Impact:
+- ✅ No hardcoded credentials in source code
+- ✅ Credentials must be explicitly configured via environment variables
+- ✅ Reduces attack surface and improves security posture
+- ✅ Ready for PR merge and deployment
+
+### Next Steps:
+1. Merge PR to main
+2. Deploy to production (Railway)
+3. Proceed to TASK-032 (env var cleanup)
+
+---
+
 ## Session 8 Work Summary (2026-04-01/04-02) - TRIAGE & TICKETS
 
 ### Production Diagnostics:
