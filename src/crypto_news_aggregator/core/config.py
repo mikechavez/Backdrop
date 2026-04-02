@@ -76,14 +76,12 @@ class Settings(BaseSettings):
     REALTIME_NEWSAPI_TIMEOUT: int = 30  # Request timeout in seconds
     REALTIME_NEWSAPI_MAX_RETRIES: int = 3  # Max retries for API calls
 
-    # Redis settings (for direct Redis protocol - optional)
+    # Redis settings
+    REDIS_URL: str = "redis://localhost:6379/0"  # Redis connection URL (env override for Railway)
+    # Legacy fields for backward compatibility (used to construct REDIS_URL)
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379
     REDIS_DB: int = 0
-
-    # Upstash Redis REST API settings
-    UPSTASH_REDIS_REST_URL: str = ""  # e.g., "https://your-instance.upstash.io"
-    UPSTASH_REDIS_TOKEN: str = ""  # Your Upstash REST token
 
     # Celery settings (using Redis for local development)
     # Allow override via environment variable for production deployments (e.g., Railway)
