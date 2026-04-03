@@ -12,6 +12,23 @@ _Get Backdrop continuously operational and affordable, then integrate NVIDIA NeM
 
 ---
 
+## Session 16 Work Summary (2026-04-02) - TASK-033 & TASK-030 COMPLETE ✅
+
+**Completed This Session:**
+- ✅ **TASK-030:** Renamed GitHub repo (manual) — public metadata updated
+- ✅ **BUG-054:** Verified pipeline — articles flowing, data freshness 0.4 hours
+- ✅ **TASK-033:** Sentry error monitoring fully integrated and tested
+
+**Key Accomplishment:**
+Pipeline is now fully operational with production-grade error monitoring. All three core systems (articles → entities → signals → briefings) confirmed working end-to-end.
+
+**Next Up:**
+- TASK-034: Pipeline Heartbeat Health Check (1 hr)
+- TASK-035: Daily Slack Digest (1 hr)
+- Then TASK-028 burn-in validation will be meaningful (72-hour stability check)
+
+---
+
 ## Sprint Order
 
 | # | Ticket | Title | Status | Est | Actual |
@@ -26,9 +43,9 @@ _Get Backdrop continuously operational and affordable, then integrate NVIDIA NeM
 | 7 | TASK-032 | Clean Up Stale Anthropic Env Vars | ✅ COMPLETE | 10 min | 10 min |
 | 8 | TASK-028 | Burn-in Validation (72hr via UptimeRobot) | ⏳ IN PROGRESS | 15 min | - |
 | 9 | BUG-055 | SMOKE_BRIEFINGS Leak + MongoDB Quota Full | ✅ COMPLETE | 45 min | 45 min |
-| 10 | BUG-054 | RSS Ingestion Not Running (fetch_news disabled) | ⏳ DEPLOYED (awaiting pipeline verification) | 30 min | - |
-| 11 | TASK-030 | Rename GitHub Repo | 🔲 OPEN | 15 min | - |
-| 12 | TASK-033 | Add Sentry Error Monitoring | 🔲 OPEN | 30 min | - |
+| 10 | BUG-054 | RSS Ingestion Not Running (fetch_news disabled) | ✅ COMPLETE | 30 min | 30 min |
+| 11 | TASK-030 | Rename GitHub Repo | ✅ COMPLETE | 15 min | 15 min |
+| 12 | TASK-033 | Add Sentry Error Monitoring | ✅ COMPLETE | 30 min | 45 min |
 | 13 | TASK-034 | Pipeline Heartbeat Health Check | 🔲 OPEN | 1 hr | - |
 | 14 | TASK-035 | Daily Pipeline Digest via Slack | 🔲 OPEN | 1 hr | - |
 | | | **--- PHASE 2: NeMo Agent Toolkit ---** | | |
@@ -50,12 +67,12 @@ _Get Backdrop continuously operational and affordable, then integrate NVIDIA NeM
 - [x] Redis connected and functional — rate limiter + circuit breaker active (TASK-031 ✅)
 - [x] SMTP credentials removed from config (BUG-053 ✅)
 - [x] Stale Anthropic env vars cleaned up (TASK-032 ✅)
-- [ ] System runs 72 hours without intervention (TASK-028 via UptimeRobot) — IN PROGRESS
+- [ ] System runs 72 hours without intervention (TASK-028 via UptimeRobot) — IN PROGRESS (restarted after pipeline verified)
 - [ ] Daily LLM spend under $0.33 (~$10/month target)
 - [x] SMOKE_BRIEFINGS disabled, smoke test block removed from beat_schedule.py (BUG-055)
 - [x] MongoDB Atlas under 512 MB quota with headroom for ingestion (BUG-055) — pruned to 253 MB
-- [ ] RSS ingestion pipeline running on schedule (BUG-054) — deployed, awaiting pipeline verification
-- [ ] Sentry error monitoring active on all three Railway services (TASK-033)
+- [x] RSS ingestion pipeline running on schedule (BUG-054) — verified, articles flowing
+- [x] Sentry error monitoring active on all three Railway services (TASK-033) — tested and confirmed
 - [ ] Pipeline heartbeat health check returning 500 on stale data, UptimeRobot alerting (TASK-034)
 - [ ] Daily Slack digest reporting pipeline stats (TASK-035)
 

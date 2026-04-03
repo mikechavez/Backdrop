@@ -1,8 +1,49 @@
 # Session Start
 
 **Date:** 2026-04-02
-**Status:** Sprint 12, Phase 1 — BUG-055 complete, BUG-054 deployed, awaiting pipeline verification
+**Status:** Sprint 12, Phase 1 — BUG-055 complete, BUG-054 verified, TASK-030 complete, TASK-033 complete
 **Branch:** `main`
+
+---
+
+## Session 16 Work Summary (2026-04-02) - TASK-033 COMPLETE ✅
+
+**TASK-033: Add Sentry Error Monitoring - COMPLETE** ✅
+
+### Work Completed:
+- ✅ Added `sentry-sdk[fastapi,celery]` dependency to pyproject.toml
+- ✅ Added `SENTRY_DSN` config field to config.py
+- ✅ Initialized Sentry in FastAPI app with `FastApiIntegration()`
+- ✅ Initialized Sentry in Celery worker with `CeleryIntegration()`
+- ✅ Added SENTRY_DSN env var to all three Railway services
+- ✅ Fixed Railway start command to ensure `poetry install` runs (was default before)
+- ✅ Verified Sentry captures errors and displays in dashboard
+- ✅ All acceptance criteria met
+
+### Key Learning:
+Railway's default build wasn't properly installing dependencies from poetry.lock. Needed to set explicit start command:
+```
+poetry install && poetry run gunicorn -w 4 -k uvicorn.workers.UvicornWorker src.crypto_news_aggregator.main:app --bind 0.0.0.0:$PORT
+```
+
+### Impact:
+- All exceptions (MongoDB errors, LLM failures, Celery task crashes, unhandled FastAPI errors) now captured in Sentry
+- Real-time alerts configured — prevents silent failures like BUG-055
+- Unblocks TASK-034 (Pipeline Heartbeat) and TASK-035 (Daily Slack Digest)
+
+---
+
+## Session 15 Work Summary (2026-04-02) - BUG-054 VERIFIED + TASK-030 COMPLETE ✅
+
+**BUG-054 Pipeline Verification:** ✅ COMPLETE
+- Triggered manual fetch via `/admin/trigger-fetch` endpoint
+- Articles landed in MongoDB (verified via health endpoint)
+- Data freshness: 11+ days stale → 0.4 hours (24 minutes old)
+- Full pipeline now operational: articles → entities → signals → briefings
+
+**TASK-030: Rename GitHub Repo:** ✅ COMPLETE (manual)
+- Repo renamed from legacy name to current name
+- Public-facing metadata updated
 
 ---
 
