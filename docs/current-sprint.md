@@ -1,8 +1,8 @@
 # Sprint 12 — Backdrop Stability & Production-Grade Monitoring
 
-**Status:** Not Started
-**Started:**
-**Target:** Open-ended (until stable)
+**Status:** Phase 1 — In Progress (81% complete, 13/16 tasks done)
+**Started:** 2026-04-01
+**Target:** Complete Phase 1 (all monitoring live), then Phase 2 (NeMo integration)
 
 ---
 
@@ -12,20 +12,23 @@ _Get Backdrop continuously operational and affordable, then integrate NVIDIA NeM
 
 ---
 
-## Session 16 Work Summary (2026-04-02) - TASK-033 & TASK-030 COMPLETE ✅
+## Session 17 Work Summary (2026-04-02) - TASK-034 COMPLETE ✅
 
 **Completed This Session:**
-- ✅ **TASK-030:** Renamed GitHub repo (manual) — public metadata updated
-- ✅ **BUG-054:** Verified pipeline — articles flowing, data freshness 0.4 hours
-- ✅ **TASK-033:** Sentry error monitoring fully integrated and tested
+- ✅ **TASK-034:** Pipeline heartbeat health checks fully implemented (feat(monitoring): commit 05471e3)
+  - Heartbeat module created (`services/heartbeat.py`, 68 lines)
+  - Integration: `fetch_news` records heartbeat after article collection
+  - Integration: Briefing generation records heartbeat after save
+  - Health endpoint enhanced with `check_pipeline_heartbeats()` (98 lines added)
+  - HTTP 500 returned when pipeline stale (triggers UptimeRobot auto-alert)
+  - All tests passing: 6/6 unit tests ✅, 1/1 integration test ✅
 
 **Key Accomplishment:**
-Pipeline is now fully operational with production-grade error monitoring. All three core systems (articles → entities → signals → briefings) confirmed working end-to-end.
+System now detects pipeline stalls within 6 hours (vs. 11+ days in BUG-054). HTTP 500 response automatically triggers UptimeRobot alert — no manual intervention needed.
 
 **Next Up:**
-- TASK-034: Pipeline Heartbeat Health Check (1 hr)
-- TASK-035: Daily Slack Digest (1 hr)
-- Then TASK-028 burn-in validation will be meaningful (72-hour stability check)
+- TASK-035: Daily Slack Digest (1-2 hrs, ready to start)
+- TASK-028: Restart 72-hour burn-in validation (run in parallel with TASK-035)
 
 ---
 
@@ -46,8 +49,8 @@ Pipeline is now fully operational with production-grade error monitoring. All th
 | 10 | BUG-054 | RSS Ingestion Not Running (fetch_news disabled) | ✅ COMPLETE | 30 min | 30 min |
 | 11 | TASK-030 | Rename GitHub Repo | ✅ COMPLETE | 15 min | 15 min |
 | 12 | TASK-033 | Add Sentry Error Monitoring | ✅ COMPLETE | 30 min | 45 min |
-| 13 | TASK-034 | Pipeline Heartbeat Health Check | 🔲 OPEN | 1 hr | - |
-| 14 | TASK-035 | Daily Pipeline Digest via Slack | 🔲 OPEN | 1 hr | - |
+| 13 | TASK-034 | Pipeline Heartbeat Health Check | ✅ COMPLETE | 1 hr | 1 hr |
+| 14 | TASK-035 | Daily Pipeline Digest via Slack | 🔲 OPEN | 1-2 hr | - |
 | | | **--- PHASE 2: NeMo Agent Toolkit ---** | | |
 | 15 | TASK-029 | NeMo Research & Integration Plan | 🔲 OPEN | 2 hr |
 | 16 | FEATURE-051 | NeMo Setup & Workflow Instrumentation | 🔲 OPEN | 4 hr |
@@ -73,7 +76,7 @@ Pipeline is now fully operational with production-grade error monitoring. All th
 - [x] MongoDB Atlas under 512 MB quota with headroom for ingestion (BUG-055) — pruned to 253 MB
 - [x] RSS ingestion pipeline running on schedule (BUG-054) — verified, articles flowing
 - [x] Sentry error monitoring active on all three Railway services (TASK-033) — tested and confirmed
-- [ ] Pipeline heartbeat health check returning 500 on stale data, UptimeRobot alerting (TASK-034)
+- [x] Pipeline heartbeat health check returning 500 on stale data, UptimeRobot alerting (TASK-034) — deployed
 - [ ] Daily Slack digest reporting pipeline stats (TASK-035)
 
 ### Phase 2: Production-Grade Monitoring
