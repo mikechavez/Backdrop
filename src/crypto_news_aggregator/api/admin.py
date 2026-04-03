@@ -544,3 +544,9 @@ async def trigger_fetch() -> TaskResponse:
             status_code=500,
             detail=f"Failed to queue task: {str(e)}"
         )
+
+
+@router.get("/sentry-test")
+async def sentry_test():
+    """Test endpoint to verify Sentry error monitoring is working"""
+    raise Exception("This is a test error for Sentry monitoring - delete after verification")
