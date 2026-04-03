@@ -15,6 +15,7 @@ import asyncio
 import json
 import logging
 import httpx
+import time
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass
@@ -39,6 +40,7 @@ from crypto_news_aggregator.services.pattern_detector import (
 from crypto_news_aggregator.services.market_event_detector import (
     get_market_event_detector,
 )
+from crypto_news_aggregator.services.heartbeat import record_heartbeat
 
 logger = logging.getLogger(__name__)
 
@@ -128,6 +130,7 @@ class BriefingAgent:
             Generated briefing document or None if skipped/failed
         """
         now = datetime.now(timezone.utc)
+        generation_start = time.time()
 
         # Check if briefing already exists for this slot
         if not force:
@@ -163,6 +166,19 @@ class BriefingAgent:
 
             # Step 5: Save detected patterns
             await self._save_patterns(briefing_doc["_id"], briefing_input.patterns)
+
+            # Record heartbeat after successful briefing generation
+            try:
+                generation_duration = time.time() - generation_start
+                db = await mongo_manager.get_async_database()
+                await record_heartbeat(
+                    db,
+                    stage="generate_briefing",
+                    duration_seconds=generation_duration,
+                    summary=f"{briefing_type.title()} briefing generated, {len(briefing_input.signals)} signals, {len(briefing_input.narratives)} narratives",
+                )
+            except Exception as e:
+                logger.error(f"Failed to record heartbeat for generate_briefing: {e}")
 
             logger.info(f"Successfully generated {briefing_type} briefing")
             return briefing_doc

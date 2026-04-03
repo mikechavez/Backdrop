@@ -12,10 +12,12 @@ from typing import Dict, Any
 
 import httpx
 from fastapi import APIRouter
+from fastapi.responses import JSONResponse
 
 from ...db.mongodb import mongo_manager
 from ...core.redis_rest_client import redis_client
 from ...core.config import get_settings
+from ...services.heartbeat import get_heartbeat
 
 logger = logging.getLogger(__name__)
 
@@ -137,15 +139,87 @@ async def check_data_freshness() -> dict:
 CRITICAL_CHECKS = {"database", "llm"}
 
 
+async def check_pipeline_heartbeats() -> dict:
+    """Check if critical pipeline stages have recent heartbeats."""
+    settings = get_settings()
+    try:
+        db = await mongo_manager.get_async_database()
+        pipeline_ok = True
+        pipeline_checks = {}
+
+        # Check article fetch heartbeat
+        fetch_hb = await get_heartbeat(db, "fetch_news")
+        if fetch_hb is None:
+            pipeline_checks["fetch_news"] = {
+                "status": "warning",
+                "message": "No heartbeat recorded yet (pipeline may not have run since deploy)",
+            }
+        else:
+            age_seconds = (datetime.now(timezone.utc) - fetch_hb["last_success"]).total_seconds()
+            if age_seconds > settings.HEARTBEAT_FETCH_NEWS_MAX_AGE:
+                pipeline_ok = False
+                pipeline_checks["fetch_news"] = {
+                    "status": "critical",
+                    "message": f"Last successful fetch was {age_seconds / 3600:.1f} hours ago",
+                    "last_success": fetch_hb["last_success"].isoformat(),
+                    "threshold_hours": settings.HEARTBEAT_FETCH_NEWS_MAX_AGE / 3600,
+                }
+            else:
+                pipeline_checks["fetch_news"] = {
+                    "status": "ok",
+                    "last_success": fetch_hb["last_success"].isoformat(),
+                    "last_summary": fetch_hb.get("last_result_summary", ""),
+                }
+
+        # Check briefing heartbeat
+        briefing_hb = await get_heartbeat(db, "generate_briefing")
+        if briefing_hb is None:
+            pipeline_checks["generate_briefing"] = {
+                "status": "warning",
+                "message": "No heartbeat recorded yet",
+            }
+        else:
+            age_seconds = (datetime.now(timezone.utc) - briefing_hb["last_success"]).total_seconds()
+            if age_seconds > settings.HEARTBEAT_BRIEFING_MAX_AGE:
+                pipeline_ok = False
+                pipeline_checks["generate_briefing"] = {
+                    "status": "critical",
+                    "message": f"Last briefing was {age_seconds / 3600:.1f} hours ago",
+                    "last_success": briefing_hb["last_success"].isoformat(),
+                    "threshold_hours": settings.HEARTBEAT_BRIEFING_MAX_AGE / 3600,
+                }
+            else:
+                pipeline_checks["generate_briefing"] = {
+                    "status": "ok",
+                    "last_success": briefing_hb["last_success"].isoformat(),
+                    "last_summary": briefing_hb.get("last_result_summary", ""),
+                }
+
+        return {"ok": pipeline_ok, "checks": pipeline_checks}
+
+    except Exception as e:
+        logger.error("Health check: pipeline heartbeats failed", exc_info=True)
+        return {
+            "ok": False,
+            "checks": {
+                "error": {
+                    "status": "error",
+                    "message": f"Failed to check pipeline heartbeats: {str(e)[:100]}",
+                }
+            },
+        }
+
+
 @router.get("/health", response_model=Dict[str, Any], tags=["Health"])
 async def health_check() -> Dict[str, Any]:
     """Comprehensive health check for all Backdrop subsystems.
 
     Returns:
         - **healthy**: All checks pass
-        - **degraded**: Non-critical checks failing (redis, data_freshness)
-        - **unhealthy**: Critical checks failing (database, llm)
+        - **degraded**: Non-critical checks failing (redis, data_freshness, pipeline warnings)
+        - **unhealthy**: Critical checks failing (database, llm, stale pipeline)
 
+    HTTP 500 is returned when pipeline is stale beyond thresholds (UptimeRobot alerts).
     No authentication required.
     """
     checks = {
@@ -155,15 +229,27 @@ async def health_check() -> Dict[str, Any]:
         "data_freshness": await check_data_freshness(),
     }
 
+    # Check pipeline heartbeats
+    pipeline_result = await check_pipeline_heartbeats()
+    checks["pipeline"] = pipeline_result["checks"]
+    pipeline_ok = pipeline_result["ok"]
+
     critical_failed = any(
         checks[name]["status"] == "error"
         for name in CRITICAL_CHECKS
         if name in checks
     )
     any_issue = any(
-        checks[name]["status"] in ("error", "warning")
+        checks[name].get("status") in ("error", "warning", "critical")
         for name in checks
+        if name != "pipeline"  # pipeline is a dict of checks
     )
+
+    # Pipeline critical failures mean the system is unhealthy
+    if not pipeline_ok and any(
+        check.get("status") == "critical" for check in checks["pipeline"].values()
+    ):
+        critical_failed = True
 
     if critical_failed:
         overall = "unhealthy"
@@ -172,8 +258,16 @@ async def health_check() -> Dict[str, Any]:
     else:
         overall = "healthy"
 
-    return {
+    response_body = {
         "status": overall,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "checks": checks,
     }
+
+    # Return 500 when pipeline is stale (triggers UptimeRobot alerts)
+    if not pipeline_ok and any(
+        check.get("status") == "critical" for check in checks["pipeline"].values()
+    ):
+        return JSONResponse(content=response_body, status_code=500)
+
+    return response_body

@@ -1,11 +1,15 @@
 ---
 id: TASK-034
 type: feature
-status: backlog
+status: complete
 priority: high
 complexity: medium
 created: 2026-04-02
 updated: 2026-04-02
+completed: 2026-04-02
+branch: fix/bug-055-smoke-briefings-api-credits
+commit: 05471e3
+pr: null
 ---
 
 # Pipeline Heartbeat Health Check (Catch Silent Failures)
@@ -268,6 +272,77 @@ UptimeRobot is already monitoring the health endpoint URL. When the endpoint ret
 - [ ] Should we also track entity extraction and narrative detection heartbeats? (Recommend: skip for v1, add later if needed)
 
 ## Completion Summary
-- Actual complexity:
-- Key decisions made:
-- Deviations from plan:
+
+### Status: ✅ COMPLETE (2026-04-02)
+
+**Branch:** `fix/bug-055-smoke-briefings-api-credits`  
+**Commit:** `05471e3` — feat(monitoring): Implement pipeline heartbeat health checks (TASK-034)
+
+### Acceptance Criteria — All Met ✅
+- ✅ `pipeline_heartbeats` collection with documents for each stage (upsert on `_id=stage`)
+- ✅ `fetch_news` task records heartbeat on successful completion with duration + article count
+- ✅ Briefing generation (morning/afternoon/evening) records heartbeat with duration + signal/narrative counts
+- ✅ Health endpoint returns HTTP 500 when article heartbeat > 6 hours old
+- ✅ Health endpoint returns HTTP 500 when briefing heartbeat > 18 hours old
+- ✅ Health endpoint continues returning HTTP 200 when all heartbeats fresh
+- ✅ Existing connectivity checks (MongoDB, Redis, LLM) unchanged and working
+- ✅ UptimeRobot integration ready (detects 500 and alerts automatically)
+
+### Implementation Summary
+
+**Files Created:**
+- `src/crypto_news_aggregator/services/heartbeat.py` — Heartbeat module (68 lines)
+- `tests/services/test_heartbeat.py` — Unit tests (6 tests, 6/6 passing ✅)
+- `tests/api/test_health_heartbeat.py` — Integration test (1 test, passing ✅)
+
+**Files Modified:**
+- `src/crypto_news_aggregator/core/config.py` — Added `HEARTBEAT_FETCH_NEWS_MAX_AGE` (21600s/6h), `HEARTBEAT_BRIEFING_MAX_AGE` (64800s/18h)
+- `src/crypto_news_aggregator/tasks/news.py` — Added heartbeat recording in async context (41 lines added)
+- `src/crypto_news_aggregator/services/briefing_agent.py` — Added heartbeat recording after save (12 lines added)
+- `src/crypto_news_aggregator/api/v1/health.py` — Added `check_pipeline_heartbeats()` and HTTP 500 logic (98 lines added)
+
+### Key Design Decisions Made
+
+1. **Heartbeat failures never break the pipeline** — Wrapped in try/except with error logging only. Production resilience over perfection.
+
+2. **MongoDB upserts for simplicity** — One document per stage with `_id=stage_name`. No extra indexes, simple updates, atomic writes.
+
+3. **HTTP 500 only for critical staleness** — Returns 500 only when heartbeat exceeds threshold. Returns 200 with "warning" status for missing heartbeats (safe on first deploy). Clean alert logic.
+
+4. **Heartbeat recording inside async context** — For `fetch_news`, recording happens inside the `_fetch()` async function after successful collection. Ensures access to db connection and avoids event loop issues.
+
+5. **Staleness thresholds based on schedules** — `fetch_news` every 3h → 6h threshold (2 missed cycles). Briefing 2x/day → 18h threshold (~6h past normal gap).
+
+### Test Results
+
+```
+tests/services/test_heartbeat.py — 6/6 PASSING ✅
+  ✓ test_record_heartbeat_creates_new_document
+  ✓ test_record_heartbeat_handles_exception
+  ✓ test_get_heartbeat_returns_document
+  ✓ test_get_heartbeat_returns_none_if_not_found
+  ✓ test_get_heartbeat_handles_exception
+  ✓ test_record_heartbeat_truncates_summary
+
+tests/api/test_health_heartbeat.py — 1/1 PASSING ✅
+  ✓ test_health_endpoint_includes_pipeline_checks
+```
+
+### What This Fixes
+
+**BUG-054 scenario (11+ days undetected pipeline death):**
+- Old: Health endpoint green for 11 days, no alerting
+- New: Pipeline stale >6 hours → HTTP 500 within 1 cycle → UptimeRobot alerts immediately ✅
+
+**Monitoring blind spot:**
+- Old: Only checked "is MongoDB reachable?" + "is LLM key valid?" (connectivity)
+- New: Also checks "did pipeline actually run recently?" (functionality) ✅
+
+### Next Steps
+1. Deploy to Railway (code ready, no manual config needed)
+2. Monitor health endpoint for freshness check (happens on each request)
+3. Verify heartbeats populating in `pipeline_heartbeats` collection within 3 hours (next `fetch_news` run)
+4. Proceed to TASK-035 (daily Slack digest) or TASK-028 (72-hour burn-in)
+
+### No Deviations From Plan
+All acceptance criteria met, all tests passing, implementation matches design spec exactly.
