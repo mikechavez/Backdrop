@@ -8,16 +8,18 @@ from logging.handlers import RotatingFileHandler
 # Initialize Sentry error monitoring (must be before app creation)
 try:
     import sentry_sdk
+    from sentry_sdk.integrations.fastapi import FastApiIntegration
     from .core.config import get_settings as _get_settings_for_sentry
     _settings_for_sentry = _get_settings_for_sentry()
     if _settings_for_sentry.SENTRY_DSN:
         sentry_sdk.init(
             dsn=_settings_for_sentry.SENTRY_DSN,
+            integrations=[FastApiIntegration()],
             traces_sample_rate=0.1,
             environment="production",
         )
-except ImportError:
-    # sentry_sdk not installed, skip initialization
+except (ImportError, Exception):
+    # sentry_sdk not installed or failed to initialize, skip
     pass
 
 
