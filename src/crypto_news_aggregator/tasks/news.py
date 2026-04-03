@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import time
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, Optional, Tuple
 
@@ -9,6 +10,8 @@ from celery import shared_task
 
 from ..core.news_collector import NewsCollector
 from ..core.config import get_settings
+from ..services.heartbeat import record_heartbeat
+from ..db.mongodb import mongo_manager
 
 logger = logging.getLogger(__name__)
 # settings = get_settings()  # Removed top-level settings; use lazy initialization in functions as needed.
@@ -43,6 +46,7 @@ def fetch_news(
 
     collector = NewsCollector()
     start_time = datetime.now(timezone.utc)
+    hb_start = time.time()
 
     async def _fetch() -> Tuple[bool, Dict[str, Any]]:
         """Async function to perform the actual collection."""
@@ -52,25 +56,49 @@ def fetch_news(
                     f"Collecting articles from source: {source_name} for the last {days} days"
                 )
                 count = await collector.collect_from_source(source_name, days=days)
-                return True, {
+                success_result = {
                     "status": "success",
                     "message": f"Successfully collected {count} new articles from {source_name}",
                     "source": source_name,
                     "articles_collected": count,
                     "metrics": collector.get_metrics(),
                 }
+                # Record heartbeat after successful fetch
+                try:
+                    db = await mongo_manager.get_async_database()
+                    await record_heartbeat(
+                        db,
+                        stage="fetch_news",
+                        duration_seconds=time.time() - hb_start,
+                        summary=f"Fetched {count} articles from {source_name}",
+                    )
+                except Exception as hb_error:
+                    logger.error(f"Failed to record heartbeat for fetch_news: {hb_error}")
+                return True, success_result
             else:
                 logger.info(
                     f"Collecting articles from all sources for the last {days} days"
                 )
                 count = await collector.collect_all_sources()
-                return True, {
+                success_result = {
                     "status": "success",
                     "message": f"Successfully collected {count} new articles from all sources",
                     "source": "all",
                     "articles_collected": count,
                     "metrics": collector.get_metrics(),
                 }
+                # Record heartbeat after successful fetch
+                try:
+                    db = await mongo_manager.get_async_database()
+                    await record_heartbeat(
+                        db,
+                        stage="fetch_news",
+                        duration_seconds=time.time() - hb_start,
+                        summary=f"Fetched {count} articles from all sources",
+                    )
+                except Exception as hb_error:
+                    logger.error(f"Failed to record heartbeat for fetch_news: {hb_error}")
+                return True, success_result
 
         except Exception as e:
             logger.error(f"Error in _fetch: {str(e)}", exc_info=True)

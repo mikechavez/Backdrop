@@ -132,6 +132,10 @@ class Settings(BaseSettings):
     # Monitoring
     SENTRY_DSN: Optional[str] = None  # Sentry error monitoring DSN
 
+    # Pipeline heartbeat staleness thresholds (seconds)
+    HEARTBEAT_FETCH_NEWS_MAX_AGE: int = 21600  # 6 hours -- two missed 3-hour cycles
+    HEARTBEAT_BRIEFING_MAX_AGE: int = 64800  # 18 hours -- ~6 hours past expected gap
+
     # Alert Settings
     ALERT_COOLDOWN_MINUTES: int = 60  # 1 hour between alerts for same condition
     PRICE_CHECK_INTERVAL: int = 300  # 5 minutes between price checks
