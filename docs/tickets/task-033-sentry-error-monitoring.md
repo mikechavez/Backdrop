@@ -136,6 +136,32 @@ sentry_sdk.capture_message('Backdrop Sentry test - delete me')
 - [ ] None -- straightforward integration
 
 ## Completion Summary
-- Actual complexity:
-- Key decisions made:
-- Deviations from plan:
+
+**Status:** ✅ COMPLETE
+
+**Work Completed:**
+- ✅ Added `sentry-sdk[fastapi,celery]` dependency to `pyproject.toml`
+- ✅ Added `SENTRY_DSN` config field to `src/crypto_news_aggregator/core/config.py`
+- ✅ Initialized Sentry in FastAPI app (`main.py`) with `FastApiIntegration()`
+- ✅ Initialized Sentry in Celery worker (`tasks/__init__.py`) with `CeleryIntegration()`
+- ✅ Added `SENTRY_DSN` env var to all three Railway services (crypto-news-aggregator, celery-worker, celery-beat)
+- ✅ Set explicit start command on Railway web service to ensure `poetry install` runs
+- ✅ Verified Sentry is capturing errors in production
+
+**Key Decisions Made:**
+1. **Defensive initialization:** Wrapped Sentry init in try/except to gracefully skip if package unavailable
+2. **FastApiIntegration:** Required explicit integration import for Sentry to auto-instrument FastAPI errors
+3. **Railway start command:** Had to explicitly set `poetry install && poetry run gunicorn...` because default build wasn't installing dependencies from poetry.lock
+
+**Deviations from Plan:**
+- Plan assumed Railway would auto-install from poetry.lock; reality required explicit start command configuration
+- Had to add `FastApiIntegration()` which wasn't mentioned in ticket (sentry-sdk[fastapi] extra doesn't auto-detect in FastAPI context)
+
+**Testing:**
+- Manual error trigger confirmed Sentry receives and displays errors in dashboard
+- All three services (web, celery-worker, celery-beat) properly initialized with DSN
+
+**Impact:**
+- All MongoDB errors, LLM failures, Celery task exceptions, and unhandled FastAPI errors now captured in Sentry
+- Real-time alerts configured (email on first occurrence of new error type)
+- Prevents silent failures like BUG-055 from going unnoticed for 11+ days
