@@ -35,6 +35,7 @@ from .briefing_tasks import (
 from .alert_tasks import check_price_alerts
 from .fetch_news import fetch_news as fetch_news_task
 from .warm_cache import warm_cache_task
+from .digest_tasks import send_daily_digest_task
 
 app = Celery("crypto_news_aggregator")
 app.config_from_object("crypto_news_aggregator.tasks.celery_config")
@@ -59,6 +60,7 @@ __all__ = [
     "check_price_alerts",
     "fetch_news_task",
     "warm_cache_task",
+    "send_daily_digest_task",
 ]
 
 # FIXED: Auto-discover ALL task modules
@@ -72,6 +74,7 @@ app.autodiscover_tasks(
         "crypto_news_aggregator.tasks.process_article",
         "crypto_news_aggregator.tasks.narrative_consolidation",
         "crypto_news_aggregator.tasks.warm_cache",
+        "crypto_news_aggregator.tasks.digest_tasks",
     ]
 )
 

@@ -131,6 +131,7 @@ class Settings(BaseSettings):
 
     # Monitoring
     SENTRY_DSN: Optional[str] = None  # Sentry error monitoring DSN
+    SLACK_WEBHOOK_URL: Optional[str] = None  # Slack incoming webhook for daily digest
 
     # Pipeline heartbeat staleness thresholds (seconds)
     HEARTBEAT_FETCH_NEWS_MAX_AGE: int = 21600  # 6 hours -- two missed 3-hour cycles

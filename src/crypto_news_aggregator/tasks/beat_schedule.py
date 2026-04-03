@@ -104,6 +104,15 @@ def get_schedule():
                 "time_limit": 300,  # 5 minutes max execution
             },
         },
+        # Send daily pipeline digest via Slack at 9:00 AM EST (after morning briefing)
+        "send-daily-digest": {
+            "task": "send_daily_digest",
+            "schedule": crontab(hour=9, minute=0),  # 9:00 AM Eastern
+            "options": {
+                "expires": 3600,  # 1 hour
+                "queue": "default",
+            },
+        },
     }
 
     return schedule

@@ -1,11 +1,11 @@
 ---
 id: TASK-035
 type: feature
-status: backlog
+status: complete
 priority: medium
 complexity: medium
 created: 2026-04-02
-updated: 2026-04-02
+updated: 2026-04-03
 ---
 
 # Daily Pipeline Digest via Slack Webhook
@@ -356,6 +356,52 @@ Generated 2026-04-03T09:00:12 UTC
 - [ ] Network: `hooks.slack.com` may need to be added to Railway egress allowlist. Verify during deployment.
 
 ## Completion Summary
-- Actual complexity:
-- Key decisions made:
-- Deviations from plan:
+
+**Status: ✅ COMPLETE - Code ready for deployment**
+
+**Actual Complexity:** Medium (1 hour actual, as estimated)
+
+**What Was Implemented:**
+- ✅ `services/daily_digest.py` with build_digest(), format_slack_message(), send_to_slack()
+- ✅ `tasks/digest_tasks.py` with send_daily_digest_task() Celery task
+- ✅ Config setting: SLACK_WEBHOOK_URL in core/config.py
+- ✅ Beat schedule entry for 9:00 AM EST
+- ✅ Task module registered in tasks/__init__.py
+- ✅ 7 comprehensive tests, all passing
+
+**Key Decisions:**
+- Used httpx (already a dependency) instead of adding requests
+- Slack Block Kit for rich formatting
+- Status logic: Red if articles/briefings=0, orange if storage>90%, green otherwise
+- Graceful fallback when webhook URL not configured
+
+**Deviations from Plan:**
+- None. Implementation follows ticket spec exactly.
+
+## Setup for Production
+
+### Manual Steps Required:
+1. **Create Slack Webhook:**
+   - Go to https://api.slack.com/apps → "Create New App" → "From scratch"
+   - Name: "Backdrop Alerts", select your workspace
+   - Enable "Incoming Webhooks" in sidebar
+   - Add webhook to preferred channel
+   - Copy webhook URL
+
+2. **Add to Railway Environment:**
+   - Go to Railway project → celery-beat service → Variables
+   - Add: SLACK_WEBHOOK_URL = (your webhook URL)
+   - Do the same for celery-worker service
+   - Deploy both services
+
+3. **Optional - Check Network Access:**
+   - If digest runs but no Slack message appears, check logs for hooks.slack.com errors
+   - May need to allowlist hooks.slack.com in Railway network settings
+
+### Expected Behavior:
+- Daily at 9:00 AM EST, a message appears in your Slack channel with:
+  - Status emoji (🟢 🟠 🔴)
+  - Articles ingested (24h)
+  - Briefings generated (24h)
+  - Storage usage and capacity
+  - Last pipeline heartbeat ages
