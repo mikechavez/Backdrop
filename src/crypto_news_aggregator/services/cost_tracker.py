@@ -6,11 +6,22 @@ Supports Anthropic Claude models with token-based pricing.
 """
 
 import logging
+import time
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 logger = logging.getLogger(__name__)
+
+# --- Cached budget state ---
+# Eliminates per-call DB reads and the sync/async bridge problem.
+# All callers read from this cache. A single async refresh updates it.
+_budget_cache = {
+    "daily_cost": 0.0,
+    "status": "ok",        # "ok" | "degraded" | "hard_limit"
+    "last_checked": 0.0,   # timestamp
+    "ttl": 30,             # seconds between DB reads
+}
 
 
 class CostTracker:
@@ -234,6 +245,67 @@ class CostTracker:
 
         return {item["_id"]: {"cost": item["cost"], "calls": item["calls"]} for item in results}
 
+    async def refresh_budget_cache(self) -> dict:
+        """
+        Refresh the module-level budget cache from the database.
+
+        Called periodically (every ~30s) rather than on every LLM call.
+        Returns the updated cache dict.
+        """
+        from ..core.config import get_settings
+        settings = get_settings()
+
+        try:
+            daily_cost = await self.get_daily_cost(days=1)
+        except Exception as e:
+            logger.error(f"Failed to refresh budget cache: {e}")
+            # If DB read fails, mark as degraded (fail toward caution)
+            _budget_cache["status"] = "degraded"
+            _budget_cache["last_checked"] = time.time()
+            return _budget_cache
+
+        hard_limit = settings.LLM_DAILY_HARD_LIMIT
+        soft_limit = settings.LLM_DAILY_SOFT_LIMIT
+
+        _budget_cache["daily_cost"] = daily_cost
+        _budget_cache["last_checked"] = time.time()
+
+        if daily_cost >= hard_limit:
+            _budget_cache["status"] = "hard_limit"
+            logger.warning(
+                f"HARD LIMIT reached: ${daily_cost:.4f} >= ${hard_limit:.2f}"
+            )
+        elif daily_cost >= soft_limit:
+            _budget_cache["status"] = "degraded"
+            logger.info(
+                f"Soft limit reached: ${daily_cost:.4f} >= ${soft_limit:.2f}"
+            )
+        else:
+            _budget_cache["status"] = "ok"
+
+        return _budget_cache
+
+    def is_critical_operation(self, operation: str) -> bool:
+        """
+        Determine if an operation is critical (allowed during soft limit).
+
+        Critical operations (allowed during degraded mode):
+        - briefing_generation: Core product output
+        - entity_extraction: Required for pipeline continuity
+
+        Non-critical operations (blocked during degraded mode):
+        - theme_extraction
+        - sentiment_analysis
+        - relevance_scoring
+        - article_enrichment_batch
+        - narrative_enrichment (discover_narrative_from_article)
+        """
+        CRITICAL_OPERATIONS = {
+            "briefing_generation",
+            "entity_extraction",
+        }
+        return operation in CRITICAL_OPERATIONS
+
 
 # Global instance (initialized by dependency injection)
 _cost_tracker: Optional[CostTracker] = None
@@ -253,3 +325,77 @@ def get_cost_tracker(db: AsyncIOMotorDatabase) -> CostTracker:
     if _cost_tracker is None:
         _cost_tracker = CostTracker(db)
     return _cost_tracker
+
+
+async def refresh_budget_if_stale() -> None:
+    """
+    Refresh the budget cache if it's older than its TTL.
+
+    Called from async contexts (enrichment pipeline, briefing agent).
+    Safe to call frequently -- it no-ops if the cache is fresh.
+    """
+    if time.time() - _budget_cache["last_checked"] > _budget_cache["ttl"]:
+        try:
+            from ..db.mongodb import mongo_manager
+            db = await mongo_manager.get_async_database()
+            tracker = get_cost_tracker(db)
+            await tracker.refresh_budget_cache()
+        except Exception as e:
+            logger.error(f"Budget cache refresh failed: {e}")
+
+
+def check_llm_budget(operation: str = "") -> tuple[bool, str]:
+    """
+    Synchronous budget check against the cached state.
+
+    This is the function that all LLM call sites use. No DB call,
+    no async, no event loop gymnastics. Just reads from cache.
+
+    Args:
+        operation: Operation name for critical/non-critical classification
+
+    Returns:
+        Tuple of (allowed, reason):
+        - (True, "ok"): Proceed normally
+        - (True, "degraded"): Over soft limit, but operation is critical
+        - (False, "soft_limit"): Over soft limit, non-critical operation blocked
+        - (False, "hard_limit"): Over hard limit, all operations blocked
+        - (True, "no_data"): Cache never populated, fail open with warning
+    """
+    status = _budget_cache["status"]
+    age = time.time() - _budget_cache["last_checked"]
+
+    # If the cache has never been populated, fail open but warn
+    if _budget_cache["last_checked"] == 0.0:
+        logger.warning(
+            f"Budget cache not yet populated. Allowing '{operation}' (fail open)."
+        )
+        return True, "no_data"
+
+    # If the cache is extremely stale (>5 min), treat as degraded
+    # This is the "fail toward caution" path
+    if age > 300:
+        logger.warning(
+            f"Budget cache stale ({age:.0f}s). Treating as degraded for '{operation}'."
+        )
+        status = "degraded"
+
+    if status == "hard_limit":
+        logger.warning(
+            f"LLM call blocked: hard limit. Operation='{operation}', "
+            f"daily_cost=${_budget_cache['daily_cost']:.4f}"
+        )
+        return False, "hard_limit"
+
+    if status == "degraded":
+        # Critical operations proceed, non-critical are blocked
+        tracker = CostTracker.__new__(CostTracker)  # lightweight, just need the method
+        if tracker.is_critical_operation(operation):
+            return True, "degraded"
+        else:
+            logger.warning(
+                f"Soft limit active: blocking non-critical operation '{operation}'"
+            )
+            return False, "soft_limit"
+
+    return True, "ok"

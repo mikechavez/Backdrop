@@ -137,6 +137,13 @@ class Settings(BaseSettings):
     HEARTBEAT_FETCH_NEWS_MAX_AGE: int = 21600  # 6 hours -- two missed 3-hour cycles
     HEARTBEAT_BRIEFING_MAX_AGE: int = 64800  # 18 hours -- ~6 hours past expected gap
 
+    # LLM spend cap thresholds (daily, in USD)
+    LLM_DAILY_SOFT_LIMIT: float = 0.25   # Degrade non-critical pipelines
+    LLM_DAILY_HARD_LIMIT: float = 0.33   # Halt ALL LLM calls
+
+    # Backlog throughput control
+    ENRICHMENT_MAX_ARTICLES_PER_CYCLE: int = 5   # Max articles enriched per beat tick
+
     # Alert Settings
     ALERT_COOLDOWN_MINUTES: int = 60  # 1 hour between alerts for same condition
     PRICE_CHECK_INTERVAL: int = 300  # 5 minutes between price checks

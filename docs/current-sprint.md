@@ -1,6 +1,6 @@
 # Sprint 12 — Backdrop Stability & Production-Grade Monitoring
 
-**Status:** Phase 1 — In Progress (87% complete, 14/16 tasks done)
+**Status:** Phase 1 — In Progress (78% complete, 14/18 tasks done)
 **Started:** 2026-04-01
 **Target:** Complete Phase 1 (all monitoring live), then Phase 2 (NeMo integration)
 
@@ -66,11 +66,13 @@ _Get Backdrop continuously operational and affordable, then integrate NVIDIA NeM
 | 12 | TASK-033 | Add Sentry Error Monitoring | ✅ COMPLETE | 30 min | 45 min |
 | 13 | TASK-034 | Pipeline Heartbeat Health Check | ✅ COMPLETE | 1 hr | 1 hr |
 | 14 | TASK-035 | Daily Pipeline Digest via Slack | ✅ COMPLETE | 1-2 hr | 1 hr |
+| 15 | BUG-056 | LLM Spend Cap Enforcement (no budget gate) | 🔲 OPEN | 1-1.5 hr | |
+| 16 | BUG-057 | Narrative Retry Storm (deterministic validation failures) | 🔲 OPEN | 1-1.5 hr | |
 | | | **--- PHASE 2: NeMo Agent Toolkit ---** | | |
-| 15 | TASK-029 | NeMo Research & Integration Plan | 🔲 OPEN | 2 hr |
-| 16 | FEATURE-051 | NeMo Setup & Workflow Instrumentation | 🔲 OPEN | 4 hr |
-| 17 | FEATURE-052 | Eval Framework & Baselines | 🔲 OPEN | 3 hr |
-| 18 | FEATURE-053 | Optimization & Cost Dashboards | 🔲 OPEN | 4 hr |
+| 17 | TASK-029 | NeMo Research & Integration Plan | 🔲 OPEN | 2 hr |
+| 18 | FEATURE-051 | NeMo Setup & Workflow Instrumentation | 🔲 OPEN | 4 hr |
+| 19 | FEATURE-052 | Eval Framework & Baselines | 🔲 OPEN | 3 hr |
+| 20 | FEATURE-053 | Optimization & Cost Dashboards | 🔲 OPEN | 4 hr |
 
 ---
 
@@ -568,6 +570,8 @@ _Decisions made during the sprint that affect scope, priority, or approach._
 - **TASK-031: Switch Redis from Upstash REST to Railway Redis (redis-py)** — 1 hr, CC session. Upstash database deleted; Railway Redis already running at $0.07/mo. Rewrite redis_rest_client.py to use redis-py with identical interface. Blocks safe re-enabling of Anthropic credits.
 - **TASK-032: Clean Up Stale Anthropic Model Env Vars** — 10 min, manual Railway config. Delete deprecated `ANTHROPIC_ENTITY_FALLBACK_MODEL`, update `ANTHROPIC_ENTITY_MODEL` to current string.
 - **BUG-053: Remove Hardcoded SMTP Password from config.py** — 20 min, CC session. Plaintext password committed to repo. Rotate credential, empty defaults, verify SMTP disabled.
+- **BUG-057: Narrative Enrichment Retry Storm Burns Budget on Deterministic Validation Failures** — Critical, 1-1.5 hr CC session. `discover_narrative_from_article()` retries 4x on validation failures (hallucinated entities, missing salience, empty actors) but failures are deterministic -- same prompt, same bad output. Multiplied by 100+ article backlog = retry storm that burned entire monthly budget in ~2 hours (root cause of BUG-054 credit drain). Fix: zero retries on validation failures, degraded fallback stubs, per-article LLM call cap of 2, Tier 2/3 validation auto-fixes (nucleus salience, empty actors). Depends on BUG-056. Follow-up: prompt audit ticket based on degraded rate data.
+- **BUG-056: LLM Spend Cap Enforcement -- No Budget Gate on API Calls** — Critical, 1-1.5 hr CC session. CostTracker tracks spend but never enforces a limit. All three LLM call paths fire without checking budget. After BUG-054/BUG-055 fixes, pipeline restart burned $10-15 in ~2 hours (entire monthly budget). Two-part fix: (1) spend gate with soft daily limit ($0.25 degrades non-critical) and hard daily limit ($0.33 halts all), using TTL cache for fast lookups; (2) backlog throttle via ENRICHMENT_MAX_ARTICLES_PER_CYCLE to spread cost across the day. Blocker for adding Anthropic credits and restarting pipeline. BUG-057 depends on this.
 
 ---
 
