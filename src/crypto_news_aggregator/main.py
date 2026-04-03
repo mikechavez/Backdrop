@@ -5,6 +5,17 @@ import os
 import sys
 from logging.handlers import RotatingFileHandler
 
+# Initialize Sentry error monitoring (must be before app creation)
+import sentry_sdk
+from .core.config import get_settings as _get_settings_for_sentry
+_settings_for_sentry = _get_settings_for_sentry()
+if _settings_for_sentry.SENTRY_DSN:
+    sentry_sdk.init(
+        dsn=_settings_for_sentry.SENTRY_DSN,
+        traces_sample_rate=0.1,
+        environment="production",
+    )
+
 
 def setup_logging():
     """Configure logging for the application."""
