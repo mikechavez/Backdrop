@@ -1,6 +1,6 @@
 # Sprint 12 — Backdrop Stability & Production-Grade Monitoring
 
-**Status:** Phase 1 — In Progress (81% complete, 13/16 tasks done)
+**Status:** Phase 1 — In Progress (87% complete, 14/16 tasks done)
 **Started:** 2026-04-01
 **Target:** Complete Phase 1 (all monitoring live), then Phase 2 (NeMo integration)
 
@@ -12,23 +12,38 @@ _Get Backdrop continuously operational and affordable, then integrate NVIDIA NeM
 
 ---
 
-## Session 17 Work Summary (2026-04-02) - TASK-034 COMPLETE ✅
+## Session 18 Work Summary (2026-04-03) - MULTIPLE FIXES ✅
 
 **Completed This Session:**
-- ✅ **TASK-034:** Pipeline heartbeat health checks fully implemented (feat(monitoring): commit 05471e3)
-  - Heartbeat module created (`services/heartbeat.py`, 68 lines)
-  - Integration: `fetch_news` records heartbeat after article collection
-  - Integration: Briefing generation records heartbeat after save
-  - Health endpoint enhanced with `check_pipeline_heartbeats()` (98 lines added)
-  - HTTP 500 returned when pipeline stale (triggers UptimeRobot auto-alert)
-  - All tests passing: 6/6 unit tests ✅, 1/1 integration test ✅
 
-**Key Accomplishment:**
-System now detects pipeline stalls within 6 hours (vs. 11+ days in BUG-054). HTTP 500 response automatically triggers UptimeRobot alert — no manual intervention needed.
+### 🔴 Fixed Briefing Generation (Critical Issue Found & Fixed)
+- **Issue:** Briefing agent trying to read from non-existent `trending_signals` MongoDB collection
+- **Root cause:** `_get_trending_signals()` queried pre-computed collection never populated
+- **Fix:** Changed to call `compute_trending_signals()` directly (on-demand computation)
+- **Impact:** Briefings now generate when data available, instead of failing silently
+- **Note:** Currently blocked by $0 Anthropic API balance — add credits to test fully
+
+### ✅ TASK-035: Daily Pipeline Digest via Slack (COMPLETE)
+- Created `services/daily_digest.py` with build_digest(), format_slack_message(), send_to_slack()
+- Created `tasks/digest_tasks.py` with send_daily_digest_task() Celery task
+- Added SLACK_WEBHOOK_URL config setting to core/config.py
+- Scheduled for 9:00 AM EST via Celery Beat (after morning briefing)
+- Slack Block Kit formatting with color-coded status emoji
+- All 7 tests passing ✅
+- Graceful fallback if webhook URL not set
+- Manual step: Create Slack webhook and add URL to Railway env vars
+
+**Branch Contents:**
+- `fix/bug-055-smoke-briefings-api-credits` now contains:
+  1. BUG-055 code fixes (from Session 14)
+  2. Briefing generation fix (trending_signals → compute_trending_signals)
+  3. TASK-035 implementation (daily Slack digest)
 
 **Next Up:**
-- TASK-035: Daily Slack Digest (1-2 hrs, ready to start)
-- TASK-028: Restart 72-hour burn-in validation (run in parallel with TASK-035)
+- Add Anthropic API credits (~$5 to test, $20+ for production)
+- Deploy branch to production
+- Verify briefings generate and Slack digest sends (if webhook configured)
+- Continue TASK-028 burn-in validation
 
 ---
 
@@ -50,7 +65,7 @@ System now detects pipeline stalls within 6 hours (vs. 11+ days in BUG-054). HTT
 | 11 | TASK-030 | Rename GitHub Repo | ✅ COMPLETE | 15 min | 15 min |
 | 12 | TASK-033 | Add Sentry Error Monitoring | ✅ COMPLETE | 30 min | 45 min |
 | 13 | TASK-034 | Pipeline Heartbeat Health Check | ✅ COMPLETE | 1 hr | 1 hr |
-| 14 | TASK-035 | Daily Pipeline Digest via Slack | 🔲 OPEN | 1-2 hr | - |
+| 14 | TASK-035 | Daily Pipeline Digest via Slack | ✅ COMPLETE | 1-2 hr | 1 hr |
 | | | **--- PHASE 2: NeMo Agent Toolkit ---** | | |
 | 15 | TASK-029 | NeMo Research & Integration Plan | 🔲 OPEN | 2 hr |
 | 16 | FEATURE-051 | NeMo Setup & Workflow Instrumentation | 🔲 OPEN | 4 hr |
