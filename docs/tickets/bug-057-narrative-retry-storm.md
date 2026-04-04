@@ -460,17 +460,64 @@ This is not a "nice to have" -- if degraded rate exceeds 25%, prompt improvement
 
 ## Resolution
 
-**Status:** Open
-**Fixed:**
-**Branch:**
-**Commit:**
+**Status:** IN PROGRESS - Code Implementation Complete, Tests Pending
+**Branch:** `fix/bug-057-narrative-retry-storm`
+**Commits:** (pending - will be created after testing)
 
 ### Root Cause
 
 The system treats LLM outputs as retryable: if the output is wrong, retry. But LLM validation failures are deterministic for a given input -- the same prompt on the same article produces structurally similar non-compliant output. Retrying is just burning money. The system had no concept of "degraded but usable" output, so every failure was either retried (expensive) or dropped (lost data). The validation layer also rejected recoverable defects (missing salience, empty actors) that could be auto-fixed without an LLM call. Combined with a post-outage article backlog from BUG-054, this created a retry storm that exhausted the monthly API budget in ~2 hours.
 
 ### Changes Made
-<!-- Fill after fix -->
+
+**Change 1: Zero-Retry on Validation Failures** ✅
+- Modified `discover_narrative_from_article()` (narrative_themes.py:597)
+- Removed retry loop on validation failures (lines 797-839)
+- Now returns degraded fallback immediately on validation failure (no retry)
+- Reduced `max_retries` from 4 to 2 (only for transient errors: 429, 529)
+- Updated docstring to clarify transient-only retries
+
+**Change 2: Added Degraded Fallback Function** ✅
+- New `_build_degraded_narrative()` function (narrative_themes.py:609-655)
+- Returns minimal narrative with `status="degraded"` and `degraded_reason`
+- Keeps pipeline moving without additional LLM calls
+- Uses title as fallback nucleus entity, summary as narrative_summary
+
+**Change 3: Per-Article LLM Call Cap** ✅
+- Added `MAX_LLM_CALLS_PER_ARTICLE = 2` in `discover_narrative_from_article()`
+- Counter `llm_calls_made` prevents runaway calls on single article
+- Returns degraded if cap exceeded
+- Belt-and-suspenders on top of zero-retry validation fix
+
+**Change 4: Tier 2/3 Validation Auto-Fixes** ✅
+- **Tier 2 (nucleus salience):** Auto-fix missing nucleus_entity in actor_salience with default 5
+  - Modified `validate_narrative_json()` line 133-135
+- **Tier 3 (empty actors):** Auto-fix empty actors list by backfilling from nucleus_entity
+  - Modified `validate_narrative_json()` line 92-103
+- Reduces degraded rate on day one without additional LLM calls
+
+**Change 5: Degraded Rate Tracking & Logging** ✅
+- Updated `backfill_narratives_for_recent_articles()` (narrative_themes.py:1214-1267)
+- Tracks degraded count per batch
+- Logs final report: "X articles, Y succeeded, Z degraded (%%%), N failed"
+- Articles stored with `status="degraded"` and `degraded_reason` fields
+
+**Change 6: Downstream Degraded Filtering** ✅
+- Updated `detect_narratives()` in narrative_service.py (line 897-905)
+- Added filter: `"status": {"$ne": "degraded"}` to exclude degraded narratives from clustering
+- Prevents degraded stubs from polluting briefing narratives
+- Maintains legacy compatibility (no status field = not degraded)
 
 ### Testing
-<!-- Fill after fix -->
+**Status:** PENDING for next session
+**Test file location:** `tests/services/test_bug_057_retry_storm.py`
+
+**Tests to write (7+ tests):**
+1. Unit test for `_build_degraded_narrative()` - verify structure and status field
+2. Unit test for zero-retry behavior - mock validation failure, assert 1 call only
+3. Unit test for entity hallucination - nucleus not in text, degraded returned
+4. Unit test for per-article call cap - exceeding cap returns degraded
+5. Unit test for transient retry - 429 on first call succeeds on second
+6. Unit test for Tier 2 auto-fix - nucleus salience auto-fixed, not rejected
+7. Unit test for Tier 3 auto-fix - empty actors backfilled from nucleus
+8. Integration test - backfill with mixed outcomes, verify call count and degraded rate log

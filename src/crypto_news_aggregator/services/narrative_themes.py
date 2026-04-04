@@ -89,9 +89,18 @@ def validate_narrative_json(data: Dict) -> Tuple[bool, Optional[str]]:
         if field not in data:
             return False, f"Missing required field: {field}"
 
-    # Validate actors is non-empty list
-    if not isinstance(data['actors'], list) or len(data['actors']) == 0:
-        return False, "actors must be non-empty list"
+    # Validate actors is a list
+    if not isinstance(data['actors'], list):
+        return False, "actors must be a list"
+
+    # Tier 3 auto-fix: backfill empty actors from nucleus_entity if available
+    if len(data['actors']) == 0:
+        nucleus = data.get('nucleus_entity', '')
+        if nucleus:
+            logger.debug(f"Auto-fixing: backfilling empty actors with nucleus_entity '{nucleus}'")
+            data['actors'] = [nucleus]
+        else:
+            return False, "actors empty and no nucleus_entity to backfill"
 
     # Cap actors at 20 (prevent bloat)
     if len(data['actors']) > 20:
@@ -130,9 +139,12 @@ def validate_narrative_json(data: Dict) -> Tuple[bool, Optional[str]]:
         if not (1 <= score <= 5):
             return False, f"Invalid salience {score} for {entity} (must be 1-5)"
     
-    # Ensure nucleus has salience score
+    # Tier 2 auto-fix: Ensure nucleus has salience score (default to 5 if missing)
     if data['nucleus_entity'] not in data.get('actor_salience', {}):
-        return False, f"nucleus_entity '{data['nucleus_entity']}' missing salience score"
+        logger.debug(
+            f"Auto-fixing: adding salience 5 for nucleus_entity '{data['nucleus_entity']}'"
+        )
+        data['actor_salience'][data['nucleus_entity']] = 5
     
     # Validate narrative_summary is non-empty
     if not isinstance(data.get('narrative_summary'), str) or len(data['narrative_summary']) < 10:
@@ -594,21 +606,73 @@ async def get_articles_by_theme(
     return articles
 
 
+def _build_degraded_narrative(
+    article_id: str,
+    title: str,
+    summary: str,
+    content_hash: str,
+    reason: str = ""
+) -> Dict[str, Any]:
+    """
+    Build a minimal degraded narrative result when LLM output fails validation.
+
+    This keeps the pipeline moving without additional LLM calls.
+    Degraded narratives can be identified by status="degraded" and
+    optionally backfilled later with a prompt/schema fix.
+
+    Args:
+        article_id: Article ID for logging
+        title: Article title (used as fallback nucleus entity)
+        summary: Article summary
+        content_hash: Content hash for caching
+        reason: Why the result is degraded
+
+    Returns:
+        Dict with minimal narrative structure
+    """
+    # Extract a simple nucleus entity from the title
+    # Use the first capitalized multi-word phrase or first 3 words
+    fallback_nucleus = title.split(":")[0].strip()[:50] if title else "Unknown"
+
+    logger.info(
+        f"Building degraded narrative for article {article_id[:8]}... "
+        f"(reason: {reason})"
+    )
+
+    return {
+        "actors": [fallback_nucleus],
+        "actor_salience": {fallback_nucleus: 3},
+        "nucleus_entity": fallback_nucleus,
+        "narrative_focus": "unclassified",
+        "actions": [],
+        "tensions": [],
+        "implications": "",
+        "narrative_summary": summary[:200] if summary else title,
+        "narrative_hash": content_hash,
+        "status": "degraded",
+        "degraded_reason": reason,
+    }
+
+
 async def discover_narrative_from_article(
     article: Dict,
-    max_retries: int = 4  # Increased from 3 to allow for rate limit retries
+    max_retries: int = 2  # Reduced: only retries transient errors (429, 529, timeout), not validation failures
 ) -> Optional[Dict[str, Any]]:
     """
     Extract narrative elements from article with caching.
-    
+
     Uses content hash to skip re-processing unchanged articles.
-    
+    Validation failures return degraded fallback (no retry - validation failures are deterministic).
+    Transient errors (429, 529) are retried with backoff.
+
     Args:
         article: Article document dict with _id, title, description/text/content
-        max_retries: Maximum number of retry attempts for validation failures
-    
+        max_retries: Maximum number of retry attempts for transient errors only (not validation failures)
+
     Returns:
-        Dict with narrative elements including actor_salience and nucleus_entity, or None if extraction fails
+        Dict with narrative elements including actor_salience and nucleus_entity,
+        or degraded stub with status="degraded" if validation fails,
+        or None if extraction fails
     """
     article_id = str(article.get('_id', 'unknown'))
     
@@ -644,8 +708,12 @@ async def discover_narrative_from_article(
     if not title and not summary:
         logger.warning(f"Article {article_id} has no title or summary for narrative discovery")
         return None
-    
-    # Retry loop for validation failures
+
+    # Per-article LLM call cap (belt-and-suspenders on zero-retry validation fix)
+    llm_calls_made = 0
+    MAX_LLM_CALLS_PER_ARTICLE = 2
+
+    # Retry loop (only for transient errors, not validation failures)
     for attempt in range(max_retries):
         # Build prompt for Claude with salience scoring
         prompt = f"""You are a narrative analyst studying emerging patterns in crypto news.
@@ -779,6 +847,19 @@ Example for "Dogecoin surges 40% as retail traders pile in":
 Your JSON response:"""
         
         try:
+            # Per-article LLM call cap
+            if llm_calls_made >= MAX_LLM_CALLS_PER_ARTICLE:
+                logger.warning(
+                    f"Per-article LLM call cap ({MAX_LLM_CALLS_PER_ARTICLE}) reached "
+                    f"for article {article_id[:8]}... Returning degraded result."
+                )
+                return _build_degraded_narrative(
+                    article_id, title, summary, content_hash,
+                    reason=f"per-article call cap ({MAX_LLM_CALLS_PER_ARTICLE})"
+                )
+
+            llm_calls_made += 1
+
             # Call LLM
             llm_client = get_llm_provider()
             response = llm_client._get_completion(prompt)
@@ -800,7 +881,7 @@ Your JSON response:"""
                 if is_valid:
                     logger.debug(f"✓ Validation passed for article {article_id}")
 
-                    # NEW: Validate that extracted nucleus_entity actually appears in article text
+                    # Validate that extracted nucleus_entity actually appears in article text
                     # This prevents LLM hallucinations (e.g., "Netflix" → "Coinbase" errors)
                     nucleus_entity = narrative_data.get('nucleus_entity', '')
                     if not validate_entity_in_text(
@@ -810,33 +891,30 @@ Your JSON response:"""
                     ):
                         logger.warning(
                             f"✗ Entity validation failed for article {article_id}: "
-                            f"'{nucleus_entity}' not found in text (hallucination detected)"
+                            f"'{nucleus_entity}' not found in text (hallucination detected). "
+                            f"Returning degraded result (no retry)."
                         )
-
-                        # If this is not the last retry, continue to retry
-                        if attempt < max_retries - 1:
-                            logger.info(f"Retrying entity validation (attempt {attempt + 2}/{max_retries})")
-                            await asyncio.sleep(1)
-                            continue
-                        else:
-                            logger.error(f"Max retries exhausted for article {article_id}, entity validation failed")
-                            return None
+                        # FAIL CHEAP: Return degraded result instead of retrying
+                        return _build_degraded_narrative(
+                            article_id, title, summary, content_hash,
+                            reason=f"hallucinated nucleus_entity: {nucleus_entity}"
+                        )
 
                     # Add content hash to narrative data for caching
                     narrative_data['narrative_hash'] = content_hash
 
                     return narrative_data
                 else:
-                    logger.warning(f"✗ Validation failed for article {article_id}: {error}")
-                    
-                    # If this is not the last retry, continue to retry
-                    if attempt < max_retries - 1:
-                        logger.info(f"Retrying with stricter prompt (attempt {attempt + 2}/{max_retries})")
-                        await asyncio.sleep(1)
-                        continue
-                    else:
-                        logger.error(f"Max retries exhausted for article {article_id}, validation failed: {error}")
-                        return None
+                    logger.warning(
+                        f"✗ Validation failed for article {article_id}: {error}. "
+                        f"Returning degraded result (no retry)."
+                    )
+                    # FAIL CHEAP: Return degraded fallback instead of retrying
+                    # Validation failures are deterministic - retrying won't help
+                    return _build_degraded_narrative(
+                        article_id, title, summary, content_hash,
+                        reason=f"validation: {error}"
+                    )
             
             except json.JSONDecodeError as e:
                 logger.warning(f"JSON parse error for article {article_id} (attempt {attempt + 1}/{max_retries}): {e}")
@@ -1134,16 +1212,29 @@ async def backfill_narratives_for_recent_articles(hours: int = 48, limit: int = 
             }
         ]
     }).limit(limit)
-    
+
     updated_count = 0
-    
+    degraded_count = 0
+    failed_count = 0
+    results = []
+
     async for article in cursor:
         article_id = str(article.get("_id"))
-        
+
         # Extract narrative elements (now with caching)
         narrative_data = await discover_narrative_from_article(article)
-        
+
         if narrative_data:
+            results.append(narrative_data)
+
+            # Track degraded status
+            if narrative_data.get("status") == "degraded":
+                degraded_count += 1
+                logger.debug(
+                    f"Degraded narrative for article {article_id[:8]}... "
+                    f"(reason: {narrative_data.get('degraded_reason', 'unknown')})"
+                )
+
             # Update article with narrative data (including hash)
             await articles_collection.update_one(
                 {"_id": article["_id"]},
@@ -1157,13 +1248,31 @@ async def backfill_narratives_for_recent_articles(hours: int = 48, limit: int = 
                     "implications": narrative_data.get("implications", ""),
                     "narrative_summary": narrative_data.get("narrative_summary", ""),
                     "narrative_hash": narrative_data.get("narrative_hash", ""),
-                    "narrative_extracted_at": datetime.now(timezone.utc)
+                    "narrative_extracted_at": datetime.now(timezone.utc),
+                    "status": narrative_data.get("status"),  # "degraded" or implicit success
+                    "degraded_reason": narrative_data.get("degraded_reason")  # Reason if degraded
                 }}
             )
             updated_count += 1
             logger.info(f"Updated article {article_id} with narrative data")
-    
-    logger.info(f"Backfilled narrative data for {updated_count} articles")
+        else:
+            failed_count += 1
+
+    # Log degraded rate for this batch
+    total = len(results)
+    succeeded = sum(1 for r in results if r and r.get("status") != "degraded")
+    degraded = sum(1 for r in results if r and r.get("status") == "degraded")
+
+    if total > 0:
+        degraded_pct = (degraded / total) * 100
+        logger.info(
+            f"Narrative backfill complete: {total} articles, "
+            f"{succeeded} succeeded, {degraded} degraded ({degraded_pct:.0f}%), "
+            f"{failed_count} failed"
+        )
+    else:
+        logger.info(f"Narrative backfill complete: no articles processed")
+
     return updated_count
 
 

@@ -1,8 +1,66 @@
 # Session Start
 
-**Date:** 2026-04-03
-**Status:** Sprint 12, Phase 1 — BUG-055 complete, BUG-054 verified, TASK-030 complete, TASK-033 complete, TASK-034 complete, TASK-035 complete
-**Branch:** `fix/bug-055-smoke-briefings-api-credits` (TASK-035 code) / `main` (deployable)
+**Date:** 2026-04-03 (Session 21 in progress)
+**Status:** Sprint 12, Phase 1 — BUG-056 complete+tested, BUG-057 code complete (tests pending), all Phase 1 foundations ready
+**Branch:** `fix/bug-057-narrative-retry-storm` (code implementation complete)
+
+---
+
+## Session 21 Work Summary (2026-04-03 in progress) - BUG-057 CODE IMPLEMENTATION COMPLETE ✅
+
+**BUG-057: Narrative Retry Storm — Code Implementation COMPLETE** ✅
+
+### What We Implemented:
+1. **Zero-Retry on Validation Failures** ✅
+   - Validation failures are deterministic (same prompt → same failure)
+   - Removed retry loop, now returns degraded fallback immediately
+   - Reduced max_retries: 4 → 2 (only for transient: 429, 529)
+   - Saves ~4-5x API calls per article
+
+2. **Degraded Fallback Function** ✅
+   - New `_build_degraded_narrative()` helper
+   - Returns minimal narrative with `status="degraded"` + `degraded_reason`
+   - Keeps pipeline moving vs losing data on failures
+
+3. **Per-Article LLM Call Cap** ✅
+   - `MAX_LLM_CALLS_PER_ARTICLE = 2` (hard cap, transient retries only)
+   - Counter prevents runaway calls on single article
+   - Belt-and-suspenders on zero-retry fix
+
+4. **Tier 2/3 Validation Auto-Fixes** ✅
+   - **Tier 2:** nucleus salience auto-fixed to 5 (not rejected)
+   - **Tier 3:** empty actors backfilled from nucleus_entity (not rejected)
+   - Reduces degraded rate without additional LLM calls
+
+5. **Degraded Rate Tracking & Logging** ✅
+   - `backfill_narratives_for_recent_articles()` now tracks degraded count
+   - Final log: "X articles, Y succeeded, Z degraded (%), N failed"
+   - Articles stored with status/degraded_reason fields
+
+6. **Downstream Degraded Filtering** ✅
+   - `detect_narratives()` in narrative_service.py filters `status != "degraded"`
+   - Prevents degraded stubs from polluting clustering/briefings
+   - Maintains legacy compatibility (no status = not degraded)
+
+### Files Modified:
+- `src/crypto_news_aggregator/services/narrative_themes.py` (major)
+  - Added `_build_degraded_narrative()` function
+  - Modified `discover_narrative_from_article()` retry logic
+  - Modified `validate_narrative_json()` auto-fixes
+  - Modified `backfill_narratives_for_recent_articles()` tracking
+- `src/crypto_news_aggregator/services/narrative_service.py` (minor)
+  - Added degraded filtering in `detect_narratives()`
+- `tests/services/test_narrative_themes.py`
+  - Added import for `_build_degraded_narrative`
+
+### Commit:
+- `20e5e28` - feat(narrative-retry): Zero-retry + degraded fallback for BUG-057
+
+### Next Session (Tests):
+- Write 8+ comprehensive unit/integration tests
+- Run full test suite to verify no regressions
+- Create PR and merge to main
+- Then proceed to TASK-028 (72-hour burn-in validation)
 
 ---
 
