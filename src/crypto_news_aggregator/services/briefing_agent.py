@@ -41,6 +41,10 @@ from crypto_news_aggregator.services.market_event_detector import (
     get_market_event_detector,
 )
 from crypto_news_aggregator.services.heartbeat import record_heartbeat
+from crypto_news_aggregator.services.cost_tracker import (
+    check_llm_budget,
+    refresh_budget_if_stale,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -796,6 +800,15 @@ Return ONLY valid JSON in the same format as before."""
         max_tokens: int = 2048,
     ) -> str:
         """Call the LLM API with fallback models."""
+        await refresh_budget_if_stale()
+        allowed, reason = check_llm_budget("briefing_generation")
+        if not allowed:
+            raise LLMError(
+                f"Daily spend limit reached ({reason})",
+                error_type="spend_limit",
+                model=DEFAULT_MODEL
+            )
+
         models_to_try = [DEFAULT_MODEL] + FALLBACK_MODELS
 
         for model in models_to_try:

@@ -1,8 +1,8 @@
 # Session Start
 
-**Date:** 2026-04-02
-**Status:** Sprint 12, Phase 1 — BUG-055 complete, BUG-054 verified, TASK-030 complete, TASK-033 complete, TASK-034 complete
-**Branch:** `fix/bug-055-smoke-briefings-api-credits` (TASK-034 code) / `main` (deployable)
+**Date:** 2026-04-03
+**Status:** Sprint 12, Phase 1 — BUG-055 complete, BUG-054 verified, TASK-030 complete, TASK-033 complete, TASK-034 complete, TASK-035 complete
+**Branch:** `fix/bug-055-smoke-briefings-api-credits` (TASK-035 code) / `main` (deployable)
 
 ---
 
@@ -202,27 +202,47 @@ GET https://context-owl-production.up.railway.app/api/v1/health
 1. ✅ BUG-054 Pipeline Verification (verified, live, articles flowing)
 2. ✅ TASK-033 Sentry Error Monitoring (deployed, real-time error alerts)
 3. ✅ TASK-034 Pipeline Heartbeat Health Check (deployed, HTTP 500 on stale pipeline)
+4. ✅ TASK-035 Daily Pipeline Digest via Slack (code complete, awaiting webhook config)
 
 **IMMEDIATE — Remaining Phase 1 tasks:**
 
-**Option A: TASK-035 — Daily Pipeline Digest via Slack (1-2 hrs)**
-- Build on TASK-034's heartbeat data
-- Send daily Slack summary: articles/day, briefings/day, MongoDB storage %, heartbeat ages
-- Depends on: TASK-034 ✅ (completed)
-- **Ready to start now** ✅
+**Option A: BUG-056 + BUG-057 — Spend Cap + Retry Storm Fix (2-3 hrs total)**
 
-**Option B: Restart TASK-028 — 72-hour Burn-in Validation**
+BUG-056 first (BUG-057 depends on it):
+
+- **BUG-056: LLM Spend Cap Enforcement (1-1.5 hrs)**
+  - CostTracker tracks but never enforces. All LLM calls fire without checking budget.
+  - Fix part 1: Spend gate with TTL cache -- soft limit ($0.25/day degrades non-critical), hard limit ($0.33/day halts all)
+  - Fix part 2: Backlog throttle via ENRICHMENT_MAX_ARTICLES_PER_CYCLE
+  - Blocker for adding Anthropic credits safely
+  - **Ticket written, ready for CC session** ✅
+
+- **BUG-057: Narrative Retry Storm (1-1.5 hrs)**
+  - Root cause of BUG-054 credit drain: validation failures retried 4x with identical prompts
+  - Fix: zero retries on deterministic failures, degraded fallback stubs, per-article call cap
+  - Also: Tier 2/3 validation auto-fixes (nucleus salience, empty actors backfill)
+  - Also: downstream degraded filtering, degraded rate tracking
+  - Depends on: BUG-056
+  - **Ticket reviewed, feedback incorporated, ready for CC session** ✅
+
+**Option B: TASK-028 — 72-hour Burn-in Validation**
 - All blockers cleared (BUG-054 verified ✅, BUG-055 fixed ✅, TASK-034 live ✅)
 - Full system stability test with all pipelines operational
-- Requires: Manual start of 72h timer + monitoring
+- Requires: Manual start of 72h timer + monitoring + Anthropic credits
 - **Ready to start now** ✅
 
 **Recommended path:**
-1. Start TASK-035 (adds daily monitoring, 1-2 hrs)
-2. After TASK-035 complete, start TASK-028 burn-in (run 72h in parallel)
+1. Start BUG-056 (spend gate -- blocker for safely adding credits)
+2. Then BUG-057 (retry storm fix, depends on BUG-056)
+3. Add Anthropic credits, deploy both
+4. Start TASK-028 burn-in (72h, captures BUG-057 degraded rate data + BUG-056 spend gate behavior)
+5. Use burn-in degraded rate to decide if prompt audit ticket is urgent
 
-**Phase 1 remaining (after TASK-035):**
+**Phase 1 remaining (after BUG-056 + BUG-057):**
 - 🔲 TASK-028: Burn-in Validation (72 hours, passive monitoring)
+
+**Follow-up ticket (write after burn-in):**
+- Prompt Audit: Reduce first-call failure rate based on degraded rate data from BUG-057
 
 **Phase 2 (after Phase 1 stable):**
 - TASK-029: NeMo Research & Integration Plan (2 hr)
@@ -241,7 +261,12 @@ GET https://context-owl-production.up.railway.app/api/v1/health
 
 ## Known Issues / Blockers
 
-None currently blocking progress. All critical blockers resolved:
+**Active (non-blocking but high priority):**
+- 🔴 BUG-056: No spend gate on LLM calls -- CostTracker is observability-only, no enforcement. Blocker for adding credits. Ticket written, ready for CC session.
+- 🔴 BUG-057: Narrative retry storm -- validation failures retried 4x, root cause of credit drain. Ticket written and reviewed, ready for CC session. Depends on BUG-056.
+- 🔴 Anthropic API balance at $0 -- need to add credits after BUG-056 deployed (not before)
+
+**Resolved:**
 - ✅ BUG-054: Pipeline live, articles flowing
 - ✅ BUG-055: Smoke briefings stopped, MongoDB pruned
 - ✅ TASK-034: Heartbeat monitoring live (HTTP 500 on stale pipeline)
@@ -255,6 +280,16 @@ None currently blocking progress. All critical blockers resolved:
 ---
 
 ## Key Files
+
+**BUG-056 (modify):**
+- `src/crypto_news_aggregator/llm/anthropic.py` -- add spend gate check before `_get_completion()` and `_get_completion_with_usage()`
+- `src/crypto_news_aggregator/services/briefing_agent.py` -- add spend gate check before `_call_llm()`
+- `src/crypto_news_aggregator/services/cost_tracker.py` -- add TTL-cached `is_budget_exceeded()` method
+- `src/crypto_news_aggregator/core/config.py` -- add DAILY_SOFT_LIMIT, DAILY_HARD_LIMIT, ENRICHMENT_MAX_ARTICLES_PER_CYCLE settings
+
+**BUG-057 (modify):**
+- `src/crypto_news_aggregator/services/narrative_themes.py` -- main target: `discover_narrative_from_article()`, `validate_narrative_json()`, new `_build_degraded_narrative()`
+- Downstream narrative consumers (grep for narrative data reads) -- add degraded filtering
 
 **BUG-055 (modify):**
 - Railway celery-beat env vars -- remove `SMOKE_BRIEFINGS`

@@ -9,6 +9,7 @@ from .exceptions import LLMError
 from ..services.entity_normalization import normalize_entity_name
 from ..services.rate_limiter import get_rate_limiter
 from ..services.circuit_breaker import get_circuit_breaker
+from ..services.cost_tracker import check_llm_budget, refresh_budget_if_stale
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +29,7 @@ class AnthropicProvider(LLMProvider):
         self.api_key = api_key
         self.model_name = model_name
 
-    def _get_completion(self, prompt: str) -> str:
+    def _get_completion(self, prompt: str, operation: str = "") -> str:
         """
         Get completion from Claude. Does NOT fall back to Sonnet.
 
@@ -40,6 +41,19 @@ class AnthropicProvider(LLMProvider):
         Raises:
             LLMError: On any API failure (auth, rate limit, server error, timeout, etc.)
         """
+        # --- SPEND CAP CHECK (reads from cache, no DB/async) ---
+        allowed, reason = check_llm_budget(operation)
+        if not allowed:
+            logger.warning(
+                f"LLM call blocked by spend cap ({reason}) for '{operation}'"
+            )
+            raise LLMError(
+                f"Daily spend limit reached ({reason})",
+                error_type="spend_limit",
+                model=self.model_name
+            )
+        # --- END SPEND CAP CHECK ---
+
         # Use primary model only (Haiku) - no expensive fallback
         model = self.model_name
 
@@ -88,7 +102,7 @@ class AnthropicProvider(LLMProvider):
             logger.error(f"Unexpected error calling Anthropic API: {e}", exc_info=True)
             raise LLMError(str(e), error_type="unexpected", model=model)
 
-    def _get_completion_with_usage(self, prompt: str) -> tuple[str, dict]:
+    def _get_completion_with_usage(self, prompt: str, operation: str = "") -> tuple[str, dict]:
         """
         Get completion from Claude and return both response text and usage metrics.
         Used internally for cost tracking.
@@ -99,6 +113,14 @@ class AnthropicProvider(LLMProvider):
         Raises:
             LLMError: On any API failure (auth, rate limit, server error, timeout, etc.)
         """
+        allowed, reason = check_llm_budget(operation)
+        if not allowed:
+            raise LLMError(
+                f"Daily spend limit reached ({reason})",
+                error_type="spend_limit",
+                model=self.model_name
+            )
+
         model = self.model_name
 
         headers = {
@@ -244,6 +266,12 @@ class AnthropicProvider(LLMProvider):
                 return {"results": [], "usage": {}}
         except Exception as e:
             logger.warning(f"Failed to check rate limit for entity_extraction: {e}")
+
+        # Budget check: entity_extraction
+        allowed, reason = check_llm_budget("entity_extraction")
+        if not allowed:
+            logger.warning(f"Entity extraction blocked by spend cap ({reason})")
+            return {"results": [], "usage": {}}
 
         # Build the batch prompt
         articles_text = []
@@ -539,6 +567,18 @@ Return ONLY the JSON array, no other text."""
         if not articles or len(articles) == 0:
             return []
 
+        # --- BACKLOG THROTTLE ---
+        from ..core.config import get_settings
+        settings = get_settings()
+        max_per_cycle = settings.ENRICHMENT_MAX_ARTICLES_PER_CYCLE
+        if len(articles) > max_per_cycle:
+            logger.info(
+                f"Throttling enrichment batch: {len(articles)} articles "
+                f"capped to {max_per_cycle} per cycle"
+            )
+            articles = articles[:max_per_cycle]
+        # --- END BACKLOG THROTTLE ---
+
         # Circuit breaker checks: enrich_articles_batch uses both sentiment_analysis and theme_extraction
         circuit_breaker = get_circuit_breaker()
         allowed, message = await circuit_breaker.check_circuit("sentiment_analysis")
@@ -561,6 +601,13 @@ Return ONLY the JSON array, no other text."""
         allowed, message = await rate_limiter.check_limit("theme_extraction")
         if not allowed:
             logger.warning(f"Rate limit hit for theme_extraction: {message}")
+            return []
+
+        # Budget check: article_enrichment_batch
+        await refresh_budget_if_stale()
+        allowed, reason = check_llm_budget("article_enrichment_batch")
+        if not allowed:
+            logger.warning(f"Batch enrichment blocked by spend cap ({reason})")
             return []
 
         # Limit to 10 articles per batch (tunable)
@@ -688,6 +735,13 @@ Return ONLY the JSON array, no other text."""
             logger.warning(f"Rate limit hit for {operation}: {message}")
             return 0.0
 
+        # Budget check
+        await refresh_budget_if_stale()
+        allowed, reason = check_llm_budget(operation)
+        if not allowed:
+            logger.warning(f"{operation} blocked by spend cap ({reason})")
+            return 0.0
+
         prompt = f"On a scale from 0.0 to 1.0, how relevant is this text to cryptocurrency market movements? Return ONLY a single floating-point number with no explanation:\n\n{text}"
 
         try:
@@ -759,6 +813,13 @@ Return ONLY the JSON array, no other text."""
             logger.warning(f"Rate limit hit for {operation}: {message}")
             return 0.0
 
+        # Budget check
+        await refresh_budget_if_stale()
+        allowed, reason = check_llm_budget(operation)
+        if not allowed:
+            logger.warning(f"{operation} blocked by spend cap ({reason})")
+            return 0.0
+
         prompt = f"Analyze the sentiment of this crypto text. Return ONLY a single number from -1.0 (very bearish) to 1.0 (very bullish). Do not include any explanation or additional text. Just the number:\n\n{text}"
 
         try:
@@ -828,6 +889,13 @@ Return ONLY the JSON array, no other text."""
         allowed, message = await rate_limiter.check_limit(operation)
         if not allowed:
             logger.warning(f"Rate limit hit for {operation}: {message}")
+            return []
+
+        # Budget check
+        await refresh_budget_if_stale()
+        allowed, reason = check_llm_budget(operation)
+        if not allowed:
+            logger.warning(f"{operation} blocked by spend cap ({reason})")
             return []
 
         combined_texts = "\n".join(texts)
