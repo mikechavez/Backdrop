@@ -154,7 +154,7 @@ class Settings(BaseSettings):
     coingecko_api_key: str = ""  # Optional API key for higher rate limits
 
     # News source settings
-    ENABLED_NEWS_SOURCES: list[str] = ["coindesk", "bloomberg"]
+    ENABLED_NEWS_SOURCES: list[str] = []  # Disabled: coindesk (JSON API dead), bloomberg (403). RSS covers ingestion.
     NEWS_FETCH_INTERVAL: int = 300  # 5 minutes in seconds
     MAX_ARTICLES_PER_SOURCE: int = 20
     TWEET_FETCH_INTERVAL: int = 900  # 15 minutes in seconds

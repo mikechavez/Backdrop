@@ -16,28 +16,29 @@ def get_schedule():
     """
     settings = get_settings()
     schedule = {
-        # Fetch news from all RSS sources every 3 hours
-        # RSS feeds don't update frequently; 3-hour interval = 8 cycles/day, 100-500 articles/cycle
-        # Task name must match @shared_task(name="fetch_news") decorator in tasks/news.py
-        "fetch-news-every-3-hours": {
-            "task": "fetch_news",
-            "schedule": timedelta(hours=3),
-            "args": (None,),  # None means fetch from all enabled sources
-            "options": {
-                "expires": 600,  # 10 minutes to prevent duplicate tasks
-                "time_limit": 1800,  # 30 minutes hard limit
-            },
-        },
-        # Check and process price alerts every 5 minutes
-        "check-price-alerts": {
-            "task": "check_price_alerts",  # Task registered with short name in tasks/__init__.py
-            "schedule": timedelta(seconds=settings.PRICE_CHECK_INTERVAL),
-            "options": {
-                "expires": 240,  # 4 minutes
-                "time_limit": 240,  # 4 minutes
-                "queue": "alerts",
-            },
-        },
+        # DISABLED (BUG-057): Both sources dead — CoinDesk JSON API returns HTML, Bloomberg returns 403.
+        # RSS fetcher (background/rss_fetcher.py) handles all article ingestion.
+        # To re-enable: uncomment this block and add working sources to ENABLED_NEWS_SOURCES in config.py.
+        # "fetch-news-every-3-hours": {
+        #     "task": "fetch_news",
+        #     "schedule": timedelta(hours=3),
+        #     "args": (None,),
+        #     "options": {
+        #         "expires": 600,
+        #         "time_limit": 1800,
+        #     },
+        # },
+        # DISABLED (BUG-057): Price alerts are a no-op stub. No price API integrated yet.
+        # To re-enable: uncomment this block when price alert functionality is implemented.
+        # "check-price-alerts": {
+        #     "task": "check_price_alerts",
+        #     "schedule": timedelta(seconds=settings.PRICE_CHECK_INTERVAL),
+        #     "options": {
+        #         "expires": 240,
+        #         "time_limit": 240,
+        #         "queue": "alerts",
+        #     },
+        # },
         # ============================================================
         # Briefing Tasks - Daily crypto briefings at 8 AM and 8 PM EST
         # Afternoon briefing available via manual API trigger only
