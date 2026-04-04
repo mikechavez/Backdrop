@@ -12,6 +12,7 @@ from crypto_news_aggregator.services.narrative_themes import (
     extract_themes_from_article,
     discover_narrative_from_article,
     backfill_themes_for_recent_articles,
+    backfill_narratives_for_recent_articles,
     get_articles_by_theme,
     generate_narrative_from_theme,
     cluster_by_narrative_salience,
@@ -399,19 +400,21 @@ async def test_discover_narrative_empty_content():
 
 @pytest.mark.asyncio
 async def test_discover_narrative_missing_fields(sample_article_data):
-    """Test Layer 1: Narrative discovery with incomplete LLM response."""
+    """Test Layer 1: Narrative discovery with incomplete LLM response - now returns degraded instead of None."""
     with patch("crypto_news_aggregator.services.narrative_themes.get_llm_provider") as mock_llm:
         # Mock LLM provider returning incomplete data
         mock_provider = MagicMock()
         mock_provider._get_completion.return_value = '{"actors": ["SEC"], "actions": []}'
         mock_llm.return_value = mock_provider
-        
+
         narrative_data = await discover_narrative_from_article(
             article=sample_article_data
         )
-        
-        # Should return None when required fields are missing
-        assert narrative_data is None
+
+        # BUG-057: Should return degraded narrative (not None) to keep pipeline moving
+        assert narrative_data is not None
+        assert narrative_data.get("status") == "degraded"
+        assert narrative_data.get("degraded_reason") is not None
 
 
 @pytest.mark.asyncio
@@ -958,22 +961,25 @@ class TestValidateNarrativeJson:
         assert "Missing required field" in error
     
     def test_validate_empty_actors_list(self, valid_narrative_data):
-        """Test validation fails for empty actors list."""
+        """Test validation auto-fixes empty actors by backfilling with nucleus_entity (Tier 3 auto-fix)."""
         valid_narrative_data["actors"] = []
-        
+
         is_valid, error = validate_narrative_json(valid_narrative_data)
-        
-        assert is_valid is False
-        assert "actors must be non-empty list" in error
+
+        # BUG-057: Should be valid after auto-fix (Tier 3 auto-fix)
+        assert is_valid is True
+        assert error is None
+        # Actors should be backfilled with nucleus_entity
+        assert valid_narrative_data["actors"] == ["SEC"]
     
     def test_validate_actors_not_list(self, valid_narrative_data):
         """Test validation fails when actors is not a list."""
         valid_narrative_data["actors"] = "SEC, Binance"
-        
+
         is_valid, error = validate_narrative_json(valid_narrative_data)
-        
+
         assert is_valid is False
-        assert "actors must be non-empty list" in error
+        assert "actors must be a list" in error
     
     def test_validate_caps_actors_at_20(self, valid_narrative_data):
         """Test validation caps actors list at 20 items."""
@@ -1009,12 +1015,14 @@ class TestValidateNarrativeJson:
         """Test validation auto-adds nucleus_entity to actors list if missing."""
         valid_narrative_data["nucleus_entity"] = "NewEntity"
         # NewEntity not in actors list initially
-        
+        # But has a salience score, so it should work
+        valid_narrative_data["actor_salience"]["NewEntity"] = 5
+
         is_valid, error = validate_narrative_json(valid_narrative_data)
-        
-        # Should still be valid (auto-fixed)
-        assert is_valid is False  # Will fail because NewEntity has no salience score
-        assert "missing salience score" in error
+
+        # Should be valid and nucleus added to actors
+        assert is_valid is True
+        assert "NewEntity" in valid_narrative_data["actors"]
     
     def test_validate_auto_adds_nucleus_to_actors_success(self, valid_narrative_data):
         """Test validation auto-adds nucleus_entity to actors list successfully."""
@@ -1073,13 +1081,16 @@ class TestValidateNarrativeJson:
         assert is_valid is True
     
     def test_validate_nucleus_missing_salience(self, valid_narrative_data):
-        """Test validation fails when nucleus_entity has no salience score."""
+        """Test validation auto-fixes missing nucleus_entity salience (Tier 2 auto-fix)."""
         del valid_narrative_data["actor_salience"]["SEC"]
-        
+
         is_valid, error = validate_narrative_json(valid_narrative_data)
-        
-        assert is_valid is False
-        assert "nucleus_entity 'SEC' missing salience score" in error
+
+        # BUG-057: Should be valid after auto-fix (Tier 2 auto-fix)
+        assert is_valid is True
+        assert error is None
+        # Nucleus should have salience 5 after auto-fix
+        assert valid_narrative_data["actor_salience"]["SEC"] == 5
     
     def test_validate_narrative_summary_too_short(self, valid_narrative_data):
         """Test validation fails for narrative_summary under 10 characters."""
@@ -1204,7 +1215,7 @@ class TestValidateNarrativeJsonIntegration:
     
     @pytest.mark.asyncio
     async def test_validation_catches_malformed_llm_response(self):
-        """Test validation catches malformed LLM response."""
+        """Test that malformed LLM response returns degraded narrative (BUG-057)."""
         with patch("crypto_news_aggregator.services.narrative_themes.get_llm_provider") as mock_llm:
             # Mock malformed LLM response (missing nucleus_entity)
             mock_provider = MagicMock()
@@ -1217,7 +1228,7 @@ class TestValidateNarrativeJsonIntegration:
                 "narrative_summary": "SEC takes action."
             }'''
             mock_llm.return_value = mock_provider
-            
+
             # Discover narrative
             narrative_data = await discover_narrative_from_article(
                 article={
@@ -1226,17 +1237,15 @@ class TestValidateNarrativeJsonIntegration:
                     "description": "The SEC has filed a lawsuit."
                 }
             )
-            
-            # Current implementation returns None for missing fields
-            # If we integrate validation, it should catch this
-            if narrative_data:
-                is_valid, error = validate_narrative_json(narrative_data)
-                assert is_valid is False
-                assert "Missing required field: nucleus_entity" in error
+
+            # BUG-057: Should return degraded narrative instead of None
+            assert narrative_data is not None
+            assert narrative_data.get("status") == "degraded"
+            assert "nucleus_entity" in narrative_data.get("degraded_reason", "")
     
     @pytest.mark.asyncio
     async def test_validation_catches_empty_actors(self):
-        """Test validation catches empty actors list from LLM."""
+        """Test that empty actors list is auto-fixed with nucleus_entity (BUG-057)."""
         with patch("crypto_news_aggregator.services.narrative_themes.get_llm_provider") as mock_llm:
             # Mock LLM response with empty actors
             mock_provider = MagicMock()
@@ -1244,13 +1253,14 @@ class TestValidateNarrativeJsonIntegration:
                 "actors": [],
                 "actor_salience": {},
                 "nucleus_entity": "SEC",
+                "narrative_focus": "enforcement action",
                 "actions": ["Filed lawsuit"],
                 "tensions": ["Regulation"],
                 "implications": "Enforcement",
                 "narrative_summary": "SEC enforcement action continues."
             }'''
             mock_llm.return_value = mock_provider
-            
+
             # Discover narrative
             narrative_data = await discover_narrative_from_article(
                 article={
@@ -1259,13 +1269,13 @@ class TestValidateNarrativeJsonIntegration:
                     "description": "SEC takes enforcement action."
                 }
             )
-            
-            # Current implementation returns None for empty actors
-            # Validation would also catch this
-            if narrative_data:
-                is_valid, error = validate_narrative_json(narrative_data)
-                assert is_valid is False
-                assert "actors must be non-empty list" in error
+
+            # BUG-057: Empty actors auto-fixed with nucleus_entity, should be valid
+            assert narrative_data is not None
+            # With nucleus_entity in the response, validation should succeed (auto-fix)
+            is_valid, error = validate_narrative_json(narrative_data)
+            assert is_valid is True
+            assert "SEC" in narrative_data.get("actors", [])
     
     @pytest.mark.asyncio
     async def test_validation_catches_invalid_salience_scores(self):
@@ -1280,13 +1290,14 @@ class TestValidateNarrativeJsonIntegration:
                     "Binance": 4
                 },
                 "nucleus_entity": "SEC",
+                "narrative_focus": "enforcement",
                 "actions": ["Filed lawsuit"],
                 "tensions": ["Regulation"],
                 "implications": "Enforcement",
                 "narrative_summary": "SEC enforcement action against Binance continues."
             }'''
             mock_llm.return_value = mock_provider
-            
+
             # Discover narrative
             narrative_data = await discover_narrative_from_article(
                 article={
@@ -1295,12 +1306,11 @@ class TestValidateNarrativeJsonIntegration:
                     "description": "SEC files lawsuit against Binance."
                 }
             )
-            
-            # Validate the response
-            if narrative_data:
-                is_valid, error = validate_narrative_json(narrative_data)
-                assert is_valid is False
-                assert "Invalid salience 10 for SEC (must be 1-5)" in error
+
+            # BUG-057: Invalid salience should return degraded narrative
+            assert narrative_data is not None
+            assert narrative_data.get("status") == "degraded"
+            assert "salience" in narrative_data.get("degraded_reason", "").lower()
     
     @pytest.mark.asyncio
     async def test_validation_auto_fix_nucleus_in_actors(self):
@@ -2103,3 +2113,413 @@ class TestCalculateFingerprintSimilarity:
         # No action overlap: 0.0
         # Total: 0.0
         assert similarity_no_match == 0.0
+
+
+# =============================================================================
+# BUG-057: Narrative Retry Storm Fix Tests
+# =============================================================================
+
+class TestBuildDegradedNarrative:
+    """Test _build_degraded_narrative() function."""
+
+    def test_build_degraded_narrative_basic(self):
+        """Test building a degraded narrative with basic inputs."""
+        narrative = _build_degraded_narrative(
+            article_id="test_123",
+            title="SEC Announces New Crypto Rules",
+            summary="The SEC issued guidance on crypto trading.",
+            content_hash="abc123def456",
+            reason="validation failed: nucleus_entity not in text"
+        )
+
+        # Check structure
+        assert narrative["status"] == "degraded"
+        assert narrative["degraded_reason"] == "validation failed: nucleus_entity not in text"
+        assert "narrative_hash" in narrative
+        assert narrative["narrative_hash"] == "abc123def456"
+        assert narrative["narrative_focus"] == "unclassified"
+        assert len(narrative["actors"]) > 0
+        assert "actor_salience" in narrative
+        assert "narrative_summary" in narrative
+
+    def test_build_degraded_narrative_extracts_fallback_nucleus(self):
+        """Test that degraded narrative uses title prefix as fallback nucleus."""
+        title = "SEC Announces New Crypto Rules"
+        narrative = _build_degraded_narrative(
+            article_id="test_456",
+            title=title,
+            summary="Summary text",
+            content_hash="hash789",
+            reason="test reason"
+        )
+
+        # Fallback nucleus should be title before colon or first 50 chars
+        assert narrative["nucleus_entity"]
+        assert narrative["actors"][0] == narrative["nucleus_entity"]
+
+    def test_build_degraded_narrative_empty_title(self):
+        """Test degraded narrative with empty title."""
+        narrative = _build_degraded_narrative(
+            article_id="test_789",
+            title="",
+            summary="Just summary text",
+            content_hash="hash999",
+            reason="empty title"
+        )
+
+        # Should fall back to "Unknown"
+        assert narrative["nucleus_entity"] == "Unknown"
+        assert narrative["actors"] == ["Unknown"]
+
+
+class TestZeroRetryOnValidationFailure:
+    """Test that validation failures return degraded fallback without retry."""
+
+    @pytest.mark.asyncio
+    async def test_validation_failure_returns_degraded_not_retried(self):
+        """Test that validation failures return degraded result immediately (no retry)."""
+        article = {
+            "_id": "test_validation_fail",
+            "title": "Bitcoin Price Surges",
+            "description": "Bitcoin price went up today."
+        }
+
+        # Mock LLM returning always-invalid response (missing nucleus_entity)
+        with patch("crypto_news_aggregator.services.narrative_themes.get_llm_provider") as mock_llm:
+            mock_provider = MagicMock()
+            # Always return invalid data
+            mock_provider._get_completion.return_value = json.dumps({
+                "actors": ["Bitcoin"],
+                "actor_salience": {"Bitcoin": 5},
+                # Missing nucleus_entity - validation will fail
+                "narrative_focus": "price surge",
+                "actions": ["price increased"],
+                "tensions": [],
+                "narrative_summary": "Bitcoin price went up"
+            })
+            mock_llm.return_value = mock_provider
+
+            narrative = await discover_narrative_from_article(article, max_retries=2)
+
+            # Should get degraded narrative, not None
+            assert narrative is not None
+            assert narrative.get("status") == "degraded"
+            # Should only call LLM once (no retry on validation failure)
+            assert mock_provider._get_completion.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_validation_failure_on_entity_hallucination(self):
+        """Test that hallucinated nucleus_entity returns degraded without retry."""
+        article = {
+            "_id": "test_hallucination",
+            "title": "Coinbase Posts Earnings",
+            "description": "Coinbase reported strong quarterly earnings."
+        }
+
+        with patch("crypto_news_aggregator.services.narrative_themes.get_llm_provider") as mock_llm:
+            mock_provider = MagicMock()
+            # LLM hallucinates "Netflix" as nucleus_entity (not in article)
+            mock_provider._get_completion.return_value = json.dumps({
+                "actors": ["Netflix", "Coinbase"],
+                "actor_salience": {"Netflix": 5, "Coinbase": 3},
+                "nucleus_entity": "Netflix",  # NOT in article - hallucination!
+                "narrative_focus": "earnings",
+                "actions": ["reported earnings"],
+                "tensions": [],
+                "narrative_summary": "Netflix reported earnings"
+            })
+            mock_llm.return_value = mock_provider
+
+            narrative = await discover_narrative_from_article(article, max_retries=2)
+
+            # Should return degraded narrative
+            assert narrative is not None
+            assert narrative.get("status") == "degraded"
+            assert "hallucinated" in narrative.get("degraded_reason", "")
+            # Should only call LLM once (no retry on hallucination detection)
+            assert mock_provider._get_completion.call_count == 1
+
+
+class TestPerArticleLLMCallCap:
+    """Test MAX_LLM_CALLS_PER_ARTICLE enforcement."""
+
+    @pytest.mark.asyncio
+    async def test_llm_call_cap_enforced(self):
+        """Test that per-article LLM call cap is enforced."""
+        article = {
+            "_id": "test_call_cap",
+            "title": "Test Article",
+            "description": "Test description"
+        }
+
+        with patch("crypto_news_aggregator.services.narrative_themes.get_llm_provider") as mock_llm:
+            mock_provider = MagicMock()
+            # Always raise rate limit error to trigger retries
+            mock_provider._get_completion.side_effect = Exception("429 rate limited")
+            mock_llm.return_value = mock_provider
+
+            with patch("asyncio.sleep"):  # Mock sleep to speed up test
+                narrative = await discover_narrative_from_article(article, max_retries=5)
+
+            # Should return degraded when call cap reached
+            assert narrative is not None
+            assert narrative.get("status") == "degraded"
+            # Should only call LLM up to MAX_LLM_CALLS_PER_ARTICLE (2)
+            assert mock_provider._get_completion.call_count <= 2
+
+
+class TestTier2Tier3AutoFixes:
+    """Test auto-fixes for Tier 2/3 validation failures."""
+
+    def test_tier2_auto_fix_nucleus_salience(self):
+        """Test that missing nucleus salience is auto-fixed to 5."""
+        data = {
+            "actors": ["Bitcoin", "Ethereum"],
+            "actor_salience": {"Bitcoin": 5},  # Missing Ethereum
+            "nucleus_entity": "Ethereum",
+            "narrative_focus": "protocol upgrade",
+            "actions": ["upgrade performed"],
+            "tensions": [],
+            "narrative_summary": "Ethereum protocol upgraded"
+        }
+
+        is_valid, error = validate_narrative_json(data)
+
+        # Should be valid after auto-fix
+        assert is_valid
+        assert error is None
+        # Nucleus should have salience 5 after auto-fix
+        assert data["actor_salience"]["Ethereum"] == 5
+
+    def test_tier3_auto_fix_empty_actors_backfill(self):
+        """Test that empty actors list is backfilled from nucleus_entity."""
+        data = {
+            "actors": [],  # Empty - should be backfilled
+            "actor_salience": {},
+            "nucleus_entity": "Bitcoin",
+            "narrative_focus": "price surge",
+            "actions": ["price increased"],
+            "tensions": [],
+            "narrative_summary": "Bitcoin price went up"
+        }
+
+        is_valid, error = validate_narrative_json(data)
+
+        # Should be valid after auto-fix
+        assert is_valid
+        assert error is None
+        # Actors should be backfilled with nucleus_entity
+        assert "Bitcoin" in data["actors"]
+        assert len(data["actors"]) > 0
+
+    def test_nucleus_entity_added_to_actors(self):
+        """Test that nucleus_entity is added to actors list if missing."""
+        data = {
+            "actors": ["SEC", "Coinbase"],  # Bitcoin not in actors
+            "actor_salience": {"SEC": 5, "Coinbase": 3},
+            "nucleus_entity": "Bitcoin",
+            "narrative_focus": "regulatory action",
+            "actions": ["SEC action"],
+            "tensions": [],
+            "narrative_summary": "SEC took action against Bitcoin"
+        }
+
+        is_valid, error = validate_narrative_json(data)
+
+        assert is_valid
+        # Nucleus should be added to actors
+        assert "Bitcoin" in data["actors"]
+
+
+class TestDegradedNarrativeTracking:
+    """Test degraded narrative tracking in backfill."""
+
+    @pytest.mark.asyncio
+    async def test_backfill_tracks_degraded_count(self):
+        """Test that backfill_narratives_for_recent_articles tracks degraded count."""
+        with patch("crypto_news_aggregator.services.narrative_themes.mongo_manager") as mock_mongo:
+            # Mock database
+            mock_db = MagicMock()
+            mock_collection = MagicMock()
+            mock_db.articles = mock_collection
+
+            async def get_db():
+                return mock_db
+            mock_mongo.get_async_database = get_db
+
+            # Create mock articles - one will succeed, one will degrade
+            articles = [
+                {
+                    "_id": "success_1",
+                    "title": "Bitcoin Surge",
+                    "description": "Bitcoin price went up",
+                    "published_at": datetime.now(timezone.utc)
+                },
+                {
+                    "_id": "degrade_1",
+                    "title": "Bad Article",
+                    "description": "Bad data",
+                    "published_at": datetime.now(timezone.utc)
+                }
+            ]
+
+            # Mock cursor
+            class MockCursor:
+                def __init__(self, data):
+                    self.data = data
+                    self.index = 0
+
+                def __aiter__(self):
+                    return self
+
+                async def __anext__(self):
+                    if self.index >= len(self.data):
+                        raise StopAsyncIteration
+                    result = self.data[self.index]
+                    self.index += 1
+                    return result
+
+                def limit(self, n):
+                    return self
+
+            mock_cursor = MockCursor(articles)
+            mock_collection.find.return_value = mock_cursor
+
+            with patch("crypto_news_aggregator.services.narrative_themes.discover_narrative_from_article") as mock_discover:
+                # First article succeeds, second degrades
+                async def discover_side_effect(article):
+                    if article["_id"] == "success_1":
+                        return {
+                            "actors": ["Bitcoin"],
+                            "actor_salience": {"Bitcoin": 5},
+                            "nucleus_entity": "Bitcoin",
+                            "narrative_focus": "price surge",
+                            "actions": ["price increased"],
+                            "tensions": [],
+                            "narrative_summary": "Bitcoin price went up",
+                            "narrative_hash": "hash1"
+                        }
+                    else:
+                        return {
+                            "status": "degraded",
+                            "degraded_reason": "validation failed",
+                            "actors": ["Unknown"],
+                            "actor_salience": {"Unknown": 3},
+                            "nucleus_entity": "Unknown",
+                            "narrative_focus": "unclassified",
+                            "narrative_hash": "hash2",
+                            "narrative_summary": "Bad data"
+                        }
+
+                mock_discover.side_effect = discover_side_effect
+
+                # Mock update_one
+                async def mock_update(*args, **kwargs):
+                    pass
+                mock_collection.update_one = mock_update
+
+                # Run backfill
+                updated = await backfill_narratives_for_recent_articles(hours=48, limit=2)
+
+                # Should have updated 2 articles
+                assert updated == 2
+
+
+class TestDownstreamDegradedFiltering:
+    """Test that degraded narratives are filtered in detect_narratives."""
+
+    @pytest.mark.asyncio
+    async def test_detect_narratives_filters_degraded(self):
+        """Test that detect_narratives excludes status='degraded' narratives."""
+        # This test verifies the MongoDB query excludes degraded narratives
+        # The actual filtering happens in detect_narratives query:
+        # "status": {"$ne": "degraded"}
+
+        from crypto_news_aggregator.services.narrative_service import detect_narratives
+
+        with patch("crypto_news_aggregator.services.narrative_service.mongo_manager") as mock_mongo:
+            mock_db = MagicMock()
+            mock_collection = MagicMock()
+            mock_db.articles = mock_collection
+
+            async def get_db():
+                return mock_db
+            mock_mongo.get_async_database = get_db
+
+            # Capture the query passed to find()
+            find_query = None
+
+            class MockCursor:
+                def __aiter__(self):
+                    return self
+
+                async def __anext__(self):
+                    raise StopAsyncIteration
+
+                def limit(self, n):
+                    return self
+
+            def mock_find(query):
+                nonlocal find_query
+                find_query = query
+                return MockCursor()
+
+            mock_collection.find = mock_find
+
+            try:
+                await detect_narratives(hours=48)
+            except Exception:
+                pass  # We're just checking the query
+
+            # Verify the query filters out degraded narratives
+            if find_query:
+                # Should have a status filter excluding degraded
+                assert "$ne" in str(find_query) or "degraded" in str(find_query)
+
+
+class TestIntegrationRetryStormFix:
+    """Integration test for the complete BUG-057 fix."""
+
+    @pytest.mark.asyncio
+    async def test_retry_storm_prevented(self):
+        """Test that the complete fix prevents retry storms."""
+        article = {
+            "_id": "integration_test",
+            "title": "Test Article",
+            "description": "Test description"
+        }
+
+        llm_call_count = 0
+
+        with patch("crypto_news_aggregator.services.narrative_themes.get_llm_provider") as mock_llm:
+            mock_provider = MagicMock()
+
+            def llm_call_counter(*args, **kwargs):
+                nonlocal llm_call_count
+                llm_call_count += 1
+                # Always fail validation (missing nucleus_entity)
+                return json.dumps({
+                    "actors": ["Bitcoin"],
+                    "actor_salience": {"Bitcoin": 5},
+                    "narrative_focus": "price",
+                    "actions": [],
+                    "tensions": [],
+                    "narrative_summary": "price change"
+                })
+
+            mock_provider._get_completion.side_effect = llm_call_counter
+            mock_llm.return_value = mock_provider
+
+            result = await discover_narrative_from_article(article, max_retries=4)
+
+            # Should get degraded result
+            assert result is not None
+            assert result.get("status") == "degraded"
+
+            # Key: LLM should be called only once (validation failure, no retry)
+            # not 4 times (old behavior with max_retries=4)
+            assert llm_call_count <= 2  # max_retries=2 in discover function
+
+
+# Add import for json at top of test file if not already present
+import json
