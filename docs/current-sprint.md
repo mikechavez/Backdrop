@@ -1,6 +1,6 @@
 # Sprint 12 — Backdrop Stability & Production-Grade Monitoring
 
-**Status:** Phase 1 — In Progress (78% complete, 14/18 tasks done)
+**Status:** Phase 1 — In Progress (83% complete, 15/18 tasks done)
 **Started:** 2026-04-01
 **Target:** Complete Phase 1 (all monitoring live), then Phase 2 (NeMo integration)
 
@@ -9,6 +9,51 @@
 ## Sprint Goal
 
 _Get Backdrop continuously operational and affordable, then integrate NVIDIA NeMo Agent Toolkit for production-grade observability and optimization._
+
+---
+
+## Session 20 Work Summary (2026-04-03) - BUG-056 TESTS COMPLETE ✅
+
+**BUG-056: LLM Spend Cap Enforcement - Testing Phase Complete**
+
+### Tests Created & Passing:
+- ✅ `tests/test_bug_056_spend_cap.py` — 33 tests (32 passing, 1 skipped)
+  - **TestBudgetCacheState** (2): Cache initialization, TTL verification
+  - **TestCriticalOperationClassification** (6): Briefing/entity critical, theme/sentiment non-critical
+  - **TestCheckLLMBudget** (7): Hard/soft limits, stale cache, fail-open behavior
+  - **TestRefreshBudgetCache** (5): State transitions, DB error handling
+  - **TestRefreshBudgetIfStale** (2): Cache freshness, refresh timing
+  - **TestBacklogThrottle** (2): Throttle config verification
+  - **TestCostCalculation** (4): Pricing accuracy, rounding
+  - **TestBudgetGateIntegration** (2): End-to-end behavior
+  - **TestBudgetLimitConstants** (3): Verify $0.25/$0.33 limits
+
+### Key Test Scenarios Covered:
+- ✅ Hard limit ($0.33) blocks ALL operations (briefing, entity, sentiment, etc.)
+- ✅ Soft limit ($0.25) allows critical ops (briefing, entity) but blocks non-critical (sentiment, themes, enrichment)
+- ✅ Stale cache (>5 min) treated as degraded (fail toward caution)
+- ✅ Unpopulated cache fails open (allow operations with warning)
+- ✅ Budget cache with 30s TTL (no per-call DB overhead)
+- ✅ ENRICHMENT_MAX_ARTICLES_PER_CYCLE=5 config verified
+
+### Acceptance Criteria Status: ✅ ALL MET
+- ✅ Config settings: `LLM_DAILY_SOFT_LIMIT`, `LLM_DAILY_HARD_LIMIT`, `ENRICHMENT_MAX_ARTICLES_PER_CYCLE`
+- ✅ Budget cache with 30s TTL, sync reads (no async bridge)
+- ✅ All LLM call paths have budget checks (8 sites total)
+- ✅ Non-critical blocked at soft limit, all blocked at hard limit
+- ✅ `LLMError` with `error_type="spend_limit"` for critical ops
+- ✅ Graceful returns ([], 0.0) for non-critical ops
+- ✅ Backlog throttle implemented and tested
+- ✅ No regressions to existing tests
+
+### Next Steps:
+- Create PR against main (code + tests together)
+- Deploy to Railway with $5 Anthropic credits
+- Monitor `db.api_costs` to verify spend gate working
+- Proceed to BUG-057 (narrative retry storm fix)
+
+**Branch:** `fix/bug-056-llm-spend-cap-enforcement`
+**Commits:** 9d63412 (code, Session 19), e4d16b3 (tests, Session 20)
 
 ---
 
@@ -66,7 +111,7 @@ _Get Backdrop continuously operational and affordable, then integrate NVIDIA NeM
 | 12 | TASK-033 | Add Sentry Error Monitoring | ✅ COMPLETE | 30 min | 45 min |
 | 13 | TASK-034 | Pipeline Heartbeat Health Check | ✅ COMPLETE | 1 hr | 1 hr |
 | 14 | TASK-035 | Daily Pipeline Digest via Slack | ✅ COMPLETE | 1-2 hr | 1 hr |
-| 15 | BUG-056 | LLM Spend Cap Enforcement (no budget gate) | 🔲 OPEN | 1-1.5 hr | |
+| 15 | BUG-056 | LLM Spend Cap Enforcement (no budget gate) | ✅ COMPLETE | 1-1.5 hr | 2 hr |
 | 16 | BUG-057 | Narrative Retry Storm (deterministic validation failures) | 🔲 OPEN | 1-1.5 hr | |
 | | | **--- PHASE 2: NeMo Agent Toolkit ---** | | |
 | 17 | TASK-029 | NeMo Research & Integration Plan | 🔲 OPEN | 2 hr |
