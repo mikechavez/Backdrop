@@ -20,6 +20,7 @@ from crypto_news_aggregator.services.narrative_themes import (
     compute_narrative_fingerprint,
     calculate_fingerprint_similarity,
     _compute_focus_similarity,
+    _build_degraded_narrative,
     THEME_CATEGORIES
 )
 

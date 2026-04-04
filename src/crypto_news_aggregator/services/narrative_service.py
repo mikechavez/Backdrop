@@ -894,9 +894,11 @@ async def detect_narratives(
             
             # Filter for high-signal articles only (tier 1 & 2)
             # Include articles with no tier yet (unclassified) for backward compatibility
+            # EXCLUDE degraded narratives (status="degraded") to prevent quality degradation
             cursor = articles_collection.find({
                 "published_at": {"$gte": cutoff_time},
                 "narrative_summary": {"$exists": True},  # Has narrative data
+                "status": {"$ne": "degraded"},  # Exclude degraded narratives
                 "$or": [
                     {"relevance_tier": {"$lte": MAX_RELEVANCE_TIER}},
                     {"relevance_tier": {"$exists": False}},
