@@ -1,12 +1,69 @@
 # Session Start
 
-**Date:** 2026-04-03 (Session 21 in progress)
-**Status:** Sprint 12, Phase 1 — BUG-056 complete+tested, BUG-057 code complete (tests pending), all Phase 1 foundations ready
-**Branch:** `fix/bug-057-narrative-retry-storm` (code implementation complete)
+**Date:** 2026-04-03 (Session 22)
+**Status:** Sprint 12, Phase 1 — BUG-056 complete+tested, BUG-057 complete+tested, all Phase 1 complete ✅
+**Branch:** `fix/bug-057-narrative-retry-storm` (PR #248 ready for merge)
 
 ---
 
-## Session 21 Work Summary (2026-04-03 in progress) - BUG-057 CODE IMPLEMENTATION COMPLETE ✅
+## Session 22 Work Summary (2026-04-03) - BUG-057 TESTING COMPLETE ✅
+
+**BUG-057: Narrative Retry Storm — Testing COMPLETE** ✅
+
+### What We Tested:
+- Added 12 comprehensive unit and integration tests for BUG-057
+- All 121 tests passing (7 skipped), zero regressions
+- Updated 8 existing tests to match new degraded narrative behavior
+- Verified all code changes work end-to-end
+
+### Test Coverage:
+1. **TestBuildDegradedNarrative** (3 tests)
+   - Degraded narrative construction with various inputs
+   - Fallback nucleus extraction from title
+   - Empty title handling
+
+2. **TestZeroRetryOnValidationFailure** (2 tests)
+   - Missing required fields return degraded (not None)
+   - Hallucinated entities return degraded (no retry)
+   - Single LLM call confirmed (not 4)
+
+3. **TestPerArticleLLMCallCap** (1 test)
+   - Per-article call cap limits to 2 calls max
+
+4. **TestTier2Tier3AutoFixes** (3 tests)
+   - Nucleus salience auto-fixed to 5
+   - Empty actors backfilled from nucleus_entity
+   - Nucleus entity added to actors list
+
+5. **TestDegradedNarrativeTracking** (1 test)
+   - Backfill tracks degraded count and logs rate
+
+6. **TestDownstreamDegradedFiltering** (1 test)
+   - detect_narratives excludes status="degraded"
+
+7. **TestIntegrationRetryStormFix** (1 test)
+   - Complete retry storm prevention verified
+
+### Files Modified:
+- `tests/services/test_narrative_themes.py` (+468 lines)
+  - Added 12 new BUG-057 test classes
+  - Updated 8 existing tests for new behavior
+
+### Commits:
+- `54631ac` - test(narrative-retry): Add 12 comprehensive tests for BUG-057 fix
+
+### PR:
+- #248 - test(narrative-retry): Add comprehensive test suite for BUG-057
+
+### Next Steps:
+- Merge PR #248 to main
+- Deploy to production with BUG-056 + BUG-057 together
+- Add Anthropic credits ($5-10 for testing)
+- Start TASK-028 (72-hour burn-in validation)
+
+---
+
+## Session 21 Work Summary (2026-04-03) - BUG-057 CODE IMPLEMENTATION COMPLETE ✅
 
 **BUG-057: Narrative Retry Storm — Code Implementation COMPLETE** ✅
 

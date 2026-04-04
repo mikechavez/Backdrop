@@ -12,6 +12,47 @@ _Get Backdrop continuously operational and affordable, then integrate NVIDIA NeM
 
 ---
 
+## Session 22 Work Summary (2026-04-03) - BUG-057 TESTS COMPLETE ✅
+
+**BUG-057: Narrative Retry Storm - Testing Phase Complete**
+
+### Tests Created & Passing:
+- ✅ `tests/services/test_narrative_themes.py` — 12 new tests (all passing)
+  - **TestBuildDegradedNarrative** (3): Degraded narrative construction
+  - **TestZeroRetryOnValidationFailure** (2): Zero-retry on validation failures
+  - **TestPerArticleLLMCallCap** (1): Per-article LLM call cap enforcement
+  - **TestTier2Tier3AutoFixes** (3): Auto-fixes for nucleus salience + empty actors
+  - **TestDegradedNarrativeTracking** (1): Degraded rate tracking in backfill
+  - **TestDownstreamDegradedFiltering** (1): Degraded filtering in detect_narratives
+  - **TestIntegrationRetryStormFix** (1): End-to-end retry storm prevention
+
+### Key Test Scenarios Covered:
+- ✅ Hallucinated entities return degraded (no retry)
+- ✅ Missing required fields return degraded (no retry)
+- ✅ Per-article call cap limits LLM calls to 2 (not 4+)
+- ✅ Empty actors backfilled from nucleus_entity
+- ✅ Missing nucleus salience auto-fixed to 5
+- ✅ Degraded narratives excluded from clustering
+- ✅ Single LLM call on validation failure
+
+### Test Results Status: ✅ ALL PASSING
+- Total tests: 121 passing (7 skipped)
+- New BUG-057 tests: 12 passing
+- Updated existing tests: 8 (adjusted for new degraded behavior)
+- Regressions: 0
+
+### Next Steps:
+- Merge PR #248 to main
+- Deploy BUG-056 + BUG-057 together to production
+- Add Anthropic credits ($5-10 for testing)
+- Proceed to TASK-028 (72-hour burn-in validation)
+
+**Branch:** `fix/bug-057-narrative-retry-storm`
+**Commits:** 20e5e28 (code), 54631ac (tests)
+**PR:** #248
+
+---
+
 ## Session 20 Work Summary (2026-04-03) - BUG-056 TESTS COMPLETE ✅
 
 **BUG-056: LLM Spend Cap Enforcement - Testing Phase Complete**
