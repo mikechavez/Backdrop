@@ -1,8 +1,51 @@
 # Session Start
 
-**Date:** 2026-04-03 (Session 23)
-**Status:** Sprint 12, Phase 1 — BUG-056 complete+tested, BUG-057 complete+tested+config, all Phase 1 complete ✅
-**Branch:** `fix/bug-057-narrative-retry-storm` (PRs #248 + #249 ready for merge)
+**Date:** 2026-04-04 (Session 24)
+**Status:** Sprint 12, Phase 1 — BUG-056+057 complete, BUG-058 complete, ready for merge and deploy ✅
+**Branch:** `fix/bug-058-briefing-generation-skips` (ready for PR)
+
+---
+
+## Session 24 Work Summary (2026-04-04) - BUG-058 COMPLETE ✅
+
+**BUG-058: Briefing Generation Silently Skips — Code Implementation COMPLETE** ✅
+
+### What We Implemented:
+- ✅ Replaced `_get_trending_signals()` to call `compute_trending_signals()` instead of querying empty `trending_signals` collection
+- ✅ Added import for `compute_trending_signals` from signal_service
+- ✅ Signals now computed on-demand from entity_mentions (24h timeframe, limit=20)
+- ✅ Error handling: returns empty list on compute failure (prevents crash)
+- ✅ All 43 briefing-related tests passing, zero regressions
+
+### The Fix:
+**File:** `src/crypto_news_aggregator/services/briefing_agent.py`
+
+**Change 1:** Added import (line 48)
+```python
+from crypto_news_aggregator.services.signal_service import compute_trending_signals
+```
+
+**Change 2:** Replaced `_get_trending_signals()` method (lines 256-273)
+- Old: Queried non-existent `db.trending_signals` collection → always returned empty list
+- New: Calls `compute_trending_signals()` which aggregates `entity_mentions` on-demand
+- Matches behavior of `/api/v1/signals` endpoint (already working)
+
+### Impact:
+- ✅ Briefings will now generate successfully with trending signals
+- ✅ No more "insufficient data" skips
+- ✅ Consistent signal computation across all endpoints
+
+### Files Modified:
+- `src/crypto_news_aggregator/services/briefing_agent.py` (1 file, 2 changes)
+
+### Commits:
+- `b82df8d` - fix(briefing): Replace pre-computed trending_signals with on-demand compute
+
+### Next Steps:
+1. Create PR against main
+2. Merge and deploy to production
+3. Trigger manual briefing via `/admin/trigger-briefing`
+4. Verify worker logs show "Retrieved N trending signals" with N > 0
 
 ---
 
