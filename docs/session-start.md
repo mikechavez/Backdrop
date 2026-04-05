@@ -1,8 +1,42 @@
 # Session Start
 
-**Date:** 2026-04-03 (Session 22)
-**Status:** Sprint 12, Phase 1 — BUG-056 complete+tested, BUG-057 complete+tested, all Phase 1 complete ✅
-**Branch:** `fix/bug-057-narrative-retry-storm` (PR #248 ready for merge)
+**Date:** 2026-04-03 (Session 23)
+**Status:** Sprint 12, Phase 1 — BUG-056 complete+tested, BUG-057 complete+tested+config, all Phase 1 complete ✅
+**Branch:** `fix/bug-057-narrative-retry-storm` (PRs #248 + #249 ready for merge)
+
+---
+
+## Session 23 Work Summary (2026-04-03) - BUG-057 CONFIG COMPLETE ✅
+
+**BUG-057: Disable Dead News Sources & Price Alerts - Configuration Phase Complete**
+
+### What We Implemented:
+- ✅ Disabled dead news sources in config (CoinDesk JSON API + Bloomberg 403)
+- ✅ Commented out fetch-news-every-3-hours schedule entry
+- ✅ Commented out check-price-alerts schedule entry (no-op stub)
+- ✅ Updated documentation (ticket, current-sprint.md, session-start.md)
+- ✅ Committed and pushed to fix/bug-057-narrative-retry-storm branch
+
+### Impact:
+- ✅ Eliminates ~480 unnecessary log lines/day
+- ✅ Frees Celery worker cycles
+- ✅ Zero impact to RSS ingestion (separate code path)
+- ✅ Infrastructure preserved for future re-enablement
+
+### Files Modified:
+- `src/crypto_news_aggregator/core/config.py` — ENABLED_NEWS_SOURCES → []
+- `src/crypto_news_aggregator/tasks/beat_schedule.py` — Both schedule entries commented out
+
+### Commits:
+- `eef324a` - chore(config): Disable dead news sources and unused price alerts (BUG-057)
+
+### PR:
+- #249 - chore(config): Disable dead news sources and price alerts (BUG-057)
+
+### Next Steps:
+- Merge PR #249 to main
+- Deploy to production
+- Monitor logs for zero fetch_news/check_price_alerts activity
 
 ---
 
