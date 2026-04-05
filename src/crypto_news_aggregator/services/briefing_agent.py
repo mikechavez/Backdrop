@@ -45,6 +45,7 @@ from crypto_news_aggregator.services.cost_tracker import (
     check_llm_budget,
     refresh_budget_if_stale,
 )
+from crypto_news_aggregator.services.signal_service import compute_trending_signals
 
 logger = logging.getLogger(__name__)
 
@@ -253,20 +254,23 @@ class BriefingAgent:
         )
 
     async def _get_trending_signals(self, limit: int = 20) -> List[Dict[str, Any]]:
-        """Get top trending signals from the database."""
-        db = await mongo_manager.get_async_database()
-        collection = db.trending_signals
+        """Get top trending signals computed on-demand from entity_mentions.
 
-        # Get signals from last 24 hours, sorted by score
-        cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
-
-        cursor = collection.find(
-            {"updated_at": {"$gte": cutoff}},
-            sort=[("metrics.score_24h", -1)],
-        ).limit(limit)
-
-        signals = await cursor.to_list(length=limit)
-        return signals
+        Previously queried a pre-computed 'trending_signals' collection that was
+        never populated, causing briefings to always skip with 'insufficient data'.
+        Fixed to use compute_trending_signals() which aggregates entity_mentions
+        directly. See BUG-058.
+        """
+        try:
+            signals = await compute_trending_signals(
+                timeframe="24h",
+                limit=limit,
+                min_score=0.0,
+            )
+            return signals
+        except Exception as e:
+            logger.error(f"Failed to compute trending signals: {e}")
+            return []
 
     async def _get_active_narratives(self, limit: int = 15, max_age_days: int = 7) -> List[Dict[str, Any]]:
         """Get active narratives from the database with fresh recency calculation.
