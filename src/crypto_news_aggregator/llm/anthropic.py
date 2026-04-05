@@ -441,7 +441,7 @@ Return ONLY the JSON array, no other text."""
                     # Track cost (async, non-blocking)
                     try:
                         from crypto_news_aggregator.services.cost_tracker import CostTracker
-                        from crypto_news_aggregator.db.mongo_manager import mongo_manager
+                        from crypto_news_aggregator.db.mongodb import mongo_manager
                         import asyncio
 
                         async def _track_entity_cost():
@@ -660,19 +660,16 @@ Return ONLY the JSON array, no other text."""
             # Track cost
             try:
                 from crypto_news_aggregator.services.cost_tracker import CostTracker
-                from crypto_news_aggregator.db.mongo_manager import mongo_manager
+                from crypto_news_aggregator.db.mongodb import mongo_manager
 
                 if usage and (usage.get("input_tokens", 0) > 0 or usage.get("output_tokens", 0) > 0):
                     db = await mongo_manager.get_async_database()
                     tracker = CostTracker(db)
-                    import asyncio
-                    asyncio.create_task(
-                        tracker.track_call(
-                            operation="article_enrichment_batch",
-                            model=self.model_name,
-                            input_tokens=usage.get("input_tokens", 0),
-                            output_tokens=usage.get("output_tokens", 0),
-                        )
+                    await tracker.track_call(
+                        operation="article_enrichment_batch",
+                        model=self.model_name,
+                        input_tokens=usage.get("input_tokens", 0),
+                        output_tokens=usage.get("output_tokens", 0),
                     )
                     logger.info(
                         f"Batch enriched {len(batch_articles)} articles: "
@@ -756,13 +753,12 @@ Return ONLY the JSON array, no other text."""
             # Track cost asynchronously if tracking is available
             try:
                 from crypto_news_aggregator.services.cost_tracker import CostTracker
-                from crypto_news_aggregator.db.mongo_manager import mongo_manager
+                from crypto_news_aggregator.db.mongodb import mongo_manager
 
                 if usage and (usage.get("input_tokens", 0) > 0 or usage.get("output_tokens", 0) > 0):
                     db = await mongo_manager.get_async_database()
                     tracker = CostTracker(db)
-                    import asyncio
-                    asyncio.create_task(
+                    await (
                         tracker.track_call(
                             operation=operation,
                             model=self.model_name,
@@ -834,13 +830,12 @@ Return ONLY the JSON array, no other text."""
             # Track cost asynchronously if tracking is available
             try:
                 from crypto_news_aggregator.services.cost_tracker import CostTracker
-                from crypto_news_aggregator.db.mongo_manager import mongo_manager
+                from crypto_news_aggregator.db.mongodb import mongo_manager
 
                 if usage and (usage.get("input_tokens", 0) > 0 or usage.get("output_tokens", 0) > 0):
                     db = await mongo_manager.get_async_database()
                     tracker = CostTracker(db)
-                    import asyncio
-                    asyncio.create_task(
+                    await (
                         tracker.track_call(
                             operation=operation,
                             model=self.model_name,
@@ -913,13 +908,12 @@ Return ONLY the JSON array, no other text."""
             # Track cost asynchronously if tracking is available
             try:
                 from crypto_news_aggregator.services.cost_tracker import CostTracker
-                from crypto_news_aggregator.db.mongo_manager import mongo_manager
+                from crypto_news_aggregator.db.mongodb import mongo_manager
 
                 if usage and (usage.get("input_tokens", 0) > 0 or usage.get("output_tokens", 0) > 0):
                     db = await mongo_manager.get_async_database()
                     tracker = CostTracker(db)
-                    import asyncio
-                    asyncio.create_task(
+                    await (
                         tracker.track_call(
                             operation=operation,
                             model=self.model_name,
