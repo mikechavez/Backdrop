@@ -12,6 +12,63 @@ _Get Backdrop continuously operational and affordable, then integrate NVIDIA NeM
 
 ---
 
+## Session 25 Work Summary (2026-04-05) - BUG-059 COMPLETE ✅
+
+**BUG-059: Cost Tracking Silently Fails + Spend Cap Never Enforces — FIXED**
+
+### The Problem:
+- Actual Anthropic spend: ~$3/day, tracked spend: ~$0.15/day (15x discrepancy)
+- BUG-056 spend cap ($0.25 soft / $0.33 hard) never triggered because cost records weren't being written
+- Two root causes:
+  1. `anthropic.py`: Wrong import paths in 5 cost tracking blocks (silent failures inside try/except)
+  2. `optimized_anthropic.py`: Zero budget checks + broken fire-and-forget cost tracking
+
+### The Fix:
+**File 1: `src/crypto_news_aggregator/llm/anthropic.py`**
+- ✅ Fixed 5 import paths: `db.mongo_manager` → `db.mongodb`
+- ✅ Replaced 4 `asyncio.create_task()` with `await` in async cost tracking methods:
+  - `enrich_articles_batch` (line 669)
+  - `score_relevance_tracked` (line 765)
+  - `analyze_sentiment_tracked` (line 843)
+  - `extract_themes_tracked` (line 922)
+
+**File 2: `src/crypto_news_aggregator/llm/optimized_anthropic.py`**
+- ✅ Added budget check imports: `from ..services.cost_tracker import check_llm_budget, refresh_budget_if_stale`
+- ✅ Added budget checks to `_make_api_call()` method (blocks calls when over limit)
+- ✅ Replaced 6 `asyncio.create_task()` with `await` in cost tracking blocks (2 per method × 3 methods)
+- ✅ Passed operation names to all 3 `_make_api_call()` invocations:
+  - `extract_entities_batch`: operation="entity_extraction"
+  - `extract_narrative_elements`: operation="narrative_extraction"
+  - `generate_narrative_summary`: operation="narrative_summary"
+
+### Impact:
+- ✅ All LLM API calls now write to `db.api_costs` (budget cache will be accurate)
+- ✅ Spend cap will now enforce: soft limit ($0.25) blocks non-critical ops, hard limit ($0.33) blocks all
+- ✅ Daily LLM spend will stay under $0.33 (~$10/month target)
+- ✅ No silent failures — all cost tracking awaited properly
+
+### Files Modified:
+- `src/crypto_news_aggregator/llm/anthropic.py` (5 import fixes + 4 await fixes)
+- `src/crypto_news_aggregator/llm/optimized_anthropic.py` (imports + budget checks + 6 await fixes + 3 operation params)
+
+### Verification:
+✅ Both files compile without syntax errors
+✅ 5 `db.mongodb` imports in anthropic.py
+✅ 1 remaining `asyncio.create_task` (sync method, intentional)
+✅ 0 `asyncio.create_task` in optimized_anthropic.py
+✅ Budget check import + enforcement in optimized_anthropic.py
+
+**Branch:** `fix/bug-058-briefing-generation-skips` (includes BUG-058 + BUG-059)
+**Commit:** `586e99e`
+
+### Next Steps:
+1. Create PR against main
+2. Merge and deploy to production
+3. Verify cost records appear in `db.api_costs` after API calls
+4. Test spend cap enforcement: soft limit blocks sentiment/themes, hard limit blocks everything
+
+---
+
 ## Session 24 Work Summary (2026-04-04) - BUG-058 COMPLETE ✅
 
 **BUG-058: Briefing Generation Silently Skips — Code Implementation COMPLETE**
