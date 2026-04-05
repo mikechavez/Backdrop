@@ -52,10 +52,10 @@ Combined effect: the budget cache reads from `db.api_costs`, which is mostly emp
 
 ## Resolution
 
-**Status:** Open
-**Fixed:**
-**Branch:**
-**Commit:**
+**Status:** ✅ FIXED
+**Fixed:** 2026-04-05 (Session 25)
+**Branch:** `fix/bug-058-briefing-generation-skips` (includes BUG-058 + BUG-059 fixes)
+**Commit:** `586e99e` - fix(llm): Fix cost tracking and add budget enforcement (BUG-059)
 
 ### Root Cause
 

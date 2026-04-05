@@ -1,8 +1,31 @@
 # Session Start
 
-**Date:** 2026-04-04 (Session 24)
-**Status:** Sprint 12, Phase 1 — BUG-056+057 complete, BUG-058 complete, ready for merge and deploy ✅
-**Branch:** `fix/bug-058-briefing-generation-skips` (ready for PR)
+**Date:** 2026-04-05 (Session 25)
+**Status:** Sprint 12, Phase 1 — BUG-058 + BUG-059 complete, ready for PR and deploy ✅
+**Branch:** `fix/bug-058-briefing-generation-skips` (BUG-058 + BUG-059 combined)
+
+---
+
+## Session 25 Work Summary (2026-04-05) - BUG-059 COMPLETE ✅
+
+**BUG-059: Cost Tracking Silently Fails + Spend Cap Never Enforces — FIXED** ✅
+
+### What We Fixed:
+1. **anthropic.py** (5 import fixes + 4 await fixes)
+   - Fixed wrong import paths: `db.mongo_manager` → `db.mongodb` 
+   - Replaced `asyncio.create_task()` with `await` in 4 cost tracking methods
+   
+2. **optimized_anthropic.py** (imports + budget checks + 6 await fixes + operation params)
+   - Added budget checks to `_make_api_call()` method
+   - Replaced 6 `asyncio.create_task()` with `await`
+   - Added operation names to all 3 API call methods
+
+### Impact:
+- ✅ All cost records now write to `db.api_costs` (budget cache accurate)
+- ✅ Spend cap will enforce ($0.25 soft, $0.33 hard limits)
+- ✅ Daily spend will stay under $10/month target
+
+**Commit:** `586e99e` - fix(llm): Fix cost tracking and add budget enforcement (BUG-059)
 
 ---
 
