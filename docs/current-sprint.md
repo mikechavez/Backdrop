@@ -1,6 +1,6 @@
 # Sprint 12 — Backdrop Stability & Production-Grade Monitoring
 
-**Status:** Phase 1 — In Progress (89% complete, 16/18 tasks done)
+**Status:** Phase 1 — In Progress (94% complete, 17/18 tasks done)
 **Started:** 2026-04-01
 **Target:** Complete Phase 1 (all monitoring live), then Phase 2 (NeMo integration)
 
@@ -9,6 +9,41 @@
 ## Sprint Goal
 
 _Get Backdrop continuously operational and affordable, then integrate NVIDIA NeMo Agent Toolkit for production-grade observability and optimization._
+
+---
+
+## Session 24 Work Summary (2026-04-04) - BUG-058 COMPLETE ✅
+
+**BUG-058: Briefing Generation Silently Skips — Code Implementation COMPLETE**
+
+### The Problem:
+- Briefings silently skipped with "insufficient data" error
+- Root cause: `_get_trending_signals()` queried non-existent `trending_signals` collection
+- Collection was never populated → always returned empty → briefings always skipped
+- No LLM calls made, no error logged (silent failure)
+
+### The Fix:
+- ✅ Replace `_get_trending_signals()` to call `compute_trending_signals()` instead
+- ✅ Signals now computed on-demand from `entity_mentions` aggregation (24h, limit=20)
+- ✅ Matches behavior of working `/api/v1/signals` endpoint
+- ✅ Add error handling: returns empty list on compute failure
+
+### Files Modified:
+- `src/crypto_news_aggregator/services/briefing_agent.py` (1 file, 2 changes)
+  - Added import: `from crypto_news_aggregator.services.signal_service import compute_trending_signals`
+  - Replaced: `_get_trending_signals()` method to call on-demand compute
+
+### Test Results: ✅ ALL PASSING
+- 43 briefing-related tests: all passing
+- Zero regressions detected
+
+### Next Steps:
+1. Create PR against main
+2. Merge and deploy to production
+3. Trigger manual briefing and verify signals are retrieved
+
+**Branch:** `fix/bug-058-briefing-generation-skips`
+**Commit:** b82df8d
 
 ---
 
