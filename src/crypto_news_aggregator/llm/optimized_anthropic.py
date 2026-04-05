@@ -13,6 +13,7 @@ from typing import List, Dict, Any, Optional
 import httpx
 from .cache import LLMResponseCache
 from ..db.mongodb import mongo_manager
+from ..services.cost_tracker import check_llm_budget, refresh_budget_if_stale
 
 logger = logging.getLogger(__name__)
 
@@ -53,13 +54,20 @@ class OptimizedAnthropicLLM:
         # Note: New cost_tracker service doesn't have initialize_indexes yet,
         # but indexes will be created on first insert
     
-    def _make_api_call(self, prompt: str, model: str, max_tokens: int = 1000, temperature: float = 0.3) -> Dict[str, Any]:
+    def _make_api_call(self, prompt: str, model: str, max_tokens: int = 1000, temperature: float = 0.3, operation: str = "") -> Dict[str, Any]:
         """
         Make synchronous API call to Anthropic
-        
+
         Returns:
             Dict with 'content' (text response), 'input_tokens', and 'output_tokens'
         """
+        # --- SPEND CAP CHECK ---
+        allowed, reason = check_llm_budget(operation)
+        if not allowed:
+            logger.warning(f"LLM call blocked by spend cap ({reason}) for '{operation}'")
+            raise RuntimeError(f"Daily spend limit reached ({reason})")
+        # --- END SPEND CAP CHECK ---
+
         headers = {
             "x-api-key": self.api_key,
             "anthropic-version": "2023-06-01",
@@ -122,15 +130,13 @@ class OptimizedAnthropicLLM:
                     # Track as cached call (async, non-blocking)
                     try:
                         tracker = await self._get_cost_tracker()
-                        asyncio.create_task(
-                            tracker.track_call(
+                        await tracker.track_call(
                                 operation="entity_extraction",
                                 model=self.HAIKU_MODEL,
                                 input_tokens=0,
                                 output_tokens=0,
                                 cached=True
                             )
-                        )
                     except Exception as e:
                         logger.error(f"Cost tracking failed: {e}")
                     results.append(cached_response)
@@ -141,7 +147,8 @@ class OptimizedAnthropicLLM:
                 prompt=prompt,
                 model=self.HAIKU_MODEL,
                 max_tokens=1000,
-                temperature=0.3
+                temperature=0.3,
+                operation="entity_extraction"
             )
 
             # Parse response
@@ -154,14 +161,12 @@ class OptimizedAnthropicLLM:
             # Track cost (async, non-blocking)
             try:
                 tracker = await self._get_cost_tracker()
-                asyncio.create_task(
-                    tracker.track_call(
-                        operation="entity_extraction",
-                        model=self.HAIKU_MODEL,
-                        input_tokens=api_response["input_tokens"],
-                        output_tokens=api_response["output_tokens"],
-                        cached=False
-                    )
+                await tracker.track_call(
+                    operation="entity_extraction",
+                    model=self.HAIKU_MODEL,
+                    input_tokens=api_response["input_tokens"],
+                    output_tokens=api_response["output_tokens"],
+                    cached=False
                 )
             except Exception as e:
                 logger.error(f"Cost tracking failed: {e}")
@@ -241,15 +246,13 @@ Only include entities mentioned in the text. Normalize crypto names (BTC → Bit
                 # Track as cached call (async, non-blocking)
                 try:
                     tracker = await self._get_cost_tracker()
-                    asyncio.create_task(
-                        tracker.track_call(
+                    await tracker.track_call(
                             operation="narrative_extraction",
                             model=self.HAIKU_MODEL,
                             input_tokens=0,
                             output_tokens=0,
                             cached=True
                         )
-                    )
                 except Exception as e:
                     logger.error(f"Cost tracking failed: {e}")
                 return cached_response
@@ -259,7 +262,8 @@ Only include entities mentioned in the text. Normalize crypto names (BTC → Bit
             prompt=prompt,
             model=self.HAIKU_MODEL,
             max_tokens=800,
-            temperature=0.3
+            temperature=0.3,
+            operation="narrative_extraction"
         )
 
         # Parse response
@@ -272,14 +276,12 @@ Only include entities mentioned in the text. Normalize crypto names (BTC → Bit
         # Track cost (async, non-blocking)
         try:
             tracker = await self._get_cost_tracker()
-            asyncio.create_task(
-                tracker.track_call(
-                    operation="narrative_extraction",
-                    model=self.HAIKU_MODEL,
-                    input_tokens=api_response["input_tokens"],
-                    output_tokens=api_response["output_tokens"],
-                    cached=False
-                )
+            await tracker.track_call(
+                operation="narrative_extraction",
+                model=self.HAIKU_MODEL,
+                input_tokens=api_response["input_tokens"],
+                output_tokens=api_response["output_tokens"],
+                cached=False
             )
         except Exception as e:
             logger.error(f"Cost tracking failed: {e}")
@@ -336,15 +338,13 @@ Actions: Key events or verbs"""
                 # Track as cached call (async, non-blocking)
                 try:
                     tracker = await self._get_cost_tracker()
-                    asyncio.create_task(
-                        tracker.track_call(
+                    await tracker.track_call(
                             operation="narrative_summary",
                             model=self.SONNET_MODEL,
                             input_tokens=0,
                             output_tokens=0,
                             cached=True
                         )
-                    )
                 except Exception as e:
                     logger.error(f"Cost tracking failed: {e}")
                 return cached_response.get("summary", "")
@@ -354,7 +354,8 @@ Actions: Key events or verbs"""
             prompt=prompt,
             model=self.SONNET_MODEL,
             max_tokens=500,
-            temperature=0.7
+            temperature=0.7,
+            operation="narrative_summary"
         )
 
         summary = api_response["content"].strip()
@@ -367,14 +368,12 @@ Actions: Key events or verbs"""
         # Track cost (async, non-blocking)
         try:
             tracker = await self._get_cost_tracker()
-            asyncio.create_task(
-                tracker.track_call(
-                    operation="narrative_summary",
-                    model=self.SONNET_MODEL,
-                    input_tokens=api_response["input_tokens"],
-                    output_tokens=api_response["output_tokens"],
-                    cached=False
-                )
+            await tracker.track_call(
+                operation="narrative_summary",
+                model=self.SONNET_MODEL,
+                input_tokens=api_response["input_tokens"],
+                output_tokens=api_response["output_tokens"],
+                cached=False
             )
         except Exception as e:
             logger.error(f"Cost tracking failed: {e}")
