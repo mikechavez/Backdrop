@@ -138,14 +138,32 @@ class BriefingAgent:
                 return None
 
             # Step 2: Generate initial briefing
-            generated = await self._generate_with_llm(briefing_input)
+            generated, generate_response = await self._generate_with_llm(briefing_input)
+
+            # Generate briefing_id early so it's shared across all drafts
+            from bson import ObjectId
+            briefing_id = str(ObjectId())
+
+            # Capture pre-refine draft
+            from crypto_news_aggregator.llm.draft_capture import save_draft
+            db = await mongo_manager.get_async_database()
+            await save_draft(
+                db=db,
+                briefing_id=briefing_id,
+                trace_id=generate_response.trace_id,
+                stage="pre_refine",
+                model=BRIEFING_PRIMARY_MODEL,
+                generated=generated,
+            )
 
             # Step 3: Self-refine (quality check with multi-pass refinement)
-            refined = await self._self_refine(generated, briefing_input, max_iterations=2)
+            refined = await self._self_refine(
+                generated, briefing_input, max_iterations=2, briefing_id=briefing_id, db=db
+            )
 
             # Step 4: Save briefing to database
             briefing_doc = await self._save_briefing(
-                briefing_type, briefing_input, refined, is_smoke=is_smoke, task_id=task_id
+                briefing_type, briefing_input, refined, is_smoke=is_smoke, task_id=task_id, briefing_id=briefing_id
             )
 
             # Step 5: Save detected patterns
@@ -327,24 +345,31 @@ class BriefingAgent:
 
     async def _generate_with_llm(
         self, briefing_input: BriefingInput
-    ) -> GeneratedBriefing:
-        """Generate briefing content using LLM."""
+    ) -> tuple[GeneratedBriefing, GatewayResponse]:
+        """Generate briefing content using LLM.
+
+        Returns:
+            Tuple of (GeneratedBriefing, GatewayResponse) so caller can capture trace_id
+        """
         prompt = self._build_generation_prompt(briefing_input)
 
-        response_text = await self._call_llm(
+        gateway_response = await self._call_llm(
             prompt,
             system_prompt=self._get_system_prompt(briefing_input.briefing_type),
             operation="briefing_generate",
             max_tokens=4096,
         )
 
-        return self._parse_briefing_response(response_text)
+        generated = self._parse_briefing_response(gateway_response.text)
+        return generated, gateway_response
 
     async def _self_refine(
         self,
         generated: GeneratedBriefing,
         briefing_input: BriefingInput,
         max_iterations: int = 2,
+        briefing_id: str | None = None,
+        db = None,
     ) -> GeneratedBriefing:
         """
         Self-refine the generated briefing for quality with iterative refinement.
@@ -360,25 +385,30 @@ class BriefingAgent:
             generated: Initial briefing output
             briefing_input: Input data used for generation
             max_iterations: Maximum refinement passes (default: 2)
+            briefing_id: Optional briefing ID for draft capture
+            db: Optional async MongoDB database for draft capture
 
         Returns:
             Refined briefing (may still have issues if max iterations hit)
         """
+        from crypto_news_aggregator.llm.draft_capture import save_draft
+
         current = generated
 
         for iteration in range(max_iterations):
             # Build critique prompt
             critique_prompt = self._build_critique_prompt(current, briefing_input)
 
-            critique_response = await self._call_llm(
+            critique_gateway_response = await self._call_llm(
                 critique_prompt,
                 system_prompt="You are a crypto market analyst reviewing a briefing for quality.",
                 operation="briefing_critique",
                 max_tokens=1024,
             )
+            critique_text = critique_gateway_response.text
 
             # Check if refinement is needed
-            needs_refinement = self._check_needs_refinement(critique_response)
+            needs_refinement = self._check_needs_refinement(critique_text)
 
             if not needs_refinement:
                 logger.info(f"Briefing passed quality check on iteration {iteration + 1}")
@@ -387,21 +417,33 @@ class BriefingAgent:
                 return current
 
             logger.info(f"Briefing needs refinement (iteration {iteration + 1}/{max_iterations})")
-            logger.debug(f"Critique: {critique_response[:200]}...")
+            logger.debug(f"Critique: {critique_text[:200]}...")
 
             # Build refinement prompt
             refinement_prompt = self._build_refinement_prompt(
-                current, critique_response, briefing_input
+                current, critique_text, briefing_input
             )
 
-            refined_response = await self._call_llm(
+            refine_gateway_response = await self._call_llm(
                 refinement_prompt,
                 system_prompt=self._get_system_prompt(briefing_input.briefing_type),
                 operation="briefing_refine",
                 max_tokens=4096,
             )
 
-            current = self._parse_briefing_response(refined_response)
+            current = self._parse_briefing_response(refine_gateway_response.text)
+
+            # Capture post-refine draft if IDs provided
+            if briefing_id and db:
+                await save_draft(
+                    db=db,
+                    briefing_id=briefing_id,
+                    trace_id=refine_gateway_response.trace_id,
+                    stage=f"post_refine_{iteration + 1}",
+                    model=BRIEFING_PRIMARY_MODEL,
+                    generated=current,
+                    critique=critique_text,
+                )
 
         # Max iterations reached without passing quality check
         logger.warning(f"Briefing refinement stopped at max iterations ({max_iterations})")
@@ -785,7 +827,7 @@ Return ONLY valid JSON in the same format as before."""
         system_prompt: str,
         operation: str,
         max_tokens: int = 2048,
-    ) -> str:
+    ) -> GatewayResponse:
         """Call the LLM via gateway with model fallback.
 
         Args:
@@ -795,7 +837,7 @@ Return ONLY valid JSON in the same format as before."""
             max_tokens: Max response tokens
 
         Returns:
-            Response text
+            GatewayResponse with text, tokens, cost, model, operation, and trace_id
 
         Raises:
             LLMError: On spend cap breach or all models failing
@@ -814,7 +856,7 @@ Return ONLY valid JSON in the same format as before."""
                 )
                 if model != BRIEFING_PRIMARY_MODEL:
                     logger.info(f"Using fallback model: {model}")
-                return response.text
+                return response
             except LLMError as e:
                 if e.error_type == "spend_limit":
                     raise  # Never retry on spend cap
@@ -831,8 +873,14 @@ Return ONLY valid JSON in the same format as before."""
         generated: GeneratedBriefing,
         is_smoke: bool = False,
         task_id: str | None = None,
+        briefing_id: str | None = None,
     ) -> Dict[str, Any]:
-        """Save the generated briefing to the database."""
+        """Save the generated briefing to the database.
+
+        Args:
+            briefing_id: Optional briefing ID to use. If not provided, a new ObjectId is generated.
+                         When provided, this ID should also be used for draft_capture records.
+        """
         from bson import ObjectId
         import re
 
@@ -878,10 +926,15 @@ Return ONLY valid JSON in the same format as before."""
             "task_id": task_id,  # For correlation: Beat → Worker → DB (None if called outside Celery)
         }
 
-        briefing_id = await insert_briefing(briefing_doc)
-        briefing_doc["_id"] = ObjectId(briefing_id)
+        # Use provided briefing_id if available, otherwise generate new
+        if briefing_id:
+            briefing_doc_id = briefing_id
+        else:
+            briefing_doc_id = await insert_briefing(briefing_doc)
 
-        logger.info(f"Saved briefing {briefing_id} (iterations: {iteration_count})")
+        briefing_doc["_id"] = ObjectId(briefing_doc_id)
+
+        logger.info(f"Saved briefing {briefing_doc_id} (iterations: {iteration_count})")
         return briefing_doc
 
     async def _save_patterns(
