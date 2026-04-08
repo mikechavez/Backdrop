@@ -1,12 +1,13 @@
 ---
 id: TASK-037
 type: feature
-status: complete
+status: merged
 priority: critical
 complexity: low
 created: 2026-04-08
 updated: 2026-04-08
 completed: 2026-04-08
+merged: 2026-04-08
 ---
 
 # Tracing Schema — llm_traces Collection + MongoDB Indexes
@@ -141,5 +142,9 @@ await ensure_trace_indexes(db)
 - Actual complexity: Low (as estimated)
 - Key decisions made: Schema matches gateway's _write_trace() exactly; TTL set to 30 days for operational traces (not archival)
 - Deviations from plan: None
-- Commit: b6a60bd
+- Main commit: b6a60bd (tracing implementation)
+- CI/CD fixes:
+  - Commit 58fe993: Add missing environment variables to test_broken job
+  - Commit 7990230: Set correct MONGODB_URI with database name in both test jobs
 - Files: src/crypto_news_aggregator/llm/tracing.py (57 lines), main.py (wired indexes), tests/test_tracing.py (4 tests, all passing)
+- Status: ✅ MERGED to main

@@ -16,8 +16,8 @@ Backdrop burns $2.50-5/day in Anthropic credits vs a $0.33/day target because 2 
 
 | # | Ticket | Title | Status | Est | Actual |
 |---|--------|-------|--------|-----|--------|
-| 1 | TASK-036 | LLM Gateway — Single Entry Point | ✅ COMPLETE | high | ~1.5h |
-| 2 | TASK-037 | Tracing Schema — llm_traces Collection | ✅ COMPLETE | low | ~0.5h |
+| 1 | TASK-036 | LLM Gateway — Single Entry Point | ✅ MERGED | high | ~1.5h |
+| 2 | TASK-037 | Tracing Schema — llm_traces Collection | ✅ MERGED | low | ~0.5h |
 | 3 | TASK-038 | Wire briefing_agent.py Through Gateway | 🔲 OPEN | high | |
 | 4 | TASK-039 | Wire health.py Through Gateway | 🔲 OPEN | low | |
 | 5 | TASK-040 | Dataset Capture — Pre/Post Refine Drafts | 🔲 OPEN | medium | |
@@ -85,3 +85,12 @@ _Tickets created mid-sprint for issues found during implementation._
 - Trace document schema validated: trace_id, operation, timestamp, model, tokens, cost, duration_ms, error, quality placeholders
 - Unit tests: 4 tests (index creation, document shape, aggregation, time filtering) — all passing
 - Commit: b6a60bd — Ready for TASK-038 (wire briefing_agent through gateway)
+
+### Session 4 (2026-04-08) — TASK-037 CI/CD Fixes + Merge ✅
+**Fixed CI/CD test failures + merged TASK-037 PR**
+- Issue: `test_broken` job in CI missing environment variables and MongoDB URI misconfiguration
+- Commit 58fe993: Added NEWS_API_KEY, API_KEYS, TESTING, CELERY_* vars to test_broken job
+- Commit 7990230: Fixed MONGODB_URI to include database name (`/crypto_news`) in both jobs
+- All tracing tests passing locally (4/4)
+- PR merged to main
+- Status: Moving to TASK-038 (wire briefing_agent through gateway)
