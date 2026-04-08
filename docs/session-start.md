@@ -1,35 +1,35 @@
 # Session Start
 
-**Date:** 2026-04-08 (Session 2, Sprint 13)
-**Status:** Sprint 13 in progress — TASK-036 complete, moving to TASK-037
-**Branch:** feat/task-036-llm-gateway (ready for merge) → moving to feat/task-037-llm-traces-collection
+**Date:** 2026-04-08 (Session 3, Sprint 13)
+**Status:** Sprint 13 in progress — TASK-036 & TASK-037 complete, moving to TASK-038
+**Branch:** feat/task-037-llm-traces-collection (ready for merge) → moving to feat/task-038-wire-briefing-agent
 
 ---
 
 ## What Happened Last
 
-Sprint 12 closed. Phase 1 (stability) is complete: pipeline is live, cost controls deployed (BUG-056/057/058/059 all merged), Sentry + heartbeat monitoring active. However, LLM spend still exceeds the $0.33/day target — $5 in credits burns through in 1-2 days despite spend cap code. Root cause: untraced token usage somewhere in the pipeline. Spend cap logic is deployed but can't enforce what it can't see.
+Sessions 1–2: Built LLM Gateway (TASK-036) + Tracing Schema (TASK-037).
 
-**Unmerged branch:** `fix/bug-058-briefing-generation-skips` (BUG-058 + BUG-059) — needs PR, merge, deploy before Sprint 13 work begins.
+**Completed:**
+- ✅ TASK-036: LLM Gateway with async/sync modes, budget enforcement, fire-and-forget trace writes (commit 72a15f4)
+- ✅ TASK-037: Tracing schema, indexes (TTL 30d), aggregation query helper, wired to app startup (commit b6a60bd)
 
-**Deferred from Sprint 12:**
-- TASK-028: 72-hour burn-in — premature until token leaks found
-- TASK-035: Slack webhook URL not yet configured in Railway
-- Prompt audit: awaiting degraded rate data
+**Next:** Wire briefing_agent.py through the gateway (TASK-038), then health.py (TASK-039).
 
 ---
 
 ## Sprint 13 Goal
 
-Integrate NVIDIA NeMo Agent Toolkit to trace, evaluate, debug, and optimize LLM calls. Produce an ADR before implementation. End state: an agent loop that self-diagnoses LLM bugs and alerts via Sentry when human attention is needed.
+Unify all LLM calls behind a single gateway, achieve full cost attribution, and identify the primary cost driver with measured data.
 
 ---
 
 ## What's Next
 
-1. **Merge Sprint 12 tail** — PR + deploy `fix/bug-058-briefing-generation-skips`
-2. **ADR: NeMo Agent Toolkit Integration** — document why, what, how, and scope
-3. **Sprint 13 planning** — break ADR into tickets
+1. **TASK-038:** Wire briefing_agent.py through gateway (replace direct anthropic.py calls with gateway.call())
+2. **TASK-039:** Wire health.py through gateway (health endpoint spend cap check)
+3. **TASK-040:** Dataset capture (pre/post refine drafts for cost comparison)
+4. **TASK-041:** 48-hour burn-in + findings doc
 
 ---
 

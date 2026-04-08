@@ -17,7 +17,7 @@ Backdrop burns $2.50-5/day in Anthropic credits vs a $0.33/day target because 2 
 | # | Ticket | Title | Status | Est | Actual |
 |---|--------|-------|--------|-----|--------|
 | 1 | TASK-036 | LLM Gateway — Single Entry Point | ✅ COMPLETE | high | ~1.5h |
-| 2 | TASK-037 | Tracing Schema — llm_traces Collection | 🔲 OPEN | low | |
+| 2 | TASK-037 | Tracing Schema — llm_traces Collection | ✅ COMPLETE | low | ~0.5h |
 | 3 | TASK-038 | Wire briefing_agent.py Through Gateway | 🔲 OPEN | high | |
 | 4 | TASK-039 | Wire health.py Through Gateway | 🔲 OPEN | low | |
 | 5 | TASK-040 | Dataset Capture — Pre/Post Refine Drafts | 🔲 OPEN | medium | |
@@ -75,3 +75,13 @@ _Tickets created mid-sprint for issues found during implementation._
 - Module singleton: `get_gateway()` for global access
 - Unit tests: 18 tests covering init, budget checks, headers/payload, response parsing, async calls, sync calls, errors, singleton
 - Commit: 72a15f4 — Ready for TASK-037 (tracing schema + indexes)
+
+### Session 3 (2026-04-08) — TASK-037 Implementation ✅
+**Tracing schema + indexes complete**
+- Implemented `src/crypto_news_aggregator/llm/tracing.py` (57 lines)
+- `ensure_trace_indexes()` — creates timestamp (TTL 30d), operation, and (operation, timestamp) compound indexes
+- `get_traces_summary()` — aggregation pipeline for cost/tokens/duration grouping by operation (used by TASK-041 burn-in)
+- Wired indexes into app startup via `main.py` lifespan
+- Trace document schema validated: trace_id, operation, timestamp, model, tokens, cost, duration_ms, error, quality placeholders
+- Unit tests: 4 tests (index creation, document shape, aggregation, time filtering) — all passing
+- Commit: b6a60bd — Ready for TASK-038 (wire briefing_agent through gateway)
