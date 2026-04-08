@@ -104,7 +104,7 @@ async def lifespan(app: FastAPI):
     logger.info("Web server workers connected to MongoDB.")
 
     # Ensure LLM tracing indexes
-    db = mongo_manager.db
+    db = await mongo_manager.get_async_database()
     await ensure_trace_indexes(db)
     logger.info("LLM tracing indexes ensured.")
     
