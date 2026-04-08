@@ -177,6 +177,28 @@ Callers that only need text use `response.text`.
 - [ ] Should `_call_llm` return `GatewayResponse` everywhere or only when draft capture needs it? Recommendation: return `GatewayResponse` everywhere — the trace_id is useful metadata even outside draft capture. Callers that only need text just do `response.text`.
 
 ## Completion Summary
-- Actual complexity:
-- Key decisions made:
-- Deviations from plan:
+
+**Status: COMPLETE** ✅
+
+- **Actual complexity:** Medium (2.5 hours)
+- **Key decisions made:**
+  - `_call_llm` now returns full `GatewayResponse` (not just text) so callers can access trace_id
+  - Briefing_id generated before self-refine so all drafts share the same ID for linkage
+  - Draft capture is non-blocking observability layer (exceptions logged, not raised)
+  - Pre-refine draft saved immediately after initial generation
+  - Post-refine drafts saved after each successful refinement iteration with iteration number
+  
+- **Files changed:**
+  - `src/crypto_news_aggregator/llm/draft_capture.py` — New module (55 lines)
+  - `src/crypto_news_aggregator/services/briefing_agent.py` — Modified _call_llm, _generate_with_llm, _self_refine, _save_briefing, generate_briefing
+  - `src/crypto_news_aggregator/main.py` — Added ensure_draft_indexes to lifespan
+  - `tests/test_draft_capture.py` — New comprehensive test file (5 tests)
+  - `tests/test_briefing_gateway.py` — Updated mocks to return GatewayResponse
+  - `tests/test_briefing_multi_pass.py` — Updated mocks to return GatewayResponse
+  
+- **Test coverage:**
+  - ✅ 5/5 new draft capture tests passing
+  - ✅ 13/13 existing briefing tests passing (after GatewayResponse updates)
+  - All tests verify draft schema, trace_id linkage, iteration numbering, DB error handling
+  
+- **Ready for:** PR, merge, and TASK-041 (48-hour burn-in run)
