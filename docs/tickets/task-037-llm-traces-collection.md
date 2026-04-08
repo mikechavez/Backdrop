@@ -1,11 +1,12 @@
 ---
 id: TASK-037
 type: feature
-status: backlog
+status: complete
 priority: critical
 complexity: low
 created: 2026-04-08
 updated: 2026-04-08
+completed: 2026-04-08
 ---
 
 # Tracing Schema — llm_traces Collection + MongoDB Indexes
@@ -137,6 +138,8 @@ await ensure_trace_indexes(db)
 - None
 
 ## Completion Summary
-- Actual complexity:
-- Key decisions made:
-- Deviations from plan:
+- Actual complexity: Low (as estimated)
+- Key decisions made: Schema matches gateway's _write_trace() exactly; TTL set to 30 days for operational traces (not archival)
+- Deviations from plan: None
+- Commit: b6a60bd
+- Files: src/crypto_news_aggregator/llm/tracing.py (57 lines), main.py (wired indexes), tests/test_tracing.py (4 tests, all passing)

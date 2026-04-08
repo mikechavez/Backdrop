@@ -79,6 +79,7 @@ from .core.auth import API_KEY_NAME
 from .core.rate_limiting import RateLimitMiddleware
 from .db.mongodb import initialize_mongodb, mongo_manager
 from .services.price_service import price_service
+from .llm.tracing import ensure_trace_indexes
 
 logger.info("Attempting to load application settings...")
 try:
@@ -101,6 +102,11 @@ async def lifespan(app: FastAPI):
     logger.info("--- Web Server Lifespan Startup ---")
     await initialize_mongodb()
     logger.info("Web server workers connected to MongoDB.")
+
+    # Ensure LLM tracing indexes
+    db = await mongo_manager.get_async_database()
+    await ensure_trace_indexes(db)
+    logger.info("LLM tracing indexes ensured.")
     
     # Start background worker tasks
     background_tasks = []

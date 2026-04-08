@@ -39,8 +39,8 @@ jobs:
       run: |
         echo "Setting up test environment variables..."
         echo "SECRET_KEY=test-secret-key-for-ci" >> $GITHUB_ENV
-        echo "MONGODB_URI=mongodb://localhost:27017" >> $GITHUB_ENV
-        echo "MONGODB_NAME=test_crypto_news_aggregator" >> $GITHUB_ENV
+        echo "MONGODB_URI=mongodb://localhost:27017/crypto_news" >> $GITHUB_ENV
+        echo "MONGODB_NAME=crypto_news" >> $GITHUB_ENV
         echo "REDIS_HOST=localhost" >> $GITHUB_ENV
         echo "REDIS_PORT=6379" >> $GITHUB_ENV
         echo "REDIS_DB=1" >> $GITHUB_ENV
@@ -89,11 +89,18 @@ jobs:
       run: |
         echo "Setting up test environment variables..."
         echo "SECRET_KEY=test-secret-key-for-ci" >> $GITHUB_ENV
-        echo "MONGODB_URI=mongodb://localhost:27017" >> $GITHUB_ENV
-        echo "MONGODB_NAME=test_crypto_news_aggregator" >> $GITHUB_ENV
+        echo "MONGODB_URI=mongodb://localhost:27017/crypto_news" >> $GITHUB_ENV
+        echo "MONGODB_NAME=crypto_news" >> $GITHUB_ENV
         echo "REDIS_HOST=localhost" >> $GITHUB_ENV
         echo "REDIS_PORT=6379" >> $GITHUB_ENV
         echo "REDIS_DB=1" >> $GITHUB_ENV
+        echo "NEWS_API_KEY=test-api-key" >> $GITHUB_ENV
+        echo "API_KEYS=testapikey123" >> $GITHUB_ENV
+        echo "TESTING=True" >> $GITHUB_ENV
+        echo "CELERY_BROKER_URL=memory://" >> $GITHUB_ENV
+        echo "CELERY_RESULT_BACKEND=cache+memory://" >> $GITHUB_ENV
+        echo "CELERY_TASK_ALWAYS_EAGER=True" >> $GITHUB_ENV
+        echo "CELERY_TASK_EAGER_PROPAGATES=True" >> $GITHUB_ENV
     - name: Run broken and flaky tests
       run: |
         poetry run pytest -m "broken or flaky" --tb=short
