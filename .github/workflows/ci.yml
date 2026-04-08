@@ -94,6 +94,13 @@ jobs:
         echo "REDIS_HOST=localhost" >> $GITHUB_ENV
         echo "REDIS_PORT=6379" >> $GITHUB_ENV
         echo "REDIS_DB=1" >> $GITHUB_ENV
+        echo "NEWS_API_KEY=test-api-key" >> $GITHUB_ENV
+        echo "API_KEYS=testapikey123" >> $GITHUB_ENV
+        echo "TESTING=True" >> $GITHUB_ENV
+        echo "CELERY_BROKER_URL=memory://" >> $GITHUB_ENV
+        echo "CELERY_RESULT_BACKEND=cache+memory://" >> $GITHUB_ENV
+        echo "CELERY_TASK_ALWAYS_EAGER=True" >> $GITHUB_ENV
+        echo "CELERY_TASK_EAGER_PROPAGATES=True" >> $GITHUB_ENV
     - name: Run broken and flaky tests
       run: |
         poetry run pytest -m "broken or flaky" --tb=short
