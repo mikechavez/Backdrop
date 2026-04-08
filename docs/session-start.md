@@ -1,8 +1,8 @@
 # Session Start
 
-**Date:** 2026-04-08 (Session 3, Sprint 13)
-**Status:** Sprint 13 in progress — TASK-036 & TASK-037 complete, moving to TASK-038
-**Branch:** feat/task-037-llm-traces-collection (ready for merge) → moving to feat/task-038-wire-briefing-agent
+**Date:** 2026-04-08 (Session 4, Sprint 13)
+**Status:** Sprint 13 in progress — TASK-036 & TASK-037 complete & merged, moving to TASK-038
+**Branch:** main (TASK-037 merged) → feat/task-038-wire-briefing-agent
 
 ---
 
@@ -10,9 +10,13 @@
 
 Sessions 1–2: Built LLM Gateway (TASK-036) + Tracing Schema (TASK-037).
 
-**Completed:**
-- ✅ TASK-036: LLM Gateway with async/sync modes, budget enforcement, fire-and-forget trace writes (commit 72a15f4)
-- ✅ TASK-037: Tracing schema, indexes (TTL 30d), aggregation query helper, wired to app startup (commit b6a60bd)
+**Completed & Merged:**
+- ✅ TASK-036: LLM Gateway with async/sync modes, budget enforcement, fire-and-forget trace writes (commit 72a15f4, merged)
+- ✅ TASK-037: Tracing schema, indexes (TTL 30d), aggregation query helper, wired to app startup (commit b6a60bd, merged + CI/CD fixes in session 3)
+
+**Merged Commits:**
+- 58fe993 fix(ci): Add missing environment variables to test_broken job
+- 7990230 fix(ci): Set correct MONGODB_URI with database name in both test jobs
 
 **Next:** Wire briefing_agent.py through the gateway (TASK-038), then health.py (TASK-039).
 
