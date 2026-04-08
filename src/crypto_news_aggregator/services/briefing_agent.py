@@ -14,7 +14,6 @@ Architecture: Memory-Augmented ReAct + Self-Refine (single agent)
 import asyncio
 import json
 import logging
-import httpx
 import time
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, List, Optional
@@ -22,6 +21,7 @@ from dataclasses import dataclass
 
 from crypto_news_aggregator.core.config import get_settings
 from crypto_news_aggregator.llm.exceptions import LLMError
+from crypto_news_aggregator.llm.gateway import get_gateway, GatewayResponse
 from crypto_news_aggregator.db.mongodb import mongo_manager
 from crypto_news_aggregator.db.operations.briefing import (
     insert_briefing,
@@ -49,12 +49,9 @@ from crypto_news_aggregator.services.signal_service import compute_trending_sign
 
 logger = logging.getLogger(__name__)
 
-# LLM Configuration
-ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
-DEFAULT_MODEL = "claude-sonnet-4-5-20250929"  # Sonnet 4.5 - best instruction following
-FALLBACK_MODELS = [
-    "claude-haiku-4-5-20251001",  # Haiku 4.5 as fallback
-]
+# LLM Configuration (local to this module)
+BRIEFING_PRIMARY_MODEL = "claude-sonnet-4-5-20250929"
+BRIEFING_FALLBACK_MODEL = "claude-haiku-4-5-20251001"
 
 
 @dataclass
@@ -91,29 +88,11 @@ class BriefingAgent:
     - Self-refine loop for quality assurance
     """
 
-    def __init__(self, api_key: Optional[str] = None):
-        """
-        Initialize the briefing agent.
-
-        Args:
-            api_key: Anthropic API key (defaults to settings)
-        """
-        settings = get_settings()
-        self.api_key = api_key or settings.ANTHROPIC_API_KEY
-        if not self.api_key:
-            raise ValueError("ANTHROPIC_API_KEY not configured")
-
+    def __init__(self):
+        """Initialize the briefing agent."""
         self.memory_manager = get_memory_manager()
         self.pattern_detector = get_pattern_detector()
-        self.cost_tracker = None  # Lazy initialization
-
-    async def _get_cost_tracker(self):
-        """Get or initialize cost tracker."""
-        if self.cost_tracker is None:
-            from crypto_news_aggregator.services.cost_tracker import CostTracker
-            db = await mongo_manager.get_async_database()
-            self.cost_tracker = CostTracker(db)
-        return self.cost_tracker
+        self.gateway = get_gateway()
 
     async def generate_briefing(
         self,
@@ -355,6 +334,7 @@ class BriefingAgent:
         response_text = await self._call_llm(
             prompt,
             system_prompt=self._get_system_prompt(briefing_input.briefing_type),
+            operation="briefing_generate",
             max_tokens=4096,
         )
 
@@ -393,6 +373,7 @@ class BriefingAgent:
             critique_response = await self._call_llm(
                 critique_prompt,
                 system_prompt="You are a crypto market analyst reviewing a briefing for quality.",
+                operation="briefing_critique",
                 max_tokens=1024,
             )
 
@@ -416,6 +397,7 @@ class BriefingAgent:
             refined_response = await self._call_llm(
                 refinement_prompt,
                 system_prompt=self._get_system_prompt(briefing_input.briefing_type),
+                operation="briefing_refine",
                 max_tokens=4096,
             )
 
@@ -801,87 +783,45 @@ Return ONLY valid JSON in the same format as before."""
         self,
         prompt: str,
         system_prompt: str,
+        operation: str,
         max_tokens: int = 2048,
     ) -> str:
-        """Call the LLM API with fallback models."""
-        await refresh_budget_if_stale()
-        allowed, reason = check_llm_budget("briefing_generation")
-        if not allowed:
-            raise LLMError(
-                f"Daily spend limit reached ({reason})",
-                error_type="spend_limit",
-                model=DEFAULT_MODEL
-            )
+        """Call the LLM via gateway with model fallback.
 
-        models_to_try = [DEFAULT_MODEL] + FALLBACK_MODELS
+        Args:
+            prompt: User message content
+            system_prompt: System message
+            operation: One of briefing_generate, briefing_critique, briefing_refine
+            max_tokens: Max response tokens
 
-        for model in models_to_try:
+        Returns:
+            Response text
+
+        Raises:
+            LLMError: On spend cap breach or all models failing
+        """
+        messages = [{"role": "user", "content": prompt}]
+        models = [BRIEFING_PRIMARY_MODEL, BRIEFING_FALLBACK_MODEL]
+
+        for model in models:
             try:
-                logger.info(f"Trying LLM model: {model}")
-                async with httpx.AsyncClient() as client:
-                    response = await client.post(
-                        ANTHROPIC_API_URL,
-                        headers={
-                            "x-api-key": self.api_key,
-                            "anthropic-version": "2023-06-01",
-                            "content-type": "application/json",
-                        },
-                        json={
-                            "model": model,
-                            "max_tokens": max_tokens,
-                            "system": system_prompt,
-                            "messages": [{"role": "user", "content": prompt}],
-                        },
-                        timeout=120,
-                    )
-                    logger.info(f"LLM response status: {response.status_code}")
-                    if response.status_code != 200:
-                        try:
-                            error_data = response.json()
-                            logger.error(f"API error response: {error_data}")
-                        except Exception:
-                            logger.error(f"API error body: {response.text[:500]}")
-                    response.raise_for_status()
-                    data = response.json()
-
-                    if model != DEFAULT_MODEL:
-                        logger.info(f"Using fallback model: {model}")
-
-                    # Extract response text
-                    text = data.get("content", [{}])[0].get("text", "")
-
-                    # Track cost (fire and forget, don't block on tracking)
-                    try:
-                        usage = data.get("usage", {})
-                        input_tokens = usage.get("input_tokens", 0)
-                        output_tokens = usage.get("output_tokens", 0)
-
-                        if input_tokens > 0 or output_tokens > 0:
-                            tracker = await self._get_cost_tracker()
-                            # Await the tracking call to ensure it completes
-                            # (don't create_task - event loop may be closed)
-                            await tracker.track_call(
-                                operation="briefing_generation",
-                                model=model,
-                                input_tokens=input_tokens,
-                                output_tokens=output_tokens,
-                                cached=False
-                            )
-                    except Exception as e:
-                        logger.error(f"Cost tracking failed: {e}")
-
-                    return text
-
-            except httpx.HTTPStatusError as e:
-                if e.response.status_code == 403:
-                    logger.warning(f"403 Forbidden for model {model}, trying fallback...")
+                response = await self.gateway.call(
+                    messages=messages,
+                    model=model,
+                    operation=operation,
+                    max_tokens=max_tokens,
+                    system=system_prompt,
+                )
+                if model != BRIEFING_PRIMARY_MODEL:
+                    logger.info(f"Using fallback model: {model}")
+                return response.text
+            except LLMError as e:
+                if e.error_type == "spend_limit":
+                    raise  # Never retry on spend cap
+                if e.error_type == "auth_error":
+                    logger.warning(f"403 for {model}, trying fallback...")
                     continue
-                logger.error(f"LLM API error: {e.response.status_code}", exc_info=True)
                 raise
-            except Exception as e:
-                logger.error(f"LLM call failed: {e}", exc_info=True)
-                raise
-
         raise RuntimeError("All LLM models failed")
 
     async def _save_briefing(
