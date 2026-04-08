@@ -1,11 +1,12 @@
 ---
 id: TASK-039
 type: feature
-status: backlog
+status: complete
 priority: medium
 complexity: low
 created: 2026-04-08
 updated: 2026-04-08
+completed: 2026-04-08
 ---
 
 # Wire health.py Through LLM Gateway
@@ -89,6 +90,25 @@ async def check_llm() -> dict:
 - None
 
 ## Completion Summary
-- Actual complexity:
-- Key decisions made:
-- Deviations from plan:
+
+**Status: COMPLETE** ✅
+
+- **Actual complexity:** Low (1.5 hours)
+- **Key decisions made:**
+  - Health endpoint calls gateway via `get_gateway()` for all LLM pings
+  - Spend cap errors return `"degraded"` status (not `"error"`) to signal system is alive but cost-limited
+  - Health check marked as non-critical operation (blocked during soft spend limit)
+  - Removed httpx dependency from health.py completely (no longer used)
+  
+- **Files changed:**
+  - `src/crypto_news_aggregator/api/v1/health.py` — Replaced check_llm() with gateway call
+  - `src/crypto_news_aggregator/services/cost_tracker.py` — Added health_check documentation to is_critical_operation()
+  - `tests/unit/test_health_endpoint.py` — Updated 3 LLM tests to mock gateway instead of httpx
+  - `tests/test_health_gateway.py` — New file with 4 comprehensive gateway tests
+  
+- **Test coverage:**
+  - ✅ 20/20 existing health endpoint tests passing
+  - ✅ 4/4 new gateway-specific tests passing (health_check_calls_gateway, spend_cap_returns_degraded, api_error_returns_error, unexpected_exception_returns_error)
+  - ✅ All tests verify gateway.call() invocation with correct operation="health_check", max_tokens=1, temperature=0.0
+  
+- **Ready for:** PR, merge, and deploy to Railway for TASK-041 (48-hour burn-in run)
