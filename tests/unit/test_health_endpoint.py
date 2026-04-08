@@ -1,7 +1,6 @@
 """Unit tests for health endpoint logic."""
 
 import pytest
-import httpx
 from unittest.mock import AsyncMock, patch, MagicMock
 from datetime import datetime, timezone, timedelta
 
@@ -157,29 +156,36 @@ class TestCheckLLM:
     @pytest.mark.asyncio
     async def test_llm_ok(self):
         from crypto_news_aggregator.api.v1.health import check_llm
+        from crypto_news_aggregator.llm.gateway import GatewayResponse
 
-        mock_response = MagicMock()
-        mock_response.raise_for_status = MagicMock()
-        mock_response.status_code = 200
+        mock_response = GatewayResponse(
+            text="ok",
+            input_tokens=1,
+            output_tokens=1,
+            cost=0.00001,
+            model="claude-haiku-4-5-20251001",
+            operation="health_check",
+            trace_id="test-trace",
+        )
 
         with patch(
-            "crypto_news_aggregator.api.v1.health.httpx.AsyncClient"
-        ) as mock_client_cls:
-            mock_client = AsyncMock()
-            mock_client.post = AsyncMock(return_value=mock_response)
-            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client.__aexit__ = AsyncMock(return_value=False)
-            mock_client_cls.return_value = mock_client
+            "crypto_news_aggregator.api.v1.health.get_gateway"
+        ) as mock_get_gateway:
+            mock_gateway = AsyncMock()
+            mock_gateway.call = AsyncMock(return_value=mock_response)
+            mock_get_gateway.return_value = mock_gateway
 
             result = await check_llm()
 
         assert result["status"] == "ok"
         assert result["model"] == "claude-haiku-4-5-20251001"
 
-        # Verify max_tokens=1 (cost control)
-        call_kwargs = mock_client.post.call_args
-        payload = call_kwargs.kwargs.get("json") or call_kwargs[1].get("json")
-        assert payload["max_tokens"] == 1
+        # Verify gateway.call was invoked with correct parameters
+        mock_gateway.call.assert_called_once()
+        call_kwargs = mock_gateway.call.call_args.kwargs
+        assert call_kwargs["operation"] == "health_check"
+        assert call_kwargs["max_tokens"] == 1
+        assert call_kwargs["temperature"] == 0.0
 
     @pytest.mark.asyncio
     async def test_llm_no_api_key(self):
@@ -200,17 +206,20 @@ class TestCheckLLM:
     @pytest.mark.asyncio
     async def test_llm_timeout(self):
         from crypto_news_aggregator.api.v1.health import check_llm
+        from crypto_news_aggregator.llm.exceptions import LLMError
 
         with patch(
-            "crypto_news_aggregator.api.v1.health.httpx.AsyncClient"
-        ) as mock_client_cls:
-            mock_client = AsyncMock()
-            mock_client.post = AsyncMock(
-                side_effect=httpx.TimeoutException("timeout")
+            "crypto_news_aggregator.api.v1.health.get_gateway"
+        ) as mock_get_gateway:
+            mock_gateway = AsyncMock()
+            mock_gateway.call = AsyncMock(
+                side_effect=LLMError(
+                    "timeout",
+                    error_type="timeout",
+                    model="claude-haiku-4-5-20251001",
+                )
             )
-            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client.__aexit__ = AsyncMock(return_value=False)
-            mock_client_cls.return_value = mock_client
+            mock_get_gateway.return_value = mock_gateway
 
             result = await check_llm()
 

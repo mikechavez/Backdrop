@@ -294,6 +294,7 @@ class CostTracker:
         - entity_extraction: Required for pipeline continuity
 
         Non-critical operations (blocked during degraded mode):
+        - health_check: Operations/monitoring ping (should not consume budget)
         - theme_extraction
         - sentiment_analysis
         - relevance_scoring

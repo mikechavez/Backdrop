@@ -10,7 +10,6 @@ import logging
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any
 
-import httpx
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
@@ -18,6 +17,8 @@ from ...db.mongodb import mongo_manager
 from ...core.redis_rest_client import redis_client
 from ...core.config import get_settings
 from ...services.heartbeat import get_heartbeat
+from ...llm.gateway import get_gateway
+from ...llm.exceptions import LLMError
 
 logger = logging.getLogger(__name__)
 
@@ -56,10 +57,7 @@ async def check_redis() -> dict:
 
 
 async def check_llm() -> dict:
-    """Minimal LLM ping: cheapest model, max_tokens=1, no retry.
-
-    Cost: ~0.0001 cents per check (1 input token + 1 output token on Haiku).
-    """
+    """Minimal LLM ping via gateway. max_tokens=1."""
     settings = get_settings()
     if not settings.ANTHROPIC_API_KEY:
         return {"status": "error", "error": "ANTHROPIC_API_KEY not set"}
@@ -67,26 +65,22 @@ async def check_llm() -> dict:
     model = settings.ANTHROPIC_DEFAULT_MODEL
     start = time.monotonic()
     try:
-        headers = {
-            "x-api-key": settings.ANTHROPIC_API_KEY,
-            "anthropic-version": "2023-06-01",
-            "content-type": "application/json",
-        }
-        payload = {
-            "model": model,
-            "max_tokens": 1,
-            "messages": [{"role": "user", "content": "ok"}],
-        }
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                "https://api.anthropic.com/v1/messages",
-                headers=headers,
-                json=payload,
-                timeout=10,
-            )
-            response.raise_for_status()
+        gateway = get_gateway()
+        response = await gateway.call(
+            messages=[{"role": "user", "content": "ok"}],
+            model=model,
+            operation="health_check",
+            max_tokens=1,
+            temperature=0.0,
+        )
         latency_ms = round((time.monotonic() - start) * 1000, 1)
         return {"status": "ok", "model": model, "latency_ms": latency_ms}
+    except LLMError as e:
+        latency_ms = round((time.monotonic() - start) * 1000, 1)
+        if e.error_type == "spend_limit":
+            return {"status": "degraded", "reason": "spend_cap", "model": model, "latency_ms": latency_ms}
+        logger.error("Health check: LLM ping failed", exc_info=True)
+        return {"status": "error", "model": model, "latency_ms": latency_ms, "error": str(e)[:100]}
     except Exception as e:
         latency_ms = round((time.monotonic() - start) * 1000, 1)
         logger.error("Health check: LLM ping failed", exc_info=True)
