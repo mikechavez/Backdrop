@@ -18,7 +18,7 @@ Backdrop burns $2.50-5/day in Anthropic credits vs a $0.33/day target because 2 
 |---|--------|-------|--------|-----|--------|
 | 1 | TASK-036 | LLM Gateway — Single Entry Point | ✅ MERGED | high | ~1.5h |
 | 2 | TASK-037 | Tracing Schema — llm_traces Collection | ✅ MERGED | low | ~0.5h |
-| 3 | TASK-038 | Wire briefing_agent.py Through Gateway | 🔲 OPEN | high | |
+| 3 | TASK-038 | Wire briefing_agent.py Through Gateway | ✅ MERGED | high | ~1.5h |
 | 4 | TASK-039 | Wire health.py Through Gateway | 🔲 OPEN | low | |
 | 5 | TASK-040 | Dataset Capture — Pre/Post Refine Drafts | 🔲 OPEN | medium | |
 | 6 | TASK-041 | Attribution Burn-in (48hr) + Findings Doc | 🔲 OPEN | low | |
@@ -94,3 +94,20 @@ _Tickets created mid-sprint for issues found during implementation._
 - All tracing tests passing locally (4/4)
 - PR merged to main
 - Status: Moving to TASK-038 (wire briefing_agent through gateway)
+
+### Session 5 (2026-04-08) — TASK-038 Implementation ✅
+**Wire briefing_agent.py through LLM gateway**
+- Removed httpx, ANTHROPIC_API_URL, api_key handling
+- Replaced _call_llm method: 87 lines → 24 lines (gateway handles all API details)
+- Added distinct operation tags: `briefing_generate`, `briefing_critique`, `briefing_refine`
+- Spend cap breach (spend_limit error) propagates without retry
+- Model fallback logic preserved: Sonnet → Haiku on 403 auth errors
+- Unit tests (5/5 passing):
+  - test_generate_uses_correct_operation
+  - test_critique_uses_correct_operation
+  - test_refine_uses_correct_operation
+  - test_spend_limit_kills_briefing
+  - test_fallback_on_403
+- Existing briefing tests still pass (no regressions)
+- Commit: c2976c0
+- Status: Ready for TASK-039 (wire health.py through gateway)

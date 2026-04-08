@@ -20,20 +20,20 @@ Rip out all direct API access from `briefing_agent.py` and route every LLM call 
 
 ## Acceptance Criteria
 
-- [ ] `ANTHROPIC_API_URL` constant (line 53) removed from `briefing_agent.py`
-- [ ] `DEFAULT_MODEL` constant (line 54) removed — model selection moves to the call site using the gateway
-- [ ] `FALLBACK_MODELS` list (lines 55-57) removed
-- [ ] `_call_llm` method (lines 800-885) replaced with a thin wrapper that calls `gateway.call()`
-- [ ] `import httpx` removed from `briefing_agent.py` (no longer needed)
-- [ ] `self.api_key` removed from `BriefingAgent.__init__` (gateway owns the key)
-- [ ] Three distinct operation tags used: `briefing_generate`, `briefing_critique`, `briefing_refine`
-- [ ] `generate_briefing` (line 355 area) calls gateway with `operation="briefing_generate"`
-- [ ] `_self_refine` critique call (line 393 area) uses `operation="briefing_critique"`
-- [ ] `_self_refine` refinement call (line 416 area) uses `operation="briefing_refine"`
-- [ ] On spend cap breach, `LLMError` propagates up and kills the briefing (no silent fallback)
-- [ ] Model fallback chain (Sonnet → Haiku) preserved via retry logic in the new wrapper, NOT in the gateway
-- [ ] Unit tests: mock gateway, verify correct operation tags passed for generate/critique/refine
-- [ ] Integration test: mock gateway to raise LLMError on spend cap, verify briefing generation aborts cleanly
+- [x] `ANTHROPIC_API_URL` constant (line 53) removed from `briefing_agent.py`
+- [x] `DEFAULT_MODEL` constant (line 54) removed — model selection moves to the call site using the gateway
+- [x] `FALLBACK_MODELS` list (lines 55-57) removed
+- [x] `_call_llm` method (lines 800-885) replaced with a thin wrapper that calls `gateway.call()`
+- [x] `import httpx` removed from `briefing_agent.py` (no longer needed)
+- [x] `self.api_key` removed from `BriefingAgent.__init__` (gateway owns the key)
+- [x] Three distinct operation tags used: `briefing_generate`, `briefing_critique`, `briefing_refine`
+- [x] `generate_briefing` (line 355 area) calls gateway with `operation="briefing_generate"`
+- [x] `_self_refine` critique call (line 393 area) uses `operation="briefing_critique"`
+- [x] `_self_refine` refinement call (line 416 area) uses `operation="briefing_refine"`
+- [x] On spend cap breach, `LLMError` propagates up and kills the briefing (no silent fallback)
+- [x] Model fallback chain (Sonnet → Haiku) preserved via retry logic in the new wrapper, NOT in the gateway
+- [x] Unit tests: mock gateway, verify correct operation tags passed for generate/critique/refine
+- [x] Integration test: mock gateway to raise LLMError on spend cap, verify briefing generation aborts cleanly
 
 ## Dependencies
 
@@ -166,6 +166,23 @@ The gateway handles all cost tracking and tracing now. The old `tracker.track_ca
 - None
 
 ## Completion Summary
-- Actual complexity:
-- Key decisions made:
-- Deviations from plan:
+
+- **Status:** ✅ COMPLETE - 2026-04-08
+- **Branch:** `feat/task-038-wire-briefing-agent`
+- **Commit:** c2976c0
+- **Actual complexity:** High (as estimated) — required careful refactoring of 87-line method + 3 call sites
+- **Key decisions made:**
+  - Moved model fallback from gateway to briefing_agent wrapper (gateway stays thin, briefing controls fallback strategy)
+  - Used three distinct operation tags for fine-grained cost attribution (not just "briefing_generation")
+  - Spend cap breach raises immediately without retry (safety first approach)
+- **Deviations from plan:** None — all acceptance criteria met
+- **Test Results:** 5/5 unit tests passing, 3/3 existing briefing tests still passing (no regressions)
+- **Files Modified:**
+  - `src/crypto_news_aggregator/services/briefing_agent.py` (144 lines removed, 42 lines added)
+  - `tests/test_briefing_gateway.py` (new, 170 lines, 5 tests)
+
+### What This Unlocks
+- ✅ All briefing LLM calls now subject to spend cap enforcement
+- ✅ Each call phase (generate/critique/refine) traceable to its cost
+- ✅ Foundation for TASK-039 (wire health.py) and TASK-040 (dataset capture)
+- ✅ Ready for TASK-041 burn-in with complete cost attribution
