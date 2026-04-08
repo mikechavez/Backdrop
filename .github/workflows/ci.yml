@@ -39,8 +39,8 @@ jobs:
       run: |
         echo "Setting up test environment variables..."
         echo "SECRET_KEY=test-secret-key-for-ci" >> $GITHUB_ENV
-        echo "MONGODB_URI=mongodb://localhost:27017" >> $GITHUB_ENV
-        echo "MONGODB_NAME=test_crypto_news_aggregator" >> $GITHUB_ENV
+        echo "MONGODB_URI=mongodb://localhost:27017/crypto_news" >> $GITHUB_ENV
+        echo "MONGODB_NAME=crypto_news" >> $GITHUB_ENV
         echo "REDIS_HOST=localhost" >> $GITHUB_ENV
         echo "REDIS_PORT=6379" >> $GITHUB_ENV
         echo "REDIS_DB=1" >> $GITHUB_ENV
@@ -89,8 +89,8 @@ jobs:
       run: |
         echo "Setting up test environment variables..."
         echo "SECRET_KEY=test-secret-key-for-ci" >> $GITHUB_ENV
-        echo "MONGODB_URI=mongodb://localhost:27017" >> $GITHUB_ENV
-        echo "MONGODB_NAME=test_crypto_news_aggregator" >> $GITHUB_ENV
+        echo "MONGODB_URI=mongodb://localhost:27017/crypto_news" >> $GITHUB_ENV
+        echo "MONGODB_NAME=crypto_news" >> $GITHUB_ENV
         echo "REDIS_HOST=localhost" >> $GITHUB_ENV
         echo "REDIS_PORT=6379" >> $GITHUB_ENV
         echo "REDIS_DB=1" >> $GITHUB_ENV
