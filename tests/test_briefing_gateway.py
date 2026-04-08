@@ -11,6 +11,7 @@ Verifies:
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch, call
 from crypto_news_aggregator.services.briefing_agent import BriefingAgent, GeneratedBriefing, BriefingInput
+from crypto_news_aggregator.llm.gateway import GatewayResponse
 from crypto_news_aggregator.llm.exceptions import LLMError
 from datetime import datetime, timezone
 
@@ -39,7 +40,15 @@ def agent():
 async def test_generate_uses_correct_operation(agent):
     """Verify _call_llm with generate operation passes correct params to gateway."""
     with patch.object(agent.gateway, 'call', new_callable=AsyncMock) as mock_call:
-        mock_call.return_value = MagicMock(text="Generated text")
+        mock_call.return_value = GatewayResponse(
+            text="Generated text",
+            input_tokens=50,
+            output_tokens=50,
+            cost=0.01,
+            model="claude-sonnet-4-5-20250929",
+            operation="briefing_generate",
+            trace_id="test-trace-1",
+        )
 
         # Call _call_llm with generate operation
         result = await agent._call_llm(
@@ -54,13 +63,25 @@ async def test_generate_uses_correct_operation(agent):
         call_kwargs = mock_call.call_args.kwargs
         assert call_kwargs['operation'] == 'briefing_generate'
         assert call_kwargs['max_tokens'] == 4096
+        # Verify result is GatewayResponse
+        assert isinstance(result, GatewayResponse)
+        assert result.text == "Generated text"
+        assert result.trace_id == "test-trace-1"
 
 
 @pytest.mark.asyncio
 async def test_critique_uses_correct_operation(agent):
     """Verify _call_llm with critique operation passes correct params to gateway."""
     with patch.object(agent.gateway, 'call', new_callable=AsyncMock) as mock_call:
-        mock_call.return_value = MagicMock(text='{"needs_refinement": false}')
+        mock_call.return_value = GatewayResponse(
+            text='{"needs_refinement": false}',
+            input_tokens=30,
+            output_tokens=20,
+            cost=0.005,
+            model="claude-sonnet-4-5-20250929",
+            operation="briefing_critique",
+            trace_id="test-trace-2",
+        )
 
         # Call _call_llm with critique operation
         result = await agent._call_llm(
@@ -75,13 +96,24 @@ async def test_critique_uses_correct_operation(agent):
         call_kwargs = mock_call.call_args.kwargs
         assert call_kwargs['operation'] == 'briefing_critique'
         assert call_kwargs['max_tokens'] == 1024
+        # Verify result is GatewayResponse
+        assert isinstance(result, GatewayResponse)
+        assert result.trace_id == "test-trace-2"
 
 
 @pytest.mark.asyncio
 async def test_refine_uses_correct_operation(agent):
     """Verify _call_llm with refine operation passes correct params to gateway."""
     with patch.object(agent.gateway, 'call', new_callable=AsyncMock) as mock_call:
-        mock_call.return_value = MagicMock(text="Refined content")
+        mock_call.return_value = GatewayResponse(
+            text="Refined content",
+            input_tokens=60,
+            output_tokens=60,
+            cost=0.015,
+            model="claude-sonnet-4-5-20250929",
+            operation="briefing_refine",
+            trace_id="test-trace-3",
+        )
 
         # Call _call_llm with refine operation
         result = await agent._call_llm(
@@ -96,6 +128,10 @@ async def test_refine_uses_correct_operation(agent):
         call_kwargs = mock_call.call_args.kwargs
         assert call_kwargs['operation'] == 'briefing_refine'
         assert call_kwargs['max_tokens'] == 4096
+        # Verify result is GatewayResponse
+        assert isinstance(result, GatewayResponse)
+        assert result.text == "Refined content"
+        assert result.trace_id == "test-trace-3"
 
 
 @pytest.mark.asyncio
@@ -133,7 +169,15 @@ async def test_fallback_on_403(agent):
     )
 
     # Second call (fallback model) succeeds
-    success_response = MagicMock(text="Fallback success")
+    success_response = GatewayResponse(
+        text="Fallback success",
+        input_tokens=40,
+        output_tokens=40,
+        cost=0.008,
+        model="claude-haiku-4-5-20251001",
+        operation="briefing_generate",
+        trace_id="test-trace-fallback",
+    )
 
     with patch.object(agent.gateway, 'call', new_callable=AsyncMock) as mock_call:
         mock_call.side_effect = [auth_error, success_response]
@@ -150,4 +194,6 @@ async def test_fallback_on_403(agent):
         # Second call should use fallback model
         second_call_kwargs = mock_call.call_args_list[1].kwargs
         assert second_call_kwargs['model'] == "claude-haiku-4-5-20251001"
-        assert result == "Fallback success"
+        assert isinstance(result, GatewayResponse)
+        assert result.text == "Fallback success"
+        assert result.model == "claude-haiku-4-5-20251001"

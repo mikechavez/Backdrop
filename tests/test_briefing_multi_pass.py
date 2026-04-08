@@ -5,6 +5,7 @@ Test multi-pass refinement logic in briefing agent.
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from crypto_news_aggregator.services.briefing_agent import BriefingAgent, GeneratedBriefing, BriefingInput
+from crypto_news_aggregator.llm.gateway import GatewayResponse
 from datetime import datetime, timezone
 
 
@@ -37,7 +38,15 @@ async def test_refinement_passes_on_first_iteration(mock_briefing_input):
 
     # Mock critique to indicate no refinement needed
     with patch.object(agent, '_call_llm', new_callable=AsyncMock) as mock_llm:
-        mock_llm.return_value = '{"needs_refinement": false, "issues": []}'
+        mock_llm.return_value = GatewayResponse(
+            text='{"needs_refinement": false, "issues": []}',
+            input_tokens=30,
+            output_tokens=20,
+            cost=0.005,
+            model="claude-sonnet-4-5-20250929",
+            operation="briefing_critique",
+            trace_id="test-trace-1",
+        )
 
         result = await agent._self_refine(initial, mock_briefing_input, max_iterations=2)
 
@@ -66,10 +75,42 @@ async def test_refinement_iterates_until_max(mock_briefing_input):
         # Critique responses always say "needs refinement"
         # Refinement responses return parseable JSON
         mock_llm.side_effect = [
-            '{"needs_refinement": true, "issues": ["vague claims"]}',  # Critique 1
-            '{"narrative": "Refined v1", "confidence_score": 0.7}',    # Refine 1
-            '{"needs_refinement": true, "issues": ["still vague"]}',   # Critique 2
-            '{"narrative": "Refined v2", "confidence_score": 0.7}',    # Refine 2
+            GatewayResponse(
+                text='{"needs_refinement": true, "issues": ["vague claims"]}',
+                input_tokens=30,
+                output_tokens=20,
+                cost=0.005,
+                model="claude-sonnet-4-5-20250929",
+                operation="briefing_critique",
+                trace_id="test-trace-2a",
+            ),  # Critique 1
+            GatewayResponse(
+                text='{"narrative": "Refined v1", "confidence_score": 0.7}',
+                input_tokens=50,
+                output_tokens=50,
+                cost=0.01,
+                model="claude-sonnet-4-5-20250929",
+                operation="briefing_refine",
+                trace_id="test-trace-2b",
+            ),  # Refine 1
+            GatewayResponse(
+                text='{"needs_refinement": true, "issues": ["still vague"]}',
+                input_tokens=30,
+                output_tokens=20,
+                cost=0.005,
+                model="claude-sonnet-4-5-20250929",
+                operation="briefing_critique",
+                trace_id="test-trace-2c",
+            ),  # Critique 2
+            GatewayResponse(
+                text='{"narrative": "Refined v2", "confidence_score": 0.7}',
+                input_tokens=50,
+                output_tokens=50,
+                cost=0.01,
+                model="claude-sonnet-4-5-20250929",
+                operation="briefing_refine",
+                trace_id="test-trace-2d",
+            ),  # Refine 2
         ]
 
         result = await agent._self_refine(initial, mock_briefing_input, max_iterations=2)
@@ -97,9 +138,33 @@ async def test_refinement_passes_on_second_iteration(mock_briefing_input):
 
     with patch.object(agent, '_call_llm', new_callable=AsyncMock) as mock_llm:
         mock_llm.side_effect = [
-            '{"needs_refinement": true, "issues": ["missing context"]}',  # Critique 1
-            '{"narrative": "Better briefing", "confidence_score": 0.85}',  # Refine 1
-            '{"needs_refinement": false, "issues": []}',                   # Critique 2 - passes
+            GatewayResponse(
+                text='{"needs_refinement": true, "issues": ["missing context"]}',
+                input_tokens=30,
+                output_tokens=20,
+                cost=0.005,
+                model="claude-sonnet-4-5-20250929",
+                operation="briefing_critique",
+                trace_id="test-trace-3a",
+            ),  # Critique 1
+            GatewayResponse(
+                text='{"narrative": "Better briefing", "confidence_score": 0.85}',
+                input_tokens=50,
+                output_tokens=50,
+                cost=0.01,
+                model="claude-sonnet-4-5-20250929",
+                operation="briefing_refine",
+                trace_id="test-trace-3b",
+            ),  # Refine 1
+            GatewayResponse(
+                text='{"needs_refinement": false, "issues": []}',
+                input_tokens=30,
+                output_tokens=20,
+                cost=0.005,
+                model="claude-sonnet-4-5-20250929",
+                operation="briefing_critique",
+                trace_id="test-trace-3c",
+            ),  # Critique 2 - passes
         ]
 
         result = await agent._self_refine(initial, mock_briefing_input, max_iterations=3)

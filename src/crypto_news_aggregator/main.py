@@ -80,6 +80,7 @@ from .core.rate_limiting import RateLimitMiddleware
 from .db.mongodb import initialize_mongodb, mongo_manager
 from .services.price_service import price_service
 from .llm.tracing import ensure_trace_indexes
+from .llm.draft_capture import ensure_draft_indexes
 
 logger.info("Attempting to load application settings...")
 try:
@@ -107,6 +108,10 @@ async def lifespan(app: FastAPI):
     db = await mongo_manager.get_async_database()
     await ensure_trace_indexes(db)
     logger.info("LLM tracing indexes ensured.")
+
+    # Ensure briefing draft capture indexes
+    await ensure_draft_indexes(db)
+    logger.info("Briefing draft capture indexes ensured.")
     
     # Start background worker tasks
     background_tasks = []
