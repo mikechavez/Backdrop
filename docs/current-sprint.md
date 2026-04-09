@@ -23,6 +23,7 @@ Backdrop burns $2.50-5/day in Anthropic credits vs a $0.33/day target because 2 
 | 5 | TASK-040 | Dataset Capture — Pre/Post Refine Drafts | ✅ MERGED | medium | ~2.5h |
 | 6 | TASK-042 | Gateway Bypass Fix — Wire Remaining LLM Calls | ✅ MERGED | low | ~0.5h |
 | 7 | TASK-041A | Restart 48-Hour Burn-in with Clean Baseline | ✅ MERGED | low | ~0.25h |
+| - | BUG-058 | Hard Spend Limit Enforcement Kills Burn-in | 🔧 IN PROGRESS | low | ~0.25h |
 | 8 | TASK-041B | Analyze Burn-in + Write Findings Doc | ⏳ WAITING | low | |
 
 ---
@@ -188,3 +189,24 @@ _Tickets created mid-sprint for issues found during implementation._
 - Health check: via health.py gateway calls
 
 **Next checkpoint:** 2026-04-10 20:00 UTC (run analyze_burn_in.py, write findings doc)
+
+### Session 9 (2026-04-08) — BUG-058 Fix: Lift Hard Limit for Burn-in 🔧 IN PROGRESS
+**Hard limit was killing burn-in within 5 minutes; temporarily lifted to $5.00**
+
+**Problem:**
+- Gateway hard limit ($0.33) triggered within ~5 minutes of pipeline startup
+- Narrative enrichment now fully metered (from TASK-042) revealed true cost: $0.25–0.35/cycle
+- Burn-in measurement blocked before completing a single full briefing cycle
+
+**Solution:**
+- ✅ Updated `LLM_DAILY_HARD_LIMIT` from $0.33 → $5.00 in `src/crypto_news_aggregator/core/config.py` (line 142)
+- Added comment noting temporary lift for measurement only
+- Soft limit remains at $0.25 for monitoring/alerting
+- Commit: f591e0c (feat/task-041-burn-in-setup)
+
+**Next steps:**
+- [ ] Redeploy to production (Railway)
+- [ ] Clear llm_traces collection and restart burn-in
+- [ ] Wait 48 hours for complete measurement
+- [ ] Run analyze_burn_in.py and write findings (TASK-041B)
+- [ ] Sprint 14: Implement optimizations and re-establish hard limit at sustainable level
