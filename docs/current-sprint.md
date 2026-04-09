@@ -34,6 +34,7 @@ Backdrop burns $2.50-5/day in Anthropic credits vs a $0.33/day target because 2 
 | 11a | - | Fix TASK-045 Undefined Variable Bug | ✅ COMPLETE | low | ~0.05h |
 | 12 | TASK-046 | Register Briefing Tasks with Celery | ✅ COMPLETE | low | ~0.25h |
 | 13 | TASK-041B | Analyze Burn-in + Write Findings Doc | ⏳ WAITING | low | |
+| 14 | TASK-059 | Remove Low-Quality RSS Sources | ✅ COMPLETE | low | ~0.15h |
 
 
 ---
@@ -380,3 +381,35 @@ celery -A crypto_news_aggregator.tasks worker --loglevel=info
 - Updated `docs/tickets/task-045-remove-verbose-narrative-logging.md` with the critical bug fix details
 - Documented why the original replacement was unsafe
 - Linked both commits (dde11bf for verbose logging removal, 869baa8 for velocity bug fix)
+
+### Session 14 (2026-04-09) — TASK-059 Remove Low-Quality RSS Sources ✅
+**Removed three low-signal RSS feeds to reduce ingest noise**
+
+**Problem:**
+- 1,385 article analysis revealed three sources with poor tier 1 conversion rates
+- watcherguru: 7% tier 1 rate, mostly stock market content
+- glassnode: 5.3% tier 1 rate, highly specialized research
+- bitcoinmagazine: 14% tier 1 rate, low volume
+- Combined ~12% of ingest (169 articles) with minimal signal value
+
+**Solution (TASK-059):**
+- Commented out all three sources with tier 1 rate justifications
+- Updated `src/crypto_news_aggregator/services/rss_service.py` lines 18-42
+- Reduced active sources: 11 → 8 (removed 3)
+- Research & Analysis: 2 sources → 1 (messari only)
+
+**Cost Impact:**
+- Ingest reduction: ~20 articles/day
+- LLM call reduction: ~50-60 calls/day (if tier 2 enrichment stays on)
+- Monthly savings: ~$0.18/day (Step 1 of cost optimization)
+
+**Acceptance Criteria:**
+- ✅ bitcoinmagazine commented out with 14% tier 1 rate note
+- ✅ watcherguru commented out with 7% tier 1 rate and stock noise note
+- ✅ glassnode commented out with 5.3% tier 1 rate and specialization note
+- ✅ All comments include justification with tier 1 conversion rates
+- ✅ Code syntax validated (poetry run python -m py_compile)
+- ✅ Branch: `fix/task-059-remove-sources`
+- ✅ Commit: 7511158 `fix(rss): Remove low-quality sources from feed configuration`
+
+**Status:** ✅ Complete, ready for PR merge
