@@ -21,21 +21,21 @@ class RSSService:
             "coindesk": "https://www.coindesk.com/arc/outboundfeeds/rss/",
             "cointelegraph": "https://cointelegraph.com/rss",
             "decrypt": "https://decrypt.co/feed",
-            "bitcoinmagazine": "https://bitcoinmagazine.com/.rss/full/",
-            
-            # News & General (5 sources)
+            # "bitcoinmagazine": "https://bitcoinmagazine.com/.rss/full/",  # Removed - 14% tier 1 rate, low volume
+
+            # News & General (4 sources)
             "theblock": "https://www.theblock.co/rss.xml",
             "cryptoslate": "https://cryptoslate.com/feed/",
             # "benzinga": "https://www.benzinga.com/feed",  # Benzinga excluded - advertising content
             "bitcoin.com": "https://news.bitcoin.com/feed/",
             "dlnews": "https://www.dlnews.com/arc/outboundfeeds/rss/",
-            "watcherguru": "https://watcher.guru/news/feed",
-            
-            # Research & Analysis (2 working sources)
-            "glassnode": "https://insights.glassnode.com/feed/",
+            # "watcherguru": "https://watcher.guru/news/feed",  # Removed - 7% tier 1 rate, mostly stock noise
+
+            # Research & Analysis (1 working source)
+            # "glassnode": "https://insights.glassnode.com/feed/",  # Removed - 5.3% tier 1 rate, too specialized
             "messari": "https://messari.io/rss",
             # Note: delphidigital, bankless, galaxy feeds have technical issues (SSL/XML)
-            
+
             # DeFi-Focused (1 working source)
             "thedefiant": "https://thedefiant.io/feed",
             # Note: defillama returns HTML, dune has malformed XML
