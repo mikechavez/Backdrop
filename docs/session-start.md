@@ -70,11 +70,16 @@ Unify all LLM calls behind a single gateway, achieve full cost attribution, and 
 - ✅ TASK-036 through TASK-042: Complete LLM control layer with tracing + gateway unification
 - ✅ BUG-056: Spend cap code deployed with TASK-044 hard limit lift for measurement
 
+**Resolved (Session 9 — BUG-058):**
+- ✅ BUG-058: Soft spend limit + narrative type error fixed
+  - Raised `SOFT_SPEND_LIMIT` from $0.25 → $1.00 (allows burn-in ops, still 15x below hard limit)
+  - Fixed TypeError in `detect_narratives()`: `cluster.get()` → `primary_nucleus` (cluster is list, not dict)
+  - Commit: 641e120 `fix(config, narratives): Raise soft spend limit and fix type error in narrative detection`
+
 **Resolved (Sprint 12):**
 - ✅ BUG-054: Pipeline live
 - ✅ BUG-055: Smoke briefings stopped, MongoDB pruned
 - ✅ BUG-057: Retry storm fixed
-- ✅ BUG-058: Briefing generation fixed
 - ✅ BUG-059: Cost tracking fixed
 
 ---

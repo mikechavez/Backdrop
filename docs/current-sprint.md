@@ -28,6 +28,7 @@ Backdrop burns $2.50-5/day in Anthropic credits vs a $0.33/day target because 2 
 | - | BUG-058 | Hard Spend Limit Enforcement Kills Burn-in | ✅ FIXED | low | ~0.25h |
 | 8 | TASK-043 | Burn-in Health Check (1-Hour Verification) | ✅ PHASE 1 COMPLETE | high | ~1.5h |
 | 9 | TASK-043-PHASE2 | Manual Dashboard Review (Celery/Sentry/Logs) | 🔲 NEXT | medium | ~0.5h |
+| - | BUG-058 | Soft Spend Limit + Narrative Type Error | ✅ FIXED | low | ~0.5h |
 | 10 | TASK-041B | Analyze Burn-in + Write Findings Doc | ⏳ WAITING | low | |
 
 
@@ -170,3 +171,22 @@ _Tickets created mid-sprint for issues found during implementation._
 - Created `docs/tickets/task-043-burn-in-health-check-phase-1-complete.md`
 - Detailed findings, root cause analysis, timeline, next steps
 - Status: ✅ Phase 1 complete, Phase 2 (manual review) pending
+
+### Session 9 (2026-04-09) — BUG-058 Soft Limit + Type Error Fix ✅
+**Fixed narrative generation blocker from soft spend limit + TypeError**
+
+**Root Cause Analysis:**
+- Issue 1: `SOFT_SPEND_LIMIT` set to $0.25 was too aggressive for normal burn-in ops (~$0.80-$1.20 cost)
+  - Soft limit hit at 03:26 UTC, gateway blocked `narrative_generate` calls
+- Issue 2: `detect_narratives()` line 1206 called `.get()` on `cluster` (a list) instead of dict
+  - When narrative generation failed, crash: `'list' object has no attribute 'get'`
+
+**Fixes Applied:**
+- **Fix 1:** Raised `LLM_DAILY_SOFT_LIMIT` from $0.25 → $1.00 in `config.py`
+  - Still 15x below $15 hard limit, allows normal burn-in operations
+- **Fix 2:** Changed `cluster.get('nucleus_entity')` → `primary_nucleus` in `narrative_service.py:1206`
+  - `cluster` is a list of articles; `primary_nucleus` is the nucleus entity string
+
+**Commit:** 641e120 `fix(config, narratives): Raise soft spend limit and fix type error in narrative detection`
+**Branch:** fix/bug-058-soft-limit-and-type-error
+**Status:** ✅ Complete, ready for merge
