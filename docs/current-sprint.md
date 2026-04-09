@@ -22,7 +22,8 @@ Backdrop burns $2.50-5/day in Anthropic credits vs a $0.33/day target because 2 
 | 4 | TASK-039 | Wire health.py Through Gateway | ✅ MERGED | low | ~1.5h |
 | 5 | TASK-040 | Dataset Capture — Pre/Post Refine Drafts | ✅ MERGED | medium | ~2.5h |
 | 6 | TASK-042 | Gateway Bypass Fix — Wire Remaining LLM Calls | ✅ MERGED | low | ~0.5h |
-| 7 | TASK-041 | Attribution Burn-in (48hr) + Findings Doc | 🔲 OPEN | low | |
+| 7 | TASK-041A | Restart 48-Hour Burn-in with Clean Baseline | ✅ MERGED | low | ~0.25h |
+| 8 | TASK-041B | Analyze Burn-in + Write Findings Doc | ⏳ WAITING | low | |
 
 ---
 
@@ -120,7 +121,16 @@ _Tickets created mid-sprint for issues found during implementation._
 
 **All merged to main, deployed to Railway with $6 Anthropic credits**
 
-### Session 7 (2026-04-08) — Gateway Bypass Discovery + Fix 🚨 CRITICAL
+### Session 6 (2026-04-08) — TASK-041 Initial Burn-in Monitoring Setup ✅
+**48-hour attribution run begins (later halted due to incomplete instrumentation)**
+- Verified llm_traces collection is ready (0 records, awaiting first pipeline run)
+- Created `/scripts/analyze_burn_in.py` for post-burn-in data analysis
+- Created `/docs/sprint-13-burn-in-status.md` tracking doc
+- Branch: `feat/task-041-burn-in-setup` (commit a5689c5)
+- System actively collecting: cost by operation, model, refine iterations, error rates
+- **⚠️ Note:** This measurement was later discovered to be incomplete (see Session 7)
+
+### Session 7 (2026-04-08) — Gateway Bypass Discovery + TASK-042 Fix 🚨 CRITICAL
 **Burn-in audit revealed incomplete instrumentation — fixed all 3 bypass points**
 
 **Discovery phase:**
@@ -128,7 +138,8 @@ _Tickets created mid-sprint for issues found during implementation._
   1. `narrative_themes.py` (4 call sites: lines 485, 864, 1015, 1388) — theme extraction, narrative generation, actor/tension clustering
   2. `optimized_anthropic.py` (line 32) — entity extraction via selective_processor, twitter_service
   3. `anthropic.py` (line 22) — fallback provider in factory.py
-- Impact: Estimated 40-60% of actual spend was invisible to TASK-041 burn-in (narrative enrichment is expensive)
+- Impact: Estimated 40-60% of actual spend was invisible to initial TASK-041 measurement (narrative enrichment is expensive)
+- **Decision:** Halt burn-in, fix bypasses, restart with clean data
 
 **Fix phase (TASK-042):**
 - **narrative_themes.py:** Routed 4 call sites through `gateway.call()` with operation tags
@@ -140,17 +151,40 @@ _Tickets created mid-sprint for issues found during implementation._
 - **anthropic.py:** Converted direct httpx calls to `gateway.call_sync()`
 - **Audit:** Zero direct `api.anthropic.com` calls remain in main app code ✅
 - **Commit:** 4f44203 — fix(llm): Wire all remaining LLM calls through gateway (TASK-042)
+- **Status:** TASK-042 ✅ MERGED, TASK-041 unblocked
 
-**Next steps:**
-- Clear llm_traces collection
-- Restart 48-hour burn-in with complete instrumentation
-- Resume TASK-041 on clean baseline
+### Session 8 (2026-04-08) — TASK-041A Restart Burn-in with Clean Baseline ⏳ IN PROGRESS
+**Clear incomplete traces, restart 48-hour measurement with full instrumentation**
 
-### Session 6 (2026-04-08) — TASK-041 Burn-in Monitoring Setup ✅
-**48-hour attribution run begins**
-- Verified llm_traces collection is ready (0 records, awaiting first pipeline run)
-- Created `/scripts/analyze_burn_in.py` for post-burn-in data analysis
-- Created `/docs/sprint-13-burn-in-status.md` tracking doc
-- Branch: `feat/task-041-burn-in-setup` (commit a5689c5)
-- System actively collecting: cost by operation, model, refine iterations, error rates
-- **Status:** Burn-in in progress, check back 2026-04-10 20:00 UTC for analysis
+**Burn-in restart (TASK-041A):**
+- Cleared `llm_traces` collection (removed incomplete data from Session 6)
+- Restarted 48-hour measurement from clean baseline
+- All 8 LLM call sites now instrumented:
+  - `briefing_generate`, `briefing_critique`, `briefing_refine` (briefing_agent.py)
+  - `narrative_theme_extract`, `narrative_generate`, `actor_tension_extract`, `cluster_narrative_gen` (narrative_themes.py)
+  - `entity_extract` (optimized_anthropic.py via selective_processor, twitter_service)
+  - `health_check` (health.py)
+- Measurement window: **2026-04-08 ~XX:XX UTC → 2026-04-10 ~XX:XX UTC** (48 hours)
+- **Status:** Burn-in actively collecting data with complete visibility
+
+**Next action:**
+- Wait 48 hours for data collection
+- 2026-04-10 ~XX:XX UTC: Run `poetry run python scripts/analyze_burn_in.py` → analyze cost by operation
+- Write `/docs/sprint-13-burn-in-findings.md` with recommendations (TASK-041B)
+
+### Session 8 (2026-04-08) — TASK-041A Restart Complete ✅
+**Burn-in restarted with clean baseline and full instrumentation**
+
+**Completed:**
+- ✅ Cleared llm_traces collection: 1 incomplete record deleted
+- ✅ Verified empty state: `countDocuments({})` returns 0
+- ✅ Updated `/docs/sprint-13-burn-in-status.md` with restart notes and TASK-042 context
+- ✅ Fresh 48-hour measurement window active with all 8 LLM operations instrumented
+
+**Measurement starts now (2026-04-08):**
+- Briefing operations: `briefing_generate`, `briefing_critique`, `briefing_refine`
+- Narrative operations: `narrative_theme_extract`, `narrative_generate`, `actor_tension_extract`, `cluster_narrative_gen`
+- Entity extraction: via optimized_anthropic.py gateway calls
+- Health check: via health.py gateway calls
+
+**Next checkpoint:** 2026-04-10 20:00 UTC (run analyze_burn_in.py, write findings doc)

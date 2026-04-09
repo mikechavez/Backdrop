@@ -26,7 +26,10 @@ Sessions 1–5: Built LLM Gateway infrastructure (TASK-036 through TASK-040). Al
 - TASK-042: Gateway bypass fix (✅ COMPLETE, commit 4f44203)
   - Wired narrative_themes.py (4 sites), optimized_anthropic.py, anthropic.py through gateway
   - All direct api.anthropic.com calls eliminated from main app code
-- TASK-041: 48-hour burn-in ready to restart with clean llm_traces baseline
+- TASK-041A: Restart burn-in (✅ COMPLETE)
+  - Cleared llm_traces collection (was 1 incomplete record, now 0)
+  - Updated status tracking doc with TASK-042 context
+  - Clean baseline ready for 48-hour measurement
 
 ---
 
