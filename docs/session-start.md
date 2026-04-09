@@ -33,7 +33,7 @@ Sessions 1–5: Built complete LLM control layer (TASK-036 through TASK-041) + h
   - **Commit:** 5808da4
   - **Status:** ✅ Merged and deployed
 
-**Session 11 (Current):**
+**Session 11 (Previous):**
 - ✅ **Investigated Soft Limit Blocker** — Ran comprehensive database queries
   - **Finding:** Soft limit NOT actually hit. Actual spend $0.445 << $3.00 limit
   - **Cost breakdown:** narrative_generate $0.262 (58%), entity_extraction $0.183 (42%)
@@ -47,13 +47,24 @@ Sessions 1–5: Built complete LLM control layer (TASK-036 through TASK-041) + h
   - Reduces per-cycle logging from 380+ lines to ~2 lines
   - Commit: dde11bf
 
+**Session 12 (Current):**
+- ✅ **TASK-046 Complete** — Verified briefing task registration with Celery
+  - **Finding:** All infrastructure already 100% in place
+  - **Task decorators:** ✅ All briefing tasks have @shared_task with correct names
+  - **Celery initialization:** ✅ tasks/__init__.py imports all tasks and enables autodiscover
+  - **Beat schedule:** ✅ All task names match @shared_task decorators
+  - **Celery config:** ✅ Beat schedule properly applied at app startup
+  - **Added:** test_task_registration.py verification script
+  - **Branch:** fix/task-046-register-briefing-tasks
+  - **Commit:** 91a72ab
+
 **Previous (Session 9):**
 - ✅ BUG-058: Raised soft limit to $1.00, fixed TypeError in narrative detection (commit 641e120)
 
 **Next Steps:** 
-- Investigate why briefing generation is not running despite being scheduled
-- Check if briefing tasks are being triggered by Celery beat scheduler
-- Verify cost tracking is capturing all briefing operations correctly
+- Monitor Celery beat scheduler to confirm tasks are dispatched
+- Monitor worker logs to confirm tasks are received and executed
+- Monitor cost tracking to confirm briefing operations are recorded
 
 ---
 

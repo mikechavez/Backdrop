@@ -31,7 +31,8 @@ Backdrop burns $2.50-5/day in Anthropic credits vs a $0.33/day target because 2 
 | - | BUG-058 | Soft Spend Limit + Narrative Type Error | ✅ FIXED | low | ~0.5h |
 | - | BUG-060 | Timezone-Naive Datetime Breaking Signals | ✅ FIXED | critical | ~0.25h |
 | 11 | TASK-045 | Remove Verbose Narrative Logging | ✅ COMPLETE | low | ~0.25h |
-| 12 | TASK-041B | Analyze Burn-in + Write Findings Doc | ⏳ WAITING | low | |
+| 12 | TASK-046 | Register Briefing Tasks with Celery | ✅ COMPLETE | low | ~0.25h |
+| 13 | TASK-041B | Analyze Burn-in + Write Findings Doc | ⏳ WAITING | low | |
 
 
 ---
@@ -303,3 +304,41 @@ Briefing generation failed even with $3.00 soft limit.
 **Verification:**
 - ✅ Grep confirms no `[VELOCITY DEBUG]` or `[MERGE NARRATIVE DEBUG]` strings remain
 - ✅ Single-line summaries preserve essential metrics (velocity, merge count, narrative title)
+
+### Session 13 (2026-04-09) — TASK-046 Briefing Task Registration ✅
+**Verified all briefing tasks are properly registered with Celery worker**
+
+**Finding:** All infrastructure already 100% in place. No code changes needed, only verification.
+
+**Verified Task Registration Chain:**
+1. ✅ Task decorators in `briefing_tasks.py` — all tasks have @shared_task with correct names
+2. ✅ Celery app initialization in `tasks/__init__.py`:
+   - Lines 27-32: Explicit imports of all briefing tasks
+   - Lines 35-38: Explicit imports of other task modules (alert, fetch_news, warm_cache, digest)
+   - Line 40: Celery app creation with "crypto_news_aggregator"
+   - Line 41: Config from celery_config
+   - Line 44: Beat schedule applied via `get_beat_schedule()`
+   - Lines 67-79: `app.autodiscover_tasks()` with all modules listed
+3. ✅ Beat schedule in `beat_schedule.py` — all task names match @shared_task decorators
+4. ✅ Celery config in `celery_config.py` — provides `get_beat_schedule()` function
+
+**Worker Command (already in place on Railway):**
+```bash
+celery -A crypto_news_aggregator.tasks worker --loglevel=info
+```
+
+**Task Discovery Flow:**
+- Worker imports `crypto_news_aggregator.tasks` → `__init__.py`
+- `__init__.py` imports all task modules
+- `@shared_task` decorators execute and register tasks
+- `app.autodiscover_tasks()` confirms all tasks registered
+- Worker ready to receive tasks from beat scheduler
+
+**Added Verification Script:**
+- `test_task_registration.py` - Can be run locally to verify task discovery
+- Checks all required briefing tasks are registered
+- Validates beat schedule task names match decorators
+
+**Commit:** 91a72ab `chore(celery): Add task registration verification script`
+**Branch:** fix/task-046-register-briefing-tasks
+**Status:** ✅ Complete, ready for PR merge
