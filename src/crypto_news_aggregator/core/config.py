@@ -138,7 +138,7 @@ class Settings(BaseSettings):
     HEARTBEAT_BRIEFING_MAX_AGE: int = 64800  # 18 hours -- ~6 hours past expected gap
 
     # LLM spend cap thresholds (daily, in USD)
-    LLM_DAILY_SOFT_LIMIT: float = 1.00   # Operational circuit breaker; allows normal burn-in ops
+    LLM_DAILY_SOFT_LIMIT: float = 3.00   # Operational circuit breaker; allows 2-3 full briefings during burn-in
     LLM_DAILY_HARD_LIMIT: float = 15.00  # Temp: Lifted for Sprint 13 burn-in measurement. Will drop to ~$1-2 post-optimization.
 
     # Backlog throughput control
