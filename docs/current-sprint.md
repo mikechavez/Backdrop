@@ -21,7 +21,8 @@ Backdrop burns $2.50-5/day in Anthropic credits vs a $0.33/day target because 2 
 | 3 | TASK-038 | Wire briefing_agent.py Through Gateway | ✅ MERGED | high | ~1.5h |
 | 4 | TASK-039 | Wire health.py Through Gateway | ✅ MERGED | low | ~1.5h |
 | 5 | TASK-040 | Dataset Capture — Pre/Post Refine Drafts | ✅ MERGED | medium | ~2.5h |
-| 6 | TASK-041 | Attribution Burn-in (48hr) + Findings Doc | 🔲 OPEN | low | |
+| 6 | TASK-042 | Gateway Bypass Fix — Wire Remaining LLM Calls | ✅ MERGED | low | ~0.5h |
+| 7 | TASK-041 | Attribution Burn-in (48hr) + Findings Doc | 🔲 OPEN | low | |
 
 ---
 
@@ -95,44 +96,61 @@ _Tickets created mid-sprint for issues found during implementation._
 - PR merged to main
 - Status: Moving to TASK-038 (wire briefing_agent through gateway)
 
-### Session 5 (2026-04-08) — TASK-038 Implementation ✅
-**Wire briefing_agent.py through LLM gateway**
-- Removed httpx, ANTHROPIC_API_URL, api_key handling
-- Replaced _call_llm method: 87 lines → 24 lines (gateway handles all API details)
-- Added distinct operation tags: `briefing_generate`, `briefing_critique`, `briefing_refine`
-- Spend cap breach (spend_limit error) propagates without retry
-- Model fallback logic preserved: Sonnet → Haiku on 403 auth errors
-- Unit tests (5/5 passing):
-  - test_generate_uses_correct_operation
-  - test_critique_uses_correct_operation
-  - test_refine_uses_correct_operation
-  - test_spend_limit_kills_briefing
-  - test_fallback_on_403
-- Existing briefing tests still pass (no regressions)
-- Commit: c2976c0
-- Status: Ready for TASK-039 (wire health.py through gateway)
+### Session 5 (2026-04-08) — TASK-038 & TASK-039 & TASK-040 Implementation ✅
+**Wire briefing_agent.py, health.py through gateway + dataset capture**
 
-### Session 6 (2026-04-08) — TASK-040 Implementation ✅
-**Dataset capture for briefing draft eval datasets**
+**TASK-038: Wire briefing_agent through gateway**
+- Removed httpx, replaced with gateway.call()
+- Added distinct operation tags: `briefing_generate`, `briefing_critique`, `briefing_refine`
+- Spend cap breach kills briefing cleanly (no retry)
+- Model fallback preserved: Sonnet → Haiku on 403
+- Commit: c2976c0
+
+**TASK-039: Wire health endpoint through gateway**
+- Spend cap breach returns "degraded" status (not "error")
+- UptimeRobot sees system is alive but cost-limited
+- Commit: 67aff33
+
+**TASK-040: Dataset capture for eval datasets**
 - Created `src/crypto_news_aggregator/llm/draft_capture.py` (55 lines)
-  - `ensure_draft_indexes()`: Creates TTL (90d), briefing_id, and compound indexes
-  - `save_draft()`: Saves GeneratedBriefing snapshots with briefing_id, trace_id, stage, model, critique
-  - Non-blocking observability (catches exceptions, doesn't raise)
-- Modified `briefing_agent.py` (_call_llm, _generate_with_llm, _self_refine, _save_briefing)
-  - `_call_llm` now returns full `GatewayResponse` (not just `text`) for trace_id access
-  - `_generate_with_llm` returns tuple: (GeneratedBriefing, GatewayResponse)
-  - `_self_refine` accepts optional briefing_id and db params, saves post_refine_N drafts
-  - `generate_briefing` generates briefing_id early, passes to _self_refine for draft linkage
-  - `_save_briefing` accepts optional briefing_id parameter for draft dataset linking
-- Integrated into app startup: `ensure_draft_indexes()` called in main.py lifespan
-- Test coverage: 5 new tests in test_draft_capture.py (all passing)
-  - test_pre_refine_draft_saved: Verifies pre-refine stage capture
-  - test_post_refine_draft_saved: Verifies post_refine_N stage with critique
-  - test_self_refine_with_draft_capture: Integration test with mocked _call_llm
-  - test_draft_captures_all_fields: Verifies all GeneratedBriefing fields preserved
-  - test_save_draft_handles_db_errors: Verifies non-blocking error handling
-- Updated existing tests: test_briefing_gateway.py, test_briefing_multi_pass.py (13/13 passing)
-  - Converted all mock returns from string to GatewayResponse objects
-  - Verified trace_id propagation through test assertions
+- Saves GeneratedBriefing snapshots at each stage with trace_id linkage
+- Integrated into briefing_agent pipeline
+- Non-blocking observability (catches errors, doesn't raise)
 - Commit: 7208fa7
-- Status: Ready for TASK-041 (48-hour burn-in run)
+
+**All merged to main, deployed to Railway with $6 Anthropic credits**
+
+### Session 7 (2026-04-08) — Gateway Bypass Discovery + Fix 🚨 CRITICAL
+**Burn-in audit revealed incomplete instrumentation — fixed all 3 bypass points**
+
+**Discovery phase:**
+- Code review found 3 bypass points making direct API calls to api.anthropic.com:
+  1. `narrative_themes.py` (4 call sites: lines 485, 864, 1015, 1388) — theme extraction, narrative generation, actor/tension clustering
+  2. `optimized_anthropic.py` (line 32) — entity extraction via selective_processor, twitter_service
+  3. `anthropic.py` (line 22) — fallback provider in factory.py
+- Impact: Estimated 40-60% of actual spend was invisible to TASK-041 burn-in (narrative enrichment is expensive)
+
+**Fix phase (TASK-042):**
+- **narrative_themes.py:** Routed 4 call sites through `gateway.call()` with operation tags
+  - `extract_themes_from_article` → `narrative_theme_extract`
+  - `generate_narrative_from_theme` → `narrative_generate`
+  - `cluster_by_narrative_salience` → `actor_tension_extract`
+  - `generate_narrative_from_cluster` → `cluster_narrative_gen`
+- **optimized_anthropic.py:** Refactored `_make_api_call()` to use `gateway.call_sync()`
+- **anthropic.py:** Converted direct httpx calls to `gateway.call_sync()`
+- **Audit:** Zero direct `api.anthropic.com` calls remain in main app code ✅
+- **Commit:** 4f44203 — fix(llm): Wire all remaining LLM calls through gateway (TASK-042)
+
+**Next steps:**
+- Clear llm_traces collection
+- Restart 48-hour burn-in with complete instrumentation
+- Resume TASK-041 on clean baseline
+
+### Session 6 (2026-04-08) — TASK-041 Burn-in Monitoring Setup ✅
+**48-hour attribution run begins**
+- Verified llm_traces collection is ready (0 records, awaiting first pipeline run)
+- Created `/scripts/analyze_burn_in.py` for post-burn-in data analysis
+- Created `/docs/sprint-13-burn-in-status.md` tracking doc
+- Branch: `feat/task-041-burn-in-setup` (commit a5689c5)
+- System actively collecting: cost by operation, model, refine iterations, error rates
+- **Status:** Burn-in in progress, check back 2026-04-10 20:00 UTC for analysis
