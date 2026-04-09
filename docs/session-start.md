@@ -1,8 +1,8 @@
 # Session Start
 
-**Date:** 2026-04-09 (Session 6, Sprint 13)
-**Status:** Sprint 13 burn-in underway — TASK-043 Phase 1 health check complete, critical issues fixed
-**Branch:** main (all TASK branches merged, TASK-043 Phase 1 findings documented)
+**Date:** 2026-04-09 (Session 10, Sprint 13)
+**Status:** Sprint 13 burn-in underway — Soft limit raised to $3.00, BUG-060 (timezone-naive datetime) fixed
+**Branch:** fix/bug-058-soft-limit-and-type-error (ready to merge)
 
 ---
 
@@ -21,17 +21,21 @@ Sessions 1–5: Built complete LLM control layer (TASK-036 through TASK-041) + h
 - ✅ TASK-042: Gateway bypass fix — all LLM calls wired through gateway (merged)
 - ✅ TASK-041A: Restart burn-in with clean baseline (merged)
 
-**Current Work (Session 6):**
-- ✅ TASK-043 Phase 1: Health check complete — discovered and fixed 2 critical issues
-  - **Issue 1 (FIXED):** Budget cache blocking operations due to $0.9970 pre-burn-in costs in api_costs table
-    - Solution: Cleared 101,332 old records from api_costs
-    - Result: Budget status reset to "ok", operations now allowed
-  - **Issue 2 (EXPLAINED):** Missing trending signals blocking manual briefing trigger
-    - Cause: Normal dependency on Celery beat schedule for signal computation
-    - Status: Working as designed, signals will be generated on next schedule cycle
-  - Findings: 5 traces collected, $0.0061 spend (97% under budget), all systems healthy
+**Current Work (Session 10):**
+- ✅ Raised soft spend limit from $1.00 → $3.00 (commit c1deb83)
+  - $1.00 was too aggressive; single briefing costs ~$1.20
+  - $3.00 allows 2-3 full briefings while catching runaway costs
+- ✅ **BUG-060 FIXED:** Timezone-naive datetime breaking signal computation
+  - **Root cause:** `datetime.now(timezone.utc).replace(tzinfo=None)` stripping timezone info
+  - **Impact:** Signal computation returned 0 results, blocking briefing generation
+  - **Fix:** Removed `.replace(tzinfo=None)` from 5 instances in signal_service.py
+  - **Commit:** 5808da4
+  - **Status:** Ready for merge and test
 
-**Next:** Monitor burn-in progress, verify Celery beat scheduler running (Phase 2 manual review), complete measurement by 2026-04-10 ~02:48 UTC.
+**Previous (Session 9):**
+- ✅ BUG-058: Raised soft limit to $1.00, fixed TypeError in narrative detection (commit 641e120)
+
+**Next:** Push fix, deploy, trigger briefing generation to verify signal computation works
 
 ---
 

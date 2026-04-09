@@ -164,7 +164,7 @@ async def calculate_mentions_and_velocity(entity: str, timeframe_hours: int) -> 
     db = await mongo_manager.get_async_database()
 
     # MongoDB stores datetimes as UTC but returns them as naive
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    now = datetime.now(timezone.utc)
     current_period_start = now - timedelta(hours=timeframe_hours)
     previous_period_start = now - timedelta(hours=timeframe_hours * 2)
 
@@ -223,7 +223,7 @@ async def calculate_velocity(entity: str, timeframe_hours: int = 24) -> float:
 
     # MongoDB stores datetimes as UTC but returns them as naive
     # Use naive datetimes for comparison
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    now = datetime.now(timezone.utc)
     one_hour_ago = now - timedelta(hours=1)
     timeframe_ago = now - timedelta(hours=timeframe_hours)
 
@@ -408,7 +408,7 @@ async def calculate_recency_factor(entity: str, timeframe_hours: int) -> float:
     """
     db = await mongo_manager.get_async_database()
 
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    now = datetime.now(timezone.utc)
     timeframe_start = now - timedelta(hours=timeframe_hours)
     recent_window_hours = timeframe_hours * 0.2  # Most recent 20%
     recent_start = now - timedelta(hours=recent_window_hours)
@@ -571,7 +571,7 @@ async def get_top_entities_by_mentions(
     """
     db = await mongo_manager.get_async_database()
 
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    now = datetime.now(timezone.utc)
     cutoff = now - timedelta(hours=timeframe_hours)
 
     # Build base match criteria
@@ -701,7 +701,7 @@ async def compute_trending_signals(
     }
 
     hours = timeframe_hours_map.get(timeframe, 24)
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    now = datetime.now(timezone.utc)
     current_period_start = now - timedelta(hours=hours)
     previous_period_start = now - timedelta(hours=hours * 2)
 
