@@ -98,6 +98,49 @@ class LLMGateway:
         usage = data.get("usage", {})
         return text, usage.get("input_tokens", 0), usage.get("output_tokens", 0)
 
+    def _write_trace_sync(
+        self,
+        trace_id: str,
+        operation: str,
+        model: str,
+        input_tokens: int,
+        output_tokens: int,
+        cost: float,
+        duration_ms: float,
+        error: Optional[str] = None,
+    ) -> None:
+        """Write trace record to llm_traces collection synchronously (blocking). Fire-and-forget."""
+        try:
+            from pymongo import MongoClient
+            import os
+            db_connection_string = os.getenv('MONGODB_URI')
+            if not db_connection_string:
+                logger.error("MONGODB_URI not set, cannot write sync trace")
+                return
+
+            client = MongoClient(db_connection_string, serverSelectionTimeoutMS=2000)
+            db = client.crypto_news
+            db.llm_traces.insert_one({
+                "trace_id": trace_id,
+                "operation": operation,
+                "timestamp": datetime.now(timezone.utc),
+                "model": model,
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens,
+                "cost": cost,
+                "duration_ms": round(duration_ms, 1),
+                "error": error,
+                # Placeholder fields for Sprint 14 eval system
+                "quality": {
+                    "passed": None,
+                    "score": None,
+                    "checks": [],
+                },
+            })
+            client.close()
+        except Exception as e:
+            logger.error(f"Failed to write sync trace: {e}")
+
     async def _write_trace(
         self,
         trace_id: str,
@@ -231,11 +274,11 @@ class LLMGateway:
         system: Optional[str] = None,
     ) -> GatewayResponse:
         """
-        Sync LLM call. Use from twitter_service, Celery tasks,
+        Sync LLM call. Use from entity extraction, enrichment,
         and any sync context.
 
-        Cost tracking and tracing are deferred (sync MongoDB write
-        via fire-and-forget or queued for next async cycle).
+        Enforces spend cap, tracks cost via CostTracker, and writes
+        traces to llm_traces collection (synchronously, blocking).
 
         Raises:
             LLMError: On spend cap breach or API failure.
@@ -256,8 +299,10 @@ class LLMGateway:
                 response.raise_for_status()
                 data = response.json()
         except httpx.HTTPStatusError as e:
+            duration_ms = (time.monotonic() - start) * 1000
             status = e.response.status_code
             error_msg = str(e.response.text[:200])
+            self._write_trace_sync(trace_id, operation, model, 0, 0, 0.0, duration_ms, error=error_msg)
             if status == 403:
                 error_type = "auth_error"
             elif status == 429:
@@ -268,13 +313,14 @@ class LLMGateway:
                 error_type = "unexpected"
             raise LLMError(error_msg, error_type=error_type, model=model, status_code=status)
         except Exception as e:
+            duration_ms = (time.monotonic() - start) * 1000
+            self._write_trace_sync(trace_id, operation, model, 0, 0, 0.0, duration_ms, error=str(e))
             raise LLMError(str(e), error_type="unexpected", model=model)
 
         duration_ms = (time.monotonic() - start) * 1000
         text, input_tokens, output_tokens = self._parse_response(data)
 
         # Sync cost tracking: create tracker inline, write synchronously via pymongo
-        # or defer. For now, use the same pattern as existing sync callers in anthropic.py.
         cost = 0.0
         try:
             from ..services.cost_tracker import CostTracker as CT
@@ -283,10 +329,8 @@ class LLMGateway:
         except Exception as e:
             logger.error(f"Sync cost calculation failed: {e}")
 
-        # Trace write deferred — sync callers cannot write to async MongoDB.
-        # The cost is already calculated; the trace will be captured by the
-        # existing api_costs collection via the async refresh cycle.
-        # Full sync trace support is a follow-up if needed.
+        # Write trace synchronously (blocking, but fire-and-forget semantics)
+        self._write_trace_sync(trace_id, operation, model, input_tokens, output_tokens, cost, duration_ms)
 
         return GatewayResponse(
             text=text,

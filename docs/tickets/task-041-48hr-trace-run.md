@@ -1,7 +1,7 @@
 ---
 id: TASK-041
 type: feature
-status: backlog
+status: in_progress
 priority: critical
 complexity: low
 created: 2026-04-08
@@ -162,7 +162,29 @@ Possible actions (decide by data, not guesses):
 
 - None
 
+## Implementation Progress
+
+### Session 6 (2026-04-08) — Burn-in Setup Complete ✅
+**What was done:**
+- ✅ Verified all Sprint 13 code (TASK-036–040) deployed to Railway
+- ✅ $6 Anthropic credits added to account (need $5, so $1 buffer)
+- ✅ Verified llm_traces collection ready (0 records, awaiting first pipeline run)
+- ✅ Created `/scripts/analyze_burn_in.py` for post-burn-in analysis
+- ✅ Created `/docs/sprint-13-burn-in-status.md` tracking doc
+- ✅ Feature branch `feat/task-041-burn-in-setup` (commit a5689c5) ready for PR
+
+**Current Status:**
+- 🔄 Burn-in period active: 2026-04-08 through 2026-04-10 20:00 UTC
+- 📊 System collecting: cost by operation, model, refine iterations, error rates
+- ⏳ No manual work needed until checkpoint
+
+**Next Steps:**
+- Run `poetry run python scripts/analyze_burn_in.py` on 2026-04-10 20:00 UTC
+- Write `/docs/sprint-13-burn-in-findings.md` with results and decision
+- Create PR from `feat/task-041-burn-in-setup` with analysis
+- Move to Sprint 14 optimization based on findings
+
 ## Completion Summary
-- Actual complexity:
-- Key decisions made:
-- Deviations from plan:
+- Actual complexity: Low (monitoring/analysis, not implementation)
+- Key decisions made: analyze_burn_in.py for automated post-run analysis
+- Deviations from plan: None, proceeding as designed

@@ -35,10 +35,10 @@ Unify all LLM calls behind a single gateway, achieve full cost attribution, and 
 
 ## What's Next
 
-1. **TASK-038:** Wire briefing_agent.py through gateway (replace direct anthropic.py calls with gateway.call())
-2. **TASK-039:** Wire health.py through gateway (health endpoint spend cap check)
-3. **TASK-040:** Dataset capture (pre/post refine drafts for cost comparison)
-4. **TASK-041:** 48-hour burn-in + findings doc
+1. **Phase 2 (Manual):** Review Railway logs for LLMError/API bypass verification (not automated, user must review dashboard)
+2. **Final analysis (2026-04-10 ~20:00 UTC):** Run `poetry run python scripts/analyze_burn_in.py` to generate cost summary from api_costs
+3. **Write findings doc:** `docs/sprint-13-burn-in-findings.md` with cost by operation, cost by model, and Sprint 14 decision (TASK-041B)
+4. **Sprint 14 planning:** Data-driven optimization decisions based on burn-in findings
 
 ---
 

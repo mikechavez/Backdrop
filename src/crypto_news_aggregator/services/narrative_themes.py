@@ -17,6 +17,7 @@ from collections import defaultdict, Counter
 
 from ..db.mongodb import mongo_manager
 from ..llm.factory import get_llm_provider
+from ..llm.gateway import get_gateway
 
 logger = logging.getLogger(__name__)
 
@@ -481,10 +482,15 @@ Example: ["regulatory", "institutional_investment"]
 JSON array:"""
     
     try:
-        # Call Claude
-        llm_client = get_llm_provider()
-        response = llm_client._get_completion(prompt)
-        
+        # Call Claude via gateway
+        gateway = get_gateway()
+        gateway_response = await gateway.call(
+            messages=[{"role": "user", "content": prompt}],
+            model="claude-haiku-4-5-20251001",
+            operation="narrative_theme_extract"
+        )
+        response = gateway_response.text
+
         if not response:
             logger.warning(f"Empty response from LLM for article {article_id}")
             return []
@@ -860,10 +866,15 @@ Your JSON response:"""
 
             llm_calls_made += 1
 
-            # Call LLM
-            llm_client = get_llm_provider()
-            response = llm_client._get_completion(prompt)
-            
+            # Call LLM via gateway
+            gateway = get_gateway()
+            gateway_response = await gateway.call(
+                messages=[{"role": "user", "content": prompt}],
+                model="claude-haiku-4-5-20251001",
+                operation="narrative_generate"
+            )
+            response = gateway_response.text
+
             if not response:
                 logger.warning(f"Empty response from LLM for article {article_id}")
                 return None
@@ -1011,14 +1022,19 @@ Generate a narrative summary:
 Return valid JSON with no newlines in string values: {{"title": "...", "summary": "..."}}"""
     
     try:
-        # Call Claude
-        llm_client = get_llm_provider()
-        response = llm_client._get_completion(prompt)
-        
+        # Call Claude via gateway
+        gateway = get_gateway()
+        gateway_response = await gateway.call(
+            messages=[{"role": "user", "content": prompt}],
+            model="claude-haiku-4-5-20251001",
+            operation="actor_tension_extract"
+        )
+        response = gateway_response.text
+
         if not response:
             logger.warning(f"Empty response from LLM for theme {theme}")
             return None
-        
+
         # Parse JSON response with cleaning
         response_clean = clean_json_response(response)
         
@@ -1384,14 +1400,19 @@ Generate:
 Return valid JSON with no newlines in string values: {{"title": "...", "summary": "..."}}"""
     
     try:
-        # Call LLM
-        llm_client = get_llm_provider()
-        response = llm_client._get_completion(prompt)
-        
+        # Call LLM via gateway
+        gateway = get_gateway()
+        gateway_response = await gateway.call(
+            messages=[{"role": "user", "content": prompt}],
+            model="claude-haiku-4-5-20251001",
+            operation="cluster_narrative_gen"
+        )
+        response = gateway_response.text
+
         if not response:
             logger.warning(f"Empty response from LLM for cluster with {len(cluster)} articles")
             return None
-        
+
         # Parse JSON response with cleaning
         response_clean = clean_json_response(response)
         
