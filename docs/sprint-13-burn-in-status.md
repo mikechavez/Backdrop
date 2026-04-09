@@ -4,18 +4,32 @@
 
 ## Burn-in Period
 
-**Start Time:** 2026-04-08 20:00 UTC (when deployed to Railway)
-**End Time:** 2026-04-10 20:00 UTC (48 hours later)
-**Status:** 🔄 IN PROGRESS
+**Start Time:** 2026-04-08 (restarted with TASK-042 gateway fix)
+**End Time:** 2026-04-10 20:00 UTC (48 hours from restart)
+**Status:** 🔄 IN PROGRESS (RESTARTED — TASK-042 merged)
 
 ## Pre-Burn-in Verification
 
 - ✅ All Sprint 13 code merged to main
 - ✅ Deployed to Railway
 - ✅ $6 Anthropic credits added
-- ✅ llm_traces collection ready (0 records, awaiting first pipeline run)
+- ✅ **TASK-042 gateway bypass fix merged** — all 8 LLM operations now instrumented
+- ✅ llm_traces collection cleared (was 1 record, now 0) — clean baseline
 - ✅ briefing_drafts collection ready
 - ✅ api_costs collection ready
+
+## Restart Notes (Session 7)
+
+**Why restarted:** First burn-in (Session 6) was incomplete — narrative enrichment and entity extraction were bypassing the gateway (~40-60% of actual spend untracked).
+
+**What changed:** TASK-042 (commit 4f44203) wired all remaining LLM calls through the gateway:
+- `narrative_theme_extract` → now instrumented
+- `narrative_generate` → now instrumented  
+- `actor_tension_extract` → now instrumented
+- `cluster_narrative_gen` → now instrumented
+- Plus: `briefing_generate`, `briefing_critique`, `briefing_refine`, `health_check`
+
+**Result:** 100% of LLM spend is now visible. Cost attribution will be accurate.
 
 ## What's Being Measured
 
