@@ -26,8 +26,8 @@ Backdrop burns $2.50-5/day in Anthropic credits vs a $0.33/day target because 2 
 | 6 | TASK-042 | Gateway Bypass Fix — Wire Remaining LLM Calls | ✅ MERGED | low | ~0.5h |
 | 7 | TASK-041A | Restart 48-Hour Burn-in with Clean Baseline | ✅ MERGED | low | ~0.25h |
 | - | BUG-058 | Hard Spend Limit Enforcement Kills Burn-in | ✅ FIXED | low | ~0.25h |
-| 8 | TASK-043 | Burn-in Health Check (1-Hour Verification) | ✅ PHASE 1 COMPLETE | high | ~1.5h |
-| 9 | TASK-043-PHASE2 | Manual Dashboard Review (Celery/Sentry/Logs) | 🔲 NEXT | medium | ~0.5h |
+| 8 | TASK-043 | Burn-in Health Check (1-Hour Verification) | ✅ COMPLETE | high | ~2h |
+| 8a | TASK-043-PHASE2 | Celery Beat & Signal Computation Diagnosis | ✅ COMPLETE | medium | ~1h |
 | - | BUG-058 | Soft Spend Limit + Narrative Type Error | ✅ FIXED | low | ~0.5h |
 | 10 | TASK-041B | Analyze Burn-in + Write Findings Doc | ⏳ WAITING | low | |
 
@@ -161,16 +161,14 @@ _Tickets created mid-sprint for issues found during implementation._
 - Root cause: Normal behavior — signal computation runs on Celery beat schedule
 - Fix: Identified as non-issue, signals will be computed on next schedule cycle
 
-**Phase 2: Manual Dashboard Review (Next)**
-- [ ] Railway logs: verify Celery beat scheduler running
-- [ ] Sentry: check for unexpected errors
-- [ ] Anthropic dashboard: verify credit burn rate
-- [ ] Expected timeline: Signals should compute within 1-2 hours
+**Phase 2: Celery Beat & Signal Computation Analysis (Complete)**
+- ✅ Root cause identified: Signals switched to "compute-on-read" pattern (ADR-001)
+- ✅ On-demand computation is correctly wired in `briefing_agent._get_trending_signals()`
+- ✅ Dependency chain verified: articles → mentions → signals → briefing
+- ⏳ Next step: Trigger briefing generation (natural schedule 8 AM EST OR manual API call)
+- 🔍 See `docs/tickets/task-043-phase2-celery-beat-diagnosis.md` for full analysis
 
-**Documentation:**
-- Created `docs/tickets/task-043-burn-in-health-check-phase-1-complete.md`
-- Detailed findings, root cause analysis, timeline, next steps
-- Status: ✅ Phase 1 complete, Phase 2 (manual review) pending
+**Key Finding:** "Missing signals" is expected behavior, NOT a bug. `signal_scores` is no longer pre-populated by design. Signals compute on-demand when briefing is triggered. No Celery beat fix needed.
 
 ### Session 9 (2026-04-09) — BUG-058 Soft Limit + Type Error Fix ✅
 **Fixed narrative generation blocker from soft spend limit + TypeError**
