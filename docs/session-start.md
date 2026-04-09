@@ -1,8 +1,8 @@
 # Session Start
 
-**Date:** 2026-04-08 (Session 6, Sprint 13)
-**Status:** Sprint 13 — TASK-036 through TASK-040 complete & merged, TASK-041 burn-in active
-**Branch:** feat/task-041-burn-in-setup (burn-in monitoring setup)
+**Date:** 2026-04-08 (Session 7, Sprint 13)
+**Status:** Sprint 13 — TASK-036 through TASK-040 complete & merged, TASK-042 bypass fix complete, TASK-041 burn-in restarting
+**Branch:** feat/task-041-burn-in-setup (TASK-042 bypass fix merged)
 
 ---
 
@@ -22,8 +22,11 @@ Sessions 1–5: Built LLM Gateway infrastructure (TASK-036 through TASK-040). Al
 - $6 Anthropic credits added
 - llm_traces, briefing_drafts collections ready
 
-**Current (Session 6):**
-- TASK-041: 48-hour burn-in + findings doc (in progress, monitoring setup complete)
+**Current (Session 7):**
+- TASK-042: Gateway bypass fix (✅ COMPLETE, commit 4f44203)
+  - Wired narrative_themes.py (4 sites), optimized_anthropic.py, anthropic.py through gateway
+  - All direct api.anthropic.com calls eliminated from main app code
+- TASK-041: 48-hour burn-in ready to restart with clean llm_traces baseline
 
 ---
 
@@ -35,10 +38,11 @@ Unify all LLM calls behind a single gateway, achieve full cost attribution, and 
 
 ## What's Next
 
-1. **TASK-041 (48-hour burn-in):** System is actively collecting `llm_traces` data. No manual work needed until 2026-04-10 20:00 UTC.
-2. **Post-burn-in:** Run `poetry run python scripts/analyze_burn_in.py` to generate cost summary
-3. **Write findings doc:** `docs/sprint-13-burn-in-findings.md` with cost by operation, cost by model, refine loop stats, and Sprint 14 decision
-4. **Sprint 14 planning:** Data-driven optimization decisions based on burn-in findings
+1. **TASK-042 follow-up:** Clear llm_traces collection and restart 48-hour burn-in from clean baseline
+2. **TASK-041 (48-hour burn-in):** System will actively collect `llm_traces` data with complete instrumentation. Check back 2026-04-10 20:00 UTC.
+3. **Post-burn-in:** Run `poetry run python scripts/analyze_burn_in.py` to generate cost summary
+4. **Write findings doc:** `docs/sprint-13-burn-in-findings.md` with cost by operation, cost by model, refine loop stats, and Sprint 14 decision
+5. **Sprint 14 planning:** Data-driven optimization decisions based on burn-in findings
 
 ---
 

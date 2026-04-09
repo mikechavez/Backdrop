@@ -21,7 +21,8 @@ Backdrop burns $2.50-5/day in Anthropic credits vs a $0.33/day target because 2 
 | 3 | TASK-038 | Wire briefing_agent.py Through Gateway | ✅ MERGED | high | ~1.5h |
 | 4 | TASK-039 | Wire health.py Through Gateway | ✅ MERGED | low | ~1.5h |
 | 5 | TASK-040 | Dataset Capture — Pre/Post Refine Drafts | ✅ MERGED | medium | ~2.5h |
-| 6 | TASK-041 | Attribution Burn-in (48hr) + Findings Doc | 🔲 OPEN | low | |
+| 6 | TASK-042 | Gateway Bypass Fix — Wire Remaining LLM Calls | ✅ MERGED | low | ~0.5h |
+| 7 | TASK-041 | Attribution Burn-in (48hr) + Findings Doc | 🔲 OPEN | low | |
 
 ---
 
@@ -118,6 +119,32 @@ _Tickets created mid-sprint for issues found during implementation._
 - Commit: 7208fa7
 
 **All merged to main, deployed to Railway with $6 Anthropic credits**
+
+### Session 7 (2026-04-08) — Gateway Bypass Discovery + Fix 🚨 CRITICAL
+**Burn-in audit revealed incomplete instrumentation — fixed all 3 bypass points**
+
+**Discovery phase:**
+- Code review found 3 bypass points making direct API calls to api.anthropic.com:
+  1. `narrative_themes.py` (4 call sites: lines 485, 864, 1015, 1388) — theme extraction, narrative generation, actor/tension clustering
+  2. `optimized_anthropic.py` (line 32) — entity extraction via selective_processor, twitter_service
+  3. `anthropic.py` (line 22) — fallback provider in factory.py
+- Impact: Estimated 40-60% of actual spend was invisible to TASK-041 burn-in (narrative enrichment is expensive)
+
+**Fix phase (TASK-042):**
+- **narrative_themes.py:** Routed 4 call sites through `gateway.call()` with operation tags
+  - `extract_themes_from_article` → `narrative_theme_extract`
+  - `generate_narrative_from_theme` → `narrative_generate`
+  - `cluster_by_narrative_salience` → `actor_tension_extract`
+  - `generate_narrative_from_cluster` → `cluster_narrative_gen`
+- **optimized_anthropic.py:** Refactored `_make_api_call()` to use `gateway.call_sync()`
+- **anthropic.py:** Converted direct httpx calls to `gateway.call_sync()`
+- **Audit:** Zero direct `api.anthropic.com` calls remain in main app code ✅
+- **Commit:** 4f44203 — fix(llm): Wire all remaining LLM calls through gateway (TASK-042)
+
+**Next steps:**
+- Clear llm_traces collection
+- Restart 48-hour burn-in with complete instrumentation
+- Resume TASK-041 on clean baseline
 
 ### Session 6 (2026-04-08) — TASK-041 Burn-in Monitoring Setup ✅
 **48-hour attribution run begins**
