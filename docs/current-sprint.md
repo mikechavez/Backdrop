@@ -31,6 +31,7 @@ Backdrop burns $2.50-5/day in Anthropic credits vs a $0.33/day target because 2 
 | - | BUG-058 | Soft Spend Limit + Narrative Type Error | ✅ FIXED | low | ~0.5h |
 | - | BUG-060 | Timezone-Naive Datetime Breaking Signals | ✅ FIXED | critical | ~0.25h |
 | 11 | TASK-045 | Remove Verbose Narrative Logging | ✅ COMPLETE | low | ~0.25h |
+| 11a | - | Fix TASK-045 Undefined Variable Bug | ✅ COMPLETE | low | ~0.05h |
 | 12 | TASK-046 | Register Briefing Tasks with Celery | ✅ COMPLETE | low | ~0.25h |
 | 13 | TASK-041B | Analyze Burn-in + Write Findings Doc | ⏳ WAITING | low | |
 
@@ -305,7 +306,7 @@ Briefing generation failed even with $3.00 soft limit.
 - ✅ Grep confirms no `[VELOCITY DEBUG]` or `[MERGE NARRATIVE DEBUG]` strings remain
 - ✅ Single-line summaries preserve essential metrics (velocity, merge count, narrative title)
 
-### Session 13 (2026-04-09) — TASK-046 Briefing Task Registration ✅
+### Session 12 (2026-04-09) — TASK-046 Briefing Task Registration ✅
 **Verified all briefing tasks are properly registered with Celery worker**
 
 **Finding:** All infrastructure already 100% in place. No code changes needed, only verification.
@@ -342,3 +343,40 @@ celery -A crypto_news_aggregator.tasks worker --loglevel=info
 **Commit:** 91a72ab `chore(celery): Add task registration verification script`
 **Branch:** fix/task-046-register-briefing-tasks
 **Status:** ✅ Complete, ready for PR merge
+
+### Session 13 (2026-04-09) — Critical TASK-045 Bug Fix ✅
+**Fixed undefined variable crash in narrative clustering merge log**
+
+**Problem:**
+- TASK-045 removed verbose debug logging but left a line with undefined `articles_by_id` variable
+- Location: `narrative_service.py` line 1045 in merge upsert section
+- Symptom: Crashes during narrative clustering (processing 373 articles)
+- Error message: `NameError: name 'articles_by_id' is not defined`
+
+**Root Cause:**
+- The original TASK-045 Change 2 replacement attempted to calculate velocity: 
+  ```python
+  velocity = calculate_recent_velocity([a['timestamp'] for a in articles_by_id.values()]) if articles_by_id else 0.0
+  logger.info(f"Merged {len(combined_article_ids)} articles into narrative '{title}' (velocity: {velocity:.2f}/day)")
+  ```
+- But `articles_by_id` is not available in this code path (it's scoped elsewhere in the function)
+
+**Solution:**
+- Removed the undefined velocity calculation entirely
+- Simplified to single-line summary:
+  ```python
+  logger.info(f"Merged {len(combined_article_ids)} articles into narrative '{title}'")
+  ```
+- Preserves essential merge information without relying on undefined variables
+
+**Files Changed:**
+- `src/crypto_news_aggregator/services/narrative_service.py` (1 line net change)
+
+**Commit:** 869baa8 `fix(narratives): Remove undefined velocity calculation from merge log`
+**Branch:** fix/narrative-clustering-merge-log
+**Status:** ✅ Complete, ready for PR merge
+
+**Updated TASK-045 Ticket:**
+- Updated `docs/tickets/task-045-remove-verbose-narrative-logging.md` with the critical bug fix details
+- Documented why the original replacement was unsafe
+- Linked both commits (dde11bf for verbose logging removal, 869baa8 for velocity bug fix)
