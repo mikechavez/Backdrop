@@ -29,6 +29,7 @@ Backdrop burns $2.50-5/day in Anthropic credits vs a $0.33/day target because 2 
 | 8 | TASK-043 | Burn-in Health Check (1-Hour Verification) | ✅ COMPLETE | high | ~2h |
 | 8a | TASK-043-PHASE2 | Celery Beat & Signal Computation Diagnosis | ✅ COMPLETE | medium | ~1h |
 | - | BUG-058 | Soft Spend Limit + Narrative Type Error | ✅ FIXED | low | ~0.5h |
+| - | BUG-060 | Timezone-Naive Datetime Breaking Signals | ✅ FIXED | critical | ~0.25h |
 | 10 | TASK-041B | Analyze Burn-in + Write Findings Doc | ⏳ WAITING | low | |
 
 
@@ -188,3 +189,26 @@ _Tickets created mid-sprint for issues found during implementation._
 **Commit:** 641e120 `fix(config, narratives): Raise soft spend limit and fix type error in narrative detection`
 **Branch:** fix/bug-058-soft-limit-and-type-error
 **Status:** ✅ Complete, ready for merge
+
+### Session 10 (2026-04-09) — Soft Limit Raise + BUG-060 Fix ✅
+**Raised soft limit and fixed critical timezone-naive datetime bug**
+
+**Issue 1: Soft Limit Too Aggressive**
+- Problem: $1.00 soft limit hit immediately after first operation (~$1.20 cost per briefing)
+- Solution: Raised to $3.00 to allow 2-3 full briefings during burn-in
+- Still 5x below $15 hard limit, catches runaway costs
+- Commit: c1deb83
+
+**Issue 2: Timezone-Naive Datetime Bug (BUG-060)**
+- Problem: Signal computation returned 0 results, blocking briefing generation
+- Root cause: `.replace(tzinfo=None)` stripping timezone info from UTC datetimes (5 instances in signal_service.py)
+- MongoDB date comparisons ($gte/$lt) failed silently when comparing naive vs aware datetimes
+- Solution: Removed `.replace(tzinfo=None)` from all 5 instances
+- Files: `signal_service.py` lines 167, 226, 411, 574, 704
+- Commit: 5808da4
+- Ticket: BUG-060 (docs/tickets/bug-060-timezone-naive-datetime.md)
+
+**Status:**
+- Branch `fix/bug-058-soft-limit-and-type-error` has both commits (c1deb83, 5808da4)
+- Ready to push and deploy
+- Briefing generation should now work (signals will compute correctly)
