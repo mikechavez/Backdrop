@@ -1,8 +1,9 @@
 # Session Start
 
 **Date:** 2026-04-09 (Session 10, Sprint 13)
-**Status:** Sprint 13 burn-in underway — Soft limit raised to $3.00, BUG-060 (timezone-naive datetime) fixed
-**Branch:** fix/bug-058-soft-limit-and-type-error (ready to merge)
+**Status:** BUG-060 fixed, soft limit $3.00 insufficient — enrichment consuming budget
+**Branch:** fix/bug-058-soft-limit-and-type-error (merged)
+**Blocker:** Soft limit still hit by background enrichment; briefing generation blocked by narrative_generate non-critical flag
 
 ---
 
@@ -30,12 +31,21 @@ Sessions 1–5: Built complete LLM control layer (TASK-036 through TASK-041) + h
   - **Impact:** Signal computation returned 0 results, blocking briefing generation
   - **Fix:** Removed `.replace(tzinfo=None)` from 5 instances in signal_service.py
   - **Commit:** 5808da4
-  - **Status:** Ready for merge and test
+  - **Status:** ✅ Merged and deployed
+- ❌ **NEW BLOCKER FOUND:** Enrichment consuming budget, blocking briefing
+  - **Symptom:** Briefing generation fails with "Daily spend limit reached (soft_limit)"
+  - **Root cause:** Background enrichment pipeline runs continuously, consuming budget before briefing
+  - **Issue:** `narrative_generate` classified as non-critical, gets blocked at soft limit
+  - **But:** Briefing also needs narrative_generate, so soft limit blocks entire briefing
+  - **Options for next session:**
+    1. Raise soft limit to $5-10 to allow both enrichment + briefing
+    2. Add narrative_generate to CRITICAL_OPERATIONS when called from briefing
+    3. Disable/throttle enrichment during burn-in
 
 **Previous (Session 9):**
 - ✅ BUG-058: Raised soft limit to $1.00, fixed TypeError in narrative detection (commit 641e120)
 
-**Next:** Push fix, deploy, trigger briefing generation to verify signal computation works
+**Next Session:** Decide on enrichment budget strategy and implement fix
 
 ---
 
@@ -47,10 +57,16 @@ Unify all LLM calls behind a single gateway, achieve full cost attribution, and 
 
 ## What's Next
 
-1. **Phase 2 (Manual):** Review Railway logs for LLMError/API bypass verification (not automated, user must review dashboard)
-2. **Final analysis (2026-04-10 ~20:00 UTC):** Run `poetry run python scripts/analyze_burn_in.py` to generate cost summary from api_costs
-3. **Write findings doc:** `docs/sprint-13-burn-in-findings.md` with cost by operation, cost by model, and Sprint 14 decision (TASK-041B)
-4. **Sprint 14 planning:** Data-driven optimization decisions based on burn-in findings
+**Session 11 (Next):**
+1. Decide enrichment budget strategy (raise soft limit vs critical ops vs throttle)
+2. Implement fix to unblock briefing generation
+3. Verify briefing generates successfully
+4. Monitor burn-in to completion (2026-04-10 ~02:48 UTC)
+
+**After burn-in completes (2026-04-10 ~20:00 UTC):**
+1. Run `poetry run python scripts/analyze_burn_in.py` to generate cost summary
+2. Write TASK-041B findings doc: `docs/sprint-13-burn-in-findings.md`
+3. Sprint 14 planning based on cost attribution data
 
 ---
 
