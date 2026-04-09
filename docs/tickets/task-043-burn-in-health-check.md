@@ -395,6 +395,28 @@ Based on cost data:
 
 ---
 
+## Phase 1D: analyze_burn_in.py Modification (COMPLETE - 2026-04-09)
+
+✅ **Modified analyze_burn_in.py to query api_costs instead of llm_traces**
+
+**Changes:**
+- Line 37: Updated docstring to note api_costs captures all LLM calls (sync + async)
+- Line 42-43: Changed query source from `db.llm_traces` to `db.api_costs`
+- Line 59-60: Changed query source from `db.llm_traces` to `db.api_costs`
+- Line 80-81: Removed error analysis (api_costs doesn't track error field)
+- Line 178-180: Updated error section to note api_costs limitation and direct users to Railway logs
+
+**Testing:**
+- ✅ Tested with time range 2026-04-07 to 2026-04-09
+- ✅ Successfully queries api_costs collection
+- ✅ Returns operation breakdown: entity_extraction (25,002 calls, $0.9909)
+- ✅ Returns model distribution: claude-haiku-4-5-20251001 (100%)
+- ✅ Calculates daily average: $0.3303/day (within expected $0.60-1.50 range)
+
+**Ready for final analysis:** Script will be run at burn-in completion (2026-04-10 ~20:00 UTC) for TASK-041B findings doc.
+
+---
+
 ## Notes
 
 - **Claude Code scope:** Bash commands, MongoDB queries, curl, Python script execution, file greps
