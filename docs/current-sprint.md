@@ -209,6 +209,40 @@ _Tickets created mid-sprint for issues found during implementation._
 - Ticket: BUG-060 (docs/tickets/bug-060-timezone-naive-datetime.md)
 
 **Status:**
-- Branch `fix/bug-058-soft-limit-and-type-error` has both commits (c1deb83, 5808da4)
-- Ready to push and deploy
-- Briefing generation should now work (signals will compute correctly)
+- Branch `fix/bug-058-soft-limit-and-type-error` ✅ MERGED
+- Commits: c1deb83 (soft limit $3.00), 5808da4 (BUG-060 fix), 9324652 (docs)
+- Deployed to production
+- ❌ Briefing generation still blocked by enrichment budget consumption
+
+**Session 10 Discovery (Enrichment Budget Blocker):**
+
+**Symptom:**
+```
+2026-04-09 05:09:39,218 - ERROR - ❌ Unexpected error for article: 
+LLMError: Daily spend limit reached (soft_limit)
+```
+
+Briefing generation failed even with $3.00 soft limit.
+
+**Root Cause Analysis:**
+1. Background enrichment pipeline runs continuously (RSS fetcher + narrative themes)
+2. Enrichment calls `narrative_generate` (non-critical operation)
+3. Enrichment + briefing both need narrative_generate
+4. When combined, they exceed $3.00 soft limit
+5. Soft limit blocks `narrative_generate` as non-critical
+6. Briefing cannot complete without narrative_generate
+
+**Investigation:**
+- Cost tracking shows enrichment is a significant cost driver
+- `narrative_generate` classified as non-critical, blocked at soft limit
+- But briefing NEEDS narrative_generate to enrich signals/narratives
+- Soft limit blocks both enrichment AND briefing simultaneously
+
+**Options for Next Session:**
+1. **Raise soft limit to $5-10** — Allow both enrichment + briefing to run, measure actual costs
+2. **Add narrative_generate to CRITICAL_OPERATIONS** — Only when called from briefing generation
+3. **Throttle enrichment during burn-in** — Disable background enrichment, focus on briefing measurement
+4. **Separate budgets** — One for enrichment (non-critical), one for briefing (critical) [architecture change]
+
+**Recommendation:** 
+Start with option 1 (raise soft limit to $5-10) to gather cost data. The burn-in measurement won't be clean if we disable enrichment. Better to see real operational costs, then optimize post-burn-in based on data.
