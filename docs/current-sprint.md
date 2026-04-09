@@ -30,7 +30,8 @@ Backdrop burns $2.50-5/day in Anthropic credits vs a $0.33/day target because 2 
 | 8a | TASK-043-PHASE2 | Celery Beat & Signal Computation Diagnosis | ✅ COMPLETE | medium | ~1h |
 | - | BUG-058 | Soft Spend Limit + Narrative Type Error | ✅ FIXED | low | ~0.5h |
 | - | BUG-060 | Timezone-Naive Datetime Breaking Signals | ✅ FIXED | critical | ~0.25h |
-| 10 | TASK-041B | Analyze Burn-in + Write Findings Doc | ⏳ WAITING | low | |
+| 11 | TASK-045 | Remove Verbose Narrative Logging | ✅ COMPLETE | low | ~0.25h |
+| 12 | TASK-041B | Analyze Burn-in + Write Findings Doc | ⏳ WAITING | low | |
 
 
 ---
@@ -212,7 +213,6 @@ _Tickets created mid-sprint for issues found during implementation._
 - Branch `fix/bug-058-soft-limit-and-type-error` ✅ MERGED
 - Commits: c1deb83 (soft limit $3.00), 5808da4 (BUG-060 fix), 9324652 (docs)
 - Deployed to production
-- ❌ Briefing generation still blocked by enrichment budget consumption
 
 **Session 10 Discovery (Enrichment Budget Blocker):**
 
@@ -224,25 +224,82 @@ LLMError: Daily spend limit reached (soft_limit)
 
 Briefing generation failed even with $3.00 soft limit.
 
-**Root Cause Analysis:**
-1. Background enrichment pipeline runs continuously (RSS fetcher + narrative themes)
-2. Enrichment calls `narrative_generate` (non-critical operation)
-3. Enrichment + briefing both need narrative_generate
-4. When combined, they exceed $3.00 soft limit
-5. Soft limit blocks `narrative_generate` as non-critical
-6. Briefing cannot complete without narrative_generate
+**Initial Analysis:**
+- Hypothesized that background enrichment pipeline + briefing both competing for `narrative_generate` budget
+- `narrative_generate` classified as non-critical, could be blocked at soft limit
+- Soft limit would block both enrichment AND briefing simultaneously
 
-**Investigation:**
-- Cost tracking shows enrichment is a significant cost driver
-- `narrative_generate` classified as non-critical, blocked at soft limit
-- But briefing NEEDS narrative_generate to enrich signals/narratives
-- Soft limit blocks both enrichment AND briefing simultaneously
+### Session 11 (2026-04-09) — BUG-061 Investigation & Findings ✅
+**Comprehensive database investigation revealed actual cost state vs reported soft limit hit**
 
-**Options for Next Session:**
-1. **Raise soft limit to $5-10** — Allow both enrichment + briefing to run, measure actual costs
-2. **Add narrative_generate to CRITICAL_OPERATIONS** — Only when called from briefing generation
-3. **Throttle enrichment during burn-in** — Disable background enrichment, focus on briefing measurement
-4. **Separate budgets** — One for enrichment (non-critical), one for briefing (critical) [architecture change]
+**Investigation Method:**
+- Ran 8 direct MongoDB queries via mongosh to audit cost tracking
+- Queried both `llm_traces` (gateway tracing) and `api_costs` (legacy tracking) collections
+- Examined operation breakdown, timeline, cached vs paid calls, and briefing generation status
 
-**Recommendation:** 
-Start with option 1 (raise soft limit to $5-10) to gather cost data. The burn-in measurement won't be clean if we disable enrichment. Better to see real operational costs, then optimize post-burn-in based on data.
+**Key Findings (All time, 2026-04-09):**
+
+1. **Actual Cost vs Reported Soft Limit:**
+   - Reported: Soft limit at $3.00 was hit
+   - Actual: Daily spend $0.445115 (9x under $3.00 limit)
+   - Both tracking collections agree on totals
+
+2. **Cost Breakdown:**
+   - `narrative_generate`: 87 calls, $0.262412 (58%)
+   - `entity_extraction`: 46,001 calls, $0.182703 (42%)
+     - Of which: 45,791 cached (free), 210 paid
+   - **Total:** $0.445115
+
+3. **Timing:**
+   - 2026-04-09 03:00 UTC: Spike ($0.2704 in single hour)
+     - narrative_generate enrichment backfill: 87 calls
+     - entity_extraction: 5,936 cached calls ($0.005 cost)
+   - 2026-04-09 04:00-15:00 UTC: Steady entity_extraction (~$0.005-0.037/hour)
+
+4. **Missing Briefing Operations:**
+   - **Zero briefing operations recorded:** No `briefing_generation`, `briefing_generate`, `briefing_critique`, or `briefing_refine` in database
+   - Morning briefing scheduled 2026-04-09 13:00 UTC (8 AM EST) but no activity in cost tracking
+   - Zero briefing_drafts created
+   - Zero briefings created
+
+5. **Collections Audit:**
+   - `llm_traces`: 302 documents (from gateway)
+   - `api_costs`: 46,088 documents (legacy system)
+   - Only 2 operations recorded across both: `narrative_generate`, `entity_extraction`
+
+**Ticket Created:**
+- BUG-061: `docs/tickets/bug-061-budget-tracking-discrepancy.md`
+- Documents all 8 queries, results, and findings without assumptions about root cause
+- Ready for follow-up investigation into why briefing generation isn't running
+
+**Next Steps:**
+1. Investigate why briefing tasks aren't being triggered (Celery beat scheduler issue?)
+2. Verify cost tracking captures briefing operations when they do run
+3. Check if operation name mismatch affecting budget checks (see BUG-061 for naming discrepancy)
+
+### Session 12 (2026-04-09) — TASK-045 Verbose Logging Removal ✅
+**Removed excessive debug logging that was hitting Railway rate limits**
+
+**Problem:**
+- Narrative clustering debug logs hitting Railway's 500 logs/sec limit
+- Each narrative merge generated 20+ debug log lines
+- With 19 narratives per cycle, that's 380+ lines/cycle → rate limit breach → dropped messages
+
+**Solution (TASK-045):**
+- Removed 26+ `[VELOCITY DEBUG]` lines from `calculate_recent_velocity()` (lines 90-116)
+- Removed 17 `[MERGE NARRATIVE DEBUG]` lines from merge upsert section (lines 1069-1085)
+- Replaced with concise single-line summaries:
+  - Velocity: `Narrative velocity: X.XX articles/day (N total, M in 7-day window)`
+  - Merge: `Merged N articles into narrative 'title' (velocity: X.XX/day)`
+- Result: 380+ lines/cycle → ~2 lines/cycle
+
+**Files Changed:**
+- `src/crypto_news_aggregator/services/narrative_service.py`
+
+**Commit:** dde11bf `fix(narrative): Reduce verbose logging to avoid Railway rate limits`
+**Branch:** fix/task-045-remove-verbose-narrative-logging
+**Status:** ✅ Complete, ready for PR merge
+
+**Verification:**
+- ✅ Grep confirms no `[VELOCITY DEBUG]` or `[MERGE NARRATIVE DEBUG]` strings remain
+- ✅ Single-line summaries preserve essential metrics (velocity, merge count, narrative title)

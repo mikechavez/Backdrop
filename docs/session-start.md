@@ -32,20 +32,28 @@ Sessions 1–5: Built complete LLM control layer (TASK-036 through TASK-041) + h
   - **Fix:** Removed `.replace(tzinfo=None)` from 5 instances in signal_service.py
   - **Commit:** 5808da4
   - **Status:** ✅ Merged and deployed
-- ❌ **NEW BLOCKER FOUND:** Enrichment consuming budget, blocking briefing
-  - **Symptom:** Briefing generation fails with "Daily spend limit reached (soft_limit)"
-  - **Root cause:** Background enrichment pipeline runs continuously, consuming budget before briefing
-  - **Issue:** `narrative_generate` classified as non-critical, gets blocked at soft limit
-  - **But:** Briefing also needs narrative_generate, so soft limit blocks entire briefing
-  - **Options for next session:**
-    1. Raise soft limit to $5-10 to allow both enrichment + briefing
-    2. Add narrative_generate to CRITICAL_OPERATIONS when called from briefing
-    3. Disable/throttle enrichment during burn-in
+
+**Session 11 (Current):**
+- ✅ **Investigated Soft Limit Blocker** — Ran comprehensive database queries
+  - **Finding:** Soft limit NOT actually hit. Actual spend $0.445 << $3.00 limit
+  - **Cost breakdown:** narrative_generate $0.262 (58%), entity_extraction $0.183 (42%)
+  - **Issue found:** No briefing generation operations recorded (zero `briefing_generate` calls in database)
+  - **Timeline:** Morning briefing scheduled 2026-04-09 13:00 UTC but no activity visible in cost tracking
+  - **Created:** BUG-061 to document findings (docs/tickets/bug-061-budget-tracking-discrepancy.md)
+- ✅ **TASK-045 Complete** — Removed verbose narrative logging
+  - Removed 26+ `[VELOCITY DEBUG]` lines from `calculate_recent_velocity()`
+  - Removed 17 `[MERGE NARRATIVE DEBUG]` lines from merge upsert section
+  - Replaced with concise single-line summaries
+  - Reduces per-cycle logging from 380+ lines to ~2 lines
+  - Commit: dde11bf
 
 **Previous (Session 9):**
 - ✅ BUG-058: Raised soft limit to $1.00, fixed TypeError in narrative detection (commit 641e120)
 
-**Next Session:** Decide on enrichment budget strategy and implement fix
+**Next Steps:** 
+- Investigate why briefing generation is not running despite being scheduled
+- Check if briefing tasks are being triggered by Celery beat scheduler
+- Verify cost tracking is capturing all briefing operations correctly
 
 ---
 
