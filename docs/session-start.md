@@ -1,24 +1,29 @@
 # Session Start
 
-**Date:** 2026-04-08 (Session 4, Sprint 13)
-**Status:** Sprint 13 in progress — TASK-036 & TASK-037 complete & merged, moving to TASK-038
-**Branch:** main (TASK-037 merged) → feat/task-038-wire-briefing-agent
+**Date:** 2026-04-08 (Session 6, Sprint 13)
+**Status:** Sprint 13 — TASK-036 through TASK-040 complete & merged, TASK-041 burn-in active
+**Branch:** feat/task-041-burn-in-setup (burn-in monitoring setup)
 
 ---
 
 ## What Happened Last
 
-Sessions 1–2: Built LLM Gateway (TASK-036) + Tracing Schema (TASK-037).
+Sessions 1–5: Built LLM Gateway infrastructure (TASK-036 through TASK-040). All code merged to main and deployed to Railway.
 
 **Completed & Merged:**
-- ✅ TASK-036: LLM Gateway with async/sync modes, budget enforcement, fire-and-forget trace writes (commit 72a15f4, merged)
-- ✅ TASK-037: Tracing schema, indexes (TTL 30d), aggregation query helper, wired to app startup (commit b6a60bd, merged + CI/CD fixes in session 3)
+- ✅ TASK-036: LLM Gateway with async/sync modes, budget enforcement (commit 72a15f4)
+- ✅ TASK-037: Tracing schema, indexes (TTL 30d), aggregation query helper (commit b6a60bd)
+- ✅ TASK-038: Wire briefing_agent through gateway, 3 operation tags (commit c2976c0)
+- ✅ TASK-039: Wire health endpoint through gateway, graceful spend cap handling (commit 67aff33)
+- ✅ TASK-040: Dataset capture for eval datasets, pre/post refine drafts (commit 7208fa7)
 
-**Merged Commits:**
-- 58fe993 fix(ci): Add missing environment variables to test_broken job
-- 7990230 fix(ci): Set correct MONGODB_URI with database name in both test jobs
+**Deployed to Railway:**
+- All Sprint 13 code live in production
+- $6 Anthropic credits added
+- llm_traces, briefing_drafts collections ready
 
-**Next:** Wire briefing_agent.py through the gateway (TASK-038), then health.py (TASK-039).
+**Current (Session 6):**
+- TASK-041: 48-hour burn-in + findings doc (in progress, monitoring setup complete)
 
 ---
 
@@ -30,10 +35,10 @@ Unify all LLM calls behind a single gateway, achieve full cost attribution, and 
 
 ## What's Next
 
-1. **TASK-038:** Wire briefing_agent.py through gateway (replace direct anthropic.py calls with gateway.call())
-2. **TASK-039:** Wire health.py through gateway (health endpoint spend cap check)
-3. **TASK-040:** Dataset capture (pre/post refine drafts for cost comparison)
-4. **TASK-041:** 48-hour burn-in + findings doc
+1. **TASK-041 (48-hour burn-in):** System is actively collecting `llm_traces` data. No manual work needed until 2026-04-10 20:00 UTC.
+2. **Post-burn-in:** Run `poetry run python scripts/analyze_burn_in.py` to generate cost summary
+3. **Write findings doc:** `docs/sprint-13-burn-in-findings.md` with cost by operation, cost by model, refine loop stats, and Sprint 14 decision
+4. **Sprint 14 planning:** Data-driven optimization decisions based on burn-in findings
 
 ---
 
