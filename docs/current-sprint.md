@@ -21,7 +21,8 @@ Backdrop burns $2.50-5/day in Anthropic credits vs a $0.33/day target because 2 
 | 3 | TASK-038 | Wire briefing_agent.py Through Gateway | ✅ MERGED | high | ~1.5h |
 | 4 | TASK-039 | Wire health.py Through Gateway | ✅ MERGED | low | ~1.5h |
 | 5 | TASK-040 | Dataset Capture — Pre/Post Refine Drafts | ✅ MERGED | medium | ~2.5h |
-| 6 | TASK-041 | Attribution Burn-in (48hr) + Findings Doc | 🔲 OPEN | low | |
+| 6 | TASK-041 | Attribution Burn-in (48hr) + Findings Doc | ✅ MERGED | low | ~3h |
+| 7 | TASK-044 | Lift Hard Spend Limit to $15 for Burn-in | 🔲 READY FOR MERGE | low | ~0.25h |
 
 ---
 
@@ -136,3 +137,14 @@ _Tickets created mid-sprint for issues found during implementation._
   - Verified trace_id propagation through test assertions
 - Commit: 7208fa7
 - Status: Ready for TASK-041 (48-hour burn-in run)
+
+### Session 7 (2026-04-09) — TASK-044 Hard Limit Lift ✅
+**Lift hard spend limit to unblock burn-in measurement**
+- Edited `src/crypto_news_aggregator/core/config.py` line 142
+  - Changed `LLM_DAILY_HARD_LIMIT` from $0.33 → $15.00
+  - Added comment: `# Temp: Lifted for Sprint 13 burn-in measurement. Will drop to ~$1-2 post-optimization.`
+- Reason: Narrative enrichment operations (`cluster_narrative_gen`, `narrative_generate`) were hitting hard limit within hours, triggering LLMError in Sentry. Burn-in needs full 48-hour cycle for complete cost attribution.
+- Commit: 7eb5129 `feat(config): lift hard spend limit to $15 for burn-in (TASK-044)`
+- Branch: `feat/task-044-hard-limit-lift`
+- Ticket updated: Status → READY_FOR_MERGE
+- Status: Ready for PR creation → merge to main → deploy to Railway

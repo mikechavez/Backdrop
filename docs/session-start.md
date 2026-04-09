@@ -1,24 +1,29 @@
 # Session Start
 
-**Date:** 2026-04-08 (Session 4, Sprint 13)
-**Status:** Sprint 13 in progress — TASK-036 & TASK-037 complete & merged, moving to TASK-038
-**Branch:** main (TASK-037 merged) → feat/task-038-wire-briefing-agent
+**Date:** 2026-04-09 (Session 5, Sprint 13)
+**Status:** Sprint 13 burn-in underway — TASK-036 through TASK-041 complete, TASK-044 (hard limit lift) ready for merge
+**Branch:** main (TASK-041 merged) → feat/task-044-hard-limit-lift
 
 ---
 
 ## What Happened Last
 
-Sessions 1–2: Built LLM Gateway (TASK-036) + Tracing Schema (TASK-037).
+Sessions 1–6: Built complete LLM control layer (TASK-036 through TASK-041).
 
 **Completed & Merged:**
-- ✅ TASK-036: LLM Gateway with async/sync modes, budget enforcement, fire-and-forget trace writes (commit 72a15f4, merged)
-- ✅ TASK-037: Tracing schema, indexes (TTL 30d), aggregation query helper, wired to app startup (commit b6a60bd, merged + CI/CD fixes in session 3)
+- ✅ TASK-036: LLM Gateway with async/sync modes, budget enforcement, fire-and-forget trace writes (commit 72a15f4)
+- ✅ TASK-037: Tracing schema, indexes (TTL 30d), aggregation query helper (commit b6a60bd)
+- ✅ TASK-038: Wired briefing_agent.py through gateway with operation tags (commit c2976c0)
+- ✅ TASK-039: Wired health.py through gateway (commit not noted in sprint log)
+- ✅ TASK-040: Dataset capture for pre/post refine drafts (commit 7208fa7)
+- ✅ TASK-041: 48-hour burn-in + findings doc (ready for deployment)
 
-**Merged Commits:**
-- 58fe993 fix(ci): Add missing environment variables to test_broken job
-- 7990230 fix(ci): Set correct MONGODB_URI with database name in both test jobs
+**Current Work (Session 5):**
+- 🔲 TASK-044: Lift hard spend limit to $15 for burn-in completion (feat/task-044-hard-limit-lift, commit 7eb5129, ready for merge)
+  - Changed `LLM_DAILY_HARD_LIMIT` from $0.33 → $15.00 with temp comment
+  - Unblocks narrative enrichment from hitting spend cap during 48-hour measurement window
 
-**Next:** Wire briefing_agent.py through the gateway (TASK-038), then health.py (TASK-039).
+**Next:** Deploy TASK-044 to Railway, verify no spend cap errors in Sentry, complete burn-in measurement cycle.
 
 ---
 
@@ -40,14 +45,17 @@ Unify all LLM calls behind a single gateway, achieve full cost attribution, and 
 ## Known Issues / Blockers
 
 **Active:**
-- 🔴 Token leak: $5 credits burn in 1-2 days, spend cap not catching it. NeMo tracing is the fix.
-- 🟡 Anthropic API balance near $0 — add credits after merge/deploy
+- 🟡 TASK-044 deployed — awaiting burn-in data (hard limit at $15, temporary for 48-hour measurement window)
+- 🟡 Anthropic API balance — monitor during burn-in, add credits if needed
 - 🟡 TASK-035 Slack webhook not configured
+
+**Resolved (Sprint 13):**
+- ✅ TASK-036 through TASK-041: Complete LLM control layer with tracing + attribution
+- ✅ BUG-056: Spend cap code deployed (now with TASK-044 hard limit lift for measurement)
 
 **Resolved (Sprint 12):**
 - ✅ BUG-054: Pipeline live
 - ✅ BUG-055: Smoke briefings stopped, MongoDB pruned
-- ✅ BUG-056: Spend cap code deployed
 - ✅ BUG-057: Retry storm fixed
 - ✅ BUG-058: Briefing generation fixed
 - ✅ BUG-059: Cost tracking fixed
