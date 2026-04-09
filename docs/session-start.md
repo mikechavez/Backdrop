@@ -1,8 +1,8 @@
 # Session Start
 
-**Date:** 2026-04-08 (Session 7, Sprint 13)
-**Status:** Sprint 13 — TASK-036 through TASK-040 complete & merged, TASK-042 bypass fix complete, TASK-041 burn-in restarting
-**Branch:** feat/task-041-burn-in-setup (TASK-042 bypass fix merged)
+**Date:** 2026-04-08 (Session 9, Sprint 13)
+**Status:** Sprint 13 — Gateway complete, TASK-042 merged, TASK-041 burn-in restarting, BUG-058 hard limit fix in progress
+**Branch:** feat/task-041-burn-in-setup (BUG-058 fix committed)
 
 ---
 
@@ -22,7 +22,7 @@ Sessions 1–5: Built LLM Gateway infrastructure (TASK-036 through TASK-040). Al
 - $6 Anthropic credits added
 - llm_traces, briefing_drafts collections ready
 
-**Current (Session 7):**
+**Previous (Session 8):**
 - TASK-042: Gateway bypass fix (✅ COMPLETE, commit 4f44203)
   - Wired narrative_themes.py (4 sites), optimized_anthropic.py, anthropic.py through gateway
   - All direct api.anthropic.com calls eliminated from main app code
@@ -30,6 +30,13 @@ Sessions 1–5: Built LLM Gateway infrastructure (TASK-036 through TASK-040). Al
   - Cleared llm_traces collection (was 1 incomplete record, now 0)
   - Updated status tracking doc with TASK-042 context
   - Clean baseline ready for 48-hour measurement
+
+**Current (Session 9):**
+- BUG-058: Hard limit fix (🔧 IN PROGRESS)
+  - Lifted `LLM_DAILY_HARD_LIMIT` from $0.33 → $5.00 in config.py
+  - Root cause: Narrative enrichment now fully metered (TASK-042) reveals true cost exceeds hard cap
+  - Soft limit remains at $0.25 for monitoring
+  - Commit: f591e0c — ready for redeploy and burn-in restart
 
 ---
 
@@ -41,11 +48,12 @@ Unify all LLM calls behind a single gateway, achieve full cost attribution, and 
 
 ## What's Next
 
-1. **TASK-042 follow-up:** Clear llm_traces collection and restart 48-hour burn-in from clean baseline
-2. **TASK-041 (48-hour burn-in):** System will actively collect `llm_traces` data with complete instrumentation. Check back 2026-04-10 20:00 UTC.
-3. **Post-burn-in:** Run `poetry run python scripts/analyze_burn_in.py` to generate cost summary
-4. **Write findings doc:** `docs/sprint-13-burn-in-findings.md` with cost by operation, cost by model, refine loop stats, and Sprint 14 decision
-5. **Sprint 14 planning:** Data-driven optimization decisions based on burn-in findings
+1. **BUG-058 redeploy:** Push to Railway to activate $5.00 hard limit
+2. **Clear & restart burn-in:** Remove old traces, trigger fresh 48-hour measurement with full instrumentation
+3. **TASK-041 (48-hour burn-in):** System will actively collect `llm_traces` data. Check back 2026-04-10 20:00 UTC.
+4. **Post-burn-in:** Run `poetry run python scripts/analyze_burn_in.py` to generate cost summary
+5. **Write findings doc:** `docs/sprint-13-burn-in-findings.md` with cost by operation, cost by model, refine loop stats, and Sprint 14 decision
+6. **Sprint 14 planning:** Data-driven optimization decisions based on burn-in findings
 
 ---
 
