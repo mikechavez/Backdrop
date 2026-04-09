@@ -6,6 +6,7 @@ import httpx
 from .base import LLMProvider
 from .tracking import track_usage
 from .exceptions import LLMError
+from .gateway import get_gateway
 from ..services.entity_normalization import normalize_entity_name
 from ..services.rate_limiter import get_rate_limiter
 from ..services.circuit_breaker import get_circuit_breaker
@@ -57,49 +58,19 @@ class AnthropicProvider(LLMProvider):
         # Use primary model only (Haiku) - no expensive fallback
         model = self.model_name
 
-        headers = {
-            "x-api-key": self.api_key,
-            "anthropic-version": "2023-06-01",
-            "content-type": "application/json",
-        }
-        payload = {
-            "model": model,
-            "max_tokens": 2048,  # Increased for narrative JSON responses
-            "messages": [{"role": "user", "content": prompt}],
-        }
         try:
-            with httpx.Client() as client:
-                response = client.post(
-                    self.API_URL, headers=headers, json=payload, timeout=30
-                )
-                response.raise_for_status()
-                data = response.json()
-                return data.get("content", [{}])[0].get("text", "")
-        except httpx.HTTPStatusError as e:
-            status = e.response.status_code
-            try:
-                error_msg = e.response.json().get("error", {}).get("message", e.response.text[:200])
-            except Exception:
-                error_msg = e.response.text[:200]
-
-            if status == 403:
-                error_type = "auth_error"
-            elif status == 429:
-                error_type = "rate_limit"
-            elif status >= 500:
-                error_type = "server_error"
-            else:
-                error_type = "unexpected"
-
-            logger.error(f"Anthropic API error {status} for model {model}: {error_msg}", exc_info=True)
-            raise LLMError(error_msg, error_type=error_type, model=model, status_code=status)
-        except httpx.TimeoutException as e:
-            logger.error(f"Anthropic API timeout for model {model}", exc_info=True)
-            raise LLMError("Request timed out", error_type="timeout", model=model)
+            gateway = get_gateway()
+            response = gateway.call_sync(
+                messages=[{"role": "user", "content": prompt}],
+                model=model,
+                operation=operation if operation else "provider_fallback",
+                max_tokens=2048,  # Increased for narrative JSON responses
+            )
+            return response.text
         except LLMError:
             raise
         except Exception as e:
-            logger.error(f"Unexpected error calling Anthropic API: {e}", exc_info=True)
+            logger.error(f"Unexpected error calling Anthropic API via gateway: {e}", exc_info=True)
             raise LLMError(str(e), error_type="unexpected", model=model)
 
     def _get_completion_with_usage(self, prompt: str, operation: str = "") -> tuple[str, dict]:
@@ -123,51 +94,23 @@ class AnthropicProvider(LLMProvider):
 
         model = self.model_name
 
-        headers = {
-            "x-api-key": self.api_key,
-            "anthropic-version": "2023-06-01",
-            "content-type": "application/json",
-        }
-        payload = {
-            "model": model,
-            "max_tokens": 2048,
-            "messages": [{"role": "user", "content": prompt}],
-        }
         try:
-            with httpx.Client() as client:
-                response = client.post(
-                    self.API_URL, headers=headers, json=payload, timeout=30
-                )
-                response.raise_for_status()
-                data = response.json()
-                text = data.get("content", [{}])[0].get("text", "")
-                usage = data.get("usage", {})
-                return text, usage
-        except httpx.HTTPStatusError as e:
-            status = e.response.status_code
-            try:
-                error_msg = e.response.json().get("error", {}).get("message", e.response.text[:200])
-            except Exception:
-                error_msg = e.response.text[:200]
-
-            if status == 403:
-                error_type = "auth_error"
-            elif status == 429:
-                error_type = "rate_limit"
-            elif status >= 500:
-                error_type = "server_error"
-            else:
-                error_type = "unexpected"
-
-            logger.error(f"Anthropic API error {status} for model {model}: {error_msg}", exc_info=True)
-            raise LLMError(error_msg, error_type=error_type, model=model, status_code=status)
-        except httpx.TimeoutException as e:
-            logger.error(f"Anthropic API timeout for model {model}", exc_info=True)
-            raise LLMError("Request timed out", error_type="timeout", model=model)
+            gateway = get_gateway()
+            response = gateway.call_sync(
+                messages=[{"role": "user", "content": prompt}],
+                model=model,
+                operation=operation if operation else "provider_fallback",
+                max_tokens=2048,
+            )
+            usage = {
+                "input_tokens": response.input_tokens,
+                "output_tokens": response.output_tokens,
+            }
+            return response.text, usage
         except LLMError:
             raise
         except Exception as e:
-            logger.error(f"Unexpected error calling Anthropic API: {e}", exc_info=True)
+            logger.error(f"Unexpected error calling Anthropic API via gateway: {e}", exc_info=True)
             raise LLMError(str(e), error_type="unexpected", model=model)
 
     @track_usage
@@ -336,156 +279,145 @@ Return ONLY the JSON array, no other text."""
         last_error = None
 
         for entity_model, model_label in models_to_try:
-            headers = {
-                "x-api-key": self.api_key,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json",
-            }
-            payload = {
-                "model": entity_model,
-                "max_tokens": 4096,
-                "messages": [{"role": "user", "content": prompt}],
-            }
-
             try:
                 logger.info(
                     f"Attempting entity extraction with {model_label} ({entity_model})"
                 )
-                with httpx.Client() as client:
-                    response = client.post(
-                        self.API_URL, headers=headers, json=payload, timeout=60
-                    )
-                    response.raise_for_status()
-                    data = response.json()
+                gateway = get_gateway()
+                gateway_response = gateway.call_sync(
+                    messages=[{"role": "user", "content": prompt}],
+                    model=entity_model,
+                    operation="entity_extraction",
+                    max_tokens=4096,
+                )
 
-                    # Extract response text
-                    response_text = data.get("content", [{}])[0].get("text", "")
-                    
-                    # Log raw response for debugging
-                    logger.info(f"Raw Anthropic response (first 500 chars): {response_text[:500]}")
+                # Extract response text
+                response_text = gateway_response.text
 
-                    # Extract usage metrics
-                    usage = data.get("usage", {})
-                    input_tokens = usage.get("input_tokens", 0)
-                    output_tokens = usage.get("output_tokens", 0)
+                # Log raw response for debugging
+                logger.info(f"Raw Anthropic response (first 500 chars): {response_text[:500]}")
 
-                    # Calculate costs (use Haiku pricing as baseline)
-                    input_cost = (
-                        input_tokens / 1000
-                    ) * settings.ANTHROPIC_ENTITY_INPUT_COST_PER_1K_TOKENS
-                    output_cost = (
-                        output_tokens / 1000
-                    ) * settings.ANTHROPIC_ENTITY_OUTPUT_COST_PER_1K_TOKENS
-                    total_cost = input_cost + output_cost
+                # Extract usage metrics
+                input_tokens = gateway_response.input_tokens
+                output_tokens = gateway_response.output_tokens
 
-                    # Parse JSON response
-                    import re
+                # Calculate costs (use Haiku pricing as baseline)
+                input_cost = (
+                    input_tokens / 1000
+                ) * settings.ANTHROPIC_ENTITY_INPUT_COST_PER_1K_TOKENS
+                output_cost = (
+                    output_tokens / 1000
+                ) * settings.ANTHROPIC_ENTITY_OUTPUT_COST_PER_1K_TOKENS
+                total_cost = input_cost + output_cost
 
-                    # Try to extract JSON array from response
-                    json_match = re.search(r"\[.*\]", response_text, re.DOTALL)
-                    if json_match:
-                        results = json.loads(json_match.group(0))
-                    else:
-                        results = json.loads(response_text)
-                    
-                    # Apply entity normalization to all extracted entities
-                    for article_result in results:
-                        # Normalize primary entities
-                        for entity in article_result.get("primary_entities", []):
-                            original_name = entity.get("name")
-                            if original_name:
-                                normalized_name = normalize_entity_name(original_name)
-                                entity["name"] = normalized_name
-                                # Also normalize ticker if present
-                                ticker = entity.get("ticker")
-                                if ticker:
-                                    entity["ticker"] = normalize_entity_name(ticker)
-                        
-                        # Normalize context entities (only if they're cryptocurrency-related)
-                        for entity in article_result.get("context_entities", []):
-                            original_name = entity.get("name")
-                            if original_name and entity.get("type") in ["cryptocurrency", "blockchain"]:
-                                normalized_name = normalize_entity_name(original_name)
-                                entity["name"] = normalized_name
-                    
-                    # Log parsed results for debugging
-                    logger.info(f"Parsed {len(results)} article results from LLM")
-                    if results:
-                        # Log first result structure
-                        first_result = results[0]
-                        primary_count = len(first_result.get("primary_entities", []))
-                        context_count = len(first_result.get("context_entities", []))
-                        logger.info(f"Sample result structure - primary_entities: {primary_count}, context_entities: {context_count}")
-                        if primary_count > 0:
-                            logger.info(f"Sample primary entities (normalized): {first_result.get('primary_entities', [])[:3]}")
-                        if context_count > 0:
-                            logger.info(f"Sample context entities: {first_result.get('context_entities', [])[:3]}")
+                # Parse JSON response
+                import re
 
-                    logger.info(f"Successfully extracted entities using {model_label}")
+                # Try to extract JSON array from response
+                json_match = re.search(r"\[.*\]", response_text, re.DOTALL)
+                if json_match:
+                    results = json.loads(json_match.group(0))
+                else:
+                    results = json.loads(response_text)
 
-                    # Record circuit breaker success
+                # Apply entity normalization to all extracted entities
+                for article_result in results:
+                    # Normalize primary entities
+                    for entity in article_result.get("primary_entities", []):
+                        original_name = entity.get("name")
+                        if original_name:
+                            normalized_name = normalize_entity_name(original_name)
+                            entity["name"] = normalized_name
+                            # Also normalize ticker if present
+                            ticker = entity.get("ticker")
+                            if ticker:
+                                entity["ticker"] = normalize_entity_name(ticker)
+
+                    # Normalize context entities (only if they're cryptocurrency-related)
+                    for entity in article_result.get("context_entities", []):
+                        original_name = entity.get("name")
+                        if original_name and entity.get("type") in ["cryptocurrency", "blockchain"]:
+                            normalized_name = normalize_entity_name(original_name)
+                            entity["name"] = normalized_name
+
+                # Log parsed results for debugging
+                logger.info(f"Parsed {len(results)} article results from LLM")
+                if results:
+                    # Log first result structure
+                    first_result = results[0]
+                    primary_count = len(first_result.get("primary_entities", []))
+                    context_count = len(first_result.get("context_entities", []))
+                    logger.info(f"Sample result structure - primary_entities: {primary_count}, context_entities: {context_count}")
+                    if primary_count > 0:
+                        logger.info(f"Sample primary entities (normalized): {first_result.get('primary_entities', [])[:3]}")
+                    if context_count > 0:
+                        logger.info(f"Sample context entities: {first_result.get('context_entities', [])[:3]}")
+
+                logger.info(f"Successfully extracted entities using {model_label}")
+
+                # Record circuit breaker success
+                try:
+                    circuit_breaker = get_circuit_breaker()
+                    circuit_breaker.record_success("entity_extraction")
+                except Exception as e:
+                    logger.warning(f"Failed to record circuit breaker success for entity_extraction: {e}")
+
+                # Increment rate limiter counter after successful extraction
+                try:
+                    rate_limiter = get_rate_limiter()
+                    rate_limiter.redis.incr(rate_limiter._get_daily_key("entity_extraction"))
+                    rate_limiter.redis.expire(rate_limiter._get_daily_key("entity_extraction"), 24 * 60 * 60)
+                except Exception as e:
+                    logger.warning(f"Failed to increment rate limiter for entity_extraction: {e}")
+
+                # Track cost (async, non-blocking)
+                try:
+                    from crypto_news_aggregator.services.cost_tracker import CostTracker
+                    from crypto_news_aggregator.db.mongodb import mongo_manager
+                    import asyncio
+
+                    async def _track_entity_cost():
+                        db = await mongo_manager.get_async_database()
+                        tracker = CostTracker(db)
+                        await tracker.track_call(
+                            operation="entity_extraction",
+                            model=entity_model,
+                            input_tokens=input_tokens,
+                            output_tokens=output_tokens,
+                        )
+
+                    # Schedule as background task if we have event loop
                     try:
-                        circuit_breaker = get_circuit_breaker()
-                        circuit_breaker.record_success("entity_extraction")
-                    except Exception as e:
-                        logger.warning(f"Failed to record circuit breaker success for entity_extraction: {e}")
-
-                    # Increment rate limiter counter after successful extraction
-                    try:
-                        rate_limiter = get_rate_limiter()
-                        rate_limiter.redis.incr(rate_limiter._get_daily_key("entity_extraction"))
-                        rate_limiter.redis.expire(rate_limiter._get_daily_key("entity_extraction"), 24 * 60 * 60)
-                    except Exception as e:
-                        logger.warning(f"Failed to increment rate limiter for entity_extraction: {e}")
-
-                    # Track cost (async, non-blocking)
-                    try:
-                        from crypto_news_aggregator.services.cost_tracker import CostTracker
-                        from crypto_news_aggregator.db.mongodb import mongo_manager
-                        import asyncio
-
-                        async def _track_entity_cost():
-                            db = await mongo_manager.get_async_database()
-                            tracker = CostTracker(db)
-                            await tracker.track_call(
-                                operation="entity_extraction",
-                                model=entity_model,
-                                input_tokens=input_tokens,
-                                output_tokens=output_tokens,
-                            )
-
-                        # Schedule as background task if we have event loop
-                        try:
-                            loop = asyncio.get_event_loop()
-                            if loop.is_running():
-                                asyncio.create_task(_track_entity_cost())
-                            else:
-                                # If no running loop, try to run synchronously via thread
-                                import threading
-                                threading.Thread(target=lambda: asyncio.run(_track_entity_cost()), daemon=True).start()
-                        except RuntimeError:
-                            # No event loop in current thread, schedule in thread
+                        loop = asyncio.get_event_loop()
+                        if loop.is_running():
+                            asyncio.create_task(_track_entity_cost())
+                        else:
+                            # If no running loop, try to run synchronously via thread
                             import threading
                             threading.Thread(target=lambda: asyncio.run(_track_entity_cost()), daemon=True).start()
-                    except Exception as e:
-                        logger.warning(f"Failed to track entity extraction cost: {e}")
+                    except RuntimeError:
+                        # No event loop in current thread, schedule in thread
+                        import threading
+                        threading.Thread(target=lambda: asyncio.run(_track_entity_cost()), daemon=True).start()
+                except Exception as e:
+                    logger.warning(f"Failed to track entity extraction cost: {e}")
 
-                    return {
-                        "results": results,
-                        "usage": {
-                            "model": entity_model,
-                            "input_tokens": input_tokens,
-                            "output_tokens": output_tokens,
-                            "total_tokens": input_tokens + output_tokens,
-                            "input_cost": input_cost,
-                            "output_cost": output_cost,
-                            "total_cost": total_cost,
-                        },
-                    }
-            except httpx.HTTPStatusError as e:
+                return {
+                    "results": results,
+                    "usage": {
+                        "model": entity_model,
+                        "input_tokens": input_tokens,
+                        "output_tokens": output_tokens,
+                        "total_tokens": input_tokens + output_tokens,
+                        "input_cost": input_cost,
+                        "output_cost": output_cost,
+                        "total_cost": total_cost,
+                    },
+                }
+            except LLMError as e:
                 error_detail = {
-                    "status_code": e.response.status_code,
-                    "response_text": e.response.text,
+                    "error_type": e.error_type,
+                    "message": str(e),
                     "model": entity_model,
                     "model_label": model_label,
                 }
@@ -493,30 +425,19 @@ Return ONLY the JSON array, no other text."""
                 # Log detailed error information
                 logger.error(
                     f"Anthropic API request failed for {model_label} ({entity_model}): "
-                    f"Status {e.response.status_code}, Response: {e.response.text}"
+                    f"{e.error_type} - {str(e)}"
                 )
-
-                # Parse error response for more details
-                try:
-                    error_json = e.response.json()
-                    error_type = error_json.get("error", {}).get("type", "unknown")
-                    error_message = error_json.get("error", {}).get(
-                        "message", "unknown"
-                    )
-                    logger.error(f"Error type: {error_type}, Message: {error_message}")
-                except:
-                    pass
 
                 last_error = error_detail
 
-                # If 403, try next model in fallback list
-                if e.response.status_code == 403:
+                # If 403 (auth error), try next model in fallback list
+                if e.error_type == "auth_error":
                     logger.warning(
                         f"403 Forbidden for {model_label}, trying fallback model..."
                     )
                     continue
                 else:
-                    # For other HTTP errors, don't try fallback
+                    # For other errors, don't try fallback
                     break
 
             except json.JSONDecodeError as e:

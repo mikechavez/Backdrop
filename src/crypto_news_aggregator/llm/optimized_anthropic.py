@@ -12,6 +12,7 @@ import logging
 from typing import List, Dict, Any, Optional
 import httpx
 from .cache import LLMResponseCache
+from .gateway import get_gateway
 from ..db.mongodb import mongo_manager
 from ..services.cost_tracker import check_llm_budget, refresh_budget_if_stale
 
@@ -56,50 +57,36 @@ class OptimizedAnthropicLLM:
     
     def _make_api_call(self, prompt: str, model: str, max_tokens: int = 1000, temperature: float = 0.3, operation: str = "") -> Dict[str, Any]:
         """
-        Make synchronous API call to Anthropic
+        Make synchronous API call to Anthropic via the gateway
 
         Returns:
             Dict with 'content' (text response), 'input_tokens', and 'output_tokens'
         """
-        # --- SPEND CAP CHECK ---
+        # --- SPEND CAP CHECK (defense in depth, gateway also checks) ---
         allowed, reason = check_llm_budget(operation)
         if not allowed:
             logger.warning(f"LLM call blocked by spend cap ({reason}) for '{operation}'")
             raise RuntimeError(f"Daily spend limit reached ({reason})")
         # --- END SPEND CAP CHECK ---
 
-        headers = {
-            "x-api-key": self.api_key,
-            "anthropic-version": "2023-06-01",
-            "content-type": "application/json",
-        }
-        payload = {
-            "model": model,
-            "max_tokens": max_tokens,
-            "temperature": temperature,
-            "messages": [{"role": "user", "content": prompt}],
-        }
-        
+        gateway = get_gateway()
+
         try:
-            with httpx.Client() as client:
-                response = client.post(
-                    self.API_URL, headers=headers, json=payload, timeout=30
-                )
-                response.raise_for_status()
-                data = response.json()
-                
-                return {
-                    "content": data.get("content", [{}])[0].get("text", ""),
-                    "input_tokens": data.get("usage", {}).get("input_tokens", 0),
-                    "output_tokens": data.get("usage", {}).get("output_tokens", 0),
-                }
-        except httpx.HTTPStatusError as e:
-            logger.error(
-                f"Anthropic API request failed with status {e.response.status_code}: {e.response.text}"
+            response = gateway.call_sync(
+                messages=[{"role": "user", "content": prompt}],
+                model=model,
+                operation=operation,
+                max_tokens=max_tokens,
+                temperature=temperature,
             )
-            raise
+
+            return {
+                "content": response.text,
+                "input_tokens": response.input_tokens,
+                "output_tokens": response.output_tokens,
+            }
         except Exception as e:
-            logger.error(f"An unexpected error occurred: {e}")
+            logger.error(f"LLM gateway call failed: {e}")
             raise
     
     async def extract_entities_batch(
