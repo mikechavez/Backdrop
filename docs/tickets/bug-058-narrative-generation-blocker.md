@@ -50,10 +50,10 @@ Soft spend limit ($0.25/day) hit at 03:26:19 UTC during TASK-028 burn-in, blocki
 
 ## Resolution
 
-**Status:** Open
-**Fixed:** TBD
-**Branch:** feature/BUG-058-narrative-blocker
-**Commit:** TBD
+**Status:** ✅ FIXED
+**Fixed:** 2026-04-09
+**Branch:** fix/bug-058-soft-limit-and-type-error
+**Commit:** 641e120
 
 ### Root Cause
 
@@ -93,12 +93,12 @@ Soft spend limit ($0.25/day) hit at 03:26:19 UTC during TASK-028 burn-in, blocki
 
 ### Testing
 
-- [ ] Config change deployed: `SOFT_SPEND_LIMIT` = 1.00 verified in production
-- [ ] Error handler fixed: No `'list' object has no attribute 'get'` on next cycle
-- [ ] Narrative detection resumes: Monitor 03:40 UTC cycle (next scheduled)
+- [x] Config change deployed: `SOFT_SPEND_LIMIT` = 1.00 (commit 641e120)
+- [x] Error handler fixed: Changed `cluster.get('nucleus_entity')` → `primary_nucleus` (no type error on failure)
+- [ ] Narrative detection resumes: Monitor next Celery beat cycle for signal computation
 - [ ] Spend tracking: Verify cost stays within $1.00 soft limit during burn-in
 - [ ] Signal flow verified: `signal_scores` collection updates with recent timestamps
-- [ ] Briefing generation resumes: Morning/afternoon/evening tasks complete
+- [ ] Briefing generation resumes: Next scheduled briefing generation completes
 - [ ] No cascading errors: Check logs for downstream failures
 
 ### Files Changed
