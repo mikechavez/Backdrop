@@ -1203,7 +1203,7 @@ async def detect_narratives(
                         narrative = await generate_narrative_from_cluster(cluster)
 
                         if not narrative:
-                            logger.warning(f"Failed to generate narrative for cluster with nucleus: {cluster.get('nucleus_entity')}")
+                            logger.warning(f"Failed to generate narrative for cluster with nucleus: {primary_nucleus}")
                             continue
 
                         # Add fingerprint to narrative data
