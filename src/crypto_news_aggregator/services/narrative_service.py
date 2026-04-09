@@ -1042,8 +1042,7 @@ async def detect_narratives(
                     title = matching_narrative.get('title', 'Unknown')
                     summary = matching_narrative.get('summary', '')
                     
-                    velocity = calculate_recent_velocity([a['timestamp'] for a in articles_by_id.values()]) if articles_by_id else 0.0
-                    logger.info(f"Merged {len(combined_article_ids)} articles into narrative '{title}' (velocity: {velocity:.2f}/day)")
+                    logger.info(f"Merged {len(combined_article_ids)} articles into narrative '{title}'")
 
                     # Post-clustering validation: Ensure articles mention nucleus_entity
                     nucleus_entity = fingerprint.get('nucleus_entity', '')
