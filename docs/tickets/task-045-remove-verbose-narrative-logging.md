@@ -1,10 +1,10 @@
 # TASK-045: Remove Verbose Narrative Logging
 
-**Status:** ✅ COMPLETE  
+**Status:** ✅ COMPLETE (with critical bug fix)  
 **Priority:** HIGH (unblocks TASK-046)  
-**Commit:** dde11bf  
-**Branch:** fix/task-045-remove-verbose-narrative-logging  
-**Time:** 5 minutes
+**Commits:** dde11bf (verbose logging), 869baa8 (critical velocity bug fix)  
+**Branches:** fix/task-045-remove-verbose-narrative-logging, fix/narrative-clustering-merge-log  
+**Time:** 5 minutes + 2 minutes for bug fix = 7 minutes total
 
 ---
 
@@ -68,7 +68,9 @@ Remove all `[VELOCITY DEBUG]` and `[MERGE NARRATIVE DEBUG]` blocks from `narrati
 
 ---
 
-#### Change 2: Merge upsert debug logging (lines 1069-1085)
+#### Change 2: Merge upsert debug logging (lines 1069-1085) 
+
+**CRITICAL BUG FIX:** The original Change 2 replacement code had an undefined variable bug. The `articles_by_id` variable doesn't exist in that code path, causing a crash during narrative clustering.
 
 **Find this block:**
 ```python
@@ -93,9 +95,10 @@ Remove all `[VELOCITY DEBUG]` and `[MERGE NARRATIVE DEBUG]` blocks from `narrati
 
 **Replace with:**
 ```python
-                    velocity = calculate_recent_velocity([a['timestamp'] for a in articles_by_id.values()]) if articles_by_id else 0.0
-                    logger.info(f"Merged {len(combined_article_ids)} articles into narrative '{title}' (velocity: {velocity:.2f}/day)")
+                    logger.info(f"Merged {len(combined_article_ids)} articles into narrative '{title}'")
 ```
+
+**Why:** Removed the undefined `articles_by_id` variable reference that was causing crashes during narrative clustering merge operations.
 
 ---
 

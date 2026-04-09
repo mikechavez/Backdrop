@@ -47,7 +47,7 @@ Sessions 1–5: Built complete LLM control layer (TASK-036 through TASK-041) + h
   - Reduces per-cycle logging from 380+ lines to ~2 lines
   - Commit: dde11bf
 
-**Session 12 (Current):**
+**Session 12 (Previous):**
 - ✅ **TASK-046 Complete** — Verified briefing task registration with Celery
   - **Finding:** All infrastructure already 100% in place
   - **Task decorators:** ✅ All briefing tasks have @shared_task with correct names
@@ -57,6 +57,17 @@ Sessions 1–5: Built complete LLM control layer (TASK-036 through TASK-041) + h
   - **Added:** test_task_registration.py verification script
   - **Branch:** fix/task-046-register-briefing-tasks
   - **Commit:** 91a72ab
+
+**Session 13 (Current):**
+- ✅ **TASK-045 Critical Bug Fix** — Undefined variable in narrative merge log
+  - **Problem:** TASK-045 removed verbose logging but left a line with undefined `articles_by_id` variable
+  - **Location:** narrative_service.py line 1045 in merge upsert section
+  - **Symptom:** Crashes during narrative clustering when trying to calculate velocity
+  - **Fix:** Removed the velocity calculation line (undefined), kept simple merge summary log
+  - **Before:** `velocity = calculate_recent_velocity([a['timestamp'] for a in articles_by_id.values()]) if articles_by_id else 0.0`
+  - **After:** `logger.info(f"Merged {len(combined_article_ids)} articles into narrative '{title}'")`
+  - **Branch:** fix/narrative-clustering-merge-log
+  - **Commit:** 869baa8
 
 **Previous (Session 9):**
 - ✅ BUG-058: Raised soft limit to $1.00, fixed TypeError in narrative detection (commit 641e120)
