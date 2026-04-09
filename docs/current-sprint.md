@@ -21,11 +21,14 @@ Backdrop burns $2.50-5/day in Anthropic credits vs a $0.33/day target because 2 
 | 3 | TASK-038 | Wire briefing_agent.py Through Gateway | ✅ MERGED | high | ~1.5h |
 | 4 | TASK-039 | Wire health.py Through Gateway | ✅ MERGED | low | ~1.5h |
 | 5 | TASK-040 | Dataset Capture — Pre/Post Refine Drafts | ✅ MERGED | medium | ~2.5h |
+| 6 | TASK-041 | Attribution Burn-in (48hr) + Findings Doc | ✅ MERGED | low | ~3h |
+| 7 | TASK-044 | Lift Hard Spend Limit to $15 for Burn-in | 🔲 READY FOR MERGE | low | ~0.25h |
 | 6 | TASK-042 | Gateway Bypass Fix — Wire Remaining LLM Calls | ✅ MERGED | low | ~0.5h |
 | 7 | TASK-041A | Restart 48-Hour Burn-in with Clean Baseline | ✅ MERGED | low | ~0.25h |
 | - | BUG-058 | Hard Spend Limit Enforcement Kills Burn-in | ✅ FIXED | low | ~0.25h |
 | 8 | TASK-043 | Burn-in Health Check (1-Hour Verification) | ✅ PHASE 1 | medium | ~1h |
 | 9 | TASK-041B | Analyze Burn-in + Write Findings Doc | ⏳ WAITING | low | |
+
 
 ---
 
@@ -120,119 +123,15 @@ _Tickets created mid-sprint for issues found during implementation._
 - Integrated into briefing_agent pipeline
 - Non-blocking observability (catches errors, doesn't raise)
 - Commit: 7208fa7
+- Status: Ready for TASK-041 (48-hour burn-in run)
 
-**All merged to main, deployed to Railway with $6 Anthropic credits**
-
-### Session 6 (2026-04-08) — TASK-041 Initial Burn-in Monitoring Setup ✅
-**48-hour attribution run begins (later halted due to incomplete instrumentation)**
-- Verified llm_traces collection is ready (0 records, awaiting first pipeline run)
-- Created `/scripts/analyze_burn_in.py` for post-burn-in data analysis
-- Created `/docs/sprint-13-burn-in-status.md` tracking doc
-- Branch: `feat/task-041-burn-in-setup` (commit a5689c5)
-- System actively collecting: cost by operation, model, refine iterations, error rates
-- **⚠️ Note:** This measurement was later discovered to be incomplete (see Session 7)
-
-### Session 7 (2026-04-08) — Gateway Bypass Discovery + TASK-042 Fix 🚨 CRITICAL
-**Burn-in audit revealed incomplete instrumentation — fixed all 3 bypass points**
-
-**Discovery phase:**
-- Code review found 3 bypass points making direct API calls to api.anthropic.com:
-  1. `narrative_themes.py` (4 call sites: lines 485, 864, 1015, 1388) — theme extraction, narrative generation, actor/tension clustering
-  2. `optimized_anthropic.py` (line 32) — entity extraction via selective_processor, twitter_service
-  3. `anthropic.py` (line 22) — fallback provider in factory.py
-- Impact: Estimated 40-60% of actual spend was invisible to initial TASK-041 measurement (narrative enrichment is expensive)
-- **Decision:** Halt burn-in, fix bypasses, restart with clean data
-
-**Fix phase (TASK-042):**
-- **narrative_themes.py:** Routed 4 call sites through `gateway.call()` with operation tags
-  - `extract_themes_from_article` → `narrative_theme_extract`
-  - `generate_narrative_from_theme` → `narrative_generate`
-  - `cluster_by_narrative_salience` → `actor_tension_extract`
-  - `generate_narrative_from_cluster` → `cluster_narrative_gen`
-- **optimized_anthropic.py:** Refactored `_make_api_call()` to use `gateway.call_sync()`
-- **anthropic.py:** Converted direct httpx calls to `gateway.call_sync()`
-- **Audit:** Zero direct `api.anthropic.com` calls remain in main app code ✅
-- **Commit:** 4f44203 — fix(llm): Wire all remaining LLM calls through gateway (TASK-042)
-- **Status:** TASK-042 ✅ MERGED, TASK-041 unblocked
-
-### Session 8 (2026-04-08) — TASK-041A Restart Burn-in with Clean Baseline ⏳ IN PROGRESS
-**Clear incomplete traces, restart 48-hour measurement with full instrumentation**
-
-**Burn-in restart (TASK-041A):**
-- Cleared `llm_traces` collection (removed incomplete data from Session 6)
-- Restarted 48-hour measurement from clean baseline
-- All 8 LLM call sites now instrumented:
-  - `briefing_generate`, `briefing_critique`, `briefing_refine` (briefing_agent.py)
-  - `narrative_theme_extract`, `narrative_generate`, `actor_tension_extract`, `cluster_narrative_gen` (narrative_themes.py)
-  - `entity_extract` (optimized_anthropic.py via selective_processor, twitter_service)
-  - `health_check` (health.py)
-- Measurement window: **2026-04-08 ~XX:XX UTC → 2026-04-10 ~XX:XX UTC** (48 hours)
-- **Status:** Burn-in actively collecting data with complete visibility
-
-**Next action:**
-- Wait 48 hours for data collection
-- 2026-04-10 ~XX:XX UTC: Run `poetry run python scripts/analyze_burn_in.py` → analyze cost by operation
-- Write `/docs/sprint-13-burn-in-findings.md` with recommendations (TASK-041B)
-
-### Session 8 (2026-04-08) — TASK-041A Restart Complete ✅
-**Burn-in restarted with clean baseline and full instrumentation**
-
-**Completed:**
-- ✅ Cleared llm_traces collection: 1 incomplete record deleted
-- ✅ Verified empty state: `countDocuments({})` returns 0
-- ✅ Updated `/docs/sprint-13-burn-in-status.md` with restart notes and TASK-042 context
-- ✅ Fresh 48-hour measurement window active with all 8 LLM operations instrumented
-
-**Measurement starts now (2026-04-08):**
-- Briefing operations: `briefing_generate`, `briefing_critique`, `briefing_refine`
-- Narrative operations: `narrative_theme_extract`, `narrative_generate`, `actor_tension_extract`, `cluster_narrative_gen`
-- Entity extraction: via optimized_anthropic.py gateway calls
-- Health check: via health.py gateway calls
-
-**Next checkpoint:** 2026-04-10 20:00 UTC (run analyze_burn_in.py, write findings doc)
-
-### Session 9 (2026-04-08) — BUG-058 Fix: Lift Hard Limit for Burn-in ✅
-**Hard limit was killing burn-in within 5 minutes; temporarily lifted to $5.00**
-
-**Problem:**
-- Gateway hard limit ($0.33) triggered within ~5 minutes of pipeline startup
-- Narrative enrichment now fully metered (from TASK-042) revealed true cost: $0.25–0.35/cycle
-- Burn-in measurement blocked before completing a single full briefing cycle
-
-**Solution:**
-- ✅ Updated `LLM_DAILY_HARD_LIMIT` from $0.33 → $5.00 in `src/crypto_news_aggregator/core/config.py` (line 142)
-- Added comment noting temporary lift for measurement only
-- Soft limit remains at $0.25 for monitoring/alerting
-- Commit: f591e0c (feat/task-041-burn-in-setup)
-- ✅ Deployed to Railway, burn-in restarted (2026-04-08 ~02:46 UTC)
-
-### Session 10 (2026-04-09) — TASK-043 Health Check: Phase 1 Complete ✅
-**Verify burn-in system integrity at 1-hour mark**
-
-**Phase 1A-D Automated Checks:**
-- ✅ MongoDB config verified: hard limit $5.00 deployed (config.py line 142)
-- ✅ Health endpoint: 200 OK response
-- ✅ Cost tracking: working via `api_costs` collection (25,002 entity_extraction calls in test window)
-- 🔍 Trace collection: 0 records in llm_traces (discovered `gateway.call_sync()` doesn't write traces by design — only async ops)
-
-**Key Discovery:**
-- `gateway.call_sync()` (used by entity_extraction, optimized_anthropic.py) explicitly doesn't write to llm_traces
-- `gateway.call()` (async, used by briefing_agent, narrative_themes) writes to llm_traces
-- Impact: Only async operations visible in llm_traces; all costs visible in api_costs
-- Decision: Use api_costs for analysis instead (captures all operations, both sync and async)
-
-**Phase 3: Decision Tree Execution:**
-- Cost within expected range ($0.33/day vs $0.60-1.50/day expected)
-- Decision: Continue burn-in with modified analysis approach
-- Status: ✅ Burn-in continues running through 2026-04-10 ~20:00 UTC
-
-**analyze_burn_in.py Modification:**
-- ✅ Switched from `llm_traces` to `api_costs` collection
-- ✅ Tested with 72-hour window: 25,002 calls, $0.9909 total, $0.33/day average
-- ✅ Operation breakdown now includes all call sites (entity_extraction dominance visible)
-- Commits: 0ca09ab, e2739c8
-
-**Next steps:**
-- [ ] Phase 2: Manual Railway logs review (check for LLMError/bypass verification)
-- [ ] 2026-04-10 ~20:00 UTC: Run final analyze_burn_in.py for TASK-041B findings doc
-- [ ] Sprint 14: Implement optimizations and re-establish hard limit at sustainable level
+### Session 7 (2026-04-09) — TASK-044 Hard Limit Lift ✅
+**Lift hard spend limit to unblock burn-in measurement**
+- Edited `src/crypto_news_aggregator/core/config.py` line 142
+  - Changed `LLM_DAILY_HARD_LIMIT` from $0.33 → $15.00
+  - Added comment: `# Temp: Lifted for Sprint 13 burn-in measurement. Will drop to ~$1-2 post-optimization.`
+- Reason: Narrative enrichment operations (`cluster_narrative_gen`, `narrative_generate`) were hitting hard limit within hours, triggering LLMError in Sentry. Burn-in needs full 48-hour cycle for complete cost attribution.
+- Commit: 7eb5129 `feat(config): lift hard spend limit to $15 for burn-in (TASK-044)`
+- Branch: `feat/task-044-hard-limit-lift`
+- Ticket updated: Status → READY_FOR_MERGE
+- Status: Ready for PR creation → merge to main → deploy to Railway

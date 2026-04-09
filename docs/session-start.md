@@ -1,48 +1,29 @@
 # Session Start
 
-**Date:** 2026-04-09 (Session 10, Sprint 13)
-**Status:** Sprint 13 — Burn-in active, TASK-043 health checks complete, analyze_burn_in.py modified for api_costs analysis
-**Branch:** fix/gateway-sync-traces
+**Date:** 2026-04-09 (Session 5, Sprint 13)
+**Status:** Sprint 13 burn-in underway — TASK-036 through TASK-041 complete, TASK-044 (hard limit lift) ready for merge
+**Branch:** main (TASK-041 merged) → feat/task-044-hard-limit-lift
 
 ---
 
 ## What Happened Last
 
-Sessions 1–5: Built LLM Gateway infrastructure (TASK-036 through TASK-040). All code merged to main and deployed to Railway.
+Sessions 1–6: Built complete LLM control layer (TASK-036 through TASK-041).
 
 **Completed & Merged:**
-- ✅ TASK-036: LLM Gateway with async/sync modes, budget enforcement (commit 72a15f4)
+- ✅ TASK-036: LLM Gateway with async/sync modes, budget enforcement, fire-and-forget trace writes (commit 72a15f4)
 - ✅ TASK-037: Tracing schema, indexes (TTL 30d), aggregation query helper (commit b6a60bd)
-- ✅ TASK-038: Wire briefing_agent through gateway, 3 operation tags (commit c2976c0)
-- ✅ TASK-039: Wire health endpoint through gateway, graceful spend cap handling (commit 67aff33)
-- ✅ TASK-040: Dataset capture for eval datasets, pre/post refine drafts (commit 7208fa7)
+- ✅ TASK-038: Wired briefing_agent.py through gateway with operation tags (commit c2976c0)
+- ✅ TASK-039: Wired health.py through gateway (commit not noted in sprint log)
+- ✅ TASK-040: Dataset capture for pre/post refine drafts (commit 7208fa7)
+- ✅ TASK-041: 48-hour burn-in + findings doc (ready for deployment)
 
-**Deployed to Railway:**
-- All Sprint 13 code live in production
-- $6 Anthropic credits added
-- llm_traces, briefing_drafts collections ready
+**Current Work (Session 5):**
+- 🔲 TASK-044: Lift hard spend limit to $15 for burn-in completion (feat/task-044-hard-limit-lift, commit 7eb5129, ready for merge)
+  - Changed `LLM_DAILY_HARD_LIMIT` from $0.33 → $15.00 with temp comment
+  - Unblocks narrative enrichment from hitting spend cap during 48-hour measurement window
 
-**Previous (Session 8):**
-- TASK-042: Gateway bypass fix (✅ COMPLETE, commit 4f44203)
-  - Wired narrative_themes.py (4 sites), optimized_anthropic.py, anthropic.py through gateway
-  - All direct api.anthropic.com calls eliminated from main app code
-- TASK-041A: Restart burn-in (✅ COMPLETE)
-  - Cleared llm_traces collection (was 1 incomplete record, now 0)
-  - Updated status tracking doc with TASK-042 context
-  - Clean baseline ready for 48-hour measurement
-
-**Current (Session 10):**
-- TASK-043: Burn-in health check (✅ PHASE 1 COMPLETE)
-  - Phase 1A-D: All automated checks executed successfully
-  - Phase 1B: Config verified — hard limit $5.00 deployed
-  - Phase 1C: Health endpoint 200 OK
-  - Phase 1D: Trace analysis — discovered `gateway.call_sync()` doesn't write to llm_traces (by design)
-  - Phase 3: Decision tree executed — continue burn-in with modified analysis approach
-- analyze_burn_in.py modification (✅ COMPLETE)
-  - Switched from `llm_traces` (only async ops) to `api_costs` (all operations)
-  - Tested with 72-hour window: 25,002 entity_extraction calls, $0.9909 cost, $0.33/day average
-  - Script ready for final analysis at 2026-04-10 20:00 UTC
-- Commits: 0ca09ab (analyze_burn_in.py fix), e2739c8 (docs update)
+**Next:** Deploy TASK-044 to Railway, verify no spend cap errors in Sentry, complete burn-in measurement cycle.
 
 ---
 
@@ -64,14 +45,17 @@ Unify all LLM calls behind a single gateway, achieve full cost attribution, and 
 ## Known Issues / Blockers
 
 **Active:**
-- 🔴 Token leak: $5 credits burn in 1-2 days, spend cap not catching it. NeMo tracing is the fix.
-- 🟡 Anthropic API balance near $0 — add credits after merge/deploy
+- 🟡 TASK-044 deployed — awaiting burn-in data (hard limit at $15, temporary for 48-hour measurement window)
+- 🟡 Anthropic API balance — monitor during burn-in, add credits if needed
 - 🟡 TASK-035 Slack webhook not configured
+
+**Resolved (Sprint 13):**
+- ✅ TASK-036 through TASK-041: Complete LLM control layer with tracing + attribution
+- ✅ BUG-056: Spend cap code deployed (now with TASK-044 hard limit lift for measurement)
 
 **Resolved (Sprint 12):**
 - ✅ BUG-054: Pipeline live
 - ✅ BUG-055: Smoke briefings stopped, MongoDB pruned
-- ✅ BUG-056: Spend cap code deployed
 - ✅ BUG-057: Retry storm fixed
 - ✅ BUG-058: Briefing generation fixed
 - ✅ BUG-059: Cost tracking fixed

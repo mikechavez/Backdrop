@@ -35,8 +35,7 @@ def get_analysis_period(start_str=None, end_str=None):
     return start_time, end_time
 
 def analyze_traces(db, start_time, end_time):
-    """Query api_costs for cost analysis (captures all LLM calls, both sync and async).
-    Note: timestamps in MongoDB are stored as ISODate, so datetime comparison works natively."""
+    """Query llm_traces for cost analysis"""
 
     # Cost by operation
     op_pipeline = [
@@ -47,13 +46,14 @@ def analyze_traces(db, start_time, end_time):
             "calls": {"$sum": 1},
             "avg_input_tokens": {"$avg": "$input_tokens"},
             "avg_output_tokens": {"$avg": "$output_tokens"},
+            "avg_duration_ms": {"$avg": "$duration_ms"},
             "total_input_tokens": {"$sum": "$input_tokens"},
             "total_output_tokens": {"$sum": "$output_tokens"},
         }},
         {"$sort": {"total_cost": -1}}
     ]
 
-    ops = list(db.api_costs.aggregate(op_pipeline))
+    ops = list(db.llm_traces.aggregate(op_pipeline))
 
     # Cost by model
     model_pipeline = [
@@ -66,10 +66,20 @@ def analyze_traces(db, start_time, end_time):
         {"$sort": {"total_cost": -1}}
     ]
 
-    models = list(db.api_costs.aggregate(model_pipeline))
+    models = list(db.llm_traces.aggregate(model_pipeline))
 
-    # Error rate (api_costs doesn't have error field, so we skip this)
-    errors = []
+    # Error rate
+    error_pipeline = [
+        {"$match": {"timestamp": {"$gte": start_time, "$lte": end_time}}},
+        {"$group": {
+            "_id": "$operation",
+            "total": {"$sum": 1},
+            "errors": {"$sum": {"$cond": [{"$ne": ["$error", None]}, 1, 0]}},
+        }},
+        {"$sort": {"errors": -1}}
+    ]
+
+    errors = list(db.llm_traces.aggregate(error_pipeline))
 
     return ops, models, errors
 
@@ -164,9 +174,13 @@ def main():
                 print(f"  {iterations} iterations: {count} briefings ({pct:.1f}%)")
         print()
 
-        # Error analysis (api_costs doesn't track errors — check Railway logs)
-        print("Note: api_costs collection doesn't track error status.")
-        print("Check Railway logs for LLMError or failures.")
+        # Error analysis
+        print("Error Rate:")
+        print("-" * 60)
+        for err in errors:
+            if err['total'] > 0:
+                error_rate = (err['errors'] / err['total'] * 100)
+                print(f"{err['_id']:<30} {err['errors']}/{err['total']} ({error_rate:.1f}%)")
         print()
 
         # Decision

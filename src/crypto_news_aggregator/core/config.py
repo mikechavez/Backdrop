@@ -139,7 +139,7 @@ class Settings(BaseSettings):
 
     # LLM spend cap thresholds (daily, in USD)
     LLM_DAILY_SOFT_LIMIT: float = 0.25   # Degrade non-critical pipelines
-    LLM_DAILY_HARD_LIMIT: float = 5.00   # Halt ALL LLM calls (temporarily lifted for burn-in; BUG-058)
+    LLM_DAILY_HARD_LIMIT: float = 15.00  # Temp: Lifted for Sprint 13 burn-in measurement. Will drop to ~$1-2 post-optimization.
 
     # Backlog throughput control
     ENRICHMENT_MAX_ARTICLES_PER_CYCLE: int = 5   # Max articles enriched per beat tick
