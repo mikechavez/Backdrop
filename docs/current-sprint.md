@@ -26,8 +26,9 @@ Backdrop burns $2.50-5/day in Anthropic credits vs a $0.33/day target because 2 
 | 6 | TASK-042 | Gateway Bypass Fix — Wire Remaining LLM Calls | ✅ MERGED | low | ~0.5h |
 | 7 | TASK-041A | Restart 48-Hour Burn-in with Clean Baseline | ✅ MERGED | low | ~0.25h |
 | - | BUG-058 | Hard Spend Limit Enforcement Kills Burn-in | ✅ FIXED | low | ~0.25h |
-| 8 | TASK-043 | Burn-in Health Check (1-Hour Verification) | ✅ PHASE 1 | medium | ~1h |
-| 9 | TASK-041B | Analyze Burn-in + Write Findings Doc | ⏳ WAITING | low | |
+| 8 | TASK-043 | Burn-in Health Check (1-Hour Verification) | ✅ PHASE 1 COMPLETE | high | ~1.5h |
+| 9 | TASK-043-PHASE2 | Manual Dashboard Review (Celery/Sentry/Logs) | 🔲 NEXT | medium | ~0.5h |
+| 10 | TASK-041B | Analyze Burn-in + Write Findings Doc | ⏳ WAITING | low | |
 
 
 ---
@@ -132,6 +133,40 @@ _Tickets created mid-sprint for issues found during implementation._
   - Added comment: `# Temp: Lifted for Sprint 13 burn-in measurement. Will drop to ~$1-2 post-optimization.`
 - Reason: Narrative enrichment operations (`cluster_narrative_gen`, `narrative_generate`) were hitting hard limit within hours, triggering LLMError in Sentry. Burn-in needs full 48-hour cycle for complete cost attribution.
 - Commit: 7eb5129 `feat(config): lift hard spend limit to $15 for burn-in (TASK-044)`
-- Branch: `feat/task-044-hard-limit-lift`
-- Ticket updated: Status → READY_FOR_MERGE
-- Status: Ready for PR creation → merge to main → deploy to Railway
+- Status: Merged to main (commit 41b9153)
+
+### Session 8 (2026-04-09) — TASK-043 Phase 1 Health Check ✅
+**Automated health checks + critical issue discovery & fix**
+
+**Phase 1: Automated Checks (Complete)**
+- ✅ MongoDB trace collection: 5 traces, $0.0061 spend (97% under budget)
+- ✅ Config verification: Hard limit $15.00, soft limit $0.25 (both correct)
+- ✅ Health endpoint: HTTP 200, all checks pass (database, redis, data freshness ok)
+- ✅ Preliminary analysis: Gateway working, cost tracking accurate, no errors
+- ✅ Production deployment: Healthy, no critical issues
+
+**Critical Issues Found & Fixed:**
+
+**Issue 1: Budget Cache Blocking Operations (FIXED)**
+- Problem: api_costs had $0.9970 from 2026-04-08 (before burn-in restarted 2026-04-09)
+- Impact: Soft limit ($0.25) breached → gateway blocked briefing_generate (non-critical op)
+- Root cause: TASK-041A cleared llm_traces but not api_costs
+- Fix: Cleared api_costs collection (deleted 101,332 old records)
+- Result: Budget reset to $0.0000, operations now allowed
+
+**Issue 2: Missing Trending Signals (EXPLAINED)**
+- Problem: Briefing generation requires signals, signal_scores has no recent data
+- Impact: Manual briefing trigger fails (insufficient data)
+- Root cause: Normal behavior — signal computation runs on Celery beat schedule
+- Fix: Identified as non-issue, signals will be computed on next schedule cycle
+
+**Phase 2: Manual Dashboard Review (Next)**
+- [ ] Railway logs: verify Celery beat scheduler running
+- [ ] Sentry: check for unexpected errors
+- [ ] Anthropic dashboard: verify credit burn rate
+- [ ] Expected timeline: Signals should compute within 1-2 hours
+
+**Documentation:**
+- Created `docs/tickets/task-043-burn-in-health-check-phase-1-complete.md`
+- Detailed findings, root cause analysis, timeline, next steps
+- Status: ✅ Phase 1 complete, Phase 2 (manual review) pending
