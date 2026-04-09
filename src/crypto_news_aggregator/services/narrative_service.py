@@ -82,46 +82,23 @@ def calculate_recent_velocity(article_dates: List[datetime], lookback_days: int 
     
     # Get current time
     now = datetime.now(timezone.utc)
-    
+
     # Filter articles from the last N days
     cutoff_date = now - timedelta(days=lookback_days)
     recent_articles = [d for d in article_dates if d >= cutoff_date]
-    
-    # Debug logging
-    logger.info(f"[VELOCITY DEBUG] ========== VELOCITY CALCULATION START ==========")
-    logger.info(f"[VELOCITY DEBUG] Total articles: {len(article_dates)}")
-    logger.info(f"[VELOCITY DEBUG] Current time (now): {now} (UTC)")
-    logger.info(f"[VELOCITY DEBUG] Cutoff date ({lookback_days} days ago): {cutoff_date} (UTC)")
-    logger.info(f"[VELOCITY DEBUG] Time delta calculation: ({now} - {cutoff_date}).total_seconds() / 86400")
-    logger.info(f"[VELOCITY DEBUG] Time delta result: {(now - cutoff_date).total_seconds() / 86400:.2f} days")
-    logger.info(f"[VELOCITY DEBUG] Time delta in seconds: {(now - cutoff_date).total_seconds():.0f} seconds")
-    
-    # Log all article dates for debugging
-    if article_dates:
-        logger.info(f"[VELOCITY DEBUG] All article dates (sorted):")
-        for i, date in enumerate(sorted(article_dates, reverse=True)):
-            in_window = "✓ IN WINDOW" if date >= cutoff_date else "✗ EXCLUDED"
-            logger.info(f"[VELOCITY DEBUG]   [{i+1}] {date} {in_window}")
-    
-    logger.info(f"[VELOCITY DEBUG] Articles within window: {len(recent_articles)}")
-    if recent_articles:
-        oldest = min(recent_articles)
-        newest = max(recent_articles)
-        logger.info(f"[VELOCITY DEBUG] Oldest article in window: {oldest}")
-        logger.info(f"[VELOCITY DEBUG] Newest article in window: {newest}")
-        logger.info(f"[VELOCITY DEBUG] Article span: {(newest - oldest).total_seconds() / 86400:.2f} days")
-    
-    logger.info(f"[VELOCITY DEBUG] Final calculation: {len(recent_articles)} articles / {lookback_days} days")
-    logger.info(f"[VELOCITY DEBUG] Result: {len(recent_articles) / lookback_days:.2f} articles/day")
-    logger.info(f"[VELOCITY DEBUG] ========== VELOCITY CALCULATION END ==========")
-    
+
     # If no recent articles, return 0
     if not recent_articles:
         return 0.0
-    
+
     # Calculate velocity: articles / lookback period
     # Always use the full lookback_days window for consistent velocity measurement
-    return len(recent_articles) / lookback_days
+    velocity = len(recent_articles) / lookback_days
+
+    # Single-line velocity summary (replaced 26+ debug lines)
+    logger.info(f"Narrative velocity: {velocity:.2f} articles/day ({len(article_dates)} total, {len(recent_articles)} in {lookback_days}-day window)")
+
+    return velocity
 
 
 def calculate_momentum(article_dates: List[datetime]) -> str:
@@ -1065,24 +1042,8 @@ async def detect_narratives(
                     title = matching_narrative.get('title', 'Unknown')
                     summary = matching_narrative.get('summary', '')
                     
-                    # DEBUG: Log all article dates and timestamp calculation
-                    logger.info(f"[MERGE NARRATIVE DEBUG] ========== MERGE UPSERT START ==========")
-                    logger.info(f"[MERGE NARRATIVE DEBUG] Theme: {theme}")
-                    logger.info(f"[MERGE NARRATIVE DEBUG] Title: {title}")
-                    logger.info(f"[MERGE NARRATIVE DEBUG] Combined article IDs: {combined_article_ids}")
-                    logger.info(f"[MERGE NARRATIVE DEBUG] Article dates collected: {len(article_dates)}")
-                    if article_dates:
-                        logger.info(f"[MERGE NARRATIVE DEBUG] Article dates (sorted):")
-                        for i, date in enumerate(sorted(article_dates)):
-                            logger.info(f"[MERGE NARRATIVE DEBUG]   [{i+1}] {date}")
-                        logger.info(f"[MERGE NARRATIVE DEBUG] Earliest article: {min(article_dates)}")
-                        logger.info(f"[MERGE NARRATIVE DEBUG] Latest article: {max(article_dates)}")
-                    logger.info(f"[MERGE NARRATIVE DEBUG] Existing narrative first_seen: {matching_narrative.get('first_seen')}")
-                    logger.info(f"[MERGE NARRATIVE DEBUG] Calculated first_seen (from existing or now): {first_seen}")
-                    logger.info(f"[MERGE NARRATIVE DEBUG] Calculated last_updated (now): {last_updated}")
-                    logger.info(f"[MERGE NARRATIVE DEBUG] Is first_seen > last_updated? {first_seen > last_updated}")
-                    logger.info(f"[MERGE NARRATIVE DEBUG] Timestamp sources: first_seen from existing narrative, last_updated from now()")
-                    logger.info(f"[MERGE NARRATIVE DEBUG] ========== MERGE UPSERT END ==========")
+                    velocity = calculate_recent_velocity([a['timestamp'] for a in articles_by_id.values()]) if articles_by_id else 0.0
+                    logger.info(f"Merged {len(combined_article_ids)} articles into narrative '{title}' (velocity: {velocity:.2f}/day)")
 
                     # Post-clustering validation: Ensure articles mention nucleus_entity
                     nucleus_entity = fingerprint.get('nucleus_entity', '')
