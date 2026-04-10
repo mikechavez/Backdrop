@@ -18,6 +18,7 @@ from collections import defaultdict, Counter
 from ..db.mongodb import mongo_manager
 from ..llm.factory import get_llm_provider
 from ..llm.gateway import get_gateway
+from ..services.cost_tracker import check_llm_budget
 
 logger = logging.getLogger(__name__)
 
@@ -1182,16 +1183,23 @@ async def cluster_by_narrative_salience(
 async def backfill_narratives_for_recent_articles(hours: int = 48, limit: int = 100) -> int:
     """
     Backfill narrative data for recent articles that don't have them yet.
-    
+
     Uses discover_narrative_from_article to extract actors, tensions, and narrative elements.
-    
+
     Args:
         hours: Look back this many hours for articles
         limit: Maximum number of articles to process
-    
+
     Returns:
         Number of articles updated with narrative data
     """
+    # ✅ BUG-062 FIX: Check soft limit before processing backfill
+    # Prevents backfill from creating retry loops during narrative generation
+    allowed, reason = check_llm_budget("narrative_backfill")
+    if not allowed:
+        logger.warning(f"Narrative backfill skipped: daily spend limit reached ({reason})")
+        return 0
+
     db = await mongo_manager.get_async_database()
     articles_collection = db.articles
     

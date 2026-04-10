@@ -29,6 +29,7 @@ from collections import defaultdict, Counter
 from ..db.mongodb import mongo_manager
 from ..llm.factory import get_llm_provider
 from ..db.operations.narratives import upsert_narrative
+from ..services.cost_tracker import check_llm_budget
 from .narrative_themes import (
     backfill_themes_for_recent_articles,
     get_articles_by_theme,
@@ -856,6 +857,16 @@ async def detect_narratives(
         List of narrative dicts with full structure including lifecycle tracking
     """
     try:
+        # ✅ BUG-062 FIX: Check soft limit before processing narratives
+        # Prevents retry loop when spend cap is hit (mirrors enrichment behavior)
+        allowed, reason = check_llm_budget("narrative_detection")
+        if not allowed:
+            logger.warning(
+                f"Narrative detection cycle skipped: daily spend limit reached ({reason}). "
+                f"Will retry in next cycle."
+            )
+            return []
+
         if use_salience_clustering:
             # NEW: Use salience-aware clustering
             logger.info(f"Using salience-based narrative detection for last {hours} hours")
@@ -1160,6 +1171,17 @@ async def detect_narratives(
                     else:
                         # Create new narrative
                         created_count += 1
+
+                        # ✅ BUG-062 FIX: Check soft limit before generating narrative
+                        # Prevents individual clusters from failing and retrying (mirrors enrichment)
+                        allowed, reason = check_llm_budget("narrative_generate")
+                        if not allowed:
+                            logger.warning(
+                                f"Skipping narrative generation for cluster (nucleus: {primary_nucleus}): "
+                                f"soft limit active ({reason})"
+                            )
+                            continue  # Skip this cluster, don't retry
+
                         narrative = await generate_narrative_from_cluster(cluster)
 
                         if not narrative:
