@@ -3,10 +3,12 @@ ticket_id: TASK-060
 title: Implement Tier 1 Only Enrichment Filter (Cost Optimization)
 priority: P1
 severity: HIGH
-status: OPEN
+status: READY FOR MERGE
 date_created: 2026-04-09
 branch: cost-optimization/tier-1-only
 effort_estimate: 45 minutes
+actual_effort: ~15 minutes
+commit: 76f912c
 ---
 
 # TASK-060: Implement Tier 1 Only Enrichment Filter
@@ -374,14 +376,14 @@ Article 69d806f303e46280aa915c0c: tier 2 assigned, enrichment skipped (TIER 1 ON
 
 ## Acceptance Criteria
 
-- [x] Tier 1 filter added at line ~648 (after tier classification)
+- [x] Tier 1 filter added at line ~651 (after tier classification)
 - [x] Tier 2-3 articles save tier only, skip full enrichment
 - [x] `continue` statement prevents remaining enrichment code for tier 2-3
 - [x] Debug log message added for tier 2-3 skips
-- [x] Code deploys without syntax errors
-- [x] First hour shows <50 LLM calls/hour (down from ~200)
-- [x] Tier 2 articles have `relevance_tier: 2` but `entities: []` (not enriched)
-- [x] Tier 1 articles have full enrichment (entities, sentiment, themes, keywords)
+- [x] Code deploys without syntax errors (verified with poetry run python -m py_compile)
+- [ ] First hour shows <50 LLM calls/hour (down from ~200) — pending deployment
+- [ ] Tier 2 articles have `relevance_tier: 2` but `entities: []` (not enriched) — pending deployment
+- [ ] Tier 1 articles have full enrichment (entities, sentiment, themes, keywords) — pending deployment
 
 ---
 

@@ -35,6 +35,7 @@ Backdrop burns $2.50-5/day in Anthropic credits vs a $0.33/day target because 2 
 | 12 | TASK-046 | Register Briefing Tasks with Celery | ✅ COMPLETE | low | ~0.25h |
 | 13 | TASK-041B | Analyze Burn-in + Write Findings Doc | ⏳ WAITING | low | |
 | 14 | TASK-059 | Remove Low-Quality RSS Sources | ✅ COMPLETE | low | ~0.15h |
+| 15 | TASK-060 | Implement Tier 1 Only Enrichment Filter | 🔲 READY FOR MERGE | medium | ~0.25h |
 
 
 ---
@@ -413,3 +414,32 @@ celery -A crypto_news_aggregator.tasks worker --loglevel=info
 - ✅ Commit: 7511158 `fix(rss): Remove low-quality sources from feed configuration`
 
 **Status:** ✅ Complete, ready for PR merge
+
+### Session 15 (2026-04-09) — TASK-060 Tier 1 Only Enrichment Filter ✅
+**Implemented tier 1-only LLM enrichment to reduce cost from $1.80/day to $0.36-0.45/day**
+
+**Problem:**
+- Current pipeline enriches all articles (tier 1-3) with full LLM calls (~600/day at $1.80/day)
+- 56% of articles are tier 2-3 with low signal: 778 tier 2 articles, only 17-22% have tier 1 signal
+- 218 tier 2 articles enriched but never appear in narratives (wasted LLM calls)
+
+**Solution (TASK-060):**
+- Modified `process_new_articles_from_mongodb()` in `rss_fetcher.py` (lines 649-666)
+- Added tier 1 filter check immediately after tier classification
+- For tier 2-3 articles: Save tier assignment only (minimal update), skip full enrichment
+- For tier 1 articles: Full enrichment proceeds unchanged (entities, sentiment, themes, keywords)
+- Filter prevents full enrichment code from executing for non-tier-1 articles
+
+**Implementation Details:**
+- Location: `src/crypto_news_aggregator/background/rss_fetcher.py` lines 649-666
+- New code: 18 lines (filter check + tier-only update + debug log + continue)
+- Syntax validated: `poetry run python -m py_compile` ✅
+- Branch: `cost-optimization/tier-1-only`
+- Commit: 76f912c `feat(enrichment): Implement tier 1 only enrichment filter`
+
+**Expected Cost Impact:**
+- LLM calls: 600/day → 120-150/day (-75%)
+- Cost: $1.80/day → $0.36-0.45/day (-75%)
+- Monthly: $11-13.50/month (vs. $10 target)
+
+**Status:** ✅ Code complete, committed, ready for PR merge and deployment

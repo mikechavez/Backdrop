@@ -1,26 +1,36 @@
 # Session Start
 
-**Date:** 2026-04-09 (Session 10, Sprint 13)
-**Status:** BUG-060 fixed, soft limit $3.00 insufficient — enrichment consuming budget
-**Branch:** fix/bug-058-soft-limit-and-type-error (merged)
-**Blocker:** Soft limit still hit by background enrichment; briefing generation blocked by narrative_generate non-critical flag
+**Date:** 2026-04-09 (Session 15, Sprint 13)
+**Status:** TASK-060 complete (tier 1 only enrichment filter), ready for PR merge
+**Branch:** cost-optimization/tier-1-only (commit 76f912c)
+**Next:** Create PR, deploy, monitor cost impact
 
 ---
 
 ## What Happened Last
 
-Sessions 1–5: Built complete LLM control layer (TASK-036 through TASK-041) + hard limit lift (TASK-044).
+**Session 14 (Previous):** TASK-059 complete — removed 3 low-quality RSS sources (watcherguru 7%, glassnode 5.3%, bitcoinmagazine 14% tier 1 rates)
 
-**Completed & Merged:**
-- ✅ TASK-036: LLM Gateway with async/sync modes, budget enforcement, fire-and-forget trace writes (commit 72a15f4)
-- ✅ TASK-037: Tracing schema, indexes (TTL 30d), aggregation query helper (commit b6a60bd)
-- ✅ TASK-038: Wired briefing_agent.py through gateway with operation tags (commit c2976c0)
-- ✅ TASK-039: Wired health.py through gateway (commit 67aff33)
-- ✅ TASK-040: Dataset capture for pre/post refine drafts (commit 7208fa7)
-- ✅ TASK-041: 48-hour burn-in + findings doc (merged)
-- ✅ TASK-044: Lift hard spend limit to $15 for burn-in (merged, commit 7eb5129)
-- ✅ TASK-042: Gateway bypass fix — all LLM calls wired through gateway (merged)
-- ✅ TASK-041A: Restart burn-in with clean baseline (merged)
+**Session 15 (Current):** TASK-060 complete — implemented tier 1 only enrichment filter
+- Tier 2-3 articles (56% of ingest) skip full LLM enrichment, save tier assignment only
+- Tier 1 articles (17% of ingest) receive full enrichment unchanged
+- Expected cost reduction: $1.80/day → $0.36-0.45/day (-75%)
+- Commit: 76f912c, branch: `cost-optimization/tier-1-only`
+
+**Earlier (Sessions 1–13):** Built complete LLM control layer (TASK-036 through TASK-042) + burn-in measurement
+- ✅ TASK-036: LLM Gateway with async/sync modes, budget enforcement
+- ✅ TASK-037: Tracing schema, indexes (TTL 30d)
+- ✅ TASK-038: Wired briefing_agent through gateway
+- ✅ TASK-039: Wired health endpoint through gateway
+- ✅ TASK-040: Dataset capture for eval datasets
+- ✅ TASK-041: 48-hour burn-in run
+- ✅ TASK-044: Lift hard spend limit to $15 for measurement
+- ✅ TASK-042: Gateway bypass fix — all LLM calls unified
+- ✅ TASK-041A: Restart burn-in with clean baseline
+- ✅ BUG-058, BUG-060: Soft limit & timezone bugs fixed
+- ✅ TASK-045: Remove verbose narrative logging
+- ✅ TASK-046: Verify briefing task registration with Celery
+- ✅ TASK-059: Remove low-quality RSS sources
 
 **Current Work (Session 10):**
 - ✅ Raised soft spend limit from $1.00 → $3.00 (commit c1deb83)
@@ -87,16 +97,22 @@ Unify all LLM calls behind a single gateway, achieve full cost attribution, and 
 
 ## What's Next
 
-**Session 11 (Next):**
-1. Decide enrichment budget strategy (raise soft limit vs critical ops vs throttle)
-2. Implement fix to unblock briefing generation
-3. Verify briefing generates successfully
-4. Monitor burn-in to completion (2026-04-10 ~02:48 UTC)
+**Immediate (Today):**
+1. Create PR: `cost-optimization/tier-1-only` → main
+2. Deploy to production (Railway)
+3. Monitor first hour: Check LLM call volume (expect <50 calls/hour from tier 1 enrichment)
+4. Verify tier 2 articles have tier assignment but no entities
+5. Check logs for "enrichment skipped" debug messages
 
-**After burn-in completes (2026-04-10 ~20:00 UTC):**
-1. Run `poetry run python scripts/analyze_burn_in.py` to generate cost summary
-2. Write TASK-041B findings doc: `docs/sprint-13-burn-in-findings.md`
-3. Sprint 14 planning based on cost attribution data
+**Post-Deployment Monitoring (TASK-061):**
+1. Run MongoDB query to verify cost trend (expect $0.36-0.45/day)
+2. Monitor for 24 hours
+3. If cost < $0.20/day unexpectedly: Investigate (may need to re-enable tier 2)
+4. If cost on target: Proceed to next optimization
+
+**After TASK-060 Stabilizes:**
+1. TASK-041B: Analyze burn-in data and write findings doc
+2. Sprint 14 planning based on cost attribution data
 
 ---
 
