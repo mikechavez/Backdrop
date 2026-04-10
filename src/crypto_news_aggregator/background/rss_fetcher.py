@@ -646,6 +646,26 @@ async def process_new_articles_from_mongodb():
                 tier_emoji = {1: "🔥", 2: "📰", 3: "🔇"}[relevance_tier]
                 tier_counts[relevance_tier] += 1
 
+                # TIER 1 ONLY FILTER: Skip enrichment for tier 2-3 articles
+                # These articles get tier classification (cheap, rule-based) but no LLM calls
+                if relevance_tier != 1:
+                    # Minimal update: just save tier assignment, skip all enrichment
+                    update_operations = {
+                        "$set": {
+                            "relevance_tier": relevance_tier,
+                            "relevance_reason": relevance_reason,
+                            "updated_at": datetime.now(timezone.utc),
+                        }
+                    }
+                    await collection.update_one({"_id": article_id}, update_operations)
+                    logger.debug(
+                        f"Article {str(article_id)}: tier {relevance_tier} assigned, "
+                        f"enrichment skipped (TIER 1 ONLY mode)"
+                    )
+                    processed += 1
+                    continue
+
+                # TIER 1 ONLY: Full enrichment below (only reaches here for tier 1)
                 relevance_score = enriched.get("relevance_score", 0.0)
                 sentiment_score = enriched.get("sentiment_score", 0.0)
                 themes = enriched.get("themes", [])
