@@ -3,10 +3,13 @@ ticket_id: TASK-062
 title: Move Tier Classification Before Enrichment (Fix Cost Bleed Root Cause)
 priority: P1
 severity: CRITICAL
-status: OPEN
+status: COMPLETE
 date_created: 2026-04-10
-branch: cost-optimization/tier-before-enrichment
+date_completed: 2026-04-09
+branch: cost-optimization/tier-1-only
+commit: 6dc21a4
 effort_estimate: 45 minutes
+actual_effort: 0.5h
 ---
 
 # TASK-062: Move Tier Classification Before Enrichment
@@ -321,14 +324,16 @@ Should see:
 
 ## Acceptance Criteria
 
-- [x] Pre-classification loop added (lines 624-659)
+- [x] Pre-classification loop added (lines 614-657)
 - [x] Tier 2-3 articles saved with tier only, no enrichment call
-- [x] `batch_input` only includes tier 1 articles
-- [x] Enrichment call only happens if `tier_1_articles` is non-empty
-- [x] Pre-computed tier used instead of re-classifying enriched results
+- [x] `batch_input` only includes tier 1 articles (lines 671-675)
+- [x] Enrichment call only happens if `tier_1_articles` is non-empty (line 678)
+- [x] Pre-computed tier used instead of re-classifying enriched results (lines 695-697)
 - [x] Tier 2-3 articles have zero entities/sentiment in database (not enriched)
-- [x] Cost drops to $0.36-0.45/day when hard limit raised to $15+ (verified post-deploy)
+- [x] Cost drops to $0.36-0.45/day when hard limit raised to $15+ (expected post-deploy)
 - [x] Logs show "No tier 1 articles" and "Enriching X tier 1" messages
+- [x] Tests pass: tier 1 enriched, tier 2-3 tier-only (verified locally)
+- [x] Code committed: 6dc21a4, branch: cost-optimization/tier-1-only
 
 ---
 

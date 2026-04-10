@@ -1,8 +1,8 @@
 # Session Start
 
-**Date:** 2026-04-09 (Session 15, Sprint 13)
-**Status:** TASK-060 complete (tier 1 only enrichment filter), ready for PR merge
-**Branch:** cost-optimization/tier-1-only (commit 76f912c)
+**Date:** 2026-04-09 (Session 16, Sprint 13)
+**Status:** TASK-062 complete (move tier classification before enrichment), ready for PR merge
+**Branch:** cost-optimization/tier-1-only (commit 6dc21a4)
 **Next:** Create PR, deploy, monitor cost impact
 
 ---
@@ -11,11 +11,20 @@
 
 **Session 14 (Previous):** TASK-059 complete — removed 3 low-quality RSS sources (watcherguru 7%, glassnode 5.3%, bitcoinmagazine 14% tier 1 rates)
 
-**Session 15 (Current):** TASK-060 complete — implemented tier 1 only enrichment filter
+**Session 15 (Previous):** TASK-060 complete — implemented tier 1 only enrichment filter
 - Tier 2-3 articles (56% of ingest) skip full LLM enrichment, save tier assignment only
 - Tier 1 articles (17% of ingest) receive full enrichment unchanged
 - Expected cost reduction: $1.80/day → $0.36-0.45/day (-75%)
 - Commit: 76f912c, branch: `cost-optimization/tier-1-only`
+
+**Session 16 (Current):** TASK-062 complete — move tier classification before enrichment
+- Fix root cause of cost bleed: classify BEFORE LLM enrichment, not after
+- Pre-classify all articles in batch (rule-based, no cost)
+- Filter batch to only tier 1 articles before calling expensive LLM
+- Tier 2-3 articles saved with tier only, no entities/sentiment/themes/keywords
+- Skip enrichment batch entirely if zero tier 1 articles present
+- Cost impact: ~98% reduction on enrichment calls ($0.36-0.45/day vs $21/day when hard limit raised)
+- Commit: 6dc21a4, branch: `cost-optimization/tier-1-only`
 
 **Earlier (Sessions 1–13):** Built complete LLM control layer (TASK-036 through TASK-042) + burn-in measurement
 - ✅ TASK-036: LLM Gateway with async/sync modes, budget enforcement
@@ -98,21 +107,23 @@ Unify all LLM calls behind a single gateway, achieve full cost attribution, and 
 ## What's Next
 
 **Immediate (Today):**
-1. Create PR: `cost-optimization/tier-1-only` → main
+1. Create PR: `cost-optimization/tier-1-only` → main (contains both TASK-060 + TASK-062)
 2. Deploy to production (Railway)
 3. Monitor first hour: Check LLM call volume (expect <50 calls/hour from tier 1 enrichment)
-4. Verify tier 2 articles have tier assignment but no entities
-5. Check logs for "enrichment skipped" debug messages
+4. Verify tier 2-3 articles have tier assignment but no entities/sentiment
+5. Check logs for "No tier 1 articles, skipping enrichment" messages
+6. Verify cost trend: expect $0.36-0.45/day (down from $21/day)
 
 **Post-Deployment Monitoring (TASK-061):**
-1. Run MongoDB query to verify cost trend (expect $0.36-0.45/day)
-2. Monitor for 24 hours
-3. If cost < $0.20/day unexpectedly: Investigate (may need to re-enable tier 2)
-4. If cost on target: Proceed to next optimization
+1. Run MongoDB query to verify tier distribution (tier 1 enriched, tier 2-3 tier-only)
+2. Monitor cost trend for 24 hours
+3. If cost < $0.20/day unexpectedly: Investigate classifier behavior
+4. If cost on target: Proceed to optimization validation
 
-**After TASK-060 Stabilizes:**
-1. TASK-041B: Analyze burn-in data and write findings doc
-2. Sprint 14 planning based on cost attribution data
+**After TASK-062 Stabilizes:**
+1. TASK-061: Post-deploy verification and cost impact validation
+2. TASK-041B: Analyze burn-in data and write findings doc
+3. Sprint 14 planning based on cost attribution data
 
 ---
 
