@@ -609,22 +609,79 @@ async def process_new_articles_from_mongodb():
         batch_end = min(batch_start + BATCH_SIZE, len(articles_for_enrichment))
         batch = articles_for_enrichment[batch_start:batch_end]
 
-        logger.info(f"Enriching articles batch {batch_start}-{batch_end}/{len(articles_for_enrichment)}")
+        logger.info(f"Processing batch {batch_start}-{batch_end}/{len(articles_for_enrichment)}")
 
-        # Build prompt input for batch
+        # TIER 1 ONLY: Classify all articles into tiers FIRST (rule-based, no LLM cost)
+        tier_1_articles = []
+        tier_classifications = {}  # Map article_id → {tier, reason}
+
+        for article_data in batch:
+            article_id = str(article_data["original_article"].get("_id"))
+
+            # Classify article relevance tier (rule-based, no LLM cost)
+            classification = classify_article(
+                title=article_data["title"],
+                text=article_data["combined_text"][:1000],
+                source=article_data["source"]
+            )
+
+            tier_emoji = {1: "🔥", 2: "📰", 3: "🔇"}[classification["tier"]]
+            tier_counts[classification["tier"]] += 1
+
+            # Store classification for all articles
+            tier_classifications[article_id] = {
+                "tier": classification["tier"],
+                "reason": classification["reason"],
+            }
+
+            # Only add tier 1 articles to enrichment queue
+            if classification["tier"] == 1:
+                tier_1_articles.append(article_data)
+            else:
+                # Tier 2-3: Save tier assignment only, skip enrichment entirely
+                update_operations = {
+                    "$set": {
+                        "relevance_tier": classification["tier"],
+                        "relevance_reason": classification["reason"],
+                        "updated_at": datetime.now(timezone.utc),
+                    }
+                }
+                await collection.update_one(
+                    {"_id": article_data["original_article"].get("_id")},
+                    update_operations
+                )
+                logger.debug(
+                    f"Article {article_id}: tier {classification['tier']} assigned, "
+                    f"enrichment skipped (TIER 1 ONLY mode)"
+                )
+                processed += 1
+
+        # If no tier 1 articles, skip enrichment batch entirely
+        if not tier_1_articles:
+            logger.info(
+                f"Batch {batch_start}-{batch_end}: No tier 1 articles, skipping enrichment"
+            )
+            continue
+
+        logger.info(
+            f"Enriching {len(tier_1_articles)} tier 1 articles "
+            f"(batch {batch_start}-{batch_end} had {len(batch)} total)"
+        )
+
+        # Build prompt input ONLY for tier 1 articles
         batch_input = [
             {"id": str(a["article_id"]), "text": a["combined_text"]}
-            for a in batch
+            for a in tier_1_articles
         ]
 
         try:
             enrichment_results = await llm_client.enrich_articles_batch(batch_input)
 
-            # Map results back to articles
+            # Map results back to tier 1 articles only
             for enriched in enrichment_results:
-                # Find matching article in batch
+                # Find matching article in tier 1 subset
                 article_data = next(
-                    (a for a in batch if str(a["article_id"]) == enriched["id"]),
+                    (a for a in tier_1_articles if str(a["article_id"]) == enriched["id"]),
                     None
                 )
 
@@ -634,36 +691,10 @@ async def process_new_articles_from_mongodb():
                 article = article_data["original_article"]
                 article_id = article.get("_id")
 
-                # Classify article relevance tier (rule-based, no LLM cost)
-                classification = classify_article(
-                    title=article_data["title"],
-                    text=article_data["combined_text"][:1000],
-                    source=article_data["source"]
-                )
-                relevance_tier = classification["tier"]
-                relevance_reason = classification["reason"]
-
-                tier_emoji = {1: "🔥", 2: "📰", 3: "🔇"}[relevance_tier]
-                tier_counts[relevance_tier] += 1
-
-                # TIER 1 ONLY FILTER: Skip enrichment for tier 2-3 articles
-                # These articles get tier classification (cheap, rule-based) but no LLM calls
-                if relevance_tier != 1:
-                    # Minimal update: just save tier assignment, skip all enrichment
-                    update_operations = {
-                        "$set": {
-                            "relevance_tier": relevance_tier,
-                            "relevance_reason": relevance_reason,
-                            "updated_at": datetime.now(timezone.utc),
-                        }
-                    }
-                    await collection.update_one({"_id": article_id}, update_operations)
-                    logger.debug(
-                        f"Article {str(article_id)}: tier {relevance_tier} assigned, "
-                        f"enrichment skipped (TIER 1 ONLY mode)"
-                    )
-                    processed += 1
-                    continue
+                # Use pre-computed tier classification (no re-classification needed)
+                tier_info = tier_classifications[str(article_id)]
+                relevance_tier = tier_info["tier"]
+                relevance_reason = tier_info["reason"]
 
                 # TIER 1 ONLY: Full enrichment below (only reaches here for tier 1)
                 relevance_score = enriched.get("relevance_score", 0.0)

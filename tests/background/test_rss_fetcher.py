@@ -30,12 +30,36 @@ class FakeLLMProvider:
     def score_relevance(self, text: str) -> float:
         return self._relevance
 
+    async def enrich_articles_batch(self, articles):
+        """Batch enrich articles with relevance, sentiment, and themes."""
+        results = []
+        for article in articles:
+            results.append({
+                "id": article["id"],
+                "relevance_score": self._relevance,
+                "sentiment_score": self._sentiment,
+                "themes": self._themes
+            })
+        return results
+
+    def extract_entities_batch(self, articles):
+        """Extract entities from batch of articles."""
+        results = []
+        for article in articles:
+            results.append({
+                "article_id": article.get("article_id"),
+                "primary_entities": [],
+                "context_entities": [],
+                "sentiment": "neutral"
+            })
+        return {"results": results}
+
 
 class FakeOptimizedLLM:
     """Fake optimized LLM for testing entity extraction."""
-    
+
     HAIKU_MODEL = "claude-3-5-haiku-20241022"
-    
+
     async def extract_entities_batch(self, articles):
         """Return mock entities based on article content."""
         results = []
@@ -48,10 +72,22 @@ class FakeOptimizedLLM:
                 entities.append({"name": "Ethereum", "type": "cryptocurrency", "confidence": 0.9, "is_primary": False})
             results.append({"entities": entities})
         return results
-    
+
+    async def enrich_articles_batch(self, articles):
+        """Mock enrichment batch call for testing."""
+        results = []
+        for article in articles:
+            results.append({
+                "id": article["id"],
+                "relevance_score": 0.8,
+                "sentiment_score": 0.5,
+                "themes": ["Bitcoin", "Market"]
+            })
+        return results
+
     async def get_cache_stats(self):
         return {"active_entries": 0, "hit_rate_percent": 0.0}
-    
+
     async def get_cost_summary(self):
         return {"month_to_date": 0.0, "projected_monthly": 0.0}
 
