@@ -35,7 +35,8 @@ Backdrop burns $2.50-5/day in Anthropic credits vs a $0.33/day target because 2 
 | 12 | TASK-046 | Register Briefing Tasks with Celery | ✅ COMPLETE | low | ~0.25h |
 | 13 | TASK-041B | Analyze Burn-in + Write Findings Doc | ⏳ WAITING | low | |
 | 14 | TASK-059 | Remove Low-Quality RSS Sources | ✅ COMPLETE | low | ~0.15h |
-| 15 | TASK-060 | Implement Tier 1 Only Enrichment Filter | 🔲 READY FOR MERGE | medium | ~0.25h |
+| 15 | TASK-060 | Implement Tier 1 Only Enrichment Filter | ✅ COMPLETE | medium | ~0.25h |
+| 16 | TASK-062 | Move Tier Classification Before Enrichment | ✅ COMPLETE | medium | ~0.5h |
 
 
 ---
@@ -442,4 +443,50 @@ celery -A crypto_news_aggregator.tasks worker --loglevel=info
 - Cost: $1.80/day → $0.36-0.45/day (-75%)
 - Monthly: $11-13.50/month (vs. $10 target)
 
-**Status:** ✅ Code complete, committed, ready for PR merge and deployment
+**Status:** ✅ Code complete, committed
+
+### Session 16 (2026-04-09) — TASK-062 Move Tier Classification Before Enrichment ✅
+**Fixed cost bleed root cause: classify tiers BEFORE LLM enrichment, not after**
+
+**Problem (Root Cause of TASK-060 Ineffectiveness):**
+- TASK-060 only skipped PROCESSING results of tier 2-3 articles
+- But the expensive LLM enrichment call still happened FIRST for ALL articles
+- Cost regression when hard limit raised $5 → $15+: ALL articles still enriched → ~$21/day
+- TASK-060 tier filter only prevented downstream processing, not the LLM call
+
+**Solution (TASK-062):**
+- Moved tier classification BEFORE calling `enrich_articles_batch()`
+- Flow: Load batch → Classify tiers (rule-based, free) → Filter to tier 1 only → Call LLM only on subset
+- Pre-classify all articles in batch using rule-based classifier (no LLM cost)
+- Only add tier 1 articles to enrichment queue
+- Save tier 2-3 articles immediately with tier assignment only (no LLM call)
+- Skip enrichment batch entirely if no tier 1 articles present
+
+**Implementation Details:**
+- Location: `src/crypto_news_aggregator/background/rss_fetcher.py` lines 612-698
+- New code: 87 lines (pre-classification loop + tier filtering + selective enrichment)
+- Key changes:
+  1. Lines 614-657: Pre-classify all articles, save tier 2-3 immediately
+  2. Lines 659-664: Skip batch if zero tier 1 articles
+  3. Lines 671-675: Build batch_input ONLY from tier 1 subset
+  4. Line 678: Enrichment call happens ONLY after filtering
+  5. Lines 695-697: Use pre-computed tier (no re-classification)
+- Tests updated: Fixed test expectations for tier 1 enriched, tier 2-3 tier-only behavior
+- Branch: `cost-optimization/tier-1-only`
+- Commit: 6dc21a4 `feat(enrichment): Move tier classification before LLM enrichment (TASK-062)`
+
+**Cost Impact:**
+- Before TASK-062: All 333 articles/day → LLM enrichment → ~$21/day (broken)
+- After TASK-062: Only 70 tier 1 articles/day → LLM enrichment → ~$0.36-0.45/day (fixed)
+- **~98% cost reduction** on enrichment when hard limit raised to $15+
+
+**Verification:**
+- ✅ Pre-classification loop added (rule-based, no LLM cost)
+- ✅ Tier 2-3 articles saved with tier only, no enrichment LLM call
+- ✅ `batch_input` contains only tier 1 articles
+- ✅ Enrichment call only happens if tier 1 articles exist
+- ✅ Pre-computed tier used (no re-classification after enrichment)
+- ✅ Logs show "Enriching X tier 1 articles" and "No tier 1 articles, skipping enrichment"
+- ✅ Test: tier 1 articles enriched, tier 2-3 get tier only (no entities/sentiment)
+
+**Status:** ✅ Code complete, tested, committed, ready for PR merge and deployment

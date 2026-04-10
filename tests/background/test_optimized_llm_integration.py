@@ -23,7 +23,7 @@ from src.crypto_news_aggregator.models.article import ArticleMetrics
 
 class FakeLLMProvider:
     """Fake LLM provider for testing sentiment/relevance (not entity extraction)."""
-    
+
     def __init__(self, relevance: float = 0.8, sentiment: float = 0.6, themes=None):
         self._relevance = relevance
         self._sentiment = sentiment
@@ -37,6 +37,30 @@ class FakeLLMProvider:
 
     def score_relevance(self, text: str) -> float:
         return self._relevance
+
+    async def enrich_articles_batch(self, articles):
+        """Batch enrich articles with relevance, sentiment, and themes."""
+        results = []
+        for article in articles:
+            results.append({
+                "id": article["id"],
+                "relevance_score": self._relevance,
+                "sentiment_score": self._sentiment,
+                "themes": self._themes
+            })
+        return results
+
+    def extract_entities_batch(self, articles):
+        """Extract entities from batch of articles."""
+        results = []
+        for article in articles:
+            results.append({
+                "article_id": article.get("article_id"),
+                "primary_entities": [],
+                "context_entities": [],
+                "sentiment": "neutral"
+            })
+        return {"results": results}
 
 
 class FakeOptimizedLLM:
@@ -76,6 +100,18 @@ class FakeOptimizedLLM:
         
         return results
     
+    async def enrich_articles_batch(self, articles):
+        """Mock enrichment batch call for testing."""
+        results = []
+        for article in articles:
+            results.append({
+                "id": article["id"],
+                "relevance_score": 0.8,
+                "sentiment_score": 0.5,
+                "themes": ["Bitcoin", "Market"]
+            })
+        return results
+
     async def get_cache_stats(self):
         return {
             "active_entries": 10,
@@ -83,7 +119,7 @@ class FakeOptimizedLLM:
             "total_requests": 100,
             "cache_hits": 25
         }
-    
+
     async def get_cost_summary(self):
         return {
             "month_to_date": 0.50,
@@ -259,10 +295,14 @@ class TestRSSFetcherOptimizedIntegration:
         premium_stored = await mongo_db.articles.find_one({"source_id": "test-premium-1"})
         assert premium_stored is not None
         assert premium_stored.get("relevance_score") is not None
-        
+        assert premium_stored.get("relevance_tier") == 1  # Premium source should be tier 1
+
+        # Low-priority article should have tier assigned but NO enrichment
+        # (TASK-062: Tier 1 only enrichment - tier 2-3 skip LLM calls)
         low_stored = await mongo_db.articles.find_one({"source_id": "test-low-1"})
         assert low_stored is not None
-        assert low_stored.get("relevance_score") is not None
+        assert low_stored.get("relevance_tier") is not None  # Tier should be assigned
+        assert low_stored.get("relevance_score") is None  # But no enrichment (tier 2-3)
     
     @pytest.mark.asyncio
     async def test_fallback_to_standard_llm_on_error(self, mongo_db, monkeypatch):
@@ -288,10 +328,10 @@ class TestRSSFetcherOptimizedIntegration:
         await mongo_db.articles.delete_many({})
         
         article = {
-            "title": "Test article",
+            "title": "Bitcoin ETF Approval by SEC",
             "source_id": "test-fallback-1",
             "source": "coindesk",
-            "text": "Test content.",
+            "text": "Bitcoin ETF approval marks a major milestone for cryptocurrency adoption.",
             "url": "https://example.com/test",
             "lang": "en",
             "metrics": ArticleMetrics().model_dump(),
@@ -304,16 +344,17 @@ class TestRSSFetcherOptimizedIntegration:
             "created_at": datetime.now(timezone.utc),
             "updated_at": datetime.now(timezone.utc),
         }
-        
+
         await mongo_db.articles.insert_one(article)
-        
+
         # Should not raise - falls back to standard processing
         await rss_fetcher.process_new_articles_from_mongodb()
-        
-        # Verify article was still processed
+
+        # Verify article was still processed and enriched (should be tier 1)
         stored = await mongo_db.articles.find_one({"source_id": "test-fallback-1"})
         assert stored is not None
-        assert stored.get("relevance_score") is not None
+        assert stored.get("relevance_tier") == 1, "Article should be tier 1"
+        assert stored.get("relevance_score") is not None, "Tier 1 article should have relevance_score"
 
 
 class TestCostSavingsCalculation:
