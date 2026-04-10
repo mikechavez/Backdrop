@@ -1,9 +1,9 @@
 # Session Start
 
-**Date:** 2026-04-09 (Session 16, Sprint 13)
-**Status:** TASK-062 complete (move tier classification before enrichment), ready for PR merge
-**Branch:** cost-optimization/tier-1-only (commit 6dc21a4)
-**Next:** Create PR, deploy, monitor cost impact
+**Date:** 2026-04-10 (Session 17, Sprint 13)
+**Status:** BUG-062 complete (soft-limit checks in narrative service), TASK-062 ready for PR merge
+**Branch:** cost-optimization/tier-1-only (commit c3f375d)
+**Next:** Create PR, deploy, monitor cost impact and burn-in validation
 
 ---
 

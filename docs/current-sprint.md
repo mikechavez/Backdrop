@@ -37,6 +37,7 @@ Backdrop burns $2.50-5/day in Anthropic credits vs a $0.33/day target because 2 
 | 14 | TASK-059 | Remove Low-Quality RSS Sources | ✅ COMPLETE | low | ~0.15h |
 | 15 | TASK-060 | Implement Tier 1 Only Enrichment Filter | ✅ COMPLETE | medium | ~0.25h |
 | 16 | TASK-062 | Move Tier Classification Before Enrichment | ✅ COMPLETE | medium | ~0.5h |
+| - | BUG-062 | Narrative Service Soft-Limit Retry Loop | ✅ FIXED | low | ~0.2h |
 
 
 ---
@@ -490,3 +491,43 @@ celery -A crypto_news_aggregator.tasks worker --loglevel=info
 - ✅ Test: tier 1 articles enriched, tier 2-3 get tier only (no entities/sentiment)
 
 **Status:** ✅ Code complete, tested, committed, ready for PR merge and deployment
+
+### Session 17 (2026-04-10) — BUG-062 Soft-Limit Checks in Narrative Service ✅
+**Implemented soft-limit pre-flight checks to prevent narrative service retry loops**
+
+**Problem:**
+- Narrative service lacked soft-limit checks (unlike enrichment pipeline)
+- When soft limit ($5.00) hit, narrative generation threw `LLMError`
+- Task queue retried on error, creating retry loop with repeated articles in logs
+- Hard limit ($0.33) hit quickly from retry storms
+- TASK-028 (72-hour burn-in) blocked by this behavior
+
+**Solution (BUG-062):**
+- Added soft-limit pre-flight check in `detect_narratives()` at cycle start
+  - Returns empty list when soft limit active
+  - Prevents entire detection cycle from throwing errors
+- Added soft-limit check before individual narrative generation
+  - Skips cluster with `continue` when soft limit active
+  - Prevents per-cluster retries from queuing
+- Added soft-limit check in `backfill_narratives_for_recent_articles()`
+  - Returns 0 early when soft limit active
+  - Prevents backfill from creating retry loops
+
+**Implementation:**
+- Files: `src/crypto_news_aggregator/services/narrative_service.py`, `narrative_themes.py`
+- Added 2 imports: `from ..services.cost_tracker import check_llm_budget` (both files)
+- Added 3 soft-limit checks using `check_llm_budget()` pattern
+- All operations log warnings instead of throwing errors
+- Pattern matches enrichment behavior (consistent across codebase)
+
+**Verification:**
+- ✅ Python syntax check: No errors
+- ✅ All three checks in place with proper early returns/continues
+- ✅ Logging messages distinguish from error conditions
+- ✅ Matches enrichment behavior (graceful degradation)
+
+**Commit:** c3f375d `fix(narratives): Add soft-limit checks to prevent retry loops (BUG-062)`
+**Branch:** cost-optimization/tier-1-only
+**Status:** ✅ Complete, ready for PR merge
+
+**Unblocks:** TASK-028 (72-hour burn-in validation) — narrative service now gracefully degrades instead of retrying when spend caps hit
