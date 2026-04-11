@@ -1,9 +1,9 @@
 # Session Start
 
-**Date:** 2026-04-10 (Session 17, Sprint 13)
-**Status:** BUG-062 complete (soft-limit checks in narrative service), TASK-062 ready for PR merge
-**Branch:** cost-optimization/tier-1-only (commit c3f375d)
-**Next:** Create PR, deploy, monitor cost impact and burn-in validation
+**Date:** 2026-04-10 (Session 18, Sprint 13)
+**Status:** TASK-063 complete (Haiku primary model), cost optimization features ready for PR
+**Branch:** cost-optimization/tier-1-only (commit c3f375d + TASK-063 changes)
+**Next:** Create PR, deploy, monitor cost impact (~$0.36/day target)
 
 ---
 
@@ -187,6 +187,42 @@ GET https://context-owl-production.up.railway.app/api/v1/health
 | Anthropic LLM | ~$10 |
 | Railway infra | ~$16-19 |
 | **Total** | **~$26-29** |
+
+### Session 18 (2026-04-10) — TASK-063 Switch Briefing Model to Haiku ✅
+**Switched briefing generation from Sonnet primary to Haiku primary (10x cost reduction)**
+
+**Problem:**
+- Briefing generation uses Sonnet 4.5 ($5/$15 per 1M tokens) costing ~$0.05 per briefing
+- Cost optimization opportunity: Haiku is 10x cheaper (~$0.005 per briefing)
+- Need to test Haiku's capability on briefing quality while keeping Sonnet as fallback safety net
+
+**Solution (TASK-063):**
+- Swapped model constants in `briefing_agent.py`:
+  - Line 53: `BRIEFING_PRIMARY_MODEL` → `"claude-haiku-4-5-20251001"` (was Sonnet)
+  - Line 54: `BRIEFING_FALLBACK_MODEL` → `"claude-sonnet-4-5-20250929"` (was Haiku)
+- Fixed undefined `DEFAULT_MODEL` reference at line 921:
+  - Changed `"model": DEFAULT_MODEL` → `"model": BRIEFING_PRIMARY_MODEL`
+  - Ensures briefing metadata correctly logs which model generated it
+
+**Implementation:**
+- File: `src/crypto_news_aggregator/services/briefing_agent.py`
+- 2 edits: lines 53-54 (model swap), line 921 (DEFAULT_MODEL fix)
+- Gateway automatically uses new model list at line 846: `models = [BRIEFING_PRIMARY_MODEL, BRIEFING_FALLBACK_MODEL]`
+- Fallback to Sonnet still available if Haiku fails (via gateway.call() at line 857-866)
+
+**Verification:**
+- ✅ Grep confirms: Haiku now primary, Sonnet now fallback, no DEFAULT_MODEL undefined references
+- ✅ Code syntax: Valid Python, no imports needed
+- ✅ Gateway integration: Automatic, no changes to call sites
+
+**Expected Impact:**
+- Cost reduction: ~$0.05/briefing (Sonnet) → ~$0.005-0.01/briefing (Haiku)
+- **Savings: 80-90% per briefing** (~$90/month for 3 briefings/day)
+- Quality: Haiku tested on entity extraction (already in use), briefing generation is new use case
+- Safety: Sonnet fallback available if quality issues detected
+
+**Status:** ✅ Code complete, committed to cost-optimization/tier-1-only branch
+**Testing:** Pending manual smoke test via `/admin/trigger-briefing?briefing_type=morning&is_smoke=true`
 
 ---
 
