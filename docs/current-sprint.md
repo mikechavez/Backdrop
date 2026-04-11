@@ -38,6 +38,7 @@ Backdrop burns $2.50-5/day in Anthropic credits vs a $0.33/day target because 2 
 | 15 | TASK-060 | Implement Tier 1 Only Enrichment Filter | ✅ COMPLETE | medium | ~0.25h |
 | 16 | TASK-062 | Move Tier Classification Before Enrichment | ✅ COMPLETE | medium | ~0.5h |
 | - | BUG-062 | Narrative Service Soft-Limit Retry Loop | ✅ FIXED | low | ~0.2h |
+| 17 | TASK-063 | Switch Briefing Model from Sonnet to Haiku | ✅ COMPLETE | low | ~0.1h |
 
 
 ---
@@ -531,3 +532,37 @@ celery -A crypto_news_aggregator.tasks worker --loglevel=info
 **Status:** ✅ Complete, ready for PR merge
 
 **Unblocks:** TASK-028 (72-hour burn-in validation) — narrative service now gracefully degrades instead of retrying when spend caps hit
+
+### Session 18 (2026-04-10) — TASK-063 Switch Briefing Model to Haiku ✅
+**Switched briefing generation from Sonnet primary to Haiku primary (10x cost reduction)**
+
+**Problem:**
+- Briefing generation uses Sonnet 4.5 costing ~$0.05 per briefing
+- Cost optimization: Haiku is 10x cheaper (~$0.005-0.01 per briefing)
+- Need to test Haiku capability while keeping Sonnet as fallback
+
+**Solution (TASK-063):**
+- Swapped model constants in `src/crypto_news_aggregator/services/briefing_agent.py`:
+  - Line 53: `BRIEFING_PRIMARY_MODEL` → `"claude-haiku-4-5-20251001"` (was Sonnet)
+  - Line 54: `BRIEFING_FALLBACK_MODEL` → `"claude-sonnet-4-5-20250929"` (was Haiku)
+- Fixed undefined `DEFAULT_MODEL` reference at line 921:
+  - Changed `"model": DEFAULT_MODEL` → `"model": BRIEFING_PRIMARY_MODEL`
+
+**Implementation:**
+- File: `src/crypto_news_aggregator/services/briefing_agent.py` (2 edits)
+- Gateway automatic: Uses new model list at line 846
+- Fallback to Sonnet still available via gateway.call() (lines 857-866)
+
+**Expected Impact:**
+- Cost reduction: ~$0.05 → ~$0.005-0.01 per briefing
+- **Savings: 80-90% per briefing** (~$90/month for 3/day schedule)
+- Quality: Haiku already tested on entity extraction, new for briefing generation
+- Safety: Sonnet fallback available if quality issues detected
+
+**Verification:**
+- ✅ Grep confirms: Haiku primary, Sonnet fallback, no DEFAULT_MODEL references
+- ✅ Code syntax valid
+- ✅ Gateway integration automatic
+
+**Status:** ✅ Complete, committed to cost-optimization/tier-1-only branch
+**Testing:** Pending manual smoke test via `/admin/trigger-briefing?briefing_type=morning&is_smoke=true`

@@ -50,8 +50,8 @@ from crypto_news_aggregator.services.signal_service import compute_trending_sign
 logger = logging.getLogger(__name__)
 
 # LLM Configuration (local to this module)
-BRIEFING_PRIMARY_MODEL = "claude-sonnet-4-5-20250929"
-BRIEFING_FALLBACK_MODEL = "claude-haiku-4-5-20251001"
+BRIEFING_PRIMARY_MODEL = "claude-haiku-4-5-20251001"
+BRIEFING_FALLBACK_MODEL = "claude-sonnet-4-5-20250929"
 
 
 @dataclass
@@ -918,7 +918,7 @@ Return ONLY valid JSON in the same format as before."""
                 "narrative_count": len(briefing_input.narratives),
                 "pattern_count": len(briefing_input.patterns.all_patterns()),
                 "manual_input_count": len(briefing_input.memory.manual_inputs),
-                "model": DEFAULT_MODEL,
+                "model": BRIEFING_PRIMARY_MODEL,
                 "refinement_iterations": iteration_count,  # NEW: Track iterations
             },
             "is_smoke": is_smoke,
