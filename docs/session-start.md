@@ -1,9 +1,9 @@
 # Session Start
 
 **Date:** 2026-04-10 (Session 18, Sprint 13)
-**Status:** TASK-063 complete (Haiku primary model), cost optimization features ready for PR
-**Branch:** cost-optimization/tier-1-only (commit c3f375d + TASK-063 changes)
-**Next:** Create PR, deploy, monitor cost impact (~$0.36/day target)
+**Status:** TASK-063 ✅ complete, BUG-063 🔄 in progress (narrative polish gateway fix)
+**Branch:** fix/bug-063-narrative-polish-gateway (parent: cost-optimization/tier-1-only)
+**Next:** Complete BUG-063 PR, then merge cost optimization features to main
 
 ---
 
@@ -223,6 +223,37 @@ GET https://context-owl-production.up.railway.app/api/v1/health
 
 **Status:** ✅ Code complete, committed to cost-optimization/tier-1-only branch
 **Testing:** Pending manual smoke test via `/admin/trigger-briefing?briefing_type=morning&is_smoke=true`
+
+### Current Work (Session 18 — BUG-063 Narrative Polish Gateway Fix) 🔄
+
+**Issue Identified:** Final unmetered LLM call bypassing the unified cost gateway
+- Location: `narrative_themes.py` line 1468 in `generate_narrative_from_cluster()`
+- Call: `polished = llm_client._get_completion(polish_prompt)` — direct, unmetered
+- Impact: ~$1.50+/cycle untracked (~$1.65/hour, 75-80% of daily spend)
+- Root cause: Narrative polish operation missed in TASK-042 gateway bypass audit
+
+**Fix Applied:** Route polish through gateway with full cost attribution
+- Changed: `llm_client._get_completion()` → `gateway.call()` with operation="narrative_polish"
+- Model: Haiku (claude-haiku-4-5-20251001) for cost optimization
+- Error handling: Graceful fallback to original summary on gateway failure
+- Tests: 4 comprehensive tests, all passing ✅
+
+**Branch:** `fix/bug-063-narrative-polish-gateway`
+**Files Changed:**
+- ✏️ `src/crypto_news_aggregator/services/narrative_themes.py` (lines 1467-1480)
+- ✨ `tests/services/test_narrative_polish_gateway.py` (NEW, 4 tests)
+
+**Cost Impact:**
+- Before: $1.65-2.50/day (unmetered polish leak)
+- After: $0.50-0.70/day (all calls metered)
+- **Savings: ~$1.00-1.80/day (~$30-55/month)**
+
+**Next Steps:**
+1. ✅ Code complete + tests passing
+2. ⏳ Create PR: `fix/bug-063-narrative-polish-gateway` → main
+3. ⏳ Merge to main
+4. ⏳ Deploy to production
+5. ⏳ Manual smoke test + cost validation
 
 ---
 

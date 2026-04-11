@@ -1465,9 +1465,13 @@ Requirements:
 Respond with ONLY the rewritten summary, no other text."""
 
             try:
-                polished = llm_client._get_completion(polish_prompt)
-                # Clean response
-                polished = polished.strip().strip('"').strip("'")
+                gateway = get_gateway()
+                polish_response = await gateway.call(
+                    messages=[{"role": "user", "content": polish_prompt}],
+                    model="claude-haiku-4-5-20251001",
+                    operation="narrative_polish"
+                )
+                polished = polish_response.text.strip().strip('"').strip("'")
                 if polished and len(polished) > 10:
                     narrative_data['summary'] = polished
                     logger.debug(f"✓ Summary polished: {polished[:50]}...")
