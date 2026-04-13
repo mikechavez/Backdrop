@@ -150,3 +150,35 @@ class TestCostTracking:
 
         # Should be $0.006
         assert monthly_cost == pytest.approx(0.006, abs=0.0001)
+
+
+class TestCriticalOperations:
+    """Test critical operations classification."""
+
+    def test_briefing_operations_are_critical(self, tracker):
+        """Verify all briefing operations are marked as critical (BUG-065 regression)."""
+        critical_ops = [
+            "briefing_generation",
+            "briefing_generate",
+            "briefing_critique",
+            "briefing_refine",
+        ]
+        for op in critical_ops:
+            assert tracker.is_critical_operation(op), f"{op} should be critical"
+
+    def test_entity_extraction_is_critical(self, tracker):
+        """Entity extraction is critical for pipeline continuity."""
+        assert tracker.is_critical_operation("entity_extraction")
+
+    def test_non_critical_operations(self, tracker):
+        """Verify non-critical operations are not marked as critical."""
+        non_critical_ops = [
+            "health_check",
+            "theme_extraction",
+            "sentiment_analysis",
+            "relevance_scoring",
+            "article_enrichment_batch",
+            "narrative_enrichment",
+        ]
+        for op in non_critical_ops:
+            assert not tracker.is_critical_operation(op), f"{op} should not be critical"

@@ -270,6 +270,12 @@ class CostTracker:
         _budget_cache["daily_cost"] = daily_cost
         _budget_cache["last_checked"] = time.time()
 
+        logger.info(
+            f"[CACHE REFRESH] daily_cost=${daily_cost:.4f}, "
+            f"soft_limit=${soft_limit:.2f} (type={type(soft_limit).__name__}), "
+            f"hard_limit=${hard_limit:.2f} (type={type(hard_limit).__name__})"
+        )
+
         if daily_cost >= hard_limit:
             _budget_cache["status"] = "hard_limit"
             logger.warning(
@@ -291,6 +297,9 @@ class CostTracker:
 
         Critical operations (allowed during degraded mode):
         - briefing_generation: Core product output
+        - briefing_generate: Primary briefing generation LLM call
+        - briefing_critique: Quality check during self-refine loop (part of briefing pipeline)
+        - briefing_refine: Refinement pass during self-refine loop (part of briefing pipeline)
         - entity_extraction: Required for pipeline continuity
 
         Non-critical operations (blocked during degraded mode):
@@ -304,6 +313,8 @@ class CostTracker:
         CRITICAL_OPERATIONS = {
             "briefing_generation",
             "briefing_generate",
+            "briefing_critique",
+            "briefing_refine",
             "entity_extraction",
         }
         return operation in CRITICAL_OPERATIONS
@@ -367,6 +378,11 @@ def check_llm_budget(operation: str = "") -> tuple[bool, str]:
     status = _budget_cache["status"]
     age = time.time() - _budget_cache["last_checked"]
 
+    logger.debug(
+        f"[BUDGET CHECK] operation={operation}, status={status}, "
+        f"daily_cost=${_budget_cache['daily_cost']:.4f}, age={age:.1f}s"
+    )
+
     # If the cache has never been populated, fail open but warn
     if _budget_cache["last_checked"] == 0.0:
         logger.warning(
@@ -392,7 +408,11 @@ def check_llm_budget(operation: str = "") -> tuple[bool, str]:
     if status == "degraded":
         # Critical operations proceed, non-critical are blocked
         tracker = CostTracker.__new__(CostTracker)  # lightweight, just need the method
-        if tracker.is_critical_operation(operation):
+        is_critical = tracker.is_critical_operation(operation)
+        logger.info(
+            f"[DEGRADED MODE] operation={operation}, is_critical={is_critical}"
+        )
+        if is_critical:
             return True, "degraded"
         else:
             logger.warning(

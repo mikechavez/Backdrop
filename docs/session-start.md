@@ -264,6 +264,56 @@ GET https://context-owl-production.up.railway.app/api/v1/health
 
 ---
 
+### Session 20 (2026-04-13) — BUG-065 Briefing Soft Limit Incorrectly Triggered ✅
+
+**Issue:** Briefing generation blocked with "Daily spend limit reached (soft_limit)" error despite daily cost ($0.311055) being **below** the soft limit threshold ($0.50).
+
+**Root Cause Found:** The briefing generation pipeline includes a **self-refine loop** that makes three LLM calls:
+1. `briefing_generate` - Initial generation (**WAS** marked critical) ✅
+2. `briefing_critique` - Quality check during self-refine (**WAS NOT** marked critical) ❌
+3. `briefing_refine` - Refinement during self-refine (**WAS NOT** marked critical) ❌
+
+When cache status transitioned to "degraded" (any soft/hard limit condition), `check_llm_budget()` would block non-critical operations. The critique and refine operations were missing from the `CRITICAL_OPERATIONS` set, causing the entire briefing pipeline to fail even though daily cost was under the soft limit.
+
+**Fixes Applied:**
+1. ✅ **Added missing critical operations:** Added `briefing_critique` and `briefing_refine` to `CRITICAL_OPERATIONS` set
+   - File: `src/crypto_news_aggregator/services/cost_tracker.py` lines 294-318
+   - These are essential parts of the core briefing pipeline, not optional enrichment
+   
+2. ✅ **Added comprehensive debug logging** for future troubleshooting:
+   - `[CACHE REFRESH]` in `refresh_budget_cache()` → shows cost/limits read from settings with type info (catches config issues)
+   - `[BUDGET CHECK]` (DEBUG level) in `check_llm_budget()` → shows operation name, cache status, daily_cost, cache age on each call
+   - `[DEGRADED MODE]` (INFO level) → shows operation criticality classification when in degraded mode
+
+3. ✅ **Added regression tests:**
+   - `test_briefing_operations_are_critical()` → verifies all briefing ops marked critical
+   - `test_entity_extraction_is_critical()` → verifies pipeline critical op
+   - `test_non_critical_operations()` → verifies non-critical ops not wrongly marked
+
+**Testing:**
+- ✅ All 11 cost tracker tests pass
+- ✅ No regressions in existing test suite
+
+**Branch:** `fix/bug-065-briefing-soft-limit`
+**Commit:** `b21e928` (`fix(cost-tracker): Mark briefing critique/refine as critical operations (BUG-065)`)
+**Files Changed:**
+- ✏️ `src/crypto_news_aggregator/services/cost_tracker.py` (add missing ops to CRITICAL_OPERATIONS, add debug logs)
+- ✨ `tests/services/test_cost_tracker.py` (add TestCriticalOperations class with 3 tests)
+- 📝 `docs/tickets/bug-065-fix-briefing-soft-limit.md` (updated with root cause analysis)
+
+**Impact:**
+- ✅ Fixes immediate blocker: briefing generation no longer incorrectly blocked by soft limit
+- ✅ Improves observability: debug logs will catch future budget check issues in production
+- ✅ Prevents regression: unit tests ensure all briefing pipeline operations remain critical
+
+**Next Steps:**
+1. Create PR: `fix/bug-065-briefing-soft-limit` → main
+2. Deploy to production
+3. Verify briefing generation succeeds end-to-end (no more "soft_limit" errors)
+4. Monitor logs for new debug output to validate soft limit behavior
+
+---
+
 ## Key Files
 
 **LLM pipeline (where token leak likely lives):**

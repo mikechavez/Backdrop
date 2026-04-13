@@ -28,21 +28,23 @@
 
 | # | Ticket | Title | Status | Est | Impact |
 |---|--------|-------|--------|-----|--------|
-| 0 | **BUG-064** | **Memory Leak + Retry Storm (Max Retries, Op Name Mismatch)** | ✅ CODE COMPLETE | high | 0.5h | Critical path |
-| 1 | **TASK-064** | **Railway Cost Audit — Identify Cost Driver(s)** | 🔲 TODO | high | 1.5h | Critical path |
-| 2 | **TASK-065** | **Provider Migration Decision — Render vs Fly vs Self-Hosted** | 🔲 BLOCKED | high | 0.5h | Depends on TASK-064 |
-| 3 | **TASK-066** | **Migrate Backend to New Provider** | 🔲 BLOCKED | high | 2h | Depends on TASK-065 |
-| 4 | **TASK-067** | **Migrate Database/Cache to New Provider** | 🔲 BLOCKED | high | 2h | Depends on TASK-065 |
-| 5 | **TASK-068** | **Restore Services + Smoke Test** | 🔲 BLOCKED | high | 1h | Depends on TASK-066/067 |
-| 6 | **BUG-063** | **Merge Narrative Polish Gateway Fix** | 🔄 WAITING | critical | 0.5h | Unblocks LLM monitoring |
-| 7 | **TASK-069** | **Deploy LLM Cost Dashboard + Slack Alerts** | 🔲 TODO | medium | 1.5h | Monitoring/observability |
-| 8 | **TASK-070** | **Post-Optimization Burn-in (24hr)** | 🔲 TODO | medium | 0.25h | Validates cost targets |
-| 9 | **TASK-071** | **Adjust Spend Thresholds for Sustainable Ops** | 🔲 TODO | low | 0.5h | Config + docs |
+| 0 | **BUG-064** | **Memory Leak + Retry Storm (Max Retries, Op Name Mismatch)** | ✅ CODE COMPLETE | 0.5h | Critical path |
+| 0a | **BUG-065** | **Briefing Soft Limit Incorrectly Triggered** | ✅ CODE COMPLETE | 0.5h | Critical path blocker |
+| 1 | **TASK-064** | **Railway Cost Audit — Identify Cost Driver(s)** | 🔲 TODO | 1.5h | Critical path |
+| 2 | **TASK-065** | **Provider Migration Decision — Render vs Fly vs Self-Hosted** | 🔲 BLOCKED | 0.5h | Depends on TASK-064 |
+| 3 | **TASK-066** | **Migrate Backend to New Provider** | 🔲 BLOCKED | 2h | Depends on TASK-065 |
+| 4 | **TASK-067** | **Migrate Database/Cache to New Provider** | 🔲 BLOCKED | 2h | Depends on TASK-065 |
+| 5 | **TASK-068** | **Restore Services + Smoke Test** | 🔲 BLOCKED | 1h | Depends on TASK-066/067 |
+| 6 | **BUG-063** | **Merge Narrative Polish Gateway Fix** | 🔄 WAITING | 0.5h | Unblocks LLM monitoring |
+| 7 | **TASK-069** | **Deploy LLM Cost Dashboard + Slack Alerts** | 🔲 TODO | 1.5h | Monitoring/observability |
+| 8 | **TASK-070** | **Post-Optimization Burn-in (24hr)** | 🔲 TODO | 0.25h | Validates cost targets |
+| 9 | **TASK-071** | **Adjust Spend Thresholds for Sustainable Ops** | 🔲 TODO | 0.5h | Config + docs |
 
 ---
 
 ## Success Criteria
 
+- [x] **BUG-065 fixed:** Briefing soft limit no longer incorrectly blocks generation
 - [ ] Railway cost driver identified and documented
 - [ ] All services restored to production (backend, worker, database, cache)
 - [ ] New infrastructure provider selected with transparent, predictable costs
