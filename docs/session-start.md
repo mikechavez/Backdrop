@@ -113,10 +113,27 @@
   - **Impact:** Unblocks post-refine draft capture during briefing generation self-refine loop
   - **Files Changed:** `src/crypto_news_aggregator/services/briefing_agent.py` (line 437)
 
+**Session 22 (2026-04-13 — CURRENT) — BUG-068 Double Cost Tracking Fix ✅**
+- ✅ **BUG-068 FIXED** — Removed manual cost tracking from OptimizedAnthropicLLM
+  - **Problem:** OptimizedAnthropicLLM manually called `CostTracker.track_call()` in parallel with LLMGateway, creating duplicate cost entries
+  - **Data Impact:** api_costs had 53,326 records (bloated with duplicates), llm_traces had 327 (clean from gateway only)
+  - **Cost Discrepancy:** Hard limit check read $0.6068 from api_costs vs actual $0.6300 from llm_traces → false hard_limit triggers
+  - **Root Cause:** OptimizedAnthropicLLM written before LLMGateway existed; never updated to remove manual tracking
+  - **Fix Applied:**
+    - Removed `self.cost_tracker` initialization and `_get_cost_tracker()` method
+    - Removed 4 manual `track_call()` invocations for entity extraction (cached + real)
+    - Removed 2 manual `track_call()` invocations for narrative extraction (cached + real)
+    - Removed 2 manual `track_call()` invocations for narrative summary (cached + real)
+    - Removed `get_cost_summary()` method
+    - Updated 3 tests to verify NO api_costs entries created
+    - Removed cost summary logging from RSS fetcher
+  - **Verification:** 9/9 tests passing, all optimized LLM integration tests pass
+  - **Impact:** LLMGateway now single source of truth for cost tracking; api_costs stops growing
+
 **Next Steps:** 
-- Create PR for BUG-066 + BUG-067 fixes combined
+- Create PR for BUG-066 + BUG-067 + BUG-068 fixes combined
 - Merge to main once approved
-- Deploy to production (will unblock briefing generation immediately)
+- Deploy to production (will unblock briefing generation immediately and restore cost accuracy)
 
 ---
 

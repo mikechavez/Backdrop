@@ -557,19 +557,14 @@ async def process_new_articles_from_mongodb():
         f"({total_regex_processed / max(1, total_llm_processed + total_regex_processed) * 100:.1f}% cost savings)"
     )
     
-    # Log cache and cost stats if using optimized LLM
+    # Log cache stats if using optimized LLM
     if optimized_llm:
         try:
             cache_stats = await optimized_llm.get_cache_stats()
-            cost_summary = await optimized_llm.get_cost_summary()
-            
+
             logger.info(
                 f"📈 Cache stats: {cache_stats.get('active_entries', 0)} entries, "
                 f"{cache_stats.get('hit_rate_percent', 0):.1f}% hit rate"
-            )
-            logger.info(
-                f"💰 Cost stats: ${cost_summary.get('month_to_date', 0):.4f} MTD, "
-                f"projected ${cost_summary.get('projected_monthly', 0):.2f}/month"
             )
         except Exception as e:
             logger.warning(f"Failed to get cache/cost stats: {e}")
