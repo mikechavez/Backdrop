@@ -1,9 +1,9 @@
 # Session Start
 
-**Date:** 2026-04-10 (Session 18, Sprint 13)
-**Status:** TASK-063 ✅ complete, BUG-063 🔄 in progress (narrative polish gateway fix)
-**Branch:** fix/bug-063-narrative-polish-gateway (parent: cost-optimization/tier-1-only)
-**Next:** Complete BUG-063 PR, then merge cost optimization features to main
+**Date:** 2026-04-13 (Session 19, Sprint 14)
+**Status:** BUG-066 ✅ complete (daily cost calculation fix), ready for PR + merge
+**Branch:** fix/bug-066-daily-cost-calculation (parent: main)
+**Next:** Create PR, merge to main, then deploy to production
 
 ---
 
@@ -77,7 +77,7 @@
   - **Branch:** fix/task-046-register-briefing-tasks
   - **Commit:** 91a72ab
 
-**Session 13 (Current):**
+**Session 13 (Previous):**
 - ✅ **TASK-045 Critical Bug Fix** — Undefined variable in narrative merge log
   - **Problem:** TASK-045 removed verbose logging but left a line with undefined `articles_by_id` variable
   - **Location:** narrative_service.py line 1045 in merge upsert section
@@ -91,10 +91,22 @@
 **Previous (Session 9):**
 - ✅ BUG-058: Raised soft limit to $1.00, fixed TypeError in narrative detection (commit 641e120)
 
+**Session 19 (Current):**
+- ✅ **BUG-066 FIXED** — Daily cost calculation using rolling 24hr window instead of calendar day
+  - **Problem:** `get_daily_cost()` used `timedelta(days=1)` creating rolling 24-hour windows
+  - **Impact:** At 16:05 UTC, returned cost for 08:05 yesterday + 16 hours today, triggering hard limit incorrectly
+  - **Actual daily spend:** $0.4193 (under $0.60 hard limit)
+  - **Reported by cache:** $0.7153 (includes yesterday's 8 hours)
+  - **Fix:** Changed to calendar-day alignment: `now - timedelta(days=days-1)` → `.replace(hour=0, minute=0, second=0, microsecond=0)`
+  - **Result:** days=1 returns today's cost (00:00 UTC onwards), days=2 returns yesterday, etc.
+  - **Branch:** fix/bug-066-daily-cost-calculation
+  - **Commit:** ac7341c
+  - **Tests:** All 11 cost_tracker tests passing ✅
+
 **Next Steps:** 
-- Monitor Celery beat scheduler to confirm tasks are dispatched
-- Monitor worker logs to confirm tasks are received and executed
-- Monitor cost tracking to confirm briefing operations are recorded
+- Create PR for BUG-066 fix
+- Merge to main once approved
+- Deploy to production (will unblock briefing generation immediately)
 
 ---
 
