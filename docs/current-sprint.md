@@ -33,6 +33,7 @@
 | 0b | **BUG-066** | **Daily Cost Calculation Uses Rolling 24hr Instead of Calendar Day** | ✅ CODE COMPLETE | 0.25h | Critical path blocker |
 | 0c | **BUG-067** | **Motor AsyncIOMotorDatabase Truthiness Check Fails** | ✅ CODE COMPLETE | 0.1h | Critical path blocker |
 | 0d | **BUG-068** | **Double Cost Tracking — OptimizedAnthropicLLM Duplicates Gateway Tracking** | ✅ CODE COMPLETE | 0.33h | Critical blocker |
+| 0e | **BUG-069** | **Briefing Persistence — Never Saves to daily_briefings Collection** | ✅ CODE COMPLETE | 0.2h | Critical blocker |
 | 1 | **TASK-064** | **Railway Cost Audit — Identify Cost Driver(s)** | 🔲 TODO | 1.5h | Critical path |
 | 2 | **TASK-065** | **Provider Migration Decision — Render vs Fly vs Self-Hosted** | 🔲 BLOCKED | 0.5h | Depends on TASK-064 |
 | 3 | **TASK-066** | **Migrate Backend to New Provider** | 🔲 BLOCKED | 2h | Depends on TASK-065 |

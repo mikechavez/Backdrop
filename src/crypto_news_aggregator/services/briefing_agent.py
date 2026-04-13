@@ -926,13 +926,16 @@ Return ONLY valid JSON in the same format as before."""
             "task_id": task_id,  # For correlation: Beat → Worker → DB (None if called outside Celery)
         }
 
-        # Use provided briefing_id if available, otherwise generate new
+        # Set the briefing ID in the document (for consistency with drafts)
         if briefing_id:
-            briefing_doc_id = briefing_id
-        else:
-            briefing_doc_id = await insert_briefing(briefing_doc)
+            briefing_doc["_id"] = ObjectId(briefing_id)
 
-        briefing_doc["_id"] = ObjectId(briefing_doc_id)
+        # Always save to database (insert_briefing will use the _id if provided)
+        briefing_doc_id = await insert_briefing(briefing_doc)
+
+        # Ensure _id is set as ObjectId for return value
+        if "_id" not in briefing_doc or isinstance(briefing_doc["_id"], str):
+            briefing_doc["_id"] = ObjectId(briefing_doc_id)
 
         logger.info(f"Saved briefing {briefing_doc_id} (iterations: {iteration_count})")
         return briefing_doc

@@ -130,8 +130,22 @@
   - **Verification:** 9/9 tests passing, all optimized LLM integration tests pass
   - **Impact:** LLMGateway now single source of truth for cost tracking; api_costs stops growing
 
+**Session 23 (2026-04-13) — BUG-069 Briefing Persistence Fix ✅**
+- ✅ **BUG-069 FIXED** — Briefing generation logs "Saved" but never persists to database
+  - **Problem:** `_save_briefing()` skipped database insert when `briefing_id` was provided
+  - **Root cause:** Logic assumed if `briefing_id` exists, save already happened elsewhere (false assumption)
+  - **Impact:** Briefings logged as saved but never inserted to `daily_briefings`, invisible on UI
+  - **User impact:** Generated briefings invisible, cost incurred but no output
+  - **Location:** Line 929-938 of `briefing_agent.py` in `_save_briefing()` method
+  - **Fix Applied:**
+    - Always call `await insert_briefing(briefing_doc)` regardless of `briefing_id` presence
+    - Set `_id` in document BEFORE inserting so MongoDB respects provided ID
+    - Ensures briefing persists to `daily_briefings` with `published: true`
+  - **Files Changed:** `src/crypto_news_aggregator/services/briefing_agent.py` (9 lines changed)
+  - **Branch:** `fix/bug-066-daily-cost-calculation` (parent: main) — will add to existing PR
+
 **Next Steps:** 
-- Create PR for BUG-066 + BUG-067 + BUG-068 fixes combined
+- Create PR for BUG-066 + BUG-067 + BUG-068 + BUG-069 fixes combined
 - Merge to main once approved
 - Deploy to production (will unblock briefing generation immediately and restore cost accuracy)
 
