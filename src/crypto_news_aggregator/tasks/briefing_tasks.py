@@ -69,7 +69,7 @@ async def _generate_afternoon_briefing_async(force: bool = False, is_smoke: bool
 @shared_task(
     name="generate_morning_briefing",
     bind=True,
-    max_retries=2,
+    max_retries=3,
     default_retry_delay=300,  # 5 minutes
 )
 def generate_morning_briefing_task(self, force: bool = False, is_smoke: bool = False) -> Dict[str, Any]:
@@ -136,7 +136,7 @@ def generate_morning_briefing_task(self, force: bool = False, is_smoke: bool = F
 @shared_task(
     name="generate_evening_briefing",
     bind=True,
-    max_retries=2,
+    max_retries=3,
     default_retry_delay=300,  # 5 minutes
 )
 def generate_evening_briefing_task(self, force: bool = False, is_smoke: bool = False) -> Dict[str, Any]:
@@ -203,7 +203,7 @@ def generate_evening_briefing_task(self, force: bool = False, is_smoke: bool = F
 @shared_task(
     name="generate_afternoon_briefing",
     bind=True,
-    max_retries=2,
+    max_retries=3,
     default_retry_delay=300,  # 5 minutes
 )
 def generate_afternoon_briefing_task(self, force: bool = False, is_smoke: bool = False) -> Dict[str, Any]:

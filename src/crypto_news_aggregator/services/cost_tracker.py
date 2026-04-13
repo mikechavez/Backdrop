@@ -303,6 +303,7 @@ class CostTracker:
         """
         CRITICAL_OPERATIONS = {
             "briefing_generation",
+            "briefing_generate",
             "entity_extraction",
         }
         return operation in CRITICAL_OPERATIONS
