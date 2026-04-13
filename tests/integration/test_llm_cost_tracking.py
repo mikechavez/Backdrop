@@ -126,8 +126,8 @@ async def test_cost_tracker_different_models(test_db):
 
 
 @pytest.mark.asyncio
-async def test_optimized_llm_tracks_entity_extraction(test_db):
-    """Test that OptimizedAnthropicLLM tracks entity extraction calls."""
+async def test_optimized_llm_no_manual_tracking(test_db):
+    """Test that OptimizedAnthropicLLM does NOT manually track (gateway handles it)."""
     api_key = "test-key"
     llm = OptimizedAnthropicLLM(test_db, api_key)
 
@@ -153,16 +153,18 @@ async def test_optimized_llm_tracks_entity_extraction(test_db):
         # Give async tracking task time to complete
         await asyncio.sleep(0.1)
 
-        # Verify tracking in database
+        # Verify NO tracking in api_costs (gateway handles tracking instead)
         doc = await test_db.api_costs.find_one({"operation": "entity_extraction"})
-        assert doc is not None
-        assert doc["input_tokens"] == 200
-        assert doc["output_tokens"] == 100
+        assert doc is None, "OptimizedAnthropicLLM should NOT manually track to api_costs"
+
+        # Verify result was still returned correctly
+        assert len(result) == 1
+        assert result[0]["entities"][0]["name"] == "Bitcoin"
 
 
 @pytest.mark.asyncio
-async def test_optimized_llm_tracks_narrative_extraction(test_db):
-    """Test that OptimizedAnthropicLLM tracks narrative extraction calls."""
+async def test_optimized_llm_no_manual_tracking_narrative(test_db):
+    """Test that OptimizedAnthropicLLM does NOT manually track narrative extraction."""
     api_key = "test-key"
     llm = OptimizedAnthropicLLM(test_db, api_key)
 
@@ -180,16 +182,18 @@ async def test_optimized_llm_tracks_narrative_extraction(test_db):
         # Give async tracking task time to complete
         await asyncio.sleep(0.1)
 
-        # Verify tracking in database
+        # Verify NO tracking in api_costs (gateway handles tracking instead)
         doc = await test_db.api_costs.find_one({"operation": "narrative_extraction"})
-        assert doc is not None
-        assert doc["input_tokens"] == 250
-        assert doc["output_tokens"] == 150
+        assert doc is None, "OptimizedAnthropicLLM should NOT manually track to api_costs"
+
+        # Verify result was still returned correctly
+        assert result["nucleus_entity"] == "Bitcoin"
+        assert "Bitcoin" in result["actors"]
 
 
 @pytest.mark.asyncio
-async def test_optimized_llm_tracks_narrative_summary(test_db):
-    """Test that OptimizedAnthropicLLM tracks narrative summary calls."""
+async def test_optimized_llm_no_manual_tracking_summary(test_db):
+    """Test that OptimizedAnthropicLLM does NOT manually track narrative summary."""
     api_key = "test-key"
     llm = OptimizedAnthropicLLM(test_db, api_key)
 
@@ -207,11 +211,13 @@ async def test_optimized_llm_tracks_narrative_summary(test_db):
         # Give async tracking task time to complete
         await asyncio.sleep(0.1)
 
-        # Verify tracking in database
+        # Verify NO tracking in api_costs (gateway handles tracking instead)
         doc = await test_db.api_costs.find_one({"operation": "narrative_summary"})
-        assert doc is not None
-        assert doc["input_tokens"] == 300
-        assert doc["output_tokens"] == 200
+        assert doc is None, "OptimizedAnthropicLLM should NOT manually track to api_costs"
+
+        # Verify result was still returned correctly
+        assert "Bitcoin" in result
+        assert "trending" in result
 
 
 @pytest.mark.asyncio

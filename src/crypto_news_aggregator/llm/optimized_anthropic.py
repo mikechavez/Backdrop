@@ -3,7 +3,7 @@ Optimized Anthropic LLM Client with Cost Reduction Features:
 1. Response caching to avoid duplicate API calls
 2. Uses Haiku for simple tasks (entity extraction) - 12x cheaper
 3. Uses Sonnet for complex tasks (narrative summaries)
-4. Tracks costs for monitoring
+4. Cost tracking handled by LLMGateway (no manual tracking needed)
 """
 
 import asyncio
@@ -13,8 +13,7 @@ from typing import List, Dict, Any, Optional
 import httpx
 from .cache import LLMResponseCache
 from .gateway import get_gateway
-from ..db.mongodb import mongo_manager
-from ..services.cost_tracker import check_llm_budget, refresh_budget_if_stale
+from ..services.cost_tracker import check_llm_budget
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +23,7 @@ class OptimizedAnthropicLLM:
     Optimized LLM client that minimizes API costs through:
     - Model selection (Haiku for simple, Sonnet for complex)
     - Response caching
-    - Cost tracking
+    - Gateway-managed cost tracking
     """
     
     # Model selection
@@ -39,21 +38,10 @@ class OptimizedAnthropicLLM:
         self.api_key = api_key
         self.db = db
         self.cache = LLMResponseCache(db, ttl_hours=168)  # 1 week cache
-        self.cost_tracker = None  # Lazy initialization
-    
-    async def _get_cost_tracker(self):
-        """Get or initialize cost tracker."""
-        if self.cost_tracker is None:
-            from ..services.cost_tracker import CostTracker
-            self.cost_tracker = CostTracker(self.db)
-        return self.cost_tracker
 
     async def initialize(self):
-        """Initialize database indexes for cache and cost tracking"""
+        """Initialize database indexes for cache"""
         await self.cache.initialize_indexes()
-        tracker = await self._get_cost_tracker()
-        # Note: New cost_tracker service doesn't have initialize_indexes yet,
-        # but indexes will be created on first insert
     
     def _make_api_call(self, prompt: str, model: str, max_tokens: int = 1000, temperature: float = 0.3, operation: str = "") -> Dict[str, Any]:
         """
@@ -114,18 +102,6 @@ class OptimizedAnthropicLLM:
             if use_cache:
                 cached_response = await self.cache.get(prompt, self.HAIKU_MODEL)
                 if cached_response:
-                    # Track as cached call (async, non-blocking)
-                    try:
-                        tracker = await self._get_cost_tracker()
-                        await tracker.track_call(
-                                operation="entity_extraction",
-                                model=self.HAIKU_MODEL,
-                                input_tokens=0,
-                                output_tokens=0,
-                                cached=True
-                            )
-                    except Exception as e:
-                        logger.error(f"Cost tracking failed: {e}")
                     results.append(cached_response)
                     continue
 
@@ -145,19 +121,6 @@ class OptimizedAnthropicLLM:
             if use_cache:
                 await self.cache.set(prompt, self.HAIKU_MODEL, result)
 
-            # Track cost (async, non-blocking)
-            try:
-                tracker = await self._get_cost_tracker()
-                await tracker.track_call(
-                    operation="entity_extraction",
-                    model=self.HAIKU_MODEL,
-                    input_tokens=api_response["input_tokens"],
-                    output_tokens=api_response["output_tokens"],
-                    cached=False
-                )
-            except Exception as e:
-                logger.error(f"Cost tracking failed: {e}")
-            
             results.append(result)
         
         return results
@@ -230,18 +193,6 @@ Only include entities mentioned in the text. Normalize crypto names (BTC → Bit
         if use_cache:
             cached_response = await self.cache.get(prompt, self.HAIKU_MODEL)
             if cached_response:
-                # Track as cached call (async, non-blocking)
-                try:
-                    tracker = await self._get_cost_tracker()
-                    await tracker.track_call(
-                            operation="narrative_extraction",
-                            model=self.HAIKU_MODEL,
-                            input_tokens=0,
-                            output_tokens=0,
-                            cached=True
-                        )
-                except Exception as e:
-                    logger.error(f"Cost tracking failed: {e}")
                 return cached_response
 
         # Make API call with Haiku
@@ -260,19 +211,6 @@ Only include entities mentioned in the text. Normalize crypto names (BTC → Bit
         if use_cache:
             await self.cache.set(prompt, self.HAIKU_MODEL, result)
 
-        # Track cost (async, non-blocking)
-        try:
-            tracker = await self._get_cost_tracker()
-            await tracker.track_call(
-                operation="narrative_extraction",
-                model=self.HAIKU_MODEL,
-                input_tokens=api_response["input_tokens"],
-                output_tokens=api_response["output_tokens"],
-                cached=False
-            )
-        except Exception as e:
-            logger.error(f"Cost tracking failed: {e}")
-        
         return result
     
     def _build_narrative_extraction_prompt(self, article: Dict) -> str:
@@ -322,18 +260,6 @@ Actions: Key events or verbs"""
         if use_cache:
             cached_response = await self.cache.get(prompt, self.SONNET_MODEL)
             if cached_response:
-                # Track as cached call (async, non-blocking)
-                try:
-                    tracker = await self._get_cost_tracker()
-                    await tracker.track_call(
-                            operation="narrative_summary",
-                            model=self.SONNET_MODEL,
-                            input_tokens=0,
-                            output_tokens=0,
-                            cached=True
-                        )
-                except Exception as e:
-                    logger.error(f"Cost tracking failed: {e}")
                 return cached_response.get("summary", "")
 
         # Make API call with Sonnet (complex task)
@@ -352,19 +278,6 @@ Actions: Key events or verbs"""
         if use_cache:
             await self.cache.set(prompt, self.SONNET_MODEL, result)
 
-        # Track cost (async, non-blocking)
-        try:
-            tracker = await self._get_cost_tracker()
-            await tracker.track_call(
-                operation="narrative_summary",
-                model=self.SONNET_MODEL,
-                input_tokens=api_response["input_tokens"],
-                output_tokens=api_response["output_tokens"],
-                cached=False
-            )
-        except Exception as e:
-            logger.error(f"Cost tracking failed: {e}")
-        
         return summary
     
     def _build_summary_prompt(self, articles: List[Dict]) -> str:
@@ -389,11 +302,7 @@ Be concise and informative."""
     async def get_cache_stats(self) -> Dict[str, Any]:
         """Get cache performance statistics"""
         return await self.cache.get_stats()
-    
-    async def get_cost_summary(self) -> Dict[str, Any]:
-        """Get cost tracking summary"""
-        return await self.cost_tracker.get_monthly_summary()
-    
+
     async def clear_old_cache(self) -> int:
         """Clear expired cache entries"""
         return await self.cache.clear_expired()
