@@ -28,8 +28,9 @@
 
 | # | Ticket | Title | Status | Est | Impact |
 |---|--------|-------|--------|-----|--------|
-| 0 | **BUG-064** | **Memory Leak + Retry Storm (Max Retries, Op Name Mismatch)** | ✅ CODE COMPLETE | 0.5h | Critical path |
-| 0a | **BUG-065** | **Briefing Soft Limit Incorrectly Triggered** | ✅ CODE COMPLETE | 0.5h | Critical path blocker |
+| 0 | **BUG-064** | **Memory Leak + Retry Storm (Max Retries, Op Name Mismatch)** | ✅ MERGED | 0.5h | Critical path |
+| 0a | **BUG-065** | **Briefing Soft Limit Incorrectly Triggered** | ✅ MERGED | 0.5h | Critical path blocker |
+| 0b | **BUG-066** | **Daily Cost Calculation Uses Rolling 24hr Instead of Calendar Day** | ✅ CODE COMPLETE | 0.25h | Critical path blocker |
 | 1 | **TASK-064** | **Railway Cost Audit — Identify Cost Driver(s)** | 🔲 TODO | 1.5h | Critical path |
 | 2 | **TASK-065** | **Provider Migration Decision — Render vs Fly vs Self-Hosted** | 🔲 BLOCKED | 0.5h | Depends on TASK-064 |
 | 3 | **TASK-066** | **Migrate Backend to New Provider** | 🔲 BLOCKED | 2h | Depends on TASK-065 |
@@ -45,6 +46,7 @@
 ## Success Criteria
 
 - [x] **BUG-065 fixed:** Briefing soft limit no longer incorrectly blocks generation
+- [x] **BUG-066 fixed:** Daily cost calculation now uses calendar days (not rolling 24hr)
 - [ ] Railway cost driver identified and documented
 - [ ] All services restored to production (backend, worker, database, cache)
 - [ ] New infrastructure provider selected with transparent, predictable costs

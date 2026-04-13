@@ -154,18 +154,28 @@ class CostTracker:
 
     async def get_daily_cost(self, days: int = 1) -> float:
         """
-        Get total cost for the last N days.
+        Get total cost for the specified calendar day (UTC).
+
+        For days=1 (default), returns cost for today (00:00-23:59 UTC).
+        For days=2, returns cost for yesterday, etc.
 
         Args:
-            days: Number of days to look back
+            days: Number of calendar days back (1=today, 2=yesterday, etc.)
 
         Returns:
             Total cost in USD
         """
-        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+        now = datetime.now(timezone.utc)
+
+        # Calculate start of the target calendar day in UTC
+        # days=1 → today 00:00 UTC
+        # days=2 → yesterday 00:00 UTC
+        start_of_day = (now - timedelta(days=days - 1)).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
 
         pipeline = [
-            {"$match": {"timestamp": {"$gte": cutoff}}},
+            {"$match": {"timestamp": {"$gte": start_of_day}}},
             {"$group": {"_id": None, "total": {"$sum": "$cost"}}}
         ]
 
