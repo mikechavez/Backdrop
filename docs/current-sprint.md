@@ -31,6 +31,7 @@
 | 0 | **BUG-064** | **Memory Leak + Retry Storm (Max Retries, Op Name Mismatch)** | ✅ MERGED | 0.5h | Critical path |
 | 0a | **BUG-065** | **Briefing Soft Limit Incorrectly Triggered** | ✅ MERGED | 0.5h | Critical path blocker |
 | 0b | **BUG-066** | **Daily Cost Calculation Uses Rolling 24hr Instead of Calendar Day** | ✅ CODE COMPLETE | 0.25h | Critical path blocker |
+| 0c | **BUG-067** | **Motor AsyncIOMotorDatabase Truthiness Check Fails** | ✅ CODE COMPLETE | 0.1h | Critical path blocker |
 | 1 | **TASK-064** | **Railway Cost Audit — Identify Cost Driver(s)** | 🔲 TODO | 1.5h | Critical path |
 | 2 | **TASK-065** | **Provider Migration Decision — Render vs Fly vs Self-Hosted** | 🔲 BLOCKED | 0.5h | Depends on TASK-064 |
 | 3 | **TASK-066** | **Migrate Backend to New Provider** | 🔲 BLOCKED | 2h | Depends on TASK-065 |

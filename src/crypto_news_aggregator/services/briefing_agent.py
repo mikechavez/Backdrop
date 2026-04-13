@@ -434,7 +434,7 @@ class BriefingAgent:
             current = self._parse_briefing_response(refine_gateway_response.text)
 
             # Capture post-refine draft if IDs provided
-            if briefing_id and db:
+            if briefing_id and db is not None:
                 await save_draft(
                     db=db,
                     briefing_id=briefing_id,

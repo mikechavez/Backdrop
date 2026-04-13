@@ -103,8 +103,18 @@
   - **Commit:** ac7341c
   - **Tests:** All 11 cost_tracker tests passing ✅
 
+**Session 21 (2026-04-13) — BUG-067 Motor Truthiness Check Fix ✅**
+- ✅ **BUG-067 FIXED** — Motor AsyncIOMotorDatabase truthiness check fails
+  - **Problem:** Code checked `if briefing_id and db:` which triggers truthiness check on Motor object
+  - **Error:** `TypeError: Database objects do not implement truth value testing or bool()`
+  - **Location:** Line 437 of `briefing_agent.py` in `_self_refine()` method
+  - **Fix:** Changed to `if briefing_id and db is not None:`
+  - **Why:** Motor explicitly forbids `bool()` checks, allows `is None` / `is not None` comparisons
+  - **Impact:** Unblocks post-refine draft capture during briefing generation self-refine loop
+  - **Files Changed:** `src/crypto_news_aggregator/services/briefing_agent.py` (line 437)
+
 **Next Steps:** 
-- Create PR for BUG-066 fix
+- Create PR for BUG-066 + BUG-067 fixes combined
 - Merge to main once approved
 - Deploy to production (will unblock briefing generation immediately)
 
