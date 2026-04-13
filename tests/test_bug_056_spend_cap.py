@@ -53,6 +53,10 @@ class TestCriticalOperationClassification:
         """briefing_generation should be classified as critical."""
         assert self.tracker.is_critical_operation("briefing_generation") is True
 
+    def test_briefing_generate_is_critical(self):
+        """briefing_generate (task name variant) should be classified as critical."""
+        assert self.tracker.is_critical_operation("briefing_generate") is True
+
     def test_entity_extraction_is_critical(self):
         """entity_extraction should be classified as critical."""
         assert self.tracker.is_critical_operation("entity_extraction") is True
