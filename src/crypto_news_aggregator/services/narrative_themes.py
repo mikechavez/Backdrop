@@ -24,7 +24,8 @@ logger = logging.getLogger(__name__)
 
 # Maximum relevance tier to include in narrative detection/backfill
 # Tier 1 = high signal, Tier 2 = medium, Tier 3 = low (excluded)
-MAX_RELEVANCE_TIER = 2
+# NOTE: Changed to 1 (tier-1-only) to match TASK-060 cost optimization
+MAX_RELEVANCE_TIER = 1
 
 
 def validate_entity_in_text(nucleus_entity: str, article_title: str, article_text: str) -> bool:

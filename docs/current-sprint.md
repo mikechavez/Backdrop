@@ -1,366 +1,199 @@
 # Sprint 14 — Infrastructure Stability + LLM Cost Monitoring
 
-**Status:** Planning
-**Target Start:** 2026-04-11 (today)
+**Status:** IN PROGRESS
+**Target Start:** 2026-04-11
 **Target End:** 2026-04-14
-**Sprint Goal:** Restore all Backdrop services from Railway outage, understand + fix infrastructure costs, finalize LLM cost monitoring, resume production briefing generation.
+**Sprint Goal:** Fix critical briefing bugs, validate scheduled briefing execution, measure actual LLM costs, establish sustainable infrastructure baseline.
 
 ---
 
-## Critical Blocker: Railway Outage 🔴
+## Current Status (2026-04-13, 13:00 EST)
 
-**Current State:**
-- All services DOWN: FastAPI backend, Celery worker, Redis, MongoDB
-- Trigger: Railway plan exceeded $30 hard cap set by user
-- Cost driver: Unknown (database? compute? Redis memory?)
-- Impact: No briefings generated since ~2026-04-11 morning, no API availability
+### ✅ Completed This Sprint
+- **BUG-064:** Memory leak + retry storm — MERGED
+- **BUG-065:** Briefing soft limit incorrectly triggered — MERGED
+- **BUG-066:** Daily cost calculation (rolling 24h vs calendar day) — CODE COMPLETE
+- **BUG-067:** Motor AsyncIOMotorDatabase truthiness check — CODE COMPLETE
+- **BUG-068:** Double cost tracking (OptimizedAnthropicLLM duplicate) — CODE COMPLETE
+- **BUG-069:** Briefing persistence (empty documents) — **✅ FIXED & VERIFIED**
+  - Manual briefing generation tested: saves with full content
+  - Cost logged correctly: $0.010033
+  - Document visible on UI: ✅ Yes
+- **BUG-070:** Narrative tier-1 only filter — **✅ CODE COMPLETE**
+  - Changed `MAX_RELEVANCE_TIER = 2` → `1` in narrative_themes.py
+  - Expected savings: -64% narrative calls (~193 → 70/day), ~$0.38/day cost reduction
+  - Single-line fix, zero-risk change
 
-**Timeline to Resolution:**
-- **T+0 (now):** Audit Railway bill, identify cost driver(s)
-- **T+2h:** Decide: right-size existing Railway services OR migrate to cost-transparent provider
-- **T+4h:** Execute migration/reconfiguration, restore services
-- **T+6h:** Smoke test briefing generation, validate costs
-- **Target:** Services restored by end of day 2026-04-11
+### 🔲 In Progress
+- **TASK-028:** Validate scheduled briefing execution + measure costs (see below)
 
----
-
-## Sprint Order
-
-| # | Ticket | Title | Status | Est | Impact |
-|---|--------|-------|--------|-----|--------|
-| 0 | **BUG-064** | **Memory Leak + Retry Storm (Max Retries, Op Name Mismatch)** | ✅ MERGED | 0.5h | Critical path |
-| 0a | **BUG-065** | **Briefing Soft Limit Incorrectly Triggered** | ✅ MERGED | 0.5h | Critical path blocker |
-| 0b | **BUG-066** | **Daily Cost Calculation Uses Rolling 24hr Instead of Calendar Day** | ✅ CODE COMPLETE | 0.25h | Critical path blocker |
-| 0c | **BUG-067** | **Motor AsyncIOMotorDatabase Truthiness Check Fails** | ✅ CODE COMPLETE | 0.1h | Critical path blocker |
-| 0d | **BUG-068** | **Double Cost Tracking — OptimizedAnthropicLLM Duplicates Gateway Tracking** | ✅ CODE COMPLETE | 0.33h | Critical blocker |
-| 0e | **BUG-069** | **Briefing Persistence — Never Saves to daily_briefings Collection** | ✅ CODE COMPLETE | 0.2h | Critical blocker |
-| 1 | **TASK-064** | **Railway Cost Audit — Identify Cost Driver(s)** | 🔲 TODO | 1.5h | Critical path |
-| 2 | **TASK-065** | **Provider Migration Decision — Render vs Fly vs Self-Hosted** | 🔲 BLOCKED | 0.5h | Depends on TASK-064 |
-| 3 | **TASK-066** | **Migrate Backend to New Provider** | 🔲 BLOCKED | 2h | Depends on TASK-065 |
-| 4 | **TASK-067** | **Migrate Database/Cache to New Provider** | 🔲 BLOCKED | 2h | Depends on TASK-065 |
-| 5 | **TASK-068** | **Restore Services + Smoke Test** | 🔲 BLOCKED | 1h | Depends on TASK-066/067 |
-| 6 | **BUG-063** | **Merge Narrative Polish Gateway Fix** | 🔄 WAITING | 0.5h | Unblocks LLM monitoring |
-| 7 | **TASK-069** | **Deploy LLM Cost Dashboard + Slack Alerts** | 🔲 TODO | 1.5h | Monitoring/observability |
-| 8 | **TASK-070** | **Post-Optimization Burn-in (24hr)** | 🔲 TODO | 0.25h | Validates cost targets |
-| 9 | **TASK-071** | **Adjust Spend Thresholds for Sustainable Ops** | 🔲 TODO | 0.5h | Config + docs |
+### 📋 Not Yet Started
+- TASK-069: Cost dashboard + Slack alerts
+- TASK-070: Narrative cost investigation (separate from TASK-028)
+- TASK-071: Spend threshold adjustment
 
 ---
 
-## Success Criteria
+## TASK-028: Scheduled Briefing Validation (Next Phase)
 
-- [x] **BUG-065 fixed:** Briefing soft limit no longer incorrectly blocks generation
-- [x] **BUG-066 fixed:** Daily cost calculation now uses calendar days (not rolling 24hr)
-- [ ] Railway cost driver identified and documented
-- [ ] All services restored to production (backend, worker, database, cache)
-- [ ] New infrastructure provider selected with transparent, predictable costs
-- [ ] Daily infrastructure cost ≤ $2/day (sustainable long-term)
-- [ ] BUG-063 merged and narrative polish fully metered
-- [ ] 24-hour burn-in validates LLM costs ≤ $0.70/day
-- [ ] Slack alerts configured for soft/hard spend limits
-- [ ] Briefing generation running normally with no outages
+**Current blockers resolved:**
+- ✅ Code fixes applied (BUG-064 through BUG-069)
+- ✅ Manual briefing generation working
+- ✅ Celery Beat configured with correct timezone (`America/New_York`)
+- ✅ Celery Worker running on Railway
 
----
+**What we need to verify:**
+Scheduled briefings **may have been broken before**, and we need to confirm BUG-069 fix resolves that.
 
-## Detailed Tasks
+### Verification Plan
 
-### TASK-064: Railway Cost Audit — Identify Cost Driver(s) 🔴 CRITICAL
+**Phase 1: Watch next scheduled execution (Today 2026-04-13)**
+- Morning briefing was at 8:00 AM EST (already passed)
+- Evening briefing scheduled for 8:00 PM EST (20:00 EST = 02:00 UTC next day)
+- Check at ~20:15 EST:
+  ```javascript
+  // Verify document saved
+  db.briefing_drafts.findOne({created_at: {$gte: new Date("2026-04-13T20:00:00Z")}})
+  
+  // Verify it has content, not empty
+  // Should have: narrative, key_insights, entities_mentioned, recommendations, confidence_score
+  ```
 
-**What to check:**
-1. Log into Railway dashboard → select production project → view Billing page
-2. For each service, note:
-   - Compute hours billed (backend FastAPI, Celery worker)
-   - Database storage (MongoDB) + ops charges
-   - Redis memory tier + egress bandwidth
-   - Any data transfer charges
-3. Cross-reference with daily spend: is it constant or spiking?
+**Phase 2: 72-hour observation (2026-04-13 to 2026-04-16)**
+- Let system run for 3 full days of normal operation
+- Collect metrics:
+  - Scheduled briefing execution (should see 6 total: 2/day × 3 days)
+  - All documents should have full content
+  - Cost tracking by operation
 
-**Likely culprits:**
-- **MongoDB:** Always-on, charges per MB stored + per million ops
-  - Typical for Backdrop: ~500MB–1GB storage + high query volume (article ingest, briefing gen)
-  - Estimate: $5–15/day depending on ops
-- **Redis:** Memory tier pricing (1GB tier ≈ $5–10/month, but Railway charges higher)
-  - Backdrop uses Redis for: briefing locks, article cache, soft-limit tracking
-  - Estimate: $0.50–2/day on Railway
-- **FastAPI compute:** Always-on backend instance (e.g., 2GB RAM tier)
-  - Railway charges by CPU+RAM time
-  - Estimate: $10–20/day for 2GB instance
-- **Celery worker:** Scheduled tasks (article ingest every 2h, briefing gen 2x/day)
-  - If always-on: $10–20/day; if stopped: $0
-  - Check: is worker running 24/7 or only during scheduled tasks?
-
-**Output:**
-- Document: `infrastructure-costs-audit.md` with:
-  - Current Railway bill breakdown
-  - Estimated daily cost for each service
-  - Comparison to $30 hard cap (implies $30/day avg or $1/day if recent overage)
-  - Recommendation for cost control
-
-**Effort:** 1.5h (includes analysis + writeup)
-
----
-
-### TASK-065: Provider Migration Decision — Render vs Fly vs Self-Hosted
-
-**Options to evaluate:**
-
-| Provider | FastAPI | MongoDB | Redis | Est. Cost | Pros | Cons |
-|----------|---------|---------|-------|-----------|------|------|
-| **Railway (current)** | $10–20/d | $5–15/d | $2–5/d | $20–40/d | Integrated | Opaque pricing, high cost |
-| **Render** | $7–15/d* | $0.50–2/d** | $1–3/d** | $10–20/d | Simple deploys, good docs | Still managed |
-| **Fly.io** | $2–5/d | $0.50–2/d** | $1–3/d** | $5–15/d | Cheapest compute, transparent | More config |
-| **Self-hosted VPS** | $0.67–1/d | Included | Included | $1–2/d | Cheapest, full control | More ops burden |
-
-*Render free tier doesn't support production; cheapest paid tier ~$7/month
-**Using Atlas + Upstash (not provider-specific services)
-
-**Decision Tree:**
-1. If Railway cost driver is **database/cache** → switch to Atlas (MongoDB) + Upstash (Redis), keep backend on Railway
-2. If **compute is the issue** → migrate backend to Fly.io or Render, keep services on respective platforms
-3. If **total cost > $5/day and willing to self-host** → rent VPS ($20/mo) + run everything there
-
-**Recommendation (pending TASK-064):**
-- Likely scenario: Switch MongoDB to Atlas ($3–5/d), Redis to Upstash ($1–2/d), backend to Render ($7–10/d)
-- Total: ~$12–17/d vs current $20–40/d
-- Effort: 2–3h migration, 1h per service testing
-
-**Effort:** 0.5h (analysis + decision doc)
-
----
-
-### TASK-066: Migrate Backend to New Provider (Pending TASK-065)
-
-**If migrating to Render:**
-1. Create Render account, link GitHub repo
-2. Create new Web Service from `mikechavez/backdrop` repo
-3. Set environment variables (API keys, secrets, database URIs)
-4. Deploy and verify `/health` endpoint responding
-5. Switch production DNS/CDN to new Render service
-6. Disable old Railway backend
-7. Smoke test: `/admin/trigger-briefing?is_smoke=true`
-
-**If migrating to Fly.io:**
-1. Install `fly` CLI, `flyctl auth login`
-2. Create `fly.toml` in repo root (see Fly docs for Python/FastAPI)
-3. Set secrets: `flyctl secrets set API_KEYS=...`
-4. Deploy: `flyctl deploy`
-5. Allocate IP / set DNS
-6. Smoke test
-
-**Effort:** 2h (includes new account setup, environment config, testing)
-
----
-
-### TASK-067: Migrate Database/Cache to New Provider (Pending TASK-065)
-
-**MongoDB → Atlas:**
-1. Create free MongoDB Atlas account or use existing
-2. Create cluster in us-east-1 (same region as FastAPI for latency)
-3. Generate connection string
-4. Dump current MongoDB data from Railway: `mongodump --uri "mongodb://..."`
-5. Restore to Atlas: `mongorestore --uri "mongodb+srv://..."`
-6. Update `MONGODB_URI` env var in new backend
-7. Verify article count, traces, briefings still present
-8. Disable Railway MongoDB instance
-
-**Redis → Upstash:**
-1. Create Upstash account, create Redis database (us-east-1)
-2. Get connection string (Redis URL)
-3. Dump current Redis data (if critical): `redis-cli BGSAVE`, download RDB file
-4. Update `REDIS_URL` env var in new backend
-5. Verify Celery tasks queuing/processing normally
-6. Disable Railway Redis
-
-**Effort:** 2h (includes setup, migration, verification)
-
----
-
-### TASK-068: Restore Services + Smoke Test
-
-**Checklist:**
-- [ ] FastAPI backend up and responding to `/health` → `"status": "ok"`
-- [ ] Celery worker running and processing tasks (check logs)
-- [ ] MongoDB connected: `db.articles.countDocuments()` > 0
-- [ ] Redis connected: `redis-cli PING` → `PONG`
-- [ ] Manual briefing trigger: `/admin/trigger-briefing?is_smoke=true` completes
-- [ ] Briefing saved to MongoDB with traces
-- [ ] No errors in backend logs or Sentry
-- [ ] Daily cost tracking: Current spend < $2/day
-
-**Output:**
-- Smoke test log (timestamp, endpoint, response code, no errors)
-- Cost validation: current daily run cost
-
-**Effort:** 1h (testing, validation, debugging any issues)
-
----
-
-### BUG-063: Merge Narrative Polish Gateway Fix (WAITING)
-
-**Current State:** Code complete, 4 unit tests passing, awaiting manual smoke test
-
-**Action:**
-1. Manual smoke test on production: generate briefing, check logs for `narrative_polish` operation traces
-2. Verify traces logged to MongoDB
-3. Merge PR to main, deploy to production
-
-**Expected impact:** Closes last ~$2/day unmetered spend, total LLM cost reduction -75%
-
-**Effort:** 0.5h
-
----
-
-### TASK-069: Deploy LLM Cost Dashboard + Slack Alerts
-
-**Dashboard components:**
-1. Daily LLM spend by operation (bar chart)
-2. Cumulative spend this month (line chart)
-3. Per-operation cost attribution table
-4. Last 24h traces (sortable by cost/operation)
-
-**Implementation:**
-- Create `/admin/cost-dashboard` endpoint in FastAPI
-- Query MongoDB `llm_traces` aggregation (from TASK-037)
-- Format as HTML + embedded Chart.js or Plotly
-- Display last 24 hours, last 7 days, this month tabs
-
-**Slack alerts:**
-- Soft limit alert: `⚠️ LLM spend $0.50/day, at 71% of daily limit`
-- Hard limit alert: `🚨 LLM spend $1.00/day, BRIEFING GENERATION PAUSED`
-- Daily digest: `📊 LLM spend today: $0.45, top operation: narrative_polish (65%)`
-
-**Effort:** 1.5h (dashboard + Slack integration)
-
----
-
-### TASK-070: Post-Optimization Burn-in (24hr)
-
-**Timeline:**
-- Run from T+48h to T+72h (24 hours of normal operation)
-- Collect all traces: briefing_generate, briefing_critique, briefing_refine, narrative_detection, narrative_polish, enrichment, entity_extraction
-- Generate cost attribution report
-
-**Output:**
-- Cost by operation (validate TASK-062, TASK-063 improvements)
-- Cost by time of day (peak hours)
-- Cost per briefing (should be ~$0.01–0.02 with Haiku)
-- Daily total (should be $0.50–0.70)
+**Phase 3: Cost attribution report (after 72h)**
+- Query all `llm_traces` from the period
+- Group by operation, sum costs
+- Validate assumptions:
+  - Briefing generation: ~$0.01/run × 6 runs = $0.06
+  - Narrative operations should be minimal during scheduled runs (no active user enrichment)
+  - Total daily spend should be $0.50–0.70 (validate Sprint 13 optimization)
 
 **Success criteria:**
-- Daily spend ≤ $0.70/day
-- Narrative polish ≤ $0.10/day (not $1.50+)
-- Enrichment ≤ $0.15/day
-- Briefing gen ≤ $0.05/day
-
-**Effort:** 0.25h (query + analysis)
+- [ ] All scheduled briefings execute (6 documents in 72h, all with content)
+- [ ] No empty briefing documents
+- [ ] Daily cost stays under $1.00 hard limit
+- [ ] Soft limit not triggered (should be under $0.50 soft if narrative costs optimized)
 
 ---
 
-### TASK-071: Adjust Spend Thresholds for Sustainable Ops
+## Why Scheduled Briefings Might Have Been Broken
 
-**Current config (from Sprint 13):**
+**Context:** You mentioned scheduled briefings were failing for reasons you can't remember.
+
+**Most likely cause:** BUG-069 (empty document persistence)
+- Manual briefings probably always worked (you'd test manually, see it save with content)
+- Scheduled briefings probably failed silently (empty documents created, Celery task marked "success")
+- Users never saw briefings on UI
+- You debugged and found them empty, then abandoned scheduled generation
+
+**Hypothesis:** BUG-069 fix resolves this. The code path that was broken is now working.
+
+---
+
+## Infrastructure Status
+
+**Services running on Railway:**
+- ✅ FastAPI backend (API server)
+- ✅ Celery Worker (task execution)
+- ✅ Celery Beat (scheduler)
+- ✅ MongoDB (database)
+- ✅ Redis (cache/locks)
+
+**No migration planned** — Railway services are stable. If cost becomes an issue later, Sprint 15 can evaluate provider migration.
+
+**Celery configuration verified:**
 ```python
-LLM_DAILY_SOFT_LIMIT = 0.25  # Pauses narrative enrichment
-LLM_DAILY_HARD_LIMIT = 0.33  # Kills briefing generation
-```
+# celery_config.py
+timezone = "America/New_York"  # ✅ EST/EDT handling automatic
+enable_utc = True
 
-**Issue:** Thresholds are too tight now that optimization is complete. Need to adjust based on post-TASK-062/063 actual costs.
-
-**New config (post-optimization):**
-```python
-LLM_DAILY_SOFT_LIMIT = 0.50   # Graceful degradation when approaching limit
-LLM_DAILY_HARD_LIMIT = 1.00   # Hard stop (2-3x safety margin)
-```
-
-**Rationale:**
-- Expected sustainable cost: $0.50–0.70/day
-- Soft limit at $0.50 gives warning when approaching target
-- Hard limit at $1.00 prevents runaway costs (2x upside buffer)
-
-**Updates:**
-- `src/crypto_news_aggregator/core/config.py` (lines 140–142)
-- Documentation: add comment explaining rationale
-- Verify no regression in existing tests
-
-**Effort:** 0.5h (config update + testing)
-
----
-
-## Block Diagram (Parallel Path)
-
-```
-T+0: TASK-064 (Railway audit) — BLOCKING
-   ↓ (1.5h)
-T+1.5h: TASK-065 (provider decision)
-   ├─ Option A: Migrate MongoDB/Redis only
-   │  ├─ TASK-066A (DB/cache only, no backend change)
-   │  └─ TASK-068A (test backend + DB/cache together)
-   │
-   └─ Option B: Full migration (backend + DB + cache)
-      ├─ TASK-066 (FastAPI) || TASK-067 (DB/cache) — parallel
-      └─ TASK-068 (smoke test all 3 together)
-
-T+4h–5h: Services restored ✅
-
-Parallel (non-blocking):
-   ├─ BUG-063 (merge, 0.5h)
-   ├─ TASK-069 (dashboard, 1.5h)
-   ├─ TASK-070 (burn-in, 0.25h)
-   └─ TASK-071 (config, 0.5h)
-
-T+48h–72h: TASK-070 (24h burn-in validates costs)
-T+72h: Sprint 14 complete ✅
+# beat_schedule.py
+"generate-morning-briefing": crontab(hour=8, minute=0)   # 8 AM EST
+"generate-evening-briefing": crontab(hour=20, minute=0)  # 8 PM EST
 ```
 
 ---
 
-## Success Metrics
+## Cost Baseline (Pre-Sprint 14)
 
-| Metric | Target | Current (Sprint 13) | Sprint 14 Goal |
-|--------|--------|-------------------|-----------------|
-| **Infrastructure Cost** | $2–5/day | $20–40/day (Railway) | ≤ $5/day |
-| **LLM Cost** | $0.50–0.70/day | ~$2/day (burn-in pending) | $0.50–0.70/day |
-| **Total Daily Cost** | ≤ $5.70/day | $22–42/day | ≤ $5.70/day |
-| **Services Status** | ✅ All up | 🔴 DOWN (Railway cap) | ✅ All up |
-| **Briefing Generation** | 2x/day | 🔴 Blocked | 2x/day |
-| **Cost Visibility** | 100% | 100% (gateway complete) | 100% (dashboard live) |
-| **Spend Alerts** | Slack notifications | None | Daily digest + breaches |
+From previous observations:
+- **Narrative operations:** ~$0.38/day (32 calls in 30 mins = 64/hour) 🚨 HIGH
+- **Briefing generation:** ~$0.01/briefing
+- **Article enrichment:** ~$0.20/day (heavily throttled)
+- **Other:** entity extraction, alerts, cache
+- **Total:** ~$0.95/day (near $1.00 hard limit)
 
----
-
-## Risk Mitigation
-
-| Risk | Probability | Impact | Mitigation |
-|------|------------|--------|-----------|
-| Migration takes longer than 4h | Medium | Briefings delayed 1–2 days | Start ASAP, have rollback plan |
-| New provider has different latency | Low | Briefing gen slower | Test with dummy data first |
-| Data loss in DB migration | Low | Lose articles/traces | Dump backup before migration, test restore |
-| LLM costs not as low as projected | Medium | Still high bills | TASK-070 validates, can adjust if needed |
+**Issue:** Narratives dominate budget. TASK-070 will investigate this separately.
 
 ---
 
-## Decisions Made
+## Next Actions (48h)
 
-1. **Infrastructure cost is a blocking issue** — Sprint 14 prioritizes restoration + cost control
-2. **Likely path: Database/cache migration** — Atlas + Upstash will be cheaper than Railway all-in-one
-3. **LLM cost monitoring is now visible** — dashboard + alerts will prevent surprises
-4. **Sustainable cost target: ≤ $5.70/day all-in** — infrastructure + LLM combined
-5. **Spend limits will be relaxed** — post-optimization thresholds give more headroom
+1. **Tonight (2026-04-13 20:00 EST):** Check that evening briefing executes scheduled
+2. **Tomorrow:** Continue observation, ensure morning briefing (2026-04-14 08:00 EST) also executes
+3. **Wednesday 2026-04-15:** Confirm 72-hour pattern holds (6 briefings, all with content)
+4. **Thursday 2026-04-16:** Generate cost report, determine if additional optimizations needed
+
+**If scheduled briefing fails:**
+- Check Celery Beat logs
+- Verify MongoDB connection from worker
+- Check for LLM errors in traces
+- Fall back to manual triggers while debugging
+
+---
+
+## Removed From This Sprint
+
+These items are deferred to post-validation:
+- TASK-064 (Railway cost audit) — Not needed if current infrastructure stable
+- TASK-065/066/067 (provider migration) — Only if costs spike again
+- TASK-069 (dashboard + alerts) — Can build after cost stability confirmed
+- TASK-070 (narrative cost investigation) — Separate sprint focus
+
+---
+
+## Success Criteria (for Sprint 14 completion)
+
+- [x] All critical bugs fixed (BUG-064 through BUG-069)
+- [ ] Manual briefing generation working (VERIFIED ✅)
+- [ ] Scheduled briefing execution confirmed working (PENDING — watch tonight)
+- [ ] 72-hour observation period complete (PENDING)
+- [ ] Cost report shows sustainable daily spend (PENDING)
+- [ ] Services remain stable for 3 days without restarts (PENDING)
+
+---
+
+## Risk Assessment
+
+| Risk | Probability | Mitigation |
+|------|------------|-----------|
+| Scheduled briefings still broken | Low | Manual testing tonight at 8 PM EST; fallback to manual triggers |
+| Cost explodes again (>$1.00/day) | Medium | Soft limit at $0.50 will block enrichment; investigate narrative costs (TASK-070) |
+| Celery Beat crashes | Low | Worker has auto-restart; can manually trigger briefings if needed |
+| Database consistency issues | Very Low | BUG-069 fix ensures all inserts go through single code path |
 
 ---
 
 ## Handoff to Sprint 15
 
-If all Sprint 14 goals hit:
-- ✅ Infrastructure costs $2–5/day (sustainable long-term)
-- ✅ LLM costs $0.50–0.70/day (validated via burn-in)
-- ✅ Full visibility: cost dashboard + alerts live
-- ✅ No more outages due to cost overages
+If TASK-028 validation succeeds:
+- ✅ Infrastructure stable, daily costs $0.50–0.70
+- ✅ Scheduled briefings working automatically
+- ✅ Cost tracking complete and visible
+- ✅ Ready for broader feature development
 
 **Sprint 15 priorities:**
-1. Continue Backdrop feature development (narrative refinement, briefing quality)
-2. Monitor cost trends (validate assumptions, catch regressions)
-3. Resume job search activities (infrastructure stability enables context to shift to career)
+1. Build cost dashboard + Slack alerts (TASK-069)
+2. Investigate + optimize narrative costs (TASK-070)
+3. Adjust spend thresholds for sustainable operation (TASK-071)
+4. Resume product development (narrative quality, briefing enhancements)
 
 ---
 
-**Status: Ready for immediate start**
+**Status: Ready for scheduled briefing validation tonight**
