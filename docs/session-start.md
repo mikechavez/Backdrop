@@ -144,8 +144,23 @@
   - **Files Changed:** `src/crypto_news_aggregator/services/briefing_agent.py` (9 lines changed)
   - **Branch:** `fix/bug-066-daily-cost-calculation` (parent: main) — will add to existing PR
 
+**Session 24 (2026-04-13) — BUG-070 Narrative Tier-1 Only Fix ✅**
+- ✅ **BUG-070 FIXED** — Narrative generation processes all articles instead of tier-1-only
+  - **Problem:** `MAX_RELEVANCE_TIER = 2` processes tier 1-2 articles, violating TASK-060 tier-1-only optimization
+  - **Impact:** 193 narrative_generate calls/day instead of expected 70 → $0.35/day spend (56% of budget)
+  - **Root cause:** Constant set to 2 (includes tier 2) when it should be 1 (tier 1 only)
+  - **Location:** Line 27 of `narrative_themes.py`
+  - **Fix Applied:**
+    - Changed `MAX_RELEVANCE_TIER = 2` → `MAX_RELEVANCE_TIER = 1`
+    - Filter logic already in place, only needed constant update
+    - Expected savings: -64% narrative calls, ~$0.38/day cost reduction
+  - **Files Changed:** `src/crypto_news_aggregator/services/narrative_themes.py` (1 line)
+  - **Branch:** `fix/bug-070-narrative-tier-1-only`
+  - **Commit:** Pending
+
 **Next Steps:** 
-- Create PR for BUG-066 + BUG-067 + BUG-068 + BUG-069 fixes combined
+- Commit BUG-070 fix
+- Create PR for BUG-066 + BUG-067 + BUG-068 + BUG-069 + BUG-070 fixes combined
 - Merge to main once approved
 - Deploy to production (will unblock briefing generation immediately and restore cost accuracy)
 
