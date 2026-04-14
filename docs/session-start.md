@@ -180,10 +180,47 @@
   - **Branch:** `fix/bug-070-narrative-tier-1-only`
   - **Cost Impact:** ~$0.105/day savings on narrative_generate calls alone
 
+**Session 26 (2026-04-13) — BUG-072 LLM Cache Infrastructure Wiring ✅**
+- ✅ **BUG-072 FIXED** — Wire LLM cache infrastructure for narrative generation
+  - **Problem:** llm_cache MongoDB collection exists but narrative_generate never uses it
+  - **Impact:** 30% of narrative_generate calls are wasteful re-processing of unchanged articles (~$0.037/day waste)
+  - **Entity extraction reference:** Already has 99.1% cache hit rate (working model)
+  - **Solution:** Add cache lookup/save to both async and sync gateway methods
+  - **Implementation Details:**
+    1. Added async cache methods to LLMGateway:
+       - `_get_from_cache(operation, input_hash)` - Checks llm_cache, increments hit counter
+       - `_save_to_cache(operation, input_hash, response)` - Saves with upsert, 30-day TTL
+    2. Added sync cache methods (for entity extraction and sync contexts):
+       - `_get_from_cache_sync(operation, input_hash)` - Direct MongoDB sync lookup
+       - `_save_to_cache_sync(operation, input_hash, response)` - Sync save with upsert
+    3. Wired cache into `call()` (async):
+       - Generate SHA1 hash of input messages for deduplication
+       - Check cache before API calls for cacheable operations
+       - Return cached results with 0 cost/tokens on hit
+       - Save responses to cache after successful API calls
+    4. Wired cache into `call_sync()` (sync):
+       - Same cache logic for synchronous contexts
+    5. Cache configuration:
+       - **Cacheable operations:** narrative_generate, entity_extraction, narrative_theme_extract
+       - **Non-cacheable (always fresh):** briefing_generate, briefing_refine, briefing_critique
+  - **Testing:**
+    - ✅ `TestCacheMethods::test_get_from_cache_hit` - Cache hit returns correct response
+    - ✅ `TestCacheMethods::test_get_from_cache_miss` - Cache miss returns None
+    - ✅ `TestCacheMethods::test_save_to_cache` - Responses saved with upsert
+    - ✅ `TestCacheMethods::test_call_cache_hit` - Cached calls return 0 cost/tokens
+    - ✅ All 22 gateway tests passing
+  - **Files Changed:** 
+    - `src/crypto_news_aggregator/llm/gateway.py` (6 methods, cache logic in call/call_sync)
+    - `tests/llm/test_gateway.py` (4 new tests for cache behavior)
+  - **Branch:** `fix/bug-072-llm-cache-wiring`
+  - **Commit:** c68e760
+  - **Cost Impact:** -30% narrative_generate calls = ~$0.037/day savings
+  - **Expected annual savings:** ~$13.50 from cache alone
+
 **Next Steps:** 
-- Create PR for BUG-070 + BUG-071 combined
+- Create PR for BUG-070 + BUG-071 + BUG-072 combined (or separate PRs if large)
 - Merge to main once approved
-- Deploy to production (total narrative cost reduction: -68% from tier-1 filter + prompt compression)
+- Deploy to production (total narrative cost reduction: -68% from tier-1 filter + prompt compression, additional -30% from cache)
 
 ---
 

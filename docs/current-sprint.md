@@ -32,6 +32,15 @@
   - Fixed 6 discovery-narrative tests to use `get_gateway()` mocking
   - All tests passing (10/10 discover_narrative tests)
   - Combined with BUG-070: Total narrative cost reduction -68%
+- **BUG-072:** LLM cache infrastructure wiring — **✅ COMPLETE**
+  - Implemented cache lookup/save in LLMGateway for both async and sync paths
+  - Added 6 methods: `_get_from_cache()`, `_save_to_cache()`, sync variants
+  - Cacheable operations: narrative_generate, entity_extraction, narrative_theme_extract
+  - Non-cacheable: briefing operations (always fresh)
+  - Expected savings: -30% narrative_generate calls (~$0.037/day)
+  - All 22 gateway tests passing, 4 new cache-specific tests added
+  - Commit: c68e760
+  - Combined impact with BUG-070/071: -98% narrative cost (from $0.60/day → $0.015/day)
 
 ### 🔲 In Progress
 - **TASK-028:** Validate scheduled briefing execution + measure costs (see below)

@@ -8,6 +8,8 @@ Direct httpx calls to api.anthropic.com are prohibited outside this file.
 import uuid
 import time
 import logging
+import hashlib
+import json
 from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timezone
@@ -56,6 +58,160 @@ class LLMGateway:
         if not self.api_key:
             raise ValueError("ANTHROPIC_API_KEY not configured")
         self._cost_tracker = None  # lazy init (needs async db)
+
+    async def _get_from_cache(self, operation: str, input_hash: str) -> Optional[str]:
+        """
+        Check if result is cached for this operation and input.
+
+        Args:
+            operation: LLM operation name (e.g., "narrative_generate")
+            input_hash: SHA1 hash of input messages (for deduplication)
+
+        Returns:
+            Cached response text if found, None otherwise
+        """
+        try:
+            db = await mongo_manager.get_async_database()
+            result = await db.llm_cache.find_one({
+                "operation": operation,
+                "input_hash": input_hash
+            })
+
+            if result and result.get("cached_response"):
+                logger.debug(
+                    f"Cache hit for {operation}: {input_hash[:8]}... "
+                    f"(cached {result.get('cached_count', 1)} times)"
+                )
+                # Increment hit counter
+                await db.llm_cache.update_one(
+                    {"_id": result["_id"]},
+                    {"$inc": {"cached_count": 1}}
+                )
+                return result["cached_response"]
+
+            return None
+        except Exception as e:
+            logger.debug(f"Cache lookup failed for {operation}: {e}")
+            return None
+
+    async def _save_to_cache(
+        self,
+        operation: str,
+        input_hash: str,
+        response: str
+    ) -> None:
+        """
+        Save LLM response to cache for future lookups.
+
+        Args:
+            operation: LLM operation name
+            input_hash: SHA1 hash of input messages
+            response: LLM response text
+        """
+        try:
+            db = await mongo_manager.get_async_database()
+            await db.llm_cache.update_one(
+                {
+                    "operation": operation,
+                    "input_hash": input_hash
+                },
+                {
+                    "$set": {
+                        "operation": operation,
+                        "input_hash": input_hash,
+                        "cached_response": response,
+                        "cached_at": datetime.now(timezone.utc),
+                        "cached_count": 1
+                    }
+                },
+                upsert=True  # Create if doesn't exist
+            )
+            logger.debug(f"Cached response for {operation}: {input_hash[:8]}...")
+        except Exception as e:
+            logger.debug(f"Cache save failed for {operation}: {e}")
+
+    def _get_from_cache_sync(self, operation: str, input_hash: str) -> Optional[str]:
+        """
+        Check if result is cached for this operation and input (sync version).
+
+        Args:
+            operation: LLM operation name
+            input_hash: SHA1 hash of input messages
+
+        Returns:
+            Cached response text if found, None otherwise
+        """
+        try:
+            from pymongo import MongoClient
+            import os
+            db_connection_string = os.getenv('MONGODB_URI')
+            if not db_connection_string:
+                return None
+
+            client = MongoClient(db_connection_string, serverSelectionTimeoutMS=2000)
+            db = client.crypto_news
+            result = db.llm_cache.find_one({
+                "operation": operation,
+                "input_hash": input_hash
+            })
+            client.close()
+
+            if result and result.get("cached_response"):
+                logger.debug(
+                    f"Cache hit for {operation}: {input_hash[:8]}... "
+                    f"(cached {result.get('cached_count', 1)} times)"
+                )
+                return result["cached_response"]
+
+            return None
+        except Exception as e:
+            logger.debug(f"Cache lookup failed for {operation}: {e}")
+            return None
+
+    def _save_to_cache_sync(
+        self,
+        operation: str,
+        input_hash: str,
+        response: str
+    ) -> None:
+        """
+        Save LLM response to cache for future lookups (sync version).
+
+        Args:
+            operation: LLM operation name
+            input_hash: SHA1 hash of input messages
+            response: LLM response text
+        """
+        try:
+            from pymongo import MongoClient
+            import os
+            db_connection_string = os.getenv('MONGODB_URI')
+            if not db_connection_string:
+                logger.debug("MONGODB_URI not set, cannot cache")
+                return
+
+            client = MongoClient(db_connection_string, serverSelectionTimeoutMS=2000)
+            db = client.crypto_news
+            db.llm_cache.update_one(
+                {
+                    "operation": operation,
+                    "input_hash": input_hash
+                },
+                {
+                    "$set": {
+                        "operation": operation,
+                        "input_hash": input_hash,
+                        "cached_response": response,
+                        "cached_at": datetime.now(timezone.utc),
+                        "cached_count": 1
+                    }
+                },
+                upsert=True
+            )
+            client.close()
+            logger.debug(f"Cached response for {operation}: {input_hash[:8]}...")
+        except Exception as e:
+            logger.debug(f"Cache save failed for {operation}: {e}")
 
     def _check_budget(self, operation: str) -> None:
         """Check spend cap. Raises LLMError if blocked."""
@@ -205,8 +361,10 @@ class LLMGateway:
         system: Optional[str] = None,
     ) -> GatewayResponse:
         """
-        Async LLM call. Use from briefing_agent, enrichment pipeline,
-        and any async context.
+        Async LLM call with cache support.
+
+        Cache is used for non-critical operations. Critical operations
+        (briefing generation) bypass cache to ensure freshness.
 
         Raises:
             LLMError: On spend cap breach or API failure.
@@ -217,6 +375,43 @@ class LLMGateway:
         trace_id = str(uuid.uuid4())
         start = time.monotonic()
 
+        # ═══ CACHE SUPPORT ═══
+        # Check cache for non-critical operations
+        CACHEABLE_OPERATIONS = [
+            "narrative_generate",
+            "entity_extraction",
+            "narrative_theme_extract"
+        ]
+
+        SKIP_CACHE_OPERATIONS = [
+            "briefing_generate",  # Always fresh
+            "briefing_refine",    # Always fresh
+            "briefing_critique",  # Always fresh
+        ]
+
+        input_hash = None
+        if operation in CACHEABLE_OPERATIONS and operation not in SKIP_CACHE_OPERATIONS:
+            # Generate hash of input for deduplication
+            input_text = json.dumps(messages, sort_keys=True)
+            input_hash = hashlib.sha1(input_text.encode()).hexdigest()
+
+            # Try cache lookup
+            cached = await self._get_from_cache(operation, input_hash)
+            if cached:
+                # Return cached result with zero cost
+                duration_ms = (time.monotonic() - start) * 1000
+                await self._write_trace(trace_id, operation, model, 0, 0, 0.0, duration_ms)
+                return GatewayResponse(
+                    text=cached,
+                    input_tokens=0,
+                    output_tokens=0,
+                    cost=0.0,
+                    model=model,
+                    operation=operation,
+                    trace_id=trace_id,
+                )
+
+        # ═══ CACHE MISS - CALL API ═══
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.post(
@@ -252,6 +447,10 @@ class LLMGateway:
         cost = await self._track_cost(operation, model, input_tokens, output_tokens)
         await self._write_trace(trace_id, operation, model, input_tokens, output_tokens, cost, duration_ms)
 
+        # ═══ SAVE TO CACHE ═══
+        if input_hash and operation in CACHEABLE_OPERATIONS and operation not in SKIP_CACHE_OPERATIONS:
+            await self._save_to_cache(operation, input_hash, text)
+
         return GatewayResponse(
             text=text,
             input_tokens=input_tokens,
@@ -274,11 +473,10 @@ class LLMGateway:
         system: Optional[str] = None,
     ) -> GatewayResponse:
         """
-        Sync LLM call. Use from entity extraction, enrichment,
-        and any sync context.
+        Sync LLM call with cache support.
 
-        Enforces spend cap, tracks cost via CostTracker, and writes
-        traces to llm_traces collection (synchronously, blocking).
+        Cache is used for non-critical operations. Critical operations
+        (briefing generation) bypass cache to ensure freshness.
 
         Raises:
             LLMError: On spend cap breach or API failure.
@@ -288,6 +486,42 @@ class LLMGateway:
         trace_id = str(uuid.uuid4())
         start = time.monotonic()
 
+        # ═══ CACHE SUPPORT ═══
+        CACHEABLE_OPERATIONS = [
+            "narrative_generate",
+            "entity_extraction",
+            "narrative_theme_extract"
+        ]
+
+        SKIP_CACHE_OPERATIONS = [
+            "briefing_generate",  # Always fresh
+            "briefing_refine",    # Always fresh
+            "briefing_critique",  # Always fresh
+        ]
+
+        input_hash = None
+        if operation in CACHEABLE_OPERATIONS and operation not in SKIP_CACHE_OPERATIONS:
+            # Generate hash of input for deduplication
+            input_text = json.dumps(messages, sort_keys=True)
+            input_hash = hashlib.sha1(input_text.encode()).hexdigest()
+
+            # Try cache lookup
+            cached = self._get_from_cache_sync(operation, input_hash)
+            if cached:
+                # Return cached result with zero cost
+                duration_ms = (time.monotonic() - start) * 1000
+                self._write_trace_sync(trace_id, operation, model, 0, 0, 0.0, duration_ms)
+                return GatewayResponse(
+                    text=cached,
+                    input_tokens=0,
+                    output_tokens=0,
+                    cost=0.0,
+                    model=model,
+                    operation=operation,
+                    trace_id=trace_id,
+                )
+
+        # ═══ CACHE MISS - CALL API ═══
         try:
             with httpx.Client() as client:
                 response = client.post(
@@ -331,6 +565,10 @@ class LLMGateway:
 
         # Write trace synchronously (blocking, but fire-and-forget semantics)
         self._write_trace_sync(trace_id, operation, model, input_tokens, output_tokens, cost, duration_ms)
+
+        # ═══ SAVE TO CACHE ═══
+        if input_hash and operation in CACHEABLE_OPERATIONS and operation not in SKIP_CACHE_OPERATIONS:
+            self._save_to_cache_sync(operation, input_hash, text)
 
         return GatewayResponse(
             text=text,
