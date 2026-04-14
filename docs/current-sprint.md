@@ -23,6 +23,15 @@
   - Changed `MAX_RELEVANCE_TIER = 2` → `1` in narrative_themes.py
   - Expected savings: -64% narrative calls (~193 → 70/day), ~$0.38/day cost reduction
   - Single-line fix, zero-risk change
+  - Commit: 03df32f
+- **BUG-071:** Narrative prompt compression — **✅ COMPLETE**
+  - Compressed system prompt: 1,700 tokens → 900 tokens (-47%)
+  - Cost reduction: ~$0.105/day on narrative_generate calls
+  - Added `NARRATIVE_SYSTEM_PROMPT` constant (700 tokens, concise rules)
+  - Replaced 128-line prompt blob with 4-line user message
+  - Fixed 6 discovery-narrative tests to use `get_gateway()` mocking
+  - All tests passing (10/10 discover_narrative tests)
+  - Combined with BUG-070: Total narrative cost reduction -68%
 
 ### 🔲 In Progress
 - **TASK-028:** Validate scheduled briefing execution + measure costs (see below)

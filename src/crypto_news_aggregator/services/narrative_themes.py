@@ -662,6 +662,53 @@ def _build_degraded_narrative(
     }
 
 
+# ═══════════════════════════════════════════════════════════════
+# Compressed system prompt for narrative generation
+# ═══════════════════════════════════════════════════════════════
+
+NARRATIVE_SYSTEM_PROMPT = """You analyze crypto news articles and extract narrative data.
+
+Return valid JSON:
+{
+  "actors": ["entities with salience >= 2"],
+  "actor_salience": {"Entity": 5, ...},
+  "nucleus_entity": "main entity",
+  "narrative_focus": "2-5 word action description",
+  "actions": ["key events"],
+  "tensions": ["opposing forces"],
+  "implications": "why this matters",
+  "narrative_summary": "2-3 sentence summary"
+}
+
+SALIENCE (1-5):
+1 = ignore (exclude), 2 = minor but relevant, 3 = secondary, 4 = key, 5 = primary
+
+RULES:
+- Use ONLY information explicitly stated in article
+- Do NOT add roles, titles, or positions not mentioned
+- Do NOT hallucinate entities or events
+- Focus on WHAT happened, not assumptions
+
+NORMALIZATION:
+- Use canonical names: SEC, Bitcoin, Ethereum, Binance, Coinbase
+- Prefer shortest recognizable form
+- Use names not tickers (Bitcoin not BTC, Ethereum not ETH)
+- No job titles for people (use "CZ", not "Binance CEO CZ")
+
+NUCLEUS:
+- Entity most directly responsible for main action
+- If multiple candidates, choose the one driving the story
+- Prefer specific over generic
+
+NARRATIVE FOCUS:
+- Verb-driven phrase (e.g., "price surge", "regulatory enforcement", "protocol upgrade")
+- Not just entity name
+- Specific enough to distinguish similar stories
+- General enough to cluster related articles
+
+Respond with ONLY valid JSON. No explanation, no markdown, no commentary."""
+
+
 async def discover_narrative_from_article(
     article: Dict,
     max_retries: int = 2  # Reduced: only retries transient errors (429, 529, timeout), not validation failures
@@ -723,136 +770,11 @@ async def discover_narrative_from_article(
 
     # Retry loop (only for transient errors, not validation failures)
     for attempt in range(max_retries):
-        # Build prompt for Claude with salience scoring
-        prompt = f"""You are a narrative analyst studying emerging patterns in crypto news.
-
-Given the following article, describe:
-
-1. The main *actors* (people, organizations, protocols, assets, regulators)
-   - For each actor, assign a salience score from 1-5:
-     * 5 = central protagonist of the story (the article is ABOUT this entity)
-     * 4 = key participant (actively involved in the main events)
-     * 3 = secondary participant (mentioned with some relevance)
-     * 2 = supporting context (provides background but not central)
-     * 1 = passing mention (could remove without changing story)
-   
-   **IMPORTANT**: Only include actors with salience >= 2 in your final list.
-   Background mentions (salience 1) should be excluded.
-
-2. **Nucleus entity** (required): The ONE entity this article is primarily about.
-   This is the anchor of the story - if you had to summarize in one word, which entity?
-
-3. **Narrative focus** (required): A 2-5 word phrase describing WHAT IS HAPPENING.
-   This captures the core development/claim of the story, NOT the entity itself.
-   Examples: "price surge", "regulatory enforcement", "protocol upgrade", "governance dispute",
-   "ETF approval", "hack investigation", "partnership announcement", "market manipulation probe"
-
-   The focus should be:
-   - Verb-driven (captures action/development)
-   - Specific enough to distinguish parallel stories about the same entity
-   - General enough to merge related articles
-   - NOT just the entity name or topic label (avoid "Dogecoin news" or "Bitcoin update")
-
-5. The main *actions or events* (what happened)
-
-6. The *forces or tensions* at play (e.g., regulation vs innovation, centralization vs decentralization)
-
-7. The *implications* or *stakes* (why it matters)
-
-Then summarize in 2-3 sentences what broader narrative this article contributes to.
-
-**CRITICAL - ANTI-HALLUCINATION RULES:**
-1. ONLY extract information explicitly stated in the article
-2. Do NOT add titles or roles from your training knowledge
-3. Do NOT assume someone is CEO, Chairman, etc. - people change positions
-4. If the article says "CZ" without a title, just use "CZ" - don't add "Binance CEO"
-5. Focus on WHAT happened, not assumptions about who holds what position
-
-**ENTITY NORMALIZATION GUIDELINES:**
-
-1. **Normalize entity names to canonical forms:**
-   - "U.S. Securities and Exchange Commission" → "SEC"
-   - "Securities and Exchange Commission" → "SEC"
-   - "US SEC" → "SEC"
-   - "Ethereum Foundation" → "Ethereum"
-   - "Ethereum network" → "Ethereum"
-   - "Tether Holdings Limited" → "Tether"
-   - "Tether USDT" → "Tether"
-   - "Bitcoin Core developers" → "Bitcoin"
-   - "Bitcoin network" → "Bitcoin"
-   - "Binance.US" → "Binance" (unless US distinction is critical to the story)
-   - "Binance exchange" → "Binance"
-   - Always use the shortest, most recognizable form
-   - Use common abbreviations (SEC, ETF, DeFi) not full names
-   - For cryptocurrencies, use the name not ticker (Bitcoin not BTC, Ethereum not ETH)
-   - For people: use their name only, NOT their title (e.g., "CZ" not "Binance CEO CZ")
-
-2. **Nucleus entity selection rules:**
-   - If multiple entities have salience 5, choose the one most directly responsible for the main action
-   - Prefer specific entities over generic categories ("Binance" not "crypto exchanges")
-   - Prefer actors over objects in regulatory stories ("SEC" not "lawsuit" or "regulation")
-   - Prefer companies/organizations over people ("Coinbase" not "Brian Armstrong" unless person is the focus)
-   - The nucleus should be the grammatical subject of the article's main action
-
-3. **Salience scoring consistency:**
-   - Reserve salience 5 for 1-2 entities maximum (the true protagonists)
-   - Use salience 4 for 2-4 key participants
-   - Use salience 3 for 3-6 secondary participants
-   - Avoid giving everything high salience - be selective
-   - Background mentions like "Bitcoin" or "crypto market" in passing should be excluded (salience 1)
-
-Article Title: {title}
+        # User message with article content only (dynamic part)
+        user_message = f"""Article Title: {title}
 Article Summary: {summary[:500]}
 
-**CRITICAL**: Respond with ONLY valid JSON. Do not include any explanatory text, markdown formatting, or commentary. Start your response with {{ and end with }}.
-
-Required JSON format:
-{{
-  "actors": ["list of actors with salience >= 2"],
-  "actor_salience": {{
-    "EntityName": 4,
-    "AnotherEntity": 3
-  }},
-  "nucleus_entity": "PrimaryEntityName",
-  "narrative_focus": "2-5 word phrase describing what is happening",
-  "actions": ["list of key events"],
-  "tensions": ["list of forces or tensions"],
-  "implications": "why this matters",
-  "narrative_summary": "2-3 sentence description"
-}}
-
-Example for "SEC sues Binance for regulatory violations":
-{{
-  "actors": ["SEC", "Binance", "Coinbase"],
-  "actor_salience": {{
-    "SEC": 5,
-    "Binance": 4,
-    "Coinbase": 2
-  }},
-  "nucleus_entity": "SEC",
-  "narrative_focus": "regulatory enforcement action",
-  "actions": ["SEC filed lawsuit against Binance"],
-  "tensions": ["Regulation vs Innovation", "Compliance vs Growth"],
-  "implications": "Signals escalation in regulatory enforcement",
-  "narrative_summary": "Regulators are intensifying enforcement against major exchanges as the SEC targets Binance for alleged securities violations, with implications for the broader industry."
-}}
-
-Example for "Dogecoin surges 40% as retail traders pile in":
-{{
-  "actors": ["Dogecoin", "retail traders"],
-  "actor_salience": {{
-    "Dogecoin": 5,
-    "retail traders": 3
-  }},
-  "nucleus_entity": "Dogecoin",
-  "narrative_focus": "price surge momentum",
-  "actions": ["Dogecoin price increased 40%", "retail traders increased positions"],
-  "tensions": ["Speculation vs Fundamentals", "Retail vs Institutional"],
-  "implications": "Renewed meme coin interest signals risk appetite returning",
-  "narrative_summary": "Dogecoin is experiencing a significant price surge driven by retail trader enthusiasm, marking a potential return of speculative momentum in the meme coin sector."
-}}
-
-Your JSON response:"""
+Extract narrative data. Respond with ONLY valid JSON."""
         
         try:
             # Per-article LLM call cap
@@ -868,12 +790,13 @@ Your JSON response:"""
 
             llm_calls_made += 1
 
-            # Call LLM via gateway
+            # Call LLM via gateway with compressed prompt
             gateway = get_gateway()
             gateway_response = await gateway.call(
-                messages=[{"role": "user", "content": prompt}],
+                messages=[{"role": "user", "content": user_message}],
                 model="claude-haiku-4-5-20251001",
-                operation="narrative_generate"
+                operation="narrative_generate",
+                system=NARRATIVE_SYSTEM_PROMPT
             )
             response = gateway_response.text
 

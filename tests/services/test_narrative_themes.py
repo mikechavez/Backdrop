@@ -359,17 +359,17 @@ def mock_llm_response_theme_mapping():
 @pytest.mark.asyncio
 async def test_discover_narrative_from_article_success(sample_article_data, mock_llm_response_narrative_discovery):
     """Test Layer 1: Successful narrative discovery from article."""
-    with patch("crypto_news_aggregator.services.narrative_themes.get_llm_provider") as mock_llm:
-        # Mock LLM provider
-        mock_provider = MagicMock()
-        mock_provider._get_completion.return_value = mock_llm_response_narrative_discovery
-        mock_llm.return_value = mock_provider
-        
+    with patch("crypto_news_aggregator.services.narrative_themes.get_gateway") as mock_gateway_factory:
+        # Mock gateway response
+        mock_gateway = MagicMock()
+        mock_gateway.call = AsyncMock(return_value=MagicMock(text=mock_llm_response_narrative_discovery))
+        mock_gateway_factory.return_value = mock_gateway
+
         # Discover narrative
         narrative_data = await discover_narrative_from_article(
             article=sample_article_data
         )
-        
+
         # Assertions
         assert narrative_data is not None
         assert "actors" in narrative_data
@@ -377,15 +377,15 @@ async def test_discover_narrative_from_article_success(sample_article_data, mock
         assert "tensions" in narrative_data
         assert "implications" in narrative_data
         assert "narrative_summary" in narrative_data
-        
+
         # Verify content
         assert "SEC" in narrative_data["actors"]
         assert "Binance" in narrative_data["actors"]
         assert len(narrative_data["actions"]) > 0
         assert len(narrative_data["tensions"]) > 0
         assert len(narrative_data["narrative_summary"]) > 0
-        
-        mock_provider._get_completion.assert_called_once()
+
+        mock_gateway.call.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -401,11 +401,11 @@ async def test_discover_narrative_empty_content():
 @pytest.mark.asyncio
 async def test_discover_narrative_missing_fields(sample_article_data):
     """Test Layer 1: Narrative discovery with incomplete LLM response - now returns degraded instead of None."""
-    with patch("crypto_news_aggregator.services.narrative_themes.get_llm_provider") as mock_llm:
-        # Mock LLM provider returning incomplete data
-        mock_provider = MagicMock()
-        mock_provider._get_completion.return_value = '{"actors": ["SEC"], "actions": []}'
-        mock_llm.return_value = mock_provider
+    with patch("crypto_news_aggregator.services.narrative_themes.get_gateway") as mock_gateway_factory:
+        # Mock gateway response with incomplete data
+        mock_gateway = MagicMock()
+        mock_gateway.call = AsyncMock(return_value=MagicMock(text='{"actors": ["SEC"], "actions": []}'))
+        mock_gateway_factory.return_value = mock_gateway
 
         narrative_data = await discover_narrative_from_article(
             article=sample_article_data
@@ -420,16 +420,16 @@ async def test_discover_narrative_missing_fields(sample_article_data):
 @pytest.mark.asyncio
 async def test_discover_narrative_llm_error(sample_article_data):
     """Test Layer 1: Narrative discovery when LLM fails."""
-    with patch("crypto_news_aggregator.services.narrative_themes.get_llm_provider") as mock_llm:
-        # Mock LLM provider raising exception
-        mock_provider = MagicMock()
-        mock_provider._get_completion.side_effect = Exception("LLM API error")
-        mock_llm.return_value = mock_provider
-        
+    with patch("crypto_news_aggregator.services.narrative_themes.get_gateway") as mock_gateway_factory:
+        # Mock gateway raising exception
+        mock_gateway = MagicMock()
+        mock_gateway.call = AsyncMock(side_effect=Exception("LLM API error"))
+        mock_gateway_factory.return_value = mock_gateway
+
         narrative_data = await discover_narrative_from_article(
             article=sample_article_data
         )
-        
+
         # Should return None on error
         assert narrative_data is None
 
@@ -1178,10 +1178,10 @@ class TestValidateNarrativeJsonIntegration:
     @pytest.mark.asyncio
     async def test_validation_with_discover_narrative_valid_response(self):
         """Test validation works with valid LLM response from discover_narrative_from_article."""
-        with patch("crypto_news_aggregator.services.narrative_themes.get_llm_provider") as mock_llm:
-            # Mock valid LLM response
-            mock_provider = MagicMock()
-            mock_provider._get_completion.return_value = '''{
+        with patch("crypto_news_aggregator.services.narrative_themes.get_gateway") as mock_gateway_factory:
+            # Mock valid gateway response
+            mock_gateway = MagicMock()
+            mock_gateway.call = AsyncMock(return_value=MagicMock(text='''{
                 "actors": ["SEC", "Binance", "Coinbase"],
                 "actor_salience": {
                     "SEC": 5,
@@ -1194,9 +1194,9 @@ class TestValidateNarrativeJsonIntegration:
                 "tensions": ["Regulation vs Innovation"],
                 "implications": "Signals regulatory crackdown",
                 "narrative_summary": "The SEC is intensifying enforcement against major exchanges as it targets Binance for alleged securities violations."
-            }'''
-            mock_llm.return_value = mock_provider
-            
+            }'''))
+            mock_gateway_factory.return_value = mock_gateway
+
             # Discover narrative
             narrative_data = await discover_narrative_from_article(
                 article={
@@ -1205,29 +1205,29 @@ class TestValidateNarrativeJsonIntegration:
                     "description": "The SEC has filed a lawsuit against Binance for regulatory violations."
                 }
             )
-            
+
             # Validate the response
             assert narrative_data is not None
             is_valid, error = validate_narrative_json(narrative_data)
-            
+
             assert is_valid is True
             assert error is None
     
     @pytest.mark.asyncio
     async def test_validation_catches_malformed_llm_response(self):
         """Test that malformed LLM response returns degraded narrative (BUG-057)."""
-        with patch("crypto_news_aggregator.services.narrative_themes.get_llm_provider") as mock_llm:
-            # Mock malformed LLM response (missing nucleus_entity)
-            mock_provider = MagicMock()
-            mock_provider._get_completion.return_value = '''{
+        with patch("crypto_news_aggregator.services.narrative_themes.get_gateway") as mock_gateway_factory:
+            # Mock malformed gateway response (missing nucleus_entity)
+            mock_gateway = MagicMock()
+            mock_gateway.call = AsyncMock(return_value=MagicMock(text='''{
                 "actors": ["SEC", "Binance"],
                 "actor_salience": {"SEC": 5, "Binance": 4},
                 "actions": ["Filed lawsuit"],
                 "tensions": ["Regulation"],
                 "implications": "Enforcement action",
                 "narrative_summary": "SEC takes action."
-            }'''
-            mock_llm.return_value = mock_provider
+            }'''))
+            mock_gateway_factory.return_value = mock_gateway
 
             # Discover narrative
             narrative_data = await discover_narrative_from_article(
@@ -1280,10 +1280,10 @@ class TestValidateNarrativeJsonIntegration:
     @pytest.mark.asyncio
     async def test_validation_catches_invalid_salience_scores(self):
         """Test validation catches invalid salience scores from LLM."""
-        with patch("crypto_news_aggregator.services.narrative_themes.get_llm_provider") as mock_llm:
-            # Mock LLM response with out-of-range salience
-            mock_provider = MagicMock()
-            mock_provider._get_completion.return_value = '''{
+        with patch("crypto_news_aggregator.services.narrative_themes.get_gateway") as mock_gateway_factory:
+            # Mock gateway response with out-of-range salience
+            mock_gateway = MagicMock()
+            mock_gateway.call = AsyncMock(return_value=MagicMock(text='''{
                 "actors": ["SEC", "Binance"],
                 "actor_salience": {
                     "SEC": 10,
@@ -1295,8 +1295,8 @@ class TestValidateNarrativeJsonIntegration:
                 "tensions": ["Regulation"],
                 "implications": "Enforcement",
                 "narrative_summary": "SEC enforcement action against Binance continues."
-            }'''
-            mock_llm.return_value = mock_provider
+            }'''))
+            mock_gateway_factory.return_value = mock_gateway
 
             # Discover narrative
             narrative_data = await discover_narrative_from_article(
@@ -2184,11 +2184,11 @@ class TestZeroRetryOnValidationFailure:
             "description": "Bitcoin price went up today."
         }
 
-        # Mock LLM returning always-invalid response (missing nucleus_entity)
-        with patch("crypto_news_aggregator.services.narrative_themes.get_llm_provider") as mock_llm:
-            mock_provider = MagicMock()
+        # Mock gateway returning always-invalid response (missing nucleus_entity)
+        with patch("crypto_news_aggregator.services.narrative_themes.get_gateway") as mock_gateway_factory:
+            mock_gateway = MagicMock()
             # Always return invalid data
-            mock_provider._get_completion.return_value = json.dumps({
+            mock_gateway.call = AsyncMock(return_value=MagicMock(text=json.dumps({
                 "actors": ["Bitcoin"],
                 "actor_salience": {"Bitcoin": 5},
                 # Missing nucleus_entity - validation will fail
@@ -2196,8 +2196,8 @@ class TestZeroRetryOnValidationFailure:
                 "actions": ["price increased"],
                 "tensions": [],
                 "narrative_summary": "Bitcoin price went up"
-            })
-            mock_llm.return_value = mock_provider
+            })))
+            mock_gateway_factory.return_value = mock_gateway
 
             narrative = await discover_narrative_from_article(article, max_retries=2)
 
@@ -2205,7 +2205,7 @@ class TestZeroRetryOnValidationFailure:
             assert narrative is not None
             assert narrative.get("status") == "degraded"
             # Should only call LLM once (no retry on validation failure)
-            assert mock_provider._get_completion.call_count == 1
+            assert mock_gateway.call.call_count == 1
 
     @pytest.mark.asyncio
     async def test_validation_failure_on_entity_hallucination(self):
@@ -2216,10 +2216,10 @@ class TestZeroRetryOnValidationFailure:
             "description": "Coinbase reported strong quarterly earnings."
         }
 
-        with patch("crypto_news_aggregator.services.narrative_themes.get_llm_provider") as mock_llm:
-            mock_provider = MagicMock()
+        with patch("crypto_news_aggregator.services.narrative_themes.get_gateway") as mock_gateway_factory:
+            mock_gateway = MagicMock()
             # LLM hallucinates "Netflix" as nucleus_entity (not in article)
-            mock_provider._get_completion.return_value = json.dumps({
+            mock_gateway.call = AsyncMock(return_value=MagicMock(text=json.dumps({
                 "actors": ["Netflix", "Coinbase"],
                 "actor_salience": {"Netflix": 5, "Coinbase": 3},
                 "nucleus_entity": "Netflix",  # NOT in article - hallucination!
@@ -2227,8 +2227,8 @@ class TestZeroRetryOnValidationFailure:
                 "actions": ["reported earnings"],
                 "tensions": [],
                 "narrative_summary": "Netflix reported earnings"
-            })
-            mock_llm.return_value = mock_provider
+            })))
+            mock_gateway_factory.return_value = mock_gateway
 
             narrative = await discover_narrative_from_article(article, max_retries=2)
 
@@ -2237,7 +2237,7 @@ class TestZeroRetryOnValidationFailure:
             assert narrative.get("status") == "degraded"
             assert "hallucinated" in narrative.get("degraded_reason", "")
             # Should only call LLM once (no retry on hallucination detection)
-            assert mock_provider._get_completion.call_count == 1
+            assert mock_gateway.call.call_count == 1
 
 
 class TestPerArticleLLMCallCap:
