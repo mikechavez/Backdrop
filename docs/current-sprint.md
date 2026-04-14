@@ -48,7 +48,15 @@
   - All articles now get fingerprints generated (MD5 hash of normalized title + content)
   - Deduplication by fingerprint now functional for all ingested articles
   - Impact: Prevents duplicate articles across feeds from wasting storage and LLM quota
-  - Commit: pending (branch: `fix/bug-073-fingerprint-generation`)
+  - Commit: 28f65db (parent commit in current branch)
+
+- **BUG-074:** Briefing agent receives empty narrative list — **✅ COMPLETE**
+  - Missing `.sort()` in `_get_active_narratives()` caused MongoDB to return October 2025 documents
+  - All old documents failed 7-day recency check, resulting in empty narrative list
+  - Added `.sort("last_updated", -1)` before `.limit(limit * 3)` in briefing_agent.py line 291
+  - Index `idx_lifecycle_state_last_updated` already exists, no migration needed
+  - Commit: 98f172d
+  - Impact: Briefing agent now receives recent narratives (April 2026), generation succeeds end-to-end
 
 ### 🔲 In Progress
 - **TASK-028:** Validate scheduled briefing execution + measure costs (see below)

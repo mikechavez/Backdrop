@@ -230,8 +230,21 @@
   - **Branch:** `fix/bug-073-fingerprint-generation`
   - **Testing:** All article service tests pass (10/10), no regressions
 
+**Session 28 (2026-04-14) — BUG-074 Briefing Missing Sort Fix ✅**
+- ✅ **BUG-074 FIXED** — Briefing agent receives empty narrative list due to missing sort
+  - **Problem:** `_get_active_narratives()` in briefing_agent.py fetched narratives with no sort order
+  - **Impact:** MongoDB returned documents in natural insertion order (all from October 2025), all failed 7-day recency check, empty list returned
+  - **Root Cause:** Query had no `.sort()` call before `.limit()`, so oldest documents were fetched first
+  - **Solution:** Add `.sort("last_updated", -1)` before `.limit(limit * 3)` to return most recently updated narratives first
+  - **Files Changed:** 
+    - `src/crypto_news_aggregator/services/briefing_agent.py` (line 291: added sort to narratives query)
+    - `docs/tickets/bug-074-briefing-missing-sort.md` (updated ticket status to Fixed)
+  - **Database:** Existing `idx_lifecycle_state_last_updated` index supports this query efficiently, no migration needed
+  - **Commit:** 98f172d
+  - **Impact:** Briefing agent now receives recent narratives from April 2026 instead of empty list, generation succeeds
+
 **Next Steps:** 
-- Create PR for BUG-073: fingerprint generation fix
+- Create PR for BUG-074: briefing sort fix (current branch: fix/bug-073-fingerprint-generation)
 - Create PR for BUG-070 + BUG-071 + BUG-072 combined (narrative optimizations)
 - Merge to main once approved
 - Deploy to production (total narrative cost reduction: -68% from tier-1 filter + prompt compression, additional -30% from cache)

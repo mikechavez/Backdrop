@@ -288,7 +288,7 @@ class BriefingAgent:
 
         cursor = narratives_collection.find(
             {"lifecycle_state": {"$in": active_states}},
-        ).limit(limit * 3)  # Get more to filter after recency check
+        ).sort("last_updated", -1).limit(limit * 3)  # Get more to filter after recency check
 
         narratives = await cursor.to_list(length=limit * 3)
 
