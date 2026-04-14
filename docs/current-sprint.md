@@ -82,6 +82,15 @@
   - Commit: `cde555c`
   - Impact: Closes blind spot in write path observability; future write failures immediately detectable in logs
 
+### ✅ Completed (Continued)
+- **TASK-066:** Clean up stale October 2025 narratives — **✅ COMPLETE**
+  - Created migration script: `scripts/cleanup_stale_narratives.py`
+  - Dry-run count: 233 stale narratives (last_updated < 2025-12-01)
+  - Executed hard delete (Option B): All 233 documents removed
+  - Verified: 0 stale remaining, 347 recent narratives unaffected
+  - Briefing tests passing: 3/3 tests passing ✅
+  - Impact: Collection reduced from 580 → 347 documents; eliminates noise and risk of stale re-emergence
+
 ### 🔲 In Progress
 - **TASK-028:** Validate scheduled briefing execution + measure costs (see below)
 
