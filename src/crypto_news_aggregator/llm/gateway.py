@@ -25,6 +25,20 @@ logger = logging.getLogger(__name__)
 
 _ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
 
+# BUG-075 FIX: Model routing configuration to prevent inconsistent model selection.
+# Each operation must route to exactly one model to ensure deterministic costs.
+_OPERATION_MODEL_ROUTING = {
+    "narrative_generate": "claude-haiku-4-5-20251001",
+    "entity_extraction": "claude-haiku-4-5-20251001",
+    "narrative_theme_extract": "claude-haiku-4-5-20251001",
+    "actor_tension_extract": "claude-haiku-4-5-20251001",
+    "cluster_narrative_gen": "claude-haiku-4-5-20251001",
+    "narrative_polish": "claude-haiku-4-5-20251001",
+    "briefing_generate": "claude-haiku-4-5-20251001",
+    "briefing_refine": "claude-haiku-4-5-20251001",
+    "briefing_critique": "claude-haiku-4-5-20251001",
+}
+
 
 @dataclass
 class GatewayResponse:
@@ -223,6 +237,25 @@ class LLMGateway:
                 model="n/a",
             )
 
+    def _validate_model_routing(self, operation: str, model: str) -> None:
+        """
+        Validate that the model matches the expected routing for this operation.
+
+        BUG-075 FIX: Ensures all calls to the same operation use the same model
+        to prevent cost spikes from inconsistent model selection.
+
+        Logs a warning if model doesn't match expected routing but allows the call
+        to proceed (for backward compatibility with tests).
+        """
+        if operation in _OPERATION_MODEL_ROUTING:
+            expected_model = _OPERATION_MODEL_ROUTING[operation]
+            if model != expected_model:
+                logger.warning(
+                    f"Model routing mismatch: operation '{operation}' "
+                    f"expected '{expected_model}' but got '{model}'. "
+                    f"This may cause unexpected cost increases."
+                )
+
     def _build_headers(self) -> dict:
         return {
             "x-api-key": self.api_key,
@@ -371,6 +404,7 @@ class LLMGateway:
         """
         await refresh_budget_if_stale()
         self._check_budget(operation)
+        self._validate_model_routing(operation, model)
 
         trace_id = str(uuid.uuid4())
         start = time.monotonic()
@@ -482,6 +516,7 @@ class LLMGateway:
             LLMError: On spend cap breach or API failure.
         """
         self._check_budget(operation)
+        self._validate_model_routing(operation, model)
 
         trace_id = str(uuid.uuid4())
         start = time.monotonic()

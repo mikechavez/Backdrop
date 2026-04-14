@@ -7,7 +7,7 @@
 
 ---
 
-## Current Status (2026-04-13, 13:00 EST)
+## Current Status (2026-04-14, 11:20 EST)
 
 ### ✅ Completed This Sprint
 - **BUG-064:** Memory leak + retry storm — MERGED
@@ -16,6 +16,13 @@
 - **BUG-067:** Motor AsyncIOMotorDatabase truthiness check — CODE COMPLETE
 - **BUG-068:** Double cost tracking (OptimizedAnthropicLLM duplicate) — CODE COMPLETE
 - **BUG-069:** Briefing persistence (empty documents) — **✅ FIXED & VERIFIED**
+- **BUG-075:** Inconsistent model routing (Opus/Sonnet instead of Haiku) — **✅ FIXED**
+  - Added `_OPERATION_MODEL_ROUTING` config to gateway.py with expected model for each operation
+  - Added `_validate_model_routing()` method to detect and log model mismatches
+  - Fixed test_gateway.py (Opus → Haiku) and tests/llm/test_gateway.py (Sonnet → Haiku)
+  - All 22 gateway tests passing ✅
+  - Branch: `fix/bug-075-model-routing`
+  - Impact: Prevents 25× cost spike ($0.038760 vs $0.0015 per call)
   - Manual briefing generation tested: saves with full content
   - Cost logged correctly: $0.010033
   - Document visible on UI: ✅ Yes

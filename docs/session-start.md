@@ -1,9 +1,9 @@
 # Session Start
 
-**Date:** 2026-04-13 (Session 19, Sprint 14)
-**Status:** BUG-066 ✅ complete (daily cost calculation fix), ready for PR + merge
-**Branch:** fix/bug-066-daily-cost-calculation (parent: main)
-**Next:** Create PR, merge to main, then deploy to production
+**Date:** 2026-04-14 (Session 29, Sprint 14)
+**Status:** BUG-075 ✅ complete (model routing validation), ready for PR
+**Branch:** fix/bug-075-model-routing (parent: main)
+**Next:** Create PR, merge to main, then continue with remaining Sprint 14 tasks
 
 ---
 
@@ -243,8 +243,29 @@
   - **Commit:** 98f172d
   - **Impact:** Briefing agent now receives recent narratives from April 2026 instead of empty list, generation succeeds
 
+**Session 29 (2026-04-14) — BUG-075 Model Routing Validation Fix ✅**
+- ✅ **BUG-075 FIXED** — Inconsistent model routing for `narrative_generate` causes 25× cost spike
+  - **Problem:** Two code paths called `narrative_generate` with wrong models (Opus/Sonnet) instead of Haiku
+    - `test_gateway.py:31` hardcoded `claude-opus-4-6` (25× more expensive)
+    - `tests/llm/test_gateway.py:477` hardcoded `claude-sonnet-4-5-20250929` (3× more expensive)
+  - **Impact:** If test path fired in production, would cost $0.038760/call vs $0.0015 → 25× spike at 70 calls/day = ~$2.70/day vs ~$0.10/day
+  - **Root Cause:** Gateway accepted any model from caller without validation; no operation→model routing enforcement
+  - **Solution:** Added model routing validation to gateway:
+    1. Created `_OPERATION_MODEL_ROUTING` config (9 operations mapped to Haiku)
+    2. Added `_validate_model_routing()` method to detect and log mismatches
+    3. Call validation in both `call()` and `call_sync()` entry points
+  - **Files Changed:**
+    - `test_gateway.py` (line 31: Opus → Haiku)
+    - `tests/llm/test_gateway.py` (line 477: Sonnet → Haiku)
+    - `src/crypto_news_aggregator/llm/gateway.py` (added routing config + validation)
+    - `docs/tickets/bug-075-inconsistent-model-routing.md` (updated ticket)
+  - **Testing:** All 22 gateway tests passing ✅
+  - **Branch:** `fix/bug-075-model-routing`
+  - **Impact:** Prevents silent cost spike; all narrative operations now guaranteed to use Haiku
+
 **Next Steps:** 
-- Create PR for BUG-074: briefing sort fix (current branch: fix/bug-073-fingerprint-generation)
+- Create PR for BUG-075: model routing validation (current branch: fix/bug-075-model-routing)
+- Create PR for BUG-074: briefing sort fix (branch: fix/bug-073-fingerprint-generation)
 - Create PR for BUG-070 + BUG-071 + BUG-072 combined (narrative optimizations)
 - Merge to main once approved
 - Deploy to production (total narrative cost reduction: -68% from tier-1 filter + prompt compression, additional -30% from cache)

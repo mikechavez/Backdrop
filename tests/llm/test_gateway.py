@@ -474,7 +474,7 @@ class TestCacheMethods:
             gateway = LLMGateway()
             response = await gateway.call(
                 messages=[{"role": "user", "content": "Test"}],
-                model="claude-sonnet-4-5-20250929",
+                model="claude-haiku-4-5-20251001",
                 operation="narrative_generate",
             )
 
