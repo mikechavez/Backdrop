@@ -73,6 +73,15 @@
   - Commit: 98f172d
   - Impact: Briefing agent now receives recent narratives (April 2026), generation succeeds end-to-end
 
+### ✅ Completed (Continued)
+- **TASK-065:** Add observability to narrative backfill update_one calls — **✅ COMPLETE**
+  - Added debug logging before `update_one` execution (article_id + fields)
+  - Check `result.modified_count` and log warning if 0 (document not found or no change)
+  - Wrap `update_one` in try/except with error logging on failure
+  - Files: `src/crypto_news_aggregator/services/narrative_themes.py:1254-1295`
+  - Commit: `cde555c`
+  - Impact: Closes blind spot in write path observability; future write failures immediately detectable in logs
+
 ### 🔲 In Progress
 - **TASK-028:** Validate scheduled briefing execution + measure costs (see below)
 
