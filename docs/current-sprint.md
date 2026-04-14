@@ -42,6 +42,14 @@
   - Commit: c68e760
   - Combined impact with BUG-070/071: -98% narrative cost (from $0.60/day → $0.015/day)
 
+### ✅ Completed (Continued)
+- **BUG-073:** Articles missing fingerprints — deduplication broken — **✅ COMPLETE**
+  - Fixed `create_or_update_articles()` to route through `ArticleService.create_article()`
+  - All articles now get fingerprints generated (MD5 hash of normalized title + content)
+  - Deduplication by fingerprint now functional for all ingested articles
+  - Impact: Prevents duplicate articles across feeds from wasting storage and LLM quota
+  - Commit: pending (branch: `fix/bug-073-fingerprint-generation`)
+
 ### 🔲 In Progress
 - **TASK-028:** Validate scheduled briefing execution + measure costs (see below)
 

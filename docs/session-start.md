@@ -217,8 +217,22 @@
   - **Cost Impact:** -30% narrative_generate calls = ~$0.037/day savings
   - **Expected annual savings:** ~$13.50 from cache alone
 
+**Session 27 (2026-04-13) — BUG-073 Article Fingerprint Generation Fix ✅**
+- ✅ **BUG-073 FIXED** — Articles inserted without fingerprints, breaking deduplication
+  - **Problem:** `create_or_update_articles()` in articles.py used direct MongoDB insert, bypassing fingerprint generation
+  - **Impact:** All articles ingested after April 9 have `fingerprint: null`, deduplication completely non-functional
+  - **Root Cause:** RSS fetcher calls `create_or_update_articles()` which inserted directly without calling `ArticleService.create_article()`
+  - **Solution:** Route all article inserts through `ArticleService.create_article()` which generates fingerprints and checks for duplicates
+  - **Files Changed:** `src/crypto_news_aggregator/db/operations/articles.py`
+    - Added import: `from crypto_news_aggregator.services.article_service import get_article_service`
+    - Modified `create_or_update_articles()` to call `article_service.create_article()` instead of direct `collection.insert_one()`
+    - Preserved existing `source_id` duplicate check for update path
+  - **Branch:** `fix/bug-073-fingerprint-generation`
+  - **Testing:** All article service tests pass (10/10), no regressions
+
 **Next Steps:** 
-- Create PR for BUG-070 + BUG-071 + BUG-072 combined (or separate PRs if large)
+- Create PR for BUG-073: fingerprint generation fix
+- Create PR for BUG-070 + BUG-071 + BUG-072 combined (narrative optimizations)
 - Merge to main once approved
 - Deploy to production (total narrative cost reduction: -68% from tier-1 filter + prompt compression, additional -30% from cache)
 
