@@ -34,23 +34,41 @@ The `narrative_focus` field on narrative documents contains a full LLM explanati
 
 ## Resolution
 
-**Status:** Open
-**Fixed:**
+**Status:** FIXED
+**Fixed:** 2026-04-14
 **Branch:** fix/bug-076-narrative-focus-parser
-**Commit:**
+**Commit:** 41936ad
 
 ### Root Cause
-The `narrative_focus` response parser reads the raw LLM output string without extracting just the focus phrase. The model wraps its answer in explanation text and the parser doesn't strip it.
+The `narrative_focus` response parser reads the raw LLM output string without extracting just the focus phrase. The model wraps its answer in explanation text (e.g., `"defi ecosystem expansion"\n\nThis phrase captures...`) and the parser doesn't strip the explanation text.
 
 ### Changes Made
-- Find the `narrative_focus` parser (likely in the narrative generation or post-processing code)
-- Add JSON extraction or regex to pull only the focus phrase (e.g., extract first quoted string, or prompt the model to return JSON)
-- Optionally backfill existing documents with corrected values
+1. **Added `extract_focus_phrase()` function** (`narrative_themes.py` lines 436-488)
+   - Extracts just the 2-5 word focus phrase from raw LLM response
+   - Handles quoted strings, newlines, and multi-line explanations
+   - Strips explanation text that follows the phrase
+   - Normalizes whitespace
 
-### Testing
-1. Trigger narrative generation for a new document
-2. Query `narrative_focus` field — confirm it contains only the short phrase
-3. Spot-check 5–10 existing documents if backfill is run
+2. **Integrated extraction in `discover_narrative_from_article()`** (lines 860-868)
+   - Calls `extract_focus_phrase()` immediately after JSON parsing
+   - Only applies extraction if focus field has explanation text
+   - Logs when extraction modifies the field
+
+3. **Added comprehensive unit tests** (`test_narrative_themes.py`)
+   - 13 test cases covering edge cases (empty strings, quoted text, multi-line explanations, etc.)
+   - All tests passing
+
+### Testing Results
+✅ All 53 focus/validation/discovery tests passing:
+- 13 new `TestExtractFocusPhrase` tests
+- 23 `TestValidateNarrativeJson` tests (backward compatible)
+- 10 `TestComputeFocusSimilarity` tests
+- 3 `TestBuildDegradedNarrative` tests
+- 2 `TestZeroRetryOnValidationFailure` tests
+
+### Backfill Notes
+Existing documents with bad `narrative_focus` values can be fixed later if needed. The fix applies prospectively to all new narrative detections.
 
 ### Files Changed
-TBD — narrative response parser, likely in `narrative_themes.py` or equivalent
+- `src/crypto_news_aggregator/services/narrative_themes.py` — Added `extract_focus_phrase()` and integrated it in `discover_narrative_from_article()`
+- `tests/services/test_narrative_themes.py` — Added 13 new test cases

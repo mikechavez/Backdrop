@@ -391,17 +391,17 @@ def calculate_fingerprint_similarity(
 def clean_json_response(response: str) -> str:
     """
     Clean JSON response from LLM to handle control characters and newlines.
-    
+
     Claude often includes newlines and control characters in JSON string values,
     which breaks json.loads(). This function:
     1. Strips markdown code blocks
     2. Extracts JSON object from text (handles "Here is..." prefixes)
     3. Replaces control characters (newlines, carriage returns, tabs) with spaces
     4. Normalizes multiple spaces to single space
-    
+
     Args:
         response: Raw LLM response string
-    
+
     Returns:
         Cleaned JSON string ready for parsing
     """
@@ -414,23 +414,80 @@ def clean_json_response(response: str) -> str:
     if response_clean.endswith("```"):
         response_clean = response_clean[:-3]
     response_clean = response_clean.strip()
-    
+
     # Extract JSON object if there's text before it
     # Look for the first { and last } to extract just the JSON
     first_brace = response_clean.find('{')
     last_brace = response_clean.rfind('}')
-    
+
     if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
         response_clean = response_clean[first_brace:last_brace + 1]
-    
+
     # Replace control characters with spaces
     # This handles newlines (\n), carriage returns (\r), and tabs (\t)
     response_clean = response_clean.replace('\n', ' ').replace('\r', ' ').replace('\t', ' ')
-    
+
     # Normalize multiple spaces to single space
     response_clean = re.sub(r'\s+', ' ', response_clean)
-    
+
     return response_clean
+
+
+def extract_focus_phrase(focus_text: str) -> str:
+    """
+    Extract just the focus phrase from narrative_focus field.
+
+    Some LLM responses include explanation text after the phrase, e.g.:
+    "defi ecosystem expansion"\n\nThis phrase captures the active process...
+
+    This function extracts only the 2-5 word phrase by:
+    1. Stripping whitespace
+    2. Extracting first quoted string if present
+    3. Splitting on double newlines or common separators
+    4. Taking the first line/phrase
+
+    Args:
+        focus_text: Raw narrative_focus field from LLM response
+
+    Returns:
+        Cleaned 2-5 word focus phrase
+    """
+    if not focus_text:
+        return ""
+
+    # Strip leading/trailing whitespace
+    text = focus_text.strip()
+
+    # Extract first quoted string if the field starts with a quote
+    if text.startswith('"'):
+        # Find the closing quote
+        closing_quote = text.find('"', 1)
+        if closing_quote != -1:
+            text = text[1:closing_quote]
+    elif text.startswith("'"):
+        # Handle single quotes too
+        closing_quote = text.find("'", 1)
+        if closing_quote != -1:
+            text = text[1:closing_quote]
+
+    # Split on double newlines or common separators
+    # Keep only the first line if there are multiple
+    if '\n\n' in text:
+        text = text.split('\n\n')[0].strip()
+
+    # If there's still a newline, take the first line
+    if '\n' in text:
+        text = text.split('\n')[0].strip()
+
+    # Remove trailing punctuation if it looks like explanation text started
+    # (e.g., "phrase. This is explanation" -> "phrase")
+    if '. ' in text:
+        # Only split if we have more than one sentence
+        sentences = text.split('. ')
+        # Take first sentence but keep the content before the period
+        text = sentences[0].strip()
+
+    return text
 
 # Predefined theme categories for crypto news
 THEME_CATEGORIES = [
@@ -810,7 +867,18 @@ Extract narrative data. Respond with ONLY valid JSON."""
             # Parse JSON response
             try:
                 narrative_data = json.loads(response_clean)
-                
+
+                # BUG-076: Extract just the focus phrase, removing any explanation text
+                focus_raw = narrative_data.get('narrative_focus', '')
+                if focus_raw:
+                    focus_extracted = extract_focus_phrase(focus_raw)
+                    if focus_extracted:
+                        narrative_data['narrative_focus'] = focus_extracted
+                        if focus_extracted != focus_raw.strip():
+                            logger.debug(
+                                f"Extracted focus phrase: '{focus_raw[:50]}...' → '{focus_extracted}'"
+                            )
+
                 # VALIDATE JSON structure before returning
                 is_valid, error = validate_narrative_json(narrative_data)
 

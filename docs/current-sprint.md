@@ -7,7 +7,7 @@
 
 ---
 
-## Current Status (2026-04-14, 11:20 EST)
+## Current Status (2026-04-14, 11:30 EST)
 
 ### ✅ Completed This Sprint
 - **BUG-064:** Memory leak + retry storm — MERGED
@@ -26,6 +26,14 @@
   - Manual briefing generation tested: saves with full content
   - Cost logged correctly: $0.010033
   - Document visible on UI: ✅ Yes
+- **BUG-076:** Narrative focus field stores full LLM response — **✅ FIXED**
+  - Added `extract_focus_phrase()` function to isolate 2-5 word phrase from explanation text
+  - Handles quoted strings, newlines, multi-line explanations, and boundary detection
+  - Integrated in `discover_narrative_from_article()` immediately after JSON parsing
+  - 13 comprehensive unit tests covering edge cases (empty strings, quoted text, real-world examples)
+  - All 53 focus/validation/discovery tests passing ✅
+  - Branch: `fix/bug-076-narrative-focus-parser`
+  - Impact: Prospectively fixes all new narrative detections; existing bad data can be backfilled
 - **BUG-070:** Narrative tier-1 only filter — **✅ CODE COMPLETE**
   - Changed `MAX_RELEVANCE_TIER = 2` → `1` in narrative_themes.py
   - Expected savings: -64% narrative calls (~193 → 70/day), ~$0.38/day cost reduction

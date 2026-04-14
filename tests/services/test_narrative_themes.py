@@ -22,6 +22,7 @@ from crypto_news_aggregator.services.narrative_themes import (
     calculate_fingerprint_similarity,
     _compute_focus_similarity,
     _build_degraded_narrative,
+    extract_focus_phrase,
     THEME_CATEGORIES
 )
 
@@ -2519,6 +2520,82 @@ class TestIntegrationRetryStormFix:
             # Key: LLM should be called only once (validation failure, no retry)
             # not 4 times (old behavior with max_retries=4)
             assert llm_call_count <= 2  # max_retries=2 in discover function
+
+
+# =============================================================================
+# BUG-076: Narrative Focus Parser Tests
+# =============================================================================
+
+class TestExtractFocusPhrase:
+    """Test extract_focus_phrase() function for BUG-076."""
+
+    def test_extract_focus_simple_phrase(self):
+        """Test extracting a simple focus phrase with no explanation."""
+        focus = extract_focus_phrase("price surge")
+        assert focus == "price surge"
+
+    def test_extract_focus_with_explanation_newline(self):
+        """Test extracting focus phrase with explanation after double newline."""
+        focus = extract_focus_phrase('defi ecosystem expansion\n\nThis phrase captures the active process of DeFi growing')
+        assert focus == "defi ecosystem expansion"
+
+    def test_extract_focus_with_single_newline(self):
+        """Test extracting focus phrase when explanation is on next line."""
+        focus = extract_focus_phrase("regulatory enforcement\nThe SEC is taking action")
+        assert focus == "regulatory enforcement"
+
+    def test_extract_focus_quoted_string(self):
+        """Test extracting focus phrase from quoted JSON string."""
+        focus = extract_focus_phrase('"price surge"')
+        assert focus == "price surge"
+
+    def test_extract_focus_quoted_with_explanation(self):
+        """Test extracting quoted focus phrase with explanation text."""
+        focus = extract_focus_phrase('"defi ecosystem expansion"\n\nThis captures the expansion of DeFi protocols and adoption')
+        assert focus == "defi ecosystem expansion"
+
+    def test_extract_focus_single_quoted(self):
+        """Test extracting focus phrase from single-quoted string."""
+        focus = extract_focus_phrase("'protocol upgrade'")
+        assert focus == "protocol upgrade"
+
+    def test_extract_focus_with_period_sentence(self):
+        """Test that focus stops at period if it looks like a sentence."""
+        focus = extract_focus_phrase("institutional adoption. This is when big funds invest")
+        assert focus == "institutional adoption"
+
+    def test_extract_focus_empty_string(self):
+        """Test extracting focus from empty string."""
+        focus = extract_focus_phrase("")
+        assert focus == ""
+
+    def test_extract_focus_whitespace_only(self):
+        """Test extracting focus from whitespace-only string."""
+        focus = extract_focus_phrase("   \n\n   ")
+        assert focus == ""
+
+    def test_extract_focus_multiword_phrase(self):
+        """Test extracting a multi-word (5 word) phrase."""
+        focus = extract_focus_phrase("regulatory enforcement action against exchanges")
+        assert focus == "regulatory enforcement action against exchanges"
+
+    def test_extract_focus_real_world_example_from_bug(self):
+        """Test real-world example from BUG-076 ticket."""
+        # This simulates what the LLM might return with explanation text
+        raw_response = '"defi ecosystem expansion"\n\nThis phrase captures the active process of DeFi protocols gaining adoption across multiple chains and use cases.'
+        focus = extract_focus_phrase(raw_response)
+        assert focus == "defi ecosystem expansion"
+
+    def test_extract_focus_preserves_internal_structure(self):
+        """Test that internal structure of phrase is preserved."""
+        focus = extract_focus_phrase('price surge (bullish)')
+        # Should keep the whole phrase up to the newline/period
+        assert "price surge" in focus
+
+    def test_extract_focus_strips_whitespace(self):
+        """Test that leading/trailing whitespace is stripped."""
+        focus = extract_focus_phrase("  \n  institutional adoption  \n  ")
+        assert focus == "institutional adoption"
 
 
 # Add import for json at top of test file if not already present

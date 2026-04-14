@@ -263,11 +263,34 @@
   - **Branch:** `fix/bug-075-model-routing`
   - **Impact:** Prevents silent cost spike; all narrative operations now guaranteed to use Haiku
 
+**Session 29 (2026-04-14) — BUG-076 Narrative Focus Parser Fix ✅**
+- ✅ **BUG-076 FIXED** — `narrative_focus` field stores full LLM response instead of extracted focus phrase
+  - **Problem:** LLM returns explanation text after the focus phrase, e.g.: `"defi ecosystem expansion"\n\nThis phrase captures the active process...`
+  - **Impact:** `narrative_focus` field bloated with explanation text instead of 2-5 word phrase
+  - **Root Cause:** No extraction logic after JSON parsing; raw LLM response stored directly
+  - **Solution:** Added `extract_focus_phrase()` function to isolate focus from explanation text:
+    1. Handles quoted strings (strips quotes)
+    2. Splits on double newlines or sentence boundaries
+    3. Takes first phrase before explanation text
+    4. Normalizes whitespace
+  - **Integration:** Applied in `discover_narrative_from_article()` immediately after JSON parsing
+  - **Files Changed:**
+    - `src/crypto_news_aggregator/services/narrative_themes.py` (added extract_focus_phrase + integrated in discovery)
+    - `tests/services/test_narrative_themes.py` (added TestExtractFocusPhrase: 13 unit tests)
+    - `docs/tickets/bug-076-narrative-focus-field-bad-response.md` (updated resolution)
+  - **Testing:** All 53 focus/validation/discovery tests passing ✅
+    - 13 new extract_focus_phrase tests (covers edge cases: empty, quoted, multi-line, real-world examples)
+    - 23 validate_narrative tests (backward compatible)
+    - 10 focus similarity tests
+    - 3 degraded narrative tests
+    - 2 validation failure tests
+  - **Branch:** `fix/bug-076-narrative-focus-parser`
+  - **Impact:** Prospectively fixes all new narrative detections; existing bad data can be backfilled later if needed
+
 **Next Steps:** 
-- Create PR for BUG-075: model routing validation (current branch: fix/bug-075-model-routing)
-- Create PR for BUG-074: briefing sort fix (branch: fix/bug-073-fingerprint-generation)
-- Create PR for BUG-070 + BUG-071 + BUG-072 combined (narrative optimizations)
-- Merge to main once approved
+- Create PR for BUG-076: focus phrase extraction (current branch: fix/bug-076-narrative-focus-parser)
+- Create PR for BUG-075: model routing validation (branch: fix/bug-075-model-routing)
+- Merge both to main once approved
 - Deploy to production (total narrative cost reduction: -68% from tier-1 filter + prompt compression, additional -30% from cache)
 
 ---
