@@ -194,6 +194,7 @@ class TestRefreshBudgetCache:
         """Create mock database."""
         db = MagicMock(spec=AsyncIOMotorDatabase)
         db.api_costs = MagicMock()
+        db.llm_traces = MagicMock()  # Added for BUG-079: llm_traces is now source of truth
         return db
 
     async def test_refresh_cache_ok_status(self, mock_db):
@@ -206,7 +207,7 @@ class TestRefreshBudgetCache:
         # Mock cost query to return $0.10 (below soft limit of $0.25)
         async_mock = AsyncMock()
         async_mock.return_value = [{"total": 0.10}]
-        mock_db.api_costs.aggregate.return_value.to_list = async_mock
+        mock_db.llm_traces.aggregate.return_value.to_list = async_mock
 
         tracker = CostTracker(mock_db)
         result = await tracker.refresh_budget_cache()
@@ -222,16 +223,16 @@ class TestRefreshBudgetCache:
         _budget_cache["daily_cost"] = 0.0
         _budget_cache["last_checked"] = 0.0
 
-        # Mock cost query to return $0.28 (between soft $0.25 and hard $0.33)
+        # Mock cost query to return $5.00 (between soft $3.00 and hard $15.00)
         async_mock = AsyncMock()
-        async_mock.return_value = [{"total": 0.28}]
-        mock_db.api_costs.aggregate.return_value.to_list = async_mock
+        async_mock.return_value = [{"total": 5.00}]
+        mock_db.llm_traces.aggregate.return_value.to_list = async_mock
 
         tracker = CostTracker(mock_db)
         result = await tracker.refresh_budget_cache()
 
         assert result["status"] == "degraded"
-        assert result["daily_cost"] == 0.28
+        assert result["daily_cost"] == 5.00
 
     async def test_refresh_cache_hard_limit_status(self, mock_db):
         """Cache should be 'hard_limit' when cost is at/above hard limit."""
@@ -240,28 +241,28 @@ class TestRefreshBudgetCache:
         _budget_cache["daily_cost"] = 0.0
         _budget_cache["last_checked"] = 0.0
 
-        # Mock cost query to return $0.35 (above hard limit of $0.33)
+        # Mock cost query to return $16.00 (above hard limit of $15.00)
         async_mock = AsyncMock()
-        async_mock.return_value = [{"total": 0.35}]
-        mock_db.api_costs.aggregate.return_value.to_list = async_mock
+        async_mock.return_value = [{"total": 16.00}]
+        mock_db.llm_traces.aggregate.return_value.to_list = async_mock
 
         tracker = CostTracker(mock_db)
         result = await tracker.refresh_budget_cache()
 
         assert result["status"] == "hard_limit"
-        assert result["daily_cost"] == 0.35
+        assert result["daily_cost"] == 16.00
 
     async def test_refresh_cache_no_costs(self, mock_db):
-        """Cache should be 'ok' with 0 cost when no records exist."""
+        """Cache should be 'ok' with 0 cost when no records exist (BUG-079: queries llm_traces)."""
         # Reset cache
         _budget_cache["status"] = "ok"
         _budget_cache["daily_cost"] = 0.0
         _budget_cache["last_checked"] = 0.0
 
-        # Mock empty aggregation result
+        # Mock empty aggregation result from llm_traces (after BUG-079)
         async_mock = AsyncMock()
         async_mock.return_value = []
-        mock_db.api_costs.aggregate.return_value.to_list = async_mock
+        mock_db.llm_traces.aggregate.return_value.to_list = async_mock
 
         tracker = CostTracker(mock_db)
         result = await tracker.refresh_budget_cache()
@@ -276,10 +277,10 @@ class TestRefreshBudgetCache:
         _budget_cache["daily_cost"] = 0.0
         _budget_cache["last_checked"] = 0.0
 
-        # Mock DB error
+        # Mock DB error on llm_traces (after BUG-079)
         async_mock = AsyncMock()
         async_mock.side_effect = Exception("DB connection failed")
-        mock_db.api_costs.aggregate.return_value.to_list = async_mock
+        mock_db.llm_traces.aggregate.return_value.to_list = async_mock
 
         tracker = CostTracker(mock_db)
         result = await tracker.refresh_budget_cache()
@@ -308,7 +309,7 @@ class TestRefreshBudgetIfStale:
         mock_db = MagicMock()
         async_mock = AsyncMock()
         async_mock.return_value = [{"total": 0.10}]
-        mock_db.api_costs.aggregate.return_value.to_list = async_mock
+        mock_db.llm_traces.aggregate.return_value.to_list = async_mock
 
         with patch("crypto_news_aggregator.db.mongodb.mongo_manager") as mock_mgr:
             mock_mgr.get_async_database = AsyncMock(return_value=mock_db)
@@ -392,6 +393,7 @@ class TestBudgetGateIntegration:
         """Create mock database."""
         db = MagicMock(spec=AsyncIOMotorDatabase)
         db.api_costs = MagicMock()
+        db.llm_traces = MagicMock()  # Added for BUG-079: llm_traces is now source of truth
         return db
 
     async def test_hard_limit_blocks_all_llm_calls(self, mock_db):
@@ -403,7 +405,7 @@ class TestBudgetGateIntegration:
         # Setup: Insert cost records totaling $0.34 (above hard limit of $0.33)
         async_mock = AsyncMock()
         async_mock.return_value = [{"total": 0.34}]
-        mock_db.api_costs.aggregate.return_value.to_list = async_mock
+        mock_db.llm_traces.aggregate.return_value.to_list = async_mock
 
         tracker = CostTracker(mock_db)
         await tracker.refresh_budget_cache()
@@ -423,7 +425,7 @@ class TestBudgetGateIntegration:
         # Setup: Insert cost records totaling $0.30 (soft limit $0.25, hard limit $0.33)
         async_mock = AsyncMock()
         async_mock.return_value = [{"total": 0.30}]
-        mock_db.api_costs.aggregate.return_value.to_list = async_mock
+        mock_db.llm_traces.aggregate.return_value.to_list = async_mock
 
         tracker = CostTracker(mock_db)
         await tracker.refresh_budget_cache()

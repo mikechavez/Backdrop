@@ -14,8 +14,9 @@ async def db():
     client = AsyncIOMotorClient("mongodb://localhost:27017")
     db = client.test_cost_tracking
     yield db
-    # Cleanup
+    # Cleanup (both api_costs and llm_traces for test compatibility)
     await db.api_costs.delete_many({})
+    await db.llm_traces.delete_many({})
     client.close()
 
 
@@ -122,16 +123,19 @@ class TestCostTracking:
         assert doc["cached"] is True
 
     async def test_get_daily_cost(self, tracker, db):
-        """Test daily cost aggregation."""
-        # Track two calls
-        await tracker.track_call(
-            "test_op", "claude-haiku-4-5-20251001",
-            1000, 1000, cached=False
-        )
-        await tracker.track_call(
-            "test_op", "claude-haiku-4-5-20251001",
-            1000, 1000, cached=False
-        )
+        """Test daily cost aggregation from llm_traces (BUG-079: single source of truth)."""
+        # Insert test data directly into llm_traces
+        # (This is where get_daily_cost() now queries from after BUG-079)
+        now = datetime.now(timezone.utc)
+        for _ in range(2):
+            await db.llm_traces.insert_one({
+                "timestamp": now,
+                "operation": "test_op",
+                "model": "claude-haiku-4-5-20251001",
+                "input_tokens": 1000,
+                "output_tokens": 1000,
+                "cost": 0.006,
+            })
 
         daily_cost = await tracker.get_daily_cost(days=1)
 
@@ -139,12 +143,17 @@ class TestCostTracking:
         assert daily_cost == pytest.approx(0.012, abs=0.0001)
 
     async def test_get_monthly_cost(self, tracker, db):
-        """Test monthly cost aggregation."""
-        # Track a call
-        await tracker.track_call(
-            "test_op", "claude-haiku-4-5-20251001",
-            1000, 1000, cached=False
-        )
+        """Test monthly cost aggregation from llm_traces (BUG-079: single source of truth)."""
+        # Insert test data directly into llm_traces
+        now = datetime.now(timezone.utc)
+        await db.llm_traces.insert_one({
+            "timestamp": now,
+            "operation": "test_op",
+            "model": "claude-haiku-4-5-20251001",
+            "input_tokens": 1000,
+            "output_tokens": 1000,
+            "cost": 0.006,
+        })
 
         monthly_cost = await tracker.get_monthly_cost()
 

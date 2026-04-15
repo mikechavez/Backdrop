@@ -377,37 +377,10 @@ Return ONLY the JSON array, no other text."""
                 except Exception as e:
                     logger.warning(f"Failed to increment rate limiter for entity_extraction: {e}")
 
-                # Track cost (async, non-blocking)
-                try:
-                    from crypto_news_aggregator.services.cost_tracker import CostTracker
-                    from crypto_news_aggregator.db.mongodb import mongo_manager
-                    import asyncio
-
-                    async def _track_entity_cost():
-                        db = await mongo_manager.get_async_database()
-                        tracker = CostTracker(db)
-                        await tracker.track_call(
-                            operation="entity_extraction",
-                            model=entity_model,
-                            input_tokens=input_tokens,
-                            output_tokens=output_tokens,
-                        )
-
-                    # Schedule as background task if we have event loop
-                    try:
-                        loop = asyncio.get_event_loop()
-                        if loop.is_running():
-                            asyncio.create_task(_track_entity_cost())
-                        else:
-                            # If no running loop, try to run synchronously via thread
-                            import threading
-                            threading.Thread(target=lambda: asyncio.run(_track_entity_cost()), daemon=True).start()
-                    except RuntimeError:
-                        # No event loop in current thread, schedule in thread
-                        import threading
-                        threading.Thread(target=lambda: asyncio.run(_track_entity_cost()), daemon=True).start()
-                except Exception as e:
-                    logger.warning(f"Failed to track entity extraction cost: {e}")
+                # NOTE: Cost tracking removed under BUG-079 (Option B).
+                # The gateway's _write_trace_sync() already records the correct cost in llm_traces
+                # for every call_sync() invocation. api_costs collection is no longer used for
+                # budget enforcement (moved to llm_traces as single source of truth).
 
                 return {
                     "results": results,
@@ -585,26 +558,13 @@ Return ONLY the JSON array, no other text."""
             await rate_limiter.increment("sentiment_analysis")
             await rate_limiter.increment("theme_extraction")
 
-            # Track cost
-            try:
-                from crypto_news_aggregator.services.cost_tracker import CostTracker
-                from crypto_news_aggregator.db.mongodb import mongo_manager
-
-                if usage and (usage.get("input_tokens", 0) > 0 or usage.get("output_tokens", 0) > 0):
-                    db = await mongo_manager.get_async_database()
-                    tracker = CostTracker(db)
-                    await tracker.track_call(
-                        operation="article_enrichment_batch",
-                        model=self.model_name,
-                        input_tokens=usage.get("input_tokens", 0),
-                        output_tokens=usage.get("output_tokens", 0),
-                    )
-                    logger.info(
-                        f"Batch enriched {len(batch_articles)} articles: "
-                        f"{usage.get('input_tokens', 0)}+{usage.get('output_tokens', 0)} tokens"
-                    )
-            except Exception as e:
-                logger.warning(f"Failed to track batch enrichment cost: {e}")
+            # NOTE: Cost tracking removed under BUG-079 (Option B).
+            # The gateway's _track_cost() via call() already writes to llm_traces.
+            # Removing manual tracker.track_call() to eliminate double-write.
+            logger.info(
+                f"Batch enriched {len(batch_articles)} articles: "
+                f"{usage.get('input_tokens', 0)}+{usage.get('output_tokens', 0)} tokens"
+            )
 
             # Parse response
             try:
@@ -678,24 +638,9 @@ Return ONLY the JSON array, no other text."""
             # Increment rate limiter counter after successful API call
             await rate_limiter.increment(operation)
 
-            # Track cost asynchronously if tracking is available
-            try:
-                from crypto_news_aggregator.services.cost_tracker import CostTracker
-                from crypto_news_aggregator.db.mongodb import mongo_manager
-
-                if usage and (usage.get("input_tokens", 0) > 0 or usage.get("output_tokens", 0) > 0):
-                    db = await mongo_manager.get_async_database()
-                    tracker = CostTracker(db)
-                    await (
-                        tracker.track_call(
-                            operation=operation,
-                            model=self.model_name,
-                            input_tokens=usage.get("input_tokens", 0),
-                            output_tokens=usage.get("output_tokens", 0),
-                        )
-                    )
-            except Exception as e:
-                logger.warning(f"Failed to track cost for {operation}: {e}")
+            # NOTE: Cost tracking removed under BUG-079 (Option B).
+            # The gateway's _track_cost() via call() already writes to llm_traces.
+            # Removing manual tracker.track_call() to eliminate double-write.
 
             # Parse response
             try:
@@ -755,24 +700,9 @@ Return ONLY the JSON array, no other text."""
             # Increment rate limiter counter after successful API call
             await rate_limiter.increment(operation)
 
-            # Track cost asynchronously if tracking is available
-            try:
-                from crypto_news_aggregator.services.cost_tracker import CostTracker
-                from crypto_news_aggregator.db.mongodb import mongo_manager
-
-                if usage and (usage.get("input_tokens", 0) > 0 or usage.get("output_tokens", 0) > 0):
-                    db = await mongo_manager.get_async_database()
-                    tracker = CostTracker(db)
-                    await (
-                        tracker.track_call(
-                            operation=operation,
-                            model=self.model_name,
-                            input_tokens=usage.get("input_tokens", 0),
-                            output_tokens=usage.get("output_tokens", 0),
-                        )
-                    )
-            except Exception as e:
-                logger.warning(f"Failed to track cost for {operation}: {e}")
+            # NOTE: Cost tracking removed under BUG-079 (Option B).
+            # The gateway's _track_cost() via call() already writes to llm_traces.
+            # Removing manual tracker.track_call() to eliminate double-write.
 
             # Parse response
             try:
@@ -833,24 +763,9 @@ Return ONLY the JSON array, no other text."""
             # Increment rate limiter counter after successful API call
             await rate_limiter.increment(operation)
 
-            # Track cost asynchronously if tracking is available
-            try:
-                from crypto_news_aggregator.services.cost_tracker import CostTracker
-                from crypto_news_aggregator.db.mongodb import mongo_manager
-
-                if usage and (usage.get("input_tokens", 0) > 0 or usage.get("output_tokens", 0) > 0):
-                    db = await mongo_manager.get_async_database()
-                    tracker = CostTracker(db)
-                    await (
-                        tracker.track_call(
-                            operation=operation,
-                            model=self.model_name,
-                            input_tokens=usage.get("input_tokens", 0),
-                            output_tokens=usage.get("output_tokens", 0),
-                        )
-                    )
-            except Exception as e:
-                logger.warning(f"Failed to track cost for {operation}: {e}")
+            # NOTE: Cost tracking removed under BUG-079 (Option B).
+            # The gateway's _track_cost() via call() already writes to llm_traces.
+            # Removing manual tracker.track_call() to eliminate double-write.
 
             # Parse response
             if response_text:

@@ -159,6 +159,10 @@ class CostTracker:
         For days=1 (default), returns cost for today (00:00-23:59 UTC).
         For days=2, returns cost for yesterday, etc.
 
+        Queries llm_traces (the single source of truth for budget enforcement).
+        llm_traces contains complete and correct data for all LLM calls (both
+        sync and async paths write here). See BUG-079 for context.
+
         Args:
             days: Number of calendar days back (1=today, 2=yesterday, etc.)
 
@@ -179,13 +183,16 @@ class CostTracker:
             {"$group": {"_id": None, "total": {"$sum": "$cost"}}}
         ]
 
-        result = await self.collection.aggregate(pipeline).to_list(1)
+        result = await self.db.llm_traces.aggregate(pipeline).to_list(1)
 
         return result[0]["total"] if result else 0.0
 
     async def get_monthly_cost(self) -> float:
         """
         Get total cost for current month.
+
+        Queries llm_traces (the single source of truth for budget enforcement).
+        See BUG-079 for context.
 
         Returns:
             Total cost in USD
@@ -199,13 +206,16 @@ class CostTracker:
             {"$group": {"_id": None, "total": {"$sum": "$cost"}}}
         ]
 
-        result = await self.collection.aggregate(pipeline).to_list(1)
+        result = await self.db.llm_traces.aggregate(pipeline).to_list(1)
 
         return result[0]["total"] if result else 0.0
 
     async def get_cost_by_operation(self, days: int = 1) -> dict:
         """
         Get total cost broken down by operation type.
+
+        Queries llm_traces (the single source of truth for budget enforcement).
+        See BUG-079 for context.
 
         Args:
             days: Number of days to look back (default: 1)
@@ -225,13 +235,16 @@ class CostTracker:
             {"$sort": {"cost": -1}}
         ]
 
-        results = await self.collection.aggregate(pipeline).to_list(None)
+        results = await self.db.llm_traces.aggregate(pipeline).to_list(None)
 
         return {item["_id"]: {"cost": item["cost"], "calls": item["calls"]} for item in results}
 
     async def get_cost_by_model(self, days: int = 1) -> dict:
         """
         Get total cost broken down by model.
+
+        Queries llm_traces (the single source of truth for budget enforcement).
+        See BUG-079 for context.
 
         Args:
             days: Number of days to look back (default: 1)
@@ -251,7 +264,7 @@ class CostTracker:
             {"$sort": {"cost": -1}}
         ]
 
-        results = await self.collection.aggregate(pipeline).to_list(None)
+        results = await self.db.llm_traces.aggregate(pipeline).to_list(None)
 
         return {item["_id"]: {"cost": item["cost"], "calls": item["calls"]} for item in results}
 
