@@ -1,13 +1,29 @@
 # Session Start
 
-**Date:** 2026-04-15 (Session 32, Sprint 15)
-**Status:** All P1 bugs complete and validated. Cost tracking fully trustworthy. BUG-080 (briefing date mismatch) fixed.
-**Branch:** fix/bug-080-briefing-date-mismatch (ready to merge)
-**Next:** Create PR for BUG-080, then TASK-069 (cost dashboard + Slack alerts) or TASK-071 (threshold recalibration)
+**Date:** 2026-04-15 (Session 33, Sprint 15)
+**Status:** All P1 bugs complete and validated. Cost tracking fully trustworthy. BUG-080 and BUG-081 (briefing quality) fixed.
+**Branches Ready:** fix/bug-080-briefing-date-mismatch, fix/bug-081-briefing-separate-stories
+**Next:** Create PRs for BUG-080 and BUG-081, then TASK-069 (cost dashboard + Slack alerts) or TASK-071 (threshold recalibration)
 
 ---
 
 ## Current Session Context
+
+### What was completed in Session 33
+
+**BUG-081 FIXED: Briefing quality guardrails for duplicate events, unnamed entities, and implausible figures**
+
+April 14 evening briefing had three issues: (1) Polkadot/Hyperbridge bridge exploit presented as two separate stories, (2) "two platforms" mentioned but only one named (Kraken), (3) "$204.7B liquidations" (~7-10% of entire market cap) passed critique unchallenged.
+
+**Fix deployed (commits bd2a8c7, 891d073):**
+- Added system prompt rules 9-11: consolidate duplicate events, prevent unnamed entities, verify figure plausibility
+- Added critique checks 8-10: detect duplicate events, unnamed entities, implausible figures
+- Created comprehensive test suite: 7 new tests covering all three rules, all pass ✅
+- Verified no regressions: all 5 existing briefing prompt tests pass ✅
+
+**Branch:** `fix/bug-081-briefing-separate-stories` — ready for PR
+
+---
 
 ### What was completed in Session 32
 

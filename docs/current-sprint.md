@@ -75,6 +75,25 @@ Infrastructure is stable and scheduled briefings are working. The blocker was co
   - All 5 briefing prompt tests pass ✅
 - **Branch:** `fix/bug-080-briefing-date-mismatch` (ready for PR)
 
+### BUG-081: Briefing presents duplicate events as separate stories and references unnamed entities ✅ FIXED
+- **Status:** ✅ RESOLVED — 2026-04-15
+- **Code fix deployed:** 2026-04-15 (commits bd2a8c7, 891d073)
+- **Root cause:** System prompt lacked rules for consolidating duplicate events or preventing unnamed entity references. Critique prompt lacked checks for duplicate events, unnamed entities, and implausible figures.
+- **Changes:**
+  - **System prompt rules 9-11 added:**
+    - Rule 9: Consolidate duplicate events from different narrative angles
+    - Rule 10: No unnamed entities — every referenced platform/exchange must be explicitly named
+    - Rule 11: Verify figure plausibility against ~$2-3T crypto market cap baseline
+  - **Critique checks 8-10 added:**
+    - Check 8: Detect duplicate events with different framing (critical flag)
+    - Check 9: Detect unnamed entity references (require explicit names from narratives)
+    - Check 10: Detect implausible figures ($50B+ liquidations, $10B+ hacks as historically unprecedented)
+- **Testing:**
+  - Created `tests/services/test_bug_081_briefing_quality.py` with 7 comprehensive tests ✅
+  - All 7 new tests pass ✅
+  - All 5 existing briefing prompt tests pass (no regressions) ✅
+- **Branch:** `fix/bug-081-briefing-separate-stories` (ready for PR)
+
 ---
 
 ## Priority 2 — Observability
@@ -160,6 +179,7 @@ Infrastructure is stable and scheduled briefings are working. The blocker was co
 | BUG-078 | RSS enrichment calls have no operation name | P1 | ✅ COMPLETE + VALIDATED (2026-04-15) |
 | BUG-076 | RSS ingest path does not generate article fingerprints | P1 | ✅ COMPLETE (2026-04-14) |
 | BUG-080 | Briefing date mismatch in LLM prompt | P2 | ✅ COMPLETE (2026-04-15) |
+| BUG-081 | Briefing duplicate events and unnamed entities | P2 | ✅ COMPLETE (2026-04-15) |
 | TASK-069 | Cost dashboard + Slack alerts | P2 | Ready |
 | TASK-070 | Narrative cost investigation | P3 | Backlog |
 | TASK-071 | Spend threshold recalibration | P4 | Ready (lower urgency — spend already under limit) |

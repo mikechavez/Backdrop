@@ -41,7 +41,7 @@ The system prompt has no rule about consolidating overlapping narratives, no rul
 
 ## Resolution
 
-**Status:** Open
+**Status:** ✅ COMPLETE — 2026-04-15
 
 ### Root Cause
 The system prompt in `_get_system_prompt()` lacks rules for narrative consolidation and unnamed entity prevention. The critique prompt in `_build_critique_prompt()` lacks checks for duplicate events, unnamed entities, and figure plausibility.
@@ -112,5 +112,27 @@ Respond with:
 3. Provide a narrative containing "$204.7B in liquidations" and verify the critique pass flags it as implausible, triggering a refinement that either corrects or hedges the figure.
 4. Run existing briefing generation tests to confirm no regressions.
 
+### Implementation Details
+
+**System Prompt Rules 9-11 Added:**
+- Rule 9: Consolidate duplicate events from different narrative angles into single coherent account
+- Rule 10: Prevent unnamed entity references — every entity must be explicitly named
+- Rule 11: Verify figure plausibility against ~$2-3T crypto market cap baseline
+
+**Critique Prompt Checks 8-10 Added:**
+- Check 8: Detect duplicate events with different framing — flag as critical
+- Check 9: Detect unnamed entity references — require explicit names from narratives
+- Check 10: Detect implausible figures — flag extremes ($50B+ liquidations, $10B+ hacks) as historically unprecedented
+
+**Code Changes (commit bd2a8c7):**
+- Lines 545-561: Added system prompt rules 9-11
+- Lines 697-701: Added critique checks 8-10
+
+**Test Coverage (commit 891d073):**
+- Created `tests/services/test_bug_081_briefing_quality.py` with 7 comprehensive tests
+- All 7 new tests pass ✅
+- All 5 existing briefing prompt tests pass (no regressions) ✅
+
 ### Files Changed
-- `crypto_news_aggregator/services/briefing_agent.py`
+- `src/crypto_news_aggregator/services/briefing_agent.py` — added system + critique rules
+- `tests/services/test_bug_081_briefing_quality.py` — new test file (7 tests)
