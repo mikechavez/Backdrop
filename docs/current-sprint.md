@@ -9,7 +9,9 @@
 
 ## Context from Sprint 14
 
-Infrastructure is stable and scheduled briefings are working. The blocker is cost: actual daily spend is $1.134 against a $1.00 hard limit that isn't triggering. The hard limit is silent because the enforcement system reads from `api_costs` while $0.177/day of real spend only writes to `llm_traces`. Until BUG-079 is fixed, no cost number reported by the system is trustworthy. All other cost work this sprint depends on BUG-079 landing first.
+Infrastructure is stable and scheduled briefings are working. The blocker was cost enforcement: the hard limit was silent because the enforcement system read from `api_costs` while entity_extraction costs only wrote to `llm_traces`. BUG-079 fixed this by making `llm_traces` the single source of truth.
+
+**Note:** The $1.134/day figure cited at sprint start was inflated by BUG-066's rolling 24hr window (fixed in Session 19). True baseline spend confirmed in Session 30 post-fix validation: **~$0.54/day**. System is already under the $1.00 hard limit — TASK-071 threshold relief is useful but not urgent.
 
 ---
 
@@ -22,9 +24,12 @@ Infrastructure is stable and scheduled briefings are working. The blocker is cos
 - **Changes:** Updated `get_daily_cost()`, `get_monthly_cost()`, `get_cost_by_operation()`, `get_cost_by_model()` to query `llm_traces` instead of `api_costs`
 - **Removed fragile code:** Eliminated manual async cost tracking task from `extract_entities_batch()` (110 lines removed)
 - **Testing:** All 50 cost-related tests pass; verified entity_extraction costs now visible
-- **Cost impact:** Hard limit now enforces against true spend ($1.134/day vs blind $0.957/day); entity_extraction ($0.177/day) now visible
 - **ADR:** Created ADR-079 documenting the decision and rationale
-- **Verification:** After deployment, check `llm_traces` aggregate matches `refresh_budget_cache()` output
+- **Production validation (Session 30):**
+  - `llm_traces` field name confirmed as `cost` (not `cost_usd`) — `get_daily_cost()` aggregates `"$cost"` correctly ✅
+  - `entity_extraction` visible at $0.145/day, 174 calls ✅
+  - True daily spend confirmed ~$0.54 — system is under $1.00 hard limit ✅
+  - All LLM calls confirmed routing through gateway; no direct httpx bypass paths ✅
 
 ### BUG-077: Model routing warns but does not enforce ✅ FIXED
 - **Status:** ✅ RESOLVED — 2026-04-14 18:30:00 UTC
@@ -33,17 +38,21 @@ Infrastructure is stable and scheduled briefings are working. The blocker is cos
 - **Enforcement:** Silently overrides wrong models and logs warning; 5 missing operations added to routing table
 - **Testing:** All 22 gateway tests pass; enforcement verified with manual validation
 - **Cost impact:** Prevents Opus ($0.039/call) from bypassing enforcement, protects against 25× cost multiplier
+- **Note:** `article_enrichment_batch` is not yet in `_OPERATION_MODEL_ROUTING` — will log a routing warning post BUG-078 fix. Low priority since calls use Haiku regardless; add in next routing table pass.
 
 ### BUG-078: RSS enrichment calls have no operation name ✅ FIXED
-- **Status:** ✅ RESOLVED — 2026-04-14 19:15:00 UTC
+- **Status:** ✅ RESOLVED — 2026-04-14 19:15:00 UTC (second fix; first fix 94dc5fb was incorrect)
 - **Code fix deployed:** 2026-04-14 (commit 6448289)
-- **Changes:** Passed operation names to `_get_completion_with_usage()` calls in four async methods:
-  - `enrich_articles_batch` line 550: `operation="article_enrichment_batch"`
+- **Root cause (corrected in Session 30):** Original fix (94dc5fb) patched the four sync methods (`analyze_sentiment`, `extract_themes`, `score_relevance`, `generate_insight`) which were already passing correct operation names. The actual broken call sites were the async `_tracked` wrapper methods and `enrich_articles_batch` — all calling `_get_completion_with_usage(prompt)` without passing the `operation` argument that was already in scope.
+- **Changes (correct fix):** Passed operation names to `_get_completion_with_usage()` in four async methods:
+  - `enrich_articles_batch` line 550: hardcoded `operation="article_enrichment_batch"`
   - `score_relevance_tracked` line 633: `operation=operation` (parameter pass-through)
   - `analyze_sentiment_tracked` line 695: `operation=operation` (parameter pass-through)
   - `extract_themes_tracked` line 758: `operation=operation` (parameter pass-through)
-- **Root cause:** Previous fix (94dc5fb) patched the synchronous methods which were already correct; this fix addresses the actual broken call sites (async wrapper methods)
-- **Cost impact:** ~159 calls/day ($0.149/day) from enrichment now properly tracked under correct operation names instead of `provider_fallback`
+- **Production validation (Session 30):**
+  - Last `provider_fallback` trace timestamp: 2026-04-15T01:40:22 UTC (15 min before deploy at 01:55 UTC) ✅
+  - `article_enrichment_batch` appeared in operation breakdown post-deploy with 8 calls ✅
+  - No new `provider_fallback` entries generated after deploy ✅
 
 ### BUG-076: RSS ingest path does not generate article fingerprints ✅ FIXED
 - **Status:** ✅ RESOLVED — Migration completed 2026-04-14 18:07:45 UTC
@@ -57,18 +66,19 @@ Infrastructure is stable and scheduled briefings are working. The blocker is cos
 ## Priority 2 — Observability
 
 ### TASK-069: Cost dashboard + Slack alerts
-- Build dashboard reading from whichever collection BUG-079 establishes as source of truth
-- Add Slack alerts at soft limit ($0.80) and hard limit ($1.20)
-- **Do not start until BUG-079 is resolved.** Dashboard built on the wrong collection will show wrong numbers.
+- Build dashboard reading from `llm_traces` (confirmed single source of truth)
+- Aggregate on `cost` field (not `cost_usd`)
+- Add Slack alerts at soft limit ($0.80) and hard limit ($1.00, or revised per TASK-071)
+- **Unblocked:** BUG-079 complete and validated
 
 ---
 
 ## Priority 3 — Narrative cost investigation
 
 ### TASK-070: Investigate narrative_generate volume
-- Current: 186 calls/day, $0.59/day — still the largest line item
-- BUG-070 tier filter is working but call volume is higher than the 70/day projection
-- Hourly trace data shows 164 calls concentrated in the 1 AM UTC hour — likely a batch job
+- Current (Session 30 confirmed): 51 calls today, $0.125 — tracking toward ~$0.30–0.40/day
+- Previously cited 186 calls/$0.59 figure was inflated by rolling window bug
+- Hourly trace data shows concentration in early UTC hours — likely a batch job
 - Investigate what triggers that batch and whether it is necessary at current volume
 - BUG-072 cache is wired but cache hit rate is unknown — query `db.llm_cache` to check
 - Target: narrative costs under $0.30/day
@@ -78,11 +88,30 @@ Infrastructure is stable and scheduled briefings are working. The blocker is cos
 ## Priority 4 — Threshold recalibration
 
 ### TASK-071: Recalibrate spend thresholds
-- After BUG-079 is fixed, enforcement will see true spend for the first time
-- Current true spend: $1.134/day — already over the $1.00 hard limit
-- Set temporary relief thresholds: soft limit $0.80, hard limit $1.20
-- Revisit after TASK-070 brings narrative costs down
+- **Context updated:** True spend is ~$0.54/day — already under $1.00 hard limit. No emergency relief needed.
+- Still worth recalibrating to set meaningful soft/hard limits that reflect actual baseline
+- Suggested targets: soft limit $0.70, hard limit $1.00
+- Revisit after TASK-070 to see if narrative costs come down further
 - Target end state: $0.50–0.70/day with correct enforcement
+
+---
+
+## Confirmed Cost Baseline (Session 30, 2026-04-15)
+
+| Operation | Calls/day | Cost/day |
+|---|---|---|
+| provider_fallback (pre-fix, fading) | ~180 | $0.168 |
+| entity_extraction | ~174 | $0.152 |
+| narrative_generate | ~51 | $0.125 |
+| briefing_refine | ~4 | $0.032 |
+| briefing_critique | ~4 | $0.023 |
+| briefing_generate | ~2 | $0.020 |
+| article_enrichment_batch (post-fix) | growing | — |
+| cluster_narrative_gen | ~6 | $0.006 |
+| narrative_polish | ~6 | $0.003 |
+| **Total** | | **~$0.54** |
+
+`provider_fallback` will collapse to near zero by end of day as pre-fix traces age and post-fix cycles accumulate under correct operation names.
 
 ---
 
@@ -90,9 +119,10 @@ Infrastructure is stable and scheduled briefings are working. The blocker is cos
 
 - [x] BUG-079 resolved: `get_daily_cost()` returns true spend matching `llm_traces` aggregate total (2026-04-14)
 - [x] BUG-077 resolved: no Opus calls reach the API from production code paths (2026-04-14)
-- [x] BUG-078 resolved: zero `provider_fallback` entries in `llm_traces` from enrichment operations (2026-04-14)
+- [x] BUG-078 resolved: zero `provider_fallback` entries in `llm_traces` from enrichment operations — verified post-deploy 2026-04-15 01:55 UTC
 - [x] BUG-076 resolved: Migration backfilled 1,762 articles; 4 duplicates tagged for review (2026-04-14)
-- [ ] TASK-071 complete: enforcement thresholds updated; system no longer over hard limit
+- [ ] TASK-071 complete: enforcement thresholds recalibrated to reflect true baseline
+- [ ] TASK-069 complete: cost dashboard live, Slack alerts wired
 - [ ] Daily cost trending toward $0.50–0.70 target
 
 ---
@@ -101,10 +131,9 @@ Infrastructure is stable and scheduled briefings are working. The blocker is cos
 
 | Risk | Probability | Impact | Mitigation |
 |---|---|---|---|
-| BUG-079 Option B (llm_traces as truth) breaks budget refresh flow | Medium | High | Test refresh_budget_cache() against llm_traces before deploying; keep api_costs writes in place until verified |
-| Narrative batch job at 1 AM is load-bearing | Low | Medium | Investigate before disabling; check if it backfills articles created during the day |
+| `article_enrichment_batch` not in routing table logs warnings | High | Low | Add to `_OPERATION_MODEL_ROUTING` in next routing pass; no cost impact since Haiku is used regardless |
+| Narrative batch job volume higher than expected | Low | Medium | Investigate before disabling; check cache hit rate first |
 | BUG-077 enforcement change breaks test suite | Low | Low | Tests already updated to Haiku in Sprint 14; run full gateway test suite after change |
-| Spend spikes during BUG-079 fix deploy window | Low | Medium | Manually watch Railway logs during deploy; can revert enforcement changes independently |
 
 ---
 
@@ -112,10 +141,10 @@ Infrastructure is stable and scheduled briefings are working. The blocker is cos
 
 | ID | Title | Priority | Status |
 |---|---|---|---|
-| BUG-079 | Budget enforcement blind to entity_extraction costs | P1 | ✅ COMPLETE (2026-04-14) |
+| BUG-079 | Budget enforcement blind to entity_extraction costs | P1 | ✅ COMPLETE + VALIDATED (2026-04-15) |
 | BUG-077 | `_validate_model_routing` warns but does not enforce | P1 | ✅ COMPLETE (2026-04-14) |
-| BUG-078 | RSS enrichment calls have no operation name | P1 | ✅ COMPLETE (2026-04-14) |
+| BUG-078 | RSS enrichment calls have no operation name | P1 | ✅ COMPLETE + VALIDATED (2026-04-15) |
 | BUG-076 | RSS ingest path does not generate article fingerprints | P1 | ✅ COMPLETE (2026-04-14) |
-| TASK-069 | Cost dashboard + Slack alerts | P2 | Ready (BUG-079 complete) |
+| TASK-069 | Cost dashboard + Slack alerts | P2 | Ready |
 | TASK-070 | Narrative cost investigation | P3 | Backlog |
-| TASK-071 | Spend threshold recalibration | P4 | Ready (BUG-079 complete) |
+| TASK-071 | Spend threshold recalibration | P4 | Ready (lower urgency — spend already under limit) |
