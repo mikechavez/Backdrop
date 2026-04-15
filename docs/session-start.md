@@ -1,13 +1,30 @@
 # Session Start
 
-**Date:** 2026-04-15 (Session 31, Sprint 15)
-**Status:** All P1 bugs complete and validated. Cost tracking fully trustworthy for first time.
-**Branch:** main (all fixes merged)
-**Next:** TASK-069 (cost dashboard + Slack alerts) or TASK-071 (threshold recalibration) — both ready
+**Date:** 2026-04-15 (Session 32, Sprint 15)
+**Status:** All P1 bugs complete and validated. Cost tracking fully trustworthy. BUG-080 (briefing date mismatch) fixed.
+**Branch:** fix/bug-080-briefing-date-mismatch (ready to merge)
+**Next:** Create PR for BUG-080, then TASK-069 (cost dashboard + Slack alerts) or TASK-071 (threshold recalibration)
 
 ---
 
 ## Current Session Context
+
+### What was completed in Session 32
+
+**BUG-080 FIXED: Briefing date mismatch in LLM prompt**
+
+Evening briefings at 6 PM CST (= midnight UTC) had narratives dated April 15 while the frontend header showed April 14. Root cause: `_build_generation_prompt()` was formatting the UTC timestamp directly, but the frontend displays dates in local timezone (CST/CDT).
+
+**Fix deployed (commit 13d0ecc):**
+- Added `ZoneInfo` import for timezone-aware conversion
+- Defined `BRIEFING_DISPLAY_TZ = ZoneInfo("America/Chicago")` constant
+- Convert `generated_at` from UTC to display timezone before formatting for LLM prompt
+- Added 2 unit tests: midnight UTC → correct date conversion, daytime UTC dates unaffected
+- All 5 briefing prompt tests pass ✅
+
+**Branch:** `fix/bug-080-briefing-date-mismatch` — ready for PR
+
+---
 
 ### What was completed in Session 30
 

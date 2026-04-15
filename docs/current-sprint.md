@@ -15,7 +15,7 @@ Infrastructure is stable and scheduled briefings are working. The blocker was co
 
 ---
 
-## Priority 1 — Cost Stability (required before feature work)
+## Priority 1 — Cost Stability + Briefing Quality (required before feature work)
 
 ### BUG-079: Budget enforcement blind to entity_extraction costs ✅ FIXED
 - **Status:** ✅ RESOLVED — 2026-04-14 18:55:00 UTC
@@ -60,6 +60,20 @@ Infrastructure is stable and scheduled briefings are working. The blocker was co
 - **Backfill:** 1,766 articles fingerprinted, 4 duplicates identified
 - Deduplication by fingerprint now working for RSS ingest path
 - **Verification needed:** Manual review of 4 tagged duplicates before deletion
+
+### BUG-080: Briefing date mismatch — prompt says April 15, header says April 14 ✅ FIXED
+- **Status:** ✅ RESOLVED — 2026-04-15
+- **Code fix deployed:** 2026-04-15 (commit 13d0ecc)
+- **Root cause:** `_build_generation_prompt()` formatted UTC timestamp directly; frontend displays in local timezone (CST/CDT). Evening briefing at 6 PM CST = midnight UTC next day → prompt dated April 15 while header showed April 14.
+- **Changes:**
+  - Added `ZoneInfo` import for timezone conversion
+  - Defined `BRIEFING_DISPLAY_TZ = ZoneInfo("America/Chicago")` constant to match frontend
+  - Convert `generated_at` from UTC to display timezone before formatting for LLM prompt
+- **Testing:** 
+  - Unit test: midnight UTC (2026-04-15 00:00 UTC) → "Tuesday, April 14, 2026" ✅
+  - Unit test: 2 PM UTC (2026-04-15 14:00 UTC) → "Wednesday, April 15, 2026" ✅
+  - All 5 briefing prompt tests pass ✅
+- **Branch:** `fix/bug-080-briefing-date-mismatch` (ready for PR)
 
 ---
 
@@ -145,6 +159,7 @@ Infrastructure is stable and scheduled briefings are working. The blocker was co
 | BUG-077 | `_validate_model_routing` warns but does not enforce | P1 | ✅ COMPLETE (2026-04-14) |
 | BUG-078 | RSS enrichment calls have no operation name | P1 | ✅ COMPLETE + VALIDATED (2026-04-15) |
 | BUG-076 | RSS ingest path does not generate article fingerprints | P1 | ✅ COMPLETE (2026-04-14) |
+| BUG-080 | Briefing date mismatch in LLM prompt | P2 | ✅ COMPLETE (2026-04-15) |
 | TASK-069 | Cost dashboard + Slack alerts | P2 | Ready |
 | TASK-070 | Narrative cost investigation | P3 | Backlog |
 | TASK-071 | Spend threshold recalibration | P4 | Ready (lower urgency — spend already under limit) |
