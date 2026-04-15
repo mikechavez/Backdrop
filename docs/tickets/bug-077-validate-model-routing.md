@@ -84,10 +84,10 @@ self._validate_model_routing(operation, model)   # return value discarded
 
 ## Resolution
 
-**Status:** Open
-**Fixed:** —
-**Branch:** —
-**Commit:** —
+**Status:** ✅ FIXED
+**Fixed:** 2026-04-14 18:30:00 UTC
+**Branch:** docs/bug-076-migration-complete
+**Commit:** c05404e
 
 ### Root Cause
 

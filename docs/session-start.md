@@ -1,9 +1,30 @@
 # Session Start
 
-**Date:** 2026-04-14 (Session 29, Sprint 14)
-**Status:** BUG-075 ✅ complete (model routing validation), ready for PR
-**Branch:** fix/bug-075-model-routing (parent: main)
-**Next:** Create PR, merge to main, then continue with remaining Sprint 14 tasks
+**Date:** 2026-04-14 (Session 30, Sprint 15)
+**Status:** BUG-077 ✅ complete (model routing enforcement), BUG-076 ✅ complete (fingerprint backfill)
+**Branch:** docs/bug-076-migration-complete (parent: main)
+**Next:** Push PR, then start BUG-079 (budget enforcement blind spot)
+
+---
+
+## Current Session (Session 30 — Sprint 15)
+
+**BUG-077 FIXED** — Model routing enforcement
+- **Problem:** `_validate_model_routing()` logged warnings but allowed wrong models through, risking 25× cost multiplier
+- **Fix:** Changed return type `None` → `str`, method now enforces by returning corrected model
+- **Changes:**
+  - Updated `_validate_model_routing()` to return the enforced model string
+  - Updated `call()` and `call_sync()` to use returned model for API calls
+  - Added 5 missing operations to `_OPERATION_MODEL_ROUTING`: provider_fallback, sentiment_analysis, theme_extraction, relevance_scoring, insight_generation
+- **Testing:** All 22 gateway tests pass; manual enforcement verified
+- **Cost impact:** Prevents Opus ($0.039/call) from bypassing enforcement
+- **Commit:** c05404e
+- **Docs:** Updated bug-077 ticket and current-sprint.md
+
+**BUG-076 COMPLETE** — RSS article fingerprints ✅ 
+- Backfill completed 2026-04-14 18:07:45 UTC
+- 1,766 articles fingerprinted, 4 duplicates identified
+- Deduplication now working for RSS ingest path
 
 ---
 

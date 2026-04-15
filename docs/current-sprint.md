@@ -20,10 +20,13 @@ Infrastructure is stable and scheduled briefings are working. The blocker is cos
 - Fix: unify cost write path so enforcement reads complete spend
 - **Must land first.** All other cost tickets depend on this being correct.
 
-### BUG-077: Model routing warns but does not enforce
-- Opus can slip through unchecked; $0.039 already appeared from a test session
-- Fix: `_validate_model_routing()` returns corrected model string; call sites use return value
-- Depends on: nothing. Can run in parallel with BUG-079.
+### BUG-077: Model routing warns but does not enforce ✅ FIXED
+- **Status:** ✅ RESOLVED — 2026-04-14 18:30:00 UTC
+- **Code fix deployed:** 2026-04-14 (commit c05404e)
+- **Changes:** `_validate_model_routing()` now returns corrected model string; both `call()` and `call_sync()` use return value
+- **Enforcement:** Silently overrides wrong models and logs warning; 5 missing operations added to routing table
+- **Testing:** All 22 gateway tests pass; enforcement verified with manual validation
+- **Cost impact:** Prevents Opus ($0.039/call) from bypassing enforcement, protects against 25× cost multiplier
 
 ### BUG-078: RSS enrichment calls have no operation name
 - 261 calls/day ($0.26) routed as `provider_fallback` in traces, `article_enrichment_batch` in api_costs
@@ -75,7 +78,7 @@ Infrastructure is stable and scheduled briefings are working. The blocker is cos
 ## Success Criteria
 
 - [ ] BUG-079 resolved: `get_daily_cost()` returns true spend matching `llm_traces` aggregate total
-- [ ] BUG-077 resolved: no Opus calls reach the API from production code paths
+- [x] BUG-077 resolved: no Opus calls reach the API from production code paths (2026-04-14)
 - [ ] BUG-078 resolved: zero `provider_fallback` entries in `llm_traces` from enrichment operations
 - [x] BUG-076 resolved: Migration backfilled 1,762 articles; 4 duplicates tagged for review (2026-04-14)
 - [ ] TASK-071 complete: enforcement thresholds updated; system no longer over hard limit
@@ -99,7 +102,7 @@ Infrastructure is stable and scheduled briefings are working. The blocker is cos
 | ID | Title | Priority | Status |
 |---|---|---|---|
 | BUG-079 | Budget enforcement blind to entity_extraction costs | P1 | Backlog |
-| BUG-077 | `_validate_model_routing` warns but does not enforce | P1 | Backlog |
+| BUG-077 | `_validate_model_routing` warns but does not enforce | P1 | ✅ COMPLETE (2026-04-14) |
 | BUG-078 | RSS enrichment calls have no operation name | P1 | Backlog |
 | BUG-076 | RSS ingest path does not generate article fingerprints | P1 | ✅ COMPLETE (2026-04-14) |
 | TASK-069 | Cost dashboard + Slack alerts | P2 | Blocked on BUG-079 |
