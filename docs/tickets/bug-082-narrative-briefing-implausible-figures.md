@@ -1,11 +1,12 @@
 ---
 id: BUG-082
 type: bug
-status: backlog
+status: complete
 priority: low
 severity: low
 created: 2026-04-15
 updated: 2026-04-15
+completed: 2026-04-15
 ---
 
 # Narrative summary pipeline passes implausible financial figures without warning
@@ -35,12 +36,12 @@ BUG-081 adds a briefing-level critique check as the primary defense. This ticket
 
 ## Resolution
 
-**Status:** Open
+**Status:** ✅ COMPLETE — 2026-04-15
 
 ### Root Cause
 No validation layer exists between LLM output and the narrative summary cache. The summary prompt does not instruct the LLM to verify figures against source articles.
 
-### Changes Made
+### Changes Made (Implemented)
 
 **File: `crypto_news_aggregator/llm/optimized_anthropic.py`**
 
@@ -135,11 +136,31 @@ Replace with:
         return summary
 ```
 
-### Testing
-1. Unit test: call `generate_narrative_summary()` with mock articles that would produce a summary containing "$204.7B in liquidations." Verify a WARNING log is emitted containing "SUSPICIOUS FIGURE" and "$50B single-event threshold."
-2. Unit test: call with articles producing a summary containing "$2.5B" (below threshold). Verify no warning is logged.
-3. Unit test: verify the regex handles formats like "$204.7B", "$204.7 billion", "$1.2T", "$1.2 trillion."
-4. Run existing narrative generation tests to confirm no regressions.
+### Testing (Completed)
+
+**Implemented Test Suite:** `tests/test_bug_082_implausible_figures.py`
+- ✅ 15 comprehensive unit tests, all passing
+- ✅ Summary prompt includes figure verification instruction (rule 4)
+- ✅ Figures exceeding $50B threshold trigger warning logs
+- ✅ Figures below threshold do not trigger warnings
+- ✅ Trillion figures correctly converted to billions for threshold check
+- ✅ Regex handles all financial figure formats:
+  - `$XXX.XB` (e.g., `$204.7B`)
+  - `$XX billion` (e.g., `$100 billion`)
+  - `$XXX.XT` (e.g., `$2.5T`)
+  - `$XX trillion` (e.g., `$1.2 trillion`)
+  - Numbers with comma separators (e.g., `$1,500.5B`)
+  - Case-insensitive matching
+- ✅ Multiple figures in same summary (warns only for suspicious ones)
+- ✅ Caching behavior with figure validation
+- ✅ No regressions: all LLM cost tracking tests pass (9/9) ✅
+
+### Verification
+- Commit: `1d633f8` on branch `fix/bug-082-narrative-implausible-figures`
+- Test run: `poetry run pytest tests/test_bug_082_implausible_figures.py` → 15/15 passed
+- Regression test: `poetry run pytest tests/integration/test_llm_cost_tracking.py` → 9/9 passed
+- Ready for PR and merge
 
 ### Files Changed
-- `crypto_news_aggregator/llm/optimized_anthropic.py`
+- `src/crypto_news_aggregator/llm/optimized_anthropic.py`
+- `tests/test_bug_082_implausible_figures.py` (new)

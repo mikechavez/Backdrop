@@ -94,6 +94,21 @@ Infrastructure is stable and scheduled briefings are working. The blocker was co
   - All 5 existing briefing prompt tests pass (no regressions) ✅
 - **Branch:** `fix/bug-081-briefing-separate-stories` (ready for PR)
 
+### BUG-082: Narrative summary pipeline passes implausible financial figures without warning ✅ FIXED
+- **Status:** ✅ RESOLVED — 2026-04-15
+- **Code fix deployed:** 2026-04-15 (commit 1d633f8)
+- **Root cause:** No validation layer between LLM output and narrative summary cache. Summary prompt did not instruct LLM to verify figures against source articles.
+- **Changes:**
+  - **Prompt enhancement:** Updated `_build_summary_prompt()` with rule 4 to instruct LLM to verify financial figures are consistent across articles
+  - **Post-generation validation:** Added figure plausibility check in `generate_narrative_summary()` that logs warnings for figures exceeding $50B threshold
+  - **Regex pattern:** Matches all financial figure formats ($XXB, $XX billion, $XXT, $XX trillion) with comma support and case-insensitive matching
+- **Testing:**
+  - Created `tests/test_bug_082_implausible_figures.py` with 15 comprehensive unit tests ✅
+  - All 15 tests pass, covering: prompt verification, threshold detection, regex format matching, multiple figures, and caching behavior ✅
+  - No regressions: all 9 LLM cost tracking tests pass ✅
+- **Defense-in-depth strategy:** Complements BUG-081's briefing-level critique checks with validation at the narrative layer
+- **Branch:** `fix/bug-082-narrative-implausible-figures` (ready for PR)
+
 ---
 
 ## Priority 2 — Observability
@@ -154,6 +169,9 @@ Infrastructure is stable and scheduled briefings are working. The blocker was co
 - [x] BUG-077 resolved: no Opus calls reach the API from production code paths (2026-04-14)
 - [x] BUG-078 resolved: zero `provider_fallback` entries in `llm_traces` from enrichment operations — verified post-deploy 2026-04-15 01:55 UTC
 - [x] BUG-076 resolved: Migration backfilled 1,762 articles; 4 duplicates tagged for review (2026-04-14)
+- [x] BUG-080 resolved: Briefing date mismatch fixed with timezone-aware conversion (2026-04-15)
+- [x] BUG-081 resolved: Briefing quality guardrails for duplicate events, unnamed entities, implausible figures (2026-04-15)
+- [x] BUG-082 resolved: Narrative summary pipeline validates implausible figures with post-generation checks (2026-04-15)
 - [ ] TASK-071 complete: enforcement thresholds recalibrated to reflect true baseline
 - [ ] TASK-069 complete: cost dashboard live, Slack alerts wired
 - [ ] Daily cost trending toward $0.50–0.70 target
@@ -180,6 +198,7 @@ Infrastructure is stable and scheduled briefings are working. The blocker was co
 | BUG-076 | RSS ingest path does not generate article fingerprints | P1 | ✅ COMPLETE (2026-04-14) |
 | BUG-080 | Briefing date mismatch in LLM prompt | P2 | ✅ COMPLETE (2026-04-15) |
 | BUG-081 | Briefing duplicate events and unnamed entities | P2 | ✅ COMPLETE (2026-04-15) |
+| BUG-082 | Narrative summary pipeline implausible figures | P2 | ✅ COMPLETE (2026-04-15) |
 | TASK-069 | Cost dashboard + Slack alerts | P2 | Ready |
 | TASK-070 | Narrative cost investigation | P3 | Backlog |
 | TASK-071 | Spend threshold recalibration | P4 | Ready (lower urgency — spend already under limit) |
