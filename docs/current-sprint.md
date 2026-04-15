@@ -15,10 +15,16 @@ Infrastructure is stable and scheduled briefings are working. The blocker is cos
 
 ## Priority 1 — Cost Stability (required before feature work)
 
-### BUG-079: Budget enforcement blind to entity_extraction costs
-- Hard limit not enforcing against true daily spend ($1.134 vs $1.00 threshold)
-- Fix: unify cost write path so enforcement reads complete spend
-- **Must land first.** All other cost tickets depend on this being correct.
+### BUG-079: Budget enforcement blind to entity_extraction costs ✅ FIXED
+- **Status:** ✅ RESOLVED — 2026-04-14 18:55:00 UTC
+- **Code fix deployed:** 2026-04-14 (commits 533cbce, 50255cf)
+- **Decision:** Option B — Use `llm_traces` as single source of truth for budget enforcement
+- **Changes:** Updated `get_daily_cost()`, `get_monthly_cost()`, `get_cost_by_operation()`, `get_cost_by_model()` to query `llm_traces` instead of `api_costs`
+- **Removed fragile code:** Eliminated manual async cost tracking task from `extract_entities_batch()` (110 lines removed)
+- **Testing:** All 50 cost-related tests pass; verified entity_extraction costs now visible
+- **Cost impact:** Hard limit now enforces against true spend ($1.134/day vs blind $0.957/day); entity_extraction ($0.177/day) now visible
+- **ADR:** Created ADR-079 documenting the decision and rationale
+- **Verification:** After deployment, check `llm_traces` aggregate matches `refresh_budget_cache()` output
 
 ### BUG-077: Model routing warns but does not enforce ✅ FIXED
 - **Status:** ✅ RESOLVED — 2026-04-14 18:30:00 UTC
@@ -82,7 +88,7 @@ Infrastructure is stable and scheduled briefings are working. The blocker is cos
 
 ## Success Criteria
 
-- [ ] BUG-079 resolved: `get_daily_cost()` returns true spend matching `llm_traces` aggregate total
+- [x] BUG-079 resolved: `get_daily_cost()` returns true spend matching `llm_traces` aggregate total (2026-04-14)
 - [x] BUG-077 resolved: no Opus calls reach the API from production code paths (2026-04-14)
 - [x] BUG-078 resolved: zero `provider_fallback` entries in `llm_traces` from enrichment operations (2026-04-14)
 - [x] BUG-076 resolved: Migration backfilled 1,762 articles; 4 duplicates tagged for review (2026-04-14)
@@ -106,10 +112,10 @@ Infrastructure is stable and scheduled briefings are working. The blocker is cos
 
 | ID | Title | Priority | Status |
 |---|---|---|---|
-| BUG-079 | Budget enforcement blind to entity_extraction costs | P1 | Backlog |
+| BUG-079 | Budget enforcement blind to entity_extraction costs | P1 | ✅ COMPLETE (2026-04-14) |
 | BUG-077 | `_validate_model_routing` warns but does not enforce | P1 | ✅ COMPLETE (2026-04-14) |
 | BUG-078 | RSS enrichment calls have no operation name | P1 | ✅ COMPLETE (2026-04-14) |
 | BUG-076 | RSS ingest path does not generate article fingerprints | P1 | ✅ COMPLETE (2026-04-14) |
-| TASK-069 | Cost dashboard + Slack alerts | P2 | Blocked on BUG-079 |
+| TASK-069 | Cost dashboard + Slack alerts | P2 | Ready (BUG-079 complete) |
 | TASK-070 | Narrative cost investigation | P3 | Backlog |
-| TASK-071 | Spend threshold recalibration | P4 | Blocked on BUG-079 |
+| TASK-071 | Spend threshold recalibration | P4 | Ready (BUG-079 complete) |
