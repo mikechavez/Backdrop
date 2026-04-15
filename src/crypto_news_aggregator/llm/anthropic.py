@@ -42,6 +42,13 @@ class AnthropicProvider(LLMProvider):
         Raises:
             LLMError: On any API failure (auth, rate limit, server error, timeout, etc.)
         """
+        if not operation:
+            logger.warning(
+                "_get_completion called without operation name. "
+                "Traces will be recorded as 'provider_fallback'. "
+                "Pass an explicit operation name to all callers."
+            )
+
         # --- SPEND CAP CHECK (reads from cache, no DB/async) ---
         allowed, reason = check_llm_budget(operation)
         if not allowed:
@@ -117,7 +124,7 @@ class AnthropicProvider(LLMProvider):
     def analyze_sentiment(self, text: str) -> float:
         prompt = f"Analyze the sentiment of this crypto text. Return ONLY a single number from -1.0 (very bearish) to 1.0 (very bullish). Do not include any explanation or additional text. Just the number:\n\n{text}"
         try:
-            response = self._get_completion(prompt)
+            response = self._get_completion(prompt, operation="sentiment_analysis")
             # Extract the first number from the response (in case there's extra text)
             import re
 
@@ -136,7 +143,7 @@ class AnthropicProvider(LLMProvider):
         combined_texts = "\n".join(texts)
         prompt = f"Extract the key crypto themes from the following texts. Respond with ONLY a comma-separated list of keywords (e.g., 'Bitcoin, DeFi, Regulation'). Do not include any preamble.\n\nTexts:\n{combined_texts}"
         try:
-            response = self._get_completion(prompt)
+            response = self._get_completion(prompt, operation="theme_extraction")
             if response:
                 return [theme.strip() for theme in response.split(",")]
             return []
@@ -149,13 +156,13 @@ class AnthropicProvider(LLMProvider):
         sentiment_score = data.get("sentiment_score", 0.0)
         themes = data.get("themes", [])
         prompt = f"Given a sentiment score of {sentiment_score} and the themes {', '.join(themes)}, generate a concise market insight for cryptocurrency traders. The response must be a maximum of 2-3 sentences."
-        return self._get_completion(prompt)
+        return self._get_completion(prompt, operation="insight_generation")
 
     @track_usage
     def score_relevance(self, text: str) -> float:
         prompt = f"On a scale from 0.0 to 1.0, how relevant is this text to cryptocurrency market movements? Return ONLY a single floating-point number with no explanation:\n\n{text}"
         try:
-            response = self._get_completion(prompt)
+            response = self._get_completion(prompt, operation="relevance_scoring")
             # Extract the first number from the response (in case there's extra text)
             import re
 
