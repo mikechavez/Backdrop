@@ -3,10 +3,12 @@ ticket_id: TASK-066
 title: Clean up stale October 2025 narratives from collection
 priority: low
 severity: low
-status: OPEN
+status: COMPLETE
 date_created: 2026-04-14
+date_completed: 2026-04-14
 branch: task/task-066-stale-narrative-cleanup
 effort_estimate: S (< 1 hour)
+actual_effort: 15 minutes
 ---
 
 # TASK-066: Clean up stale October 2025 narratives from MongoDB collection
@@ -53,10 +55,39 @@ db.narratives.countDocuments(
 ---
 
 ## Acceptance Criteria
-- [ ] Count of documents with `last_updated < 2025-12-01` is 0 after migration
-- [ ] No narratives with `last_updated >= 2025-12-01` are affected
-- [ ] Briefing pipeline runs normally after migration
-- [ ] Migration approach (Option A or B) documented in commit message
+- [x] Count of documents with `last_updated < 2025-12-01` is 0 after migration
+- [x] No narratives with `last_updated >= 2025-12-01` are affected
+- [x] Briefing pipeline runs normally after migration
+- [x] Migration approach (Option B) documented in commit message
+
+## Completion Summary
+
+**Status:** ✅ COMPLETE — 2026-04-14
+
+### What Was Done
+1. Created migration script: `scripts/cleanup_stale_narratives.py`
+   - Follows existing project migration pattern
+   - Supports `--dry-run` and `--yes` confirmation
+   - Reports before/after counts
+
+2. **Dry-run verification:**
+   - Count before: 580 total narratives
+   - Stale narratives (< 2025-12-01): **233**
+   - Recent narratives (>= 2025-12-01): **347**
+
+3. **Executed hard delete (Option B):**
+   - Deleted 233 stale narratives
+   - Verified count after: 0 stale, 347 recent ✅
+
+4. **Verification tests:**
+   - Briefing pipeline tests: 3/3 PASSING ✅
+   - No regressions detected
+
+### Impact
+- Collection size reduced: 580 → 347 documents (-40% noise)
+- Eliminated risk of stale October 2025 documents re-surfacing
+- Zero impact to recent narratives (April 2026)
+- Briefing generation continues to work normally
 
 ---
 

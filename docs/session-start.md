@@ -287,10 +287,34 @@
   - **Branch:** `fix/bug-076-narrative-focus-parser`
   - **Impact:** Prospectively fixes all new narrative detections; existing bad data can be backfilled later if needed
 
+**Session 29 (2026-04-14) — TASK-065 Narrative Backfill Observability ✅**
+- ✅ **TASK-065 COMPLETE** — Add observability to narrative backfill `update_one` calls
+  - **Problem:** Narrative backfill loop had no logging, error handling, or result checking for MongoDB writes
+  - **Impact:** Silent write failures impossible to detect; no visibility into write path health
+  - **Location:** `backfill_narratives_for_recent_articles()` in `narrative_themes.py:1254-1271`
+  - **Solution:** Added comprehensive observability at write point:
+    1. ✅ `logger.debug()` before `update_one`: logs article_id and fields being written
+    2. ✅ Check `result.modified_count`: log warning if 0 (document not found or no change)
+    3. ✅ `try/except` wrapper: logs error type and message on write failure
+  - **Files Changed:**
+    - `src/crypto_news_aggregator/services/narrative_themes.py` (lines 1255-1295)
+    - Extracted `update_fields` dict to improve readability before adding logging
+    - Added 40 lines of observability: debug log, modified_count check, exception handling
+  - **Logs Added:**
+    - DEBUG: `narrative_backfill: article_id=..., fields=[...]` (pre-write)
+    - WARNING: `narrative_backfill: article_id=..., modified_count=0 (...)` (no update)
+    - ERROR: `narrative_backfill: failed to update article_id=..., error=ExceptionType: message` (exception)
+    - INFO: `Updated article ... with narrative data` (success)
+  - **Testing:** Syntax validated with py_compile ✅
+  - **Branch:** `task/task-065-narrative-backfill-observability`
+  - **Commit:** `cde555c` (`chore(narratives): Add observability to narrative backfill update_one calls`)
+  - **Impact:** Closes blind spot in write path; future bugs causing write failures will be immediately visible in logs
+
 **Next Steps:** 
 - Create PR for BUG-076: focus phrase extraction (current branch: fix/bug-076-narrative-focus-parser)
 - Create PR for BUG-075: model routing validation (branch: fix/bug-075-model-routing)
-- Merge both to main once approved
+- Create PR for TASK-065: narrative backfill observability (current branch: task/task-065-narrative-backfill-observability)
+- Merge all to main once approved
 - Deploy to production (total narrative cost reduction: -68% from tier-1 filter + prompt compression, additional -30% from cache)
 
 ---

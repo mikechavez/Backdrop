@@ -1252,25 +1252,47 @@ async def backfill_narratives_for_recent_articles(hours: int = 48, limit: int = 
                 )
 
             # Update article with narrative data (including hash)
-            await articles_collection.update_one(
-                {"_id": article["_id"]},
-                {"$set": {
-                    "actors": narrative_data.get("actors", []),
-                    "actor_salience": narrative_data.get("actor_salience", {}),
-                    "nucleus_entity": narrative_data.get("nucleus_entity", ""),
-                    "narrative_focus": narrative_data.get("narrative_focus", ""),
-                    "actions": narrative_data.get("actions", []),
-                    "tensions": narrative_data.get("tensions", []),
-                    "implications": narrative_data.get("implications", ""),
-                    "narrative_summary": narrative_data.get("narrative_summary", ""),
-                    "narrative_hash": narrative_data.get("narrative_hash", ""),
-                    "narrative_extracted_at": datetime.now(timezone.utc),
-                    "status": narrative_data.get("status"),  # "degraded" or implicit success
-                    "degraded_reason": narrative_data.get("degraded_reason")  # Reason if degraded
-                }}
+            update_fields = {
+                "actors": narrative_data.get("actors", []),
+                "actor_salience": narrative_data.get("actor_salience", {}),
+                "nucleus_entity": narrative_data.get("nucleus_entity", ""),
+                "narrative_focus": narrative_data.get("narrative_focus", ""),
+                "actions": narrative_data.get("actions", []),
+                "tensions": narrative_data.get("tensions", []),
+                "implications": narrative_data.get("implications", ""),
+                "narrative_summary": narrative_data.get("narrative_summary", ""),
+                "narrative_hash": narrative_data.get("narrative_hash", ""),
+                "narrative_extracted_at": datetime.now(timezone.utc),
+                "status": narrative_data.get("status"),  # "degraded" or implicit success
+                "degraded_reason": narrative_data.get("degraded_reason")  # Reason if degraded
+            }
+
+            # Log narrative data before writing
+            logger.debug(
+                f"narrative_backfill: article_id={article_id}, "
+                f"fields={list(update_fields.keys())}"
             )
-            updated_count += 1
-            logger.info(f"Updated article {article_id} with narrative data")
+
+            try:
+                result = await articles_collection.update_one(
+                    {"_id": article["_id"]},
+                    {"$set": update_fields}
+                )
+
+                # Check if document was modified
+                if result.modified_count == 0:
+                    logger.warning(
+                        f"narrative_backfill: article_id={article_id}, "
+                        f"modified_count=0 (document not found or no change made)"
+                    )
+
+                updated_count += 1
+                logger.info(f"Updated article {article_id} with narrative data")
+            except Exception as e:
+                logger.error(
+                    f"narrative_backfill: failed to update article_id={article_id}, "
+                    f"error={type(e).__name__}: {str(e)}"
+                )
         else:
             failed_count += 1
 
