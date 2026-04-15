@@ -542,6 +542,24 @@ WRITING RULES:
    - NEVER create recommendation titles that aren't in the allowed list
    - NEVER suggest topics or narratives that weren't provided
 
+9. CONSOLIDATE DUPLICATE EVENTS
+   - If multiple narratives clearly describe the same underlying event from different angles, synthesize them into a single coherent account
+   - Do NOT present the same event twice with different framing
+   - Look for overlapping entities, similar dollar amounts, or the same infrastructure/platform involved
+   - Example: Two narratives about a Polkadot bridge exploit should become one consolidated paragraph, not two separate sections
+
+10. NO UNNAMED ENTITIES
+    - If you cannot name a specific platform, exchange, or entity from the provided narratives, do not reference it
+    - NEVER use phrases like "two platforms", "multiple exchanges", or "several protocols" unless you can name each one explicitly
+    - NEVER imply a count of affected parties you cannot enumerate by name
+    - If a narrative lacks specific details, acknowledge the limitation rather than implying unnamed actors
+
+11. VERIFY FIGURE PLAUSIBILITY
+    - Before citing any financial figure, consider whether it is plausible given the total crypto market cap (~$2-3T)
+    - A single-event liquidation exceeding $50B, a hack exceeding $10B, or similar extremes are almost certainly errors in the source data
+    - If a figure seems implausible, flag the uncertainty: "reported figures suggest $X, though this would be historically unprecedented"
+    - When source articles disagree on a figure, note the discrepancy rather than picking the most dramatic number
+
 GOOD EXAMPLE:
 "Binance has expanded its stablecoin offerings with the listing of a Kyrgyzstan som-pegged stablecoin, marking a strategic move into Central Asian markets. The exchange is simultaneously addressing security concerns through its anti-scam initiatives, though the specific technical measures remain undisclosed in available reporting. This parallel focus on market expansion and security infrastructure reflects the operational priorities of centralized exchanges navigating growth and trust simultaneously."
 
@@ -675,6 +693,12 @@ Check for these issues:
 6. GENERIC FILLER: Does it start with "The crypto markets continue to..." or end with generic forward-looking statements? Check for banned phrases like "amid uncertainty", "navigating challenges", "evolving landscape".
 
 7. ABRUPT TRANSITIONS: Does it switch topics mid-paragraph without logical connection?
+
+8. DUPLICATE EVENTS: Does the briefing describe the same underlying event more than once with different framing? Look for overlapping entities, similar figures, or the same infrastructure involved. If two sections cover the same incident, this is a critical issue — they must be consolidated into one account.
+
+9. UNNAMED ENTITIES: Does the briefing reference unnamed platforms, exchanges, or entities? Phrases like "two platforms", "multiple exchanges", or "several protocols" without naming each one are NOT acceptable. Every referenced entity must be explicitly named from the provided narratives.
+
+10. IMPLAUSIBLE FIGURES: Are any cited figures implausible relative to the total crypto market (~$2-3T)? A single-event liquidation exceeding $50B, a hack exceeding $10B, or similar extremes would be historically unprecedented and likely an error. Flag any such figures.
 
 Respond with:
 {{
