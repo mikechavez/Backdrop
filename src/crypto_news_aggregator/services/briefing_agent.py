@@ -18,6 +18,7 @@ import time
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass
+from zoneinfo import ZoneInfo
 
 from crypto_news_aggregator.core.config import get_settings
 from crypto_news_aggregator.llm.exceptions import LLMError
@@ -52,6 +53,10 @@ logger = logging.getLogger(__name__)
 # LLM Configuration (local to this module)
 BRIEFING_PRIMARY_MODEL = "claude-haiku-4-5-20251001"
 BRIEFING_FALLBACK_MODEL = "claude-sonnet-4-5-20250929"
+
+# Display timezone for briefing date context in LLM prompt.
+# Must match the timezone used by the frontend schedule (CST/CDT).
+BRIEFING_DISPLAY_TZ = ZoneInfo("America/Chicago")
 
 
 @dataclass
@@ -559,8 +564,9 @@ Return valid JSON:
         """Build the main generation prompt."""
         parts = []
 
-        # Time context
-        time_str = briefing_input.generated_at.strftime("%A, %B %d, %Y")
+        # Time context — convert UTC to display timezone so prompt date matches frontend header
+        display_time = briefing_input.generated_at.astimezone(BRIEFING_DISPLAY_TZ)
+        time_str = display_time.strftime("%A, %B %d, %Y")
         parts.append(f"Generate the {briefing_input.briefing_type} crypto briefing for {time_str}.\n")
 
         # Memory context (feedback and guidelines)
