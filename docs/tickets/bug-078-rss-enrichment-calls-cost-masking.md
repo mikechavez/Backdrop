@@ -98,10 +98,10 @@ def _get_completion(self, prompt: str, operation: str = "") -> str:  # line 33
 
 ## Resolution
 
-**Status:** Open
-**Fixed:** —
-**Branch:** —
-**Commit:** —
+**Status:** ✅ COMPLETE
+**Fixed:** 2026-04-14 18:45:00 UTC
+**Branch:** `fix/bug-078-rss-enrichment-operation-names`
+**Commit:** `94dc5fb`
 
 ### Root Cause
 

@@ -28,11 +28,16 @@ Infrastructure is stable and scheduled briefings are working. The blocker is cos
 - **Testing:** All 22 gateway tests pass; enforcement verified with manual validation
 - **Cost impact:** Prevents Opus ($0.039/call) from bypassing enforcement, protects against 25× cost multiplier
 
-### BUG-078: RSS enrichment calls have no operation name
-- 261 calls/day ($0.26) routed as `provider_fallback` in traces, `article_enrichment_batch` in api_costs
-- Cannot be correlated across collections without cross-referencing both
-- Fix: pass explicit operation names to the four sync methods in AnthropicProvider
-- Depends on: BUG-079 ADR decision (determines which collection becomes source of truth before operation names are standardized)
+### BUG-078: RSS enrichment calls have no operation name ✅ FIXED
+- **Status:** ✅ RESOLVED — 2026-04-14 18:45:00 UTC
+- **Code fix deployed:** 2026-04-14 (commit 94dc5fb)
+- **Changes:** Passed explicit operation names to four sync methods in AnthropicProvider:
+  - `analyze_sentiment` → `operation="sentiment_analysis"`
+  - `extract_themes` → `operation="theme_extraction"`
+  - `generate_insight` → `operation="insight_generation"`
+  - `score_relevance` → `operation="relevance_scoring"`
+- Added warning log to `_get_completion` when operation is empty (future safeguard)
+- **Cost impact:** ~261 enrichment calls/day ($0.26) now visible in operation-level breakdowns
 
 ### BUG-076: RSS ingest path does not generate article fingerprints ✅ FIXED
 - **Status:** ✅ RESOLVED — Migration completed 2026-04-14 18:07:45 UTC
@@ -79,7 +84,7 @@ Infrastructure is stable and scheduled briefings are working. The blocker is cos
 
 - [ ] BUG-079 resolved: `get_daily_cost()` returns true spend matching `llm_traces` aggregate total
 - [x] BUG-077 resolved: no Opus calls reach the API from production code paths (2026-04-14)
-- [ ] BUG-078 resolved: zero `provider_fallback` entries in `llm_traces` from enrichment operations
+- [x] BUG-078 resolved: zero `provider_fallback` entries in `llm_traces` from enrichment operations (2026-04-14)
 - [x] BUG-076 resolved: Migration backfilled 1,762 articles; 4 duplicates tagged for review (2026-04-14)
 - [ ] TASK-071 complete: enforcement thresholds updated; system no longer over hard limit
 - [ ] Daily cost trending toward $0.50–0.70 target
@@ -103,7 +108,7 @@ Infrastructure is stable and scheduled briefings are working. The blocker is cos
 |---|---|---|---|
 | BUG-079 | Budget enforcement blind to entity_extraction costs | P1 | Backlog |
 | BUG-077 | `_validate_model_routing` warns but does not enforce | P1 | ✅ COMPLETE (2026-04-14) |
-| BUG-078 | RSS enrichment calls have no operation name | P1 | Backlog |
+| BUG-078 | RSS enrichment calls have no operation name | P1 | ✅ COMPLETE (2026-04-14) |
 | BUG-076 | RSS ingest path does not generate article fingerprints | P1 | ✅ COMPLETE (2026-04-14) |
 | TASK-069 | Cost dashboard + Slack alerts | P2 | Blocked on BUG-079 |
 | TASK-070 | Narrative cost investigation | P3 | Backlog |
