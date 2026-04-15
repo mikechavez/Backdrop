@@ -7,6 +7,8 @@ Tests verify that:
 3. Cost calculations are accurate
 4. Cache hits are tracked separately
 5. Different operation types are labeled correctly
+
+NOTE: Tests write to llm_traces (the single source of truth for budget enforcement after BUG-079).
 """
 
 import pytest
@@ -19,6 +21,18 @@ from crypto_news_aggregator.services.cost_tracker import CostTracker
 from crypto_news_aggregator.llm.optimized_anthropic import OptimizedAnthropicLLM
 
 
+async def _insert_trace_record(mongo_db, operation, model, input_tokens, output_tokens, cost):
+    """Helper to insert a record into llm_traces (source of truth after BUG-079)."""
+    await mongo_db.llm_traces.insert_one({
+        "timestamp": datetime.now(timezone.utc),
+        "operation": operation,
+        "model": model,
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+        "cost": cost,
+    })
+
+
 @pytest.fixture
 async def test_db():
     """Create test database connection."""
@@ -28,12 +42,14 @@ async def test_db():
     # Clear collections before test
     await db.api_costs.delete_many({})
     await db.llm_cache.delete_many({})
+    await db.llm_traces.delete_many({})
 
     yield db
 
     # Cleanup after test
     await db.api_costs.delete_many({})
     await db.llm_cache.delete_many({})
+    await db.llm_traces.delete_many({})
     client.close()
 
 
@@ -267,18 +283,15 @@ async def test_cost_tracker_multiple_operations(test_db):
 
 @pytest.mark.asyncio
 async def test_cost_tracker_monthly_cost(test_db):
-    """Test monthly cost aggregation."""
+    """Test monthly cost aggregation (from llm_traces - BUG-079)."""
     tracker = CostTracker(test_db)
 
-    # Track several calls
+    # Insert trace records for multiple calls
     for i in range(5):
-        await tracker.track_call(
-            operation="entity_extraction",
-            model="claude-haiku-4-5-20251001",
-            input_tokens=100 + i * 10,
-            output_tokens=50 + i * 5,
-            cached=False
-        )
+        input_tokens = 100 + i * 10
+        output_tokens = 50 + i * 5
+        cost = tracker.calculate_cost("claude-haiku-4-5-20251001", input_tokens, output_tokens)
+        await _insert_trace_record(test_db, "entity_extraction", "claude-haiku-4-5-20251001", input_tokens, output_tokens, cost)
 
     # Get monthly cost
     total_cost = await tracker.get_monthly_cost()

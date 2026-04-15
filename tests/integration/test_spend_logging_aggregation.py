@@ -6,12 +6,26 @@ Tests verify that:
 2. Spend can be aggregated by operation type
 3. Spend can be aggregated by model
 4. Daily/monthly cost queries work correctly
+
+NOTE: Tests write to llm_traces (the single source of truth for budget enforcement after BUG-079).
 """
 
 import pytest
 from datetime import datetime, timezone, timedelta
 
 from crypto_news_aggregator.services.cost_tracker import CostTracker
+
+
+async def _insert_trace_record(mongo_db, operation, model, input_tokens, output_tokens, cost):
+    """Helper to insert a record into llm_traces (source of truth after BUG-079)."""
+    await mongo_db.llm_traces.insert_one({
+        "timestamp": datetime.now(timezone.utc),
+        "operation": operation,
+        "model": model,
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+        "cost": cost,
+    })
 
 
 class TestSpendLoggingAggregation:
@@ -73,34 +87,14 @@ class TestSpendLoggingAggregation:
 
     @pytest.mark.asyncio
     async def test_get_cost_by_operation(self, mongo_db):
-        """Verify cost aggregation by operation type."""
+        """Verify cost aggregation by operation type (from llm_traces - BUG-079)."""
         tracker = CostTracker(mongo_db)
 
-        # Track multiple operations
-        await tracker.track_call(
-            operation="sentiment_analysis",
-            model="claude-haiku-4-5-20251001",
-            input_tokens=100,
-            output_tokens=50,
-        )
-        await tracker.track_call(
-            operation="sentiment_analysis",
-            model="claude-haiku-4-5-20251001",
-            input_tokens=100,
-            output_tokens=50,
-        )
-        await tracker.track_call(
-            operation="entity_extraction",
-            model="claude-haiku-4-5-20251001",
-            input_tokens=4000,
-            output_tokens=800,
-        )
-        await tracker.track_call(
-            operation="theme_extraction",
-            model="claude-haiku-4-5-20251001",
-            input_tokens=200,
-            output_tokens=40,
-        )
+        # Insert trace records (new location after BUG-079)
+        await _insert_trace_record(mongo_db, "sentiment_analysis", "claude-haiku-4-5-20251001", 100, 50, 0.00035)
+        await _insert_trace_record(mongo_db, "sentiment_analysis", "claude-haiku-4-5-20251001", 100, 50, 0.00035)
+        await _insert_trace_record(mongo_db, "entity_extraction", "claude-haiku-4-5-20251001", 4000, 800, 0.008)
+        await _insert_trace_record(mongo_db, "theme_extraction", "claude-haiku-4-5-20251001", 200, 40, 0.0004)
 
         result = await tracker.get_cost_by_operation(days=1)
 
@@ -126,28 +120,16 @@ class TestSpendLoggingAggregation:
 
     @pytest.mark.asyncio
     async def test_get_cost_by_model(self, mongo_db):
-        """Verify cost aggregation by model."""
+        """Verify cost aggregation by model (from llm_traces - BUG-079)."""
         tracker = CostTracker(mongo_db)
 
-        # Track with different models
-        await tracker.track_call(
-            operation="sentiment_analysis",
-            model="claude-haiku-4-5-20251001",
-            input_tokens=100,
-            output_tokens=50,
-        )
-        await tracker.track_call(
-            operation="briefing_generation",
-            model="claude-sonnet-4-5-20250929",
-            input_tokens=1000,
-            output_tokens=500,
-        )
-        await tracker.track_call(
-            operation="entity_extraction",
-            model="claude-haiku-4-5-20251001",
-            input_tokens=4000,
-            output_tokens=800,
-        )
+        # Insert trace records (new location after BUG-079)
+        # Haiku: (100 * $1/1M) + (50 * $5/1M) = $0.00035
+        await _insert_trace_record(mongo_db, "sentiment_analysis", "claude-haiku-4-5-20251001", 100, 50, 0.00035)
+        # Sonnet: (1000 * $3/1M) + (500 * $15/1M) = $0.0105
+        await _insert_trace_record(mongo_db, "briefing_generation", "claude-sonnet-4-5-20250929", 1000, 500, 0.0105)
+        # Haiku: (4000 * $1/1M) + (800 * $5/1M) = $0.008
+        await _insert_trace_record(mongo_db, "entity_extraction", "claude-haiku-4-5-20251001", 4000, 800, 0.008)
 
         result = await tracker.get_cost_by_model(days=1)
 
@@ -222,22 +204,12 @@ class TestSpendLoggingAggregation:
 
     @pytest.mark.asyncio
     async def test_get_daily_cost_aggregation(self, mongo_db):
-        """Verify daily cost aggregation works correctly."""
+        """Verify daily cost aggregation works correctly (from llm_traces - BUG-079)."""
         tracker = CostTracker(mongo_db)
 
-        # Track multiple calls
-        await tracker.track_call(
-            operation="sentiment_analysis",
-            model="claude-haiku-4-5-20251001",
-            input_tokens=100,
-            output_tokens=50,
-        )
-        await tracker.track_call(
-            operation="entity_extraction",
-            model="claude-haiku-4-5-20251001",
-            input_tokens=4000,
-            output_tokens=800,
-        )
+        # Insert trace records (new location after BUG-079)
+        await _insert_trace_record(mongo_db, "sentiment_analysis", "claude-haiku-4-5-20251001", 100, 50, 0.00035)
+        await _insert_trace_record(mongo_db, "entity_extraction", "claude-haiku-4-5-20251001", 4000, 800, 0.008)
 
         daily_cost = await tracker.get_daily_cost(days=1)
 
@@ -246,16 +218,11 @@ class TestSpendLoggingAggregation:
 
     @pytest.mark.asyncio
     async def test_get_monthly_cost_aggregation(self, mongo_db):
-        """Verify monthly cost aggregation works correctly."""
+        """Verify monthly cost aggregation works correctly (from llm_traces - BUG-079)."""
         tracker = CostTracker(mongo_db)
 
-        # Track a call
-        await tracker.track_call(
-            operation="briefing_generation",
-            model="claude-sonnet-4-5-20250929",
-            input_tokens=1000,
-            output_tokens=500,
-        )
+        # Insert trace record (new location after BUG-079)
+        await _insert_trace_record(mongo_db, "briefing_generation", "claude-sonnet-4-5-20250929", 1000, 500, 0.0105)
 
         monthly_cost = await tracker.get_monthly_cost()
 
