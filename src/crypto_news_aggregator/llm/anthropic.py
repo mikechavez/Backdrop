@@ -547,7 +547,7 @@ Articles:
 Return ONLY the JSON array, no other text."""
 
         try:
-            response_text, usage = self._get_completion_with_usage(prompt)
+            response_text, usage = self._get_completion_with_usage(prompt, operation="article_enrichment_batch")
 
             # Record success immediately (before any processing)
             circuit_breaker.record_success("sentiment_analysis")
@@ -630,7 +630,7 @@ Return ONLY the JSON array, no other text."""
         prompt = f"On a scale from 0.0 to 1.0, how relevant is this text to cryptocurrency market movements? Return ONLY a single floating-point number with no explanation:\n\n{text}"
 
         try:
-            response_text, usage = self._get_completion_with_usage(prompt)
+            response_text, usage = self._get_completion_with_usage(prompt, operation=operation)
 
             # Record success immediately (before any processing)
             circuit_breaker.record_success(operation)
@@ -692,7 +692,7 @@ Return ONLY the JSON array, no other text."""
         prompt = f"Analyze the sentiment of this crypto text. Return ONLY a single number from -1.0 (very bearish) to 1.0 (very bullish). Do not include any explanation or additional text. Just the number:\n\n{text}"
 
         try:
-            response_text, usage = self._get_completion_with_usage(prompt)
+            response_text, usage = self._get_completion_with_usage(prompt, operation=operation)
 
             # Record success immediately (before any processing)
             circuit_breaker.record_success(operation)
@@ -755,7 +755,7 @@ Return ONLY the JSON array, no other text."""
         prompt = f"Extract the key crypto themes from the following texts. Respond with ONLY a comma-separated list of keywords (e.g., 'Bitcoin, DeFi, Regulation'). Do not include any preamble.\n\nTexts:\n{combined_texts}"
 
         try:
-            response_text, usage = self._get_completion_with_usage(prompt)
+            response_text, usage = self._get_completion_with_usage(prompt, operation=operation)
 
             # Record success immediately (before any processing)
             circuit_breaker.record_success(operation)

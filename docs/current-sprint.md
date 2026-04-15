@@ -35,15 +35,15 @@ Infrastructure is stable and scheduled briefings are working. The blocker is cos
 - **Cost impact:** Prevents Opus ($0.039/call) from bypassing enforcement, protects against 25× cost multiplier
 
 ### BUG-078: RSS enrichment calls have no operation name ✅ FIXED
-- **Status:** ✅ RESOLVED — 2026-04-14 18:45:00 UTC
-- **Code fix deployed:** 2026-04-14 (commit 94dc5fb)
-- **Changes:** Passed explicit operation names to four sync methods in AnthropicProvider:
-  - `analyze_sentiment` → `operation="sentiment_analysis"`
-  - `extract_themes` → `operation="theme_extraction"`
-  - `generate_insight` → `operation="insight_generation"`
-  - `score_relevance` → `operation="relevance_scoring"`
-- Added warning log to `_get_completion` when operation is empty (future safeguard)
-- **Cost impact:** ~261 enrichment calls/day ($0.26) now visible in operation-level breakdowns
+- **Status:** ✅ RESOLVED — 2026-04-14 19:15:00 UTC
+- **Code fix deployed:** 2026-04-14 (commit 6448289)
+- **Changes:** Passed operation names to `_get_completion_with_usage()` calls in four async methods:
+  - `enrich_articles_batch` line 550: `operation="article_enrichment_batch"`
+  - `score_relevance_tracked` line 633: `operation=operation` (parameter pass-through)
+  - `analyze_sentiment_tracked` line 695: `operation=operation` (parameter pass-through)
+  - `extract_themes_tracked` line 758: `operation=operation` (parameter pass-through)
+- **Root cause:** Previous fix (94dc5fb) patched the synchronous methods which were already correct; this fix addresses the actual broken call sites (async wrapper methods)
+- **Cost impact:** ~159 calls/day ($0.149/day) from enrichment now properly tracked under correct operation names instead of `provider_fallback`
 
 ### BUG-076: RSS ingest path does not generate article fingerprints ✅ FIXED
 - **Status:** ✅ RESOLVED — Migration completed 2026-04-14 18:07:45 UTC
