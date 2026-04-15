@@ -37,6 +37,12 @@ _OPERATION_MODEL_ROUTING = {
     "briefing_generate": "claude-haiku-4-5-20251001",
     "briefing_refine": "claude-haiku-4-5-20251001",
     "briefing_critique": "claude-haiku-4-5-20251001",
+    # BUG-077: Add missing operation names from RSS enrichment sync path
+    "provider_fallback": "claude-haiku-4-5-20251001",
+    "sentiment_analysis": "claude-haiku-4-5-20251001",
+    "theme_extraction": "claude-haiku-4-5-20251001",
+    "relevance_scoring": "claude-haiku-4-5-20251001",
+    "insight_generation": "claude-haiku-4-5-20251001",
 }
 
 
@@ -237,15 +243,20 @@ class LLMGateway:
                 model="n/a",
             )
 
-    def _validate_model_routing(self, operation: str, model: str) -> None:
+    def _validate_model_routing(self, operation: str, model: str) -> str:
         """
-        Validate that the model matches the expected routing for this operation.
+        Validate and enforce model routing for an operation.
 
-        BUG-075 FIX: Ensures all calls to the same operation use the same model
-        to prevent cost spikes from inconsistent model selection.
+        BUG-077 FIX: If the operation has a registered expected model and the caller
+        passed a different model, overrides to the expected model and logs a warning.
+        This prevents cost spikes from inconsistent model selection.
 
-        Logs a warning if model doesn't match expected routing but allows the call
-        to proceed (for backward compatibility with tests).
+        Args:
+            operation: LLM operation name
+            model: Model string passed by caller
+
+        Returns:
+            The model string to use for the API call (may differ from input if override applied)
         """
         if operation in _OPERATION_MODEL_ROUTING:
             expected_model = _OPERATION_MODEL_ROUTING[operation]
@@ -253,8 +264,10 @@ class LLMGateway:
                 logger.warning(
                     f"Model routing mismatch: operation '{operation}' "
                     f"expected '{expected_model}' but got '{model}'. "
-                    f"This may cause unexpected cost increases."
+                    f"Overriding to '{expected_model}'."
                 )
+                return expected_model
+        return model
 
     def _build_headers(self) -> dict:
         return {
@@ -404,7 +417,7 @@ class LLMGateway:
         """
         await refresh_budget_if_stale()
         self._check_budget(operation)
-        self._validate_model_routing(operation, model)
+        model = self._validate_model_routing(operation, model)
 
         trace_id = str(uuid.uuid4())
         start = time.monotonic()
@@ -516,7 +529,7 @@ class LLMGateway:
             LLMError: On spend cap breach or API failure.
         """
         self._check_budget(operation)
-        self._validate_model_routing(operation, model)
+        model = self._validate_model_routing(operation, model)
 
         trace_id = str(uuid.uuid4())
         start = time.monotonic()
