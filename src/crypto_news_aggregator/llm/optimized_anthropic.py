@@ -9,6 +9,7 @@ Optimized Anthropic LLM Client with Cost Reduction Features:
 import asyncio
 import json
 import logging
+import re
 from typing import List, Dict, Any, Optional
 import httpx
 from .cache import LLMResponseCache
@@ -272,6 +273,23 @@ Actions: Key events or verbs"""
         )
 
         summary = api_response["content"].strip()
+
+        # Flag implausible financial figures for investigation (defense-in-depth)
+        for match in re.finditer(r'\$(\d[\d,.]*)\s*(billion|B|trillion|T)\b', summary, re.IGNORECASE):
+            try:
+                value = float(match.group(1).replace(',', ''))
+                unit = match.group(2).lower()
+                if unit in ('trillion', 't'):
+                    value *= 1000  # normalize to billions
+                if value > 50:
+                    logger.warning(
+                        f"SUSPICIOUS FIGURE in narrative summary: {match.group(0)} "
+                        f"(exceeds $50B single-event threshold). "
+                        f"Verify source articles. Summary: {summary[:200]}"
+                    )
+            except ValueError:
+                pass
+
         result = {"summary": summary}
 
         # Cache the result
@@ -296,6 +314,7 @@ Write a 2-3 sentence summary that:
 1. Identifies the main story/theme
 2. Explains why it matters
 3. Notes any conflicting perspectives
+4. Verifies financial figures are consistent across articles — if sources disagree on a number, note the discrepancy rather than picking one
 
 Be concise and informative."""
     
