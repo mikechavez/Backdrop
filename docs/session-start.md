@@ -1,13 +1,30 @@
 # Session Start
 
-**Date:** 2026-04-15 (Session 33, Sprint 15)
-**Status:** All P1 bugs complete and validated. Cost tracking fully trustworthy. BUG-080 and BUG-081 (briefing quality) fixed.
-**Branches Ready:** fix/bug-080-briefing-date-mismatch, fix/bug-081-briefing-separate-stories
-**Next:** Create PRs for BUG-080 and BUG-081, then TASK-069 (cost dashboard + Slack alerts) or TASK-071 (threshold recalibration)
+**Date:** 2026-04-15 (Session 34, Sprint 15)
+**Status:** All P1-P2 bugs complete and validated. BUG-080, BUG-081, BUG-082 (briefing quality) fixed. Ready for PR review.
+**Branches Ready:** fix/bug-080-briefing-date-mismatch, fix/bug-081-briefing-separate-stories, fix/bug-082-narrative-implausible-figures
+**Next:** Create PRs for BUG-080, BUG-081, BUG-082, then TASK-069 (cost dashboard + Slack alerts) or TASK-071 (threshold recalibration)
 
 ---
 
 ## Current Session Context
+
+### What was completed in Session 34
+
+**BUG-082 FIXED: Narrative summary pipeline validation for implausible financial figures**
+
+Defense-in-depth validation added to `generate_narrative_summary()` to catch implausible figures that slip past BUG-081 briefing-level critique checks.
+
+**Fix deployed (commit 1d633f8):**
+- Added `import re` for regex pattern matching
+- Updated `_build_summary_prompt()` with figure verification instruction (rule 4) to instruct LLM to verify financial figures are consistent across articles
+- Added post-generation figure plausibility check that logs warnings for figures exceeding $50B threshold
+- Created comprehensive test suite: 15 unit tests covering all regex formats, threshold logic, and caching behavior; all pass ✅
+- Verified no regressions: all 9 LLM cost tracking tests pass ✅
+
+**Branch:** `fix/bug-082-narrative-implausible-figures` — ready for PR
+
+---
 
 ### What was completed in Session 33
 
