@@ -1,591 +1,84 @@
 # Session Start
 
-**Date:** 2026-04-14 (Session 31, Sprint 15)
-**Status:** BUG-078 ✅ complete (RSS enrichment operation names)
-**Branch:** fix/bug-078-rss-enrichment-operation-names (parent: main)
-**Next:** Create PR, then close Sprint 15
+**Date:** 2026-04-15 (Session 31, Sprint 15)
+**Status:** All P1 bugs complete and validated. Cost tracking fully trustworthy for first time.
+**Branch:** main (all fixes merged)
+**Next:** TASK-069 (cost dashboard + Slack alerts) or TASK-071 (threshold recalibration) — both ready
 
 ---
 
-## Current Session (Session 31 — Sprint 15)
+## Current Session Context
 
-**BUG-078 FIXED** — RSS enrichment operation names
-- **Problem:** Four async methods in `AnthropicProvider` were calling `_get_completion_with_usage()` without passing the `operation` parameter, causing all traces to fall back to `"provider_fallback"`
-- **Impact:** ~159 calls/day ($0.149/day) from enrichment operations were invisible in operation-level cost tracking
-- **Fix:** Added operation parameter to four call sites:
-  - `enrich_articles_batch` line 550: pass `operation="article_enrichment_batch"`
-  - `score_relevance_tracked` line 633: pass `operation=operation`
-  - `analyze_sentiment_tracked` line 695: pass `operation=operation`
-  - `extract_themes_tracked` line 758: pass `operation=operation`
-- **Cost impact:** All enrichment calls now properly tracked under correct operation names (sentiment_analysis, theme_extraction, relevance_scoring, article_enrichment_batch)
-- **Testing:** Post-deploy verification will show zero `provider_fallback` entries from enrichment after one cycle
-- **Commit:** 6448289
-- **Status:** ✅ Complete, ready to push
+### What was completed in Session 30
 
----
+**Full cost tracking validation** — confirmed the entire LLM call → trace → enforcement pipeline is working correctly end-to-end:
 
-## Previous Session (Session 30 — Sprint 15)
+- `llm_traces` field is `cost` (not `cost_usd`) — `get_daily_cost()` confirmed reading correct field ✅
+- All LLM calls route through `gateway.py` — no direct httpx bypass paths in `anthropic.py` or `optimized_anthropic.py` ✅
+- Gateway writes trace on every exit path: cache hit, HTTP error, exception, and success ✅
+- True daily spend confirmed: **~$0.54/day** (not the $1.134 cited at sprint start — that was inflated by BUG-066's rolling window)
 
-**BUG-077 FIXED** — Model routing enforcement
-- **Problem:** `_validate_model_routing()` logged warnings but allowed wrong models through, risking 25× cost multiplier
-- **Fix:** Changed return type `None` → `str`, method now enforces by returning corrected model
-- **Changes:**
-  - Updated `_validate_model_routing()` to return the enforced model string
-  - Updated `call()` and `call_sync()` to use returned model for API calls
-  - Added 5 missing operations to `_OPERATION_MODEL_ROUTING`: provider_fallback, sentiment_analysis, theme_extraction, relevance_scoring, insight_generation
-- **Testing:** All 22 gateway tests pass; manual enforcement verified
-- **Cost impact:** Prevents Opus ($0.039/call) from bypassing enforcement
-- **Commit:** c05404e
-- **Docs:** Updated bug-077 ticket and current-sprint.md
-
-**BUG-076 COMPLETE** — RSS article fingerprints ✅ 
-- Backfill completed 2026-04-14 18:07:45 UTC
-- 1,766 articles fingerprinted, 4 duplicates identified
-- Deduplication now working for RSS ingest path
+**BUG-078 re-investigation and correct fix deployed:**
+- Original fix (94dc5fb) patched the wrong layer — sync methods were already correct
+- Real broken call sites: async `_tracked` methods + `enrich_articles_batch` dropping `operation` at `_get_completion_with_usage()` call
+- Correct fix (commit 6448289) deployed at 01:55 UTC
+- Validated: last `provider_fallback` trace at 01:40 UTC (pre-deploy); `article_enrichment_batch` appearing post-deploy ✅
 
 ---
 
-## What Happened Last
+## Confirmed Cost Baseline (2026-04-15, partial day)
 
-**Session 14 (Previous):** TASK-059 complete — removed 3 low-quality RSS sources (watcherguru 7%, glassnode 5.3%, bitcoinmagazine 14% tier 1 rates)
+| Operation | Calls | Cost |
+|---|---|---|
+| provider_fallback (pre-fix, fading) | 180 | $0.169 |
+| entity_extraction | 174 | $0.152 |
+| narrative_generate | 51 | $0.125 |
+| briefing_refine | 4 | $0.032 |
+| briefing_critique | 4 | $0.023 |
+| briefing_generate | 2 | $0.020 |
+| article_enrichment_batch (post-fix) | 8 | $0.007 |
+| cluster_narrative_gen | 6 | $0.006 |
+| narrative_polish | 6 | $0.003 |
+| **Total** | | **~$0.54** |
 
-**Session 15 (Previous):** TASK-060 complete — implemented tier 1 only enrichment filter
-- Tier 2-3 articles (56% of ingest) skip full LLM enrichment, save tier assignment only
-- Tier 1 articles (17% of ingest) receive full enrichment unchanged
-- Expected cost reduction: $1.80/day → $0.36-0.45/day (-75%)
-- Commit: 76f912c, branch: `cost-optimization/tier-1-only`
-
-**Session 16 (Current):** TASK-062 complete — move tier classification before enrichment
-- Fix root cause of cost bleed: classify BEFORE LLM enrichment, not after
-- Pre-classify all articles in batch (rule-based, no cost)
-- Filter batch to only tier 1 articles before calling expensive LLM
-- Tier 2-3 articles saved with tier only, no entities/sentiment/themes/keywords
-- Skip enrichment batch entirely if zero tier 1 articles present
-- Cost impact: ~98% reduction on enrichment calls ($0.36-0.45/day vs $21/day when hard limit raised)
-- Commit: 6dc21a4, branch: `cost-optimization/tier-1-only`
-
-**Earlier (Sessions 1–13):** Built complete LLM control layer (TASK-036 through TASK-042) + burn-in measurement
-- ✅ TASK-036: LLM Gateway with async/sync modes, budget enforcement
-- ✅ TASK-037: Tracing schema, indexes (TTL 30d)
-- ✅ TASK-038: Wired briefing_agent through gateway
-- ✅ TASK-039: Wired health endpoint through gateway
-- ✅ TASK-040: Dataset capture for eval datasets
-- ✅ TASK-041: 48-hour burn-in run
-- ✅ TASK-044: Lift hard spend limit to $15 for measurement
-- ✅ TASK-042: Gateway bypass fix — all LLM calls unified
-- ✅ TASK-041A: Restart burn-in with clean baseline
-- ✅ BUG-058, BUG-060: Soft limit & timezone bugs fixed
-- ✅ TASK-045: Remove verbose narrative logging
-- ✅ TASK-046: Verify briefing task registration with Celery
-- ✅ TASK-059: Remove low-quality RSS sources
-
-**Current Work (Session 10):**
-- ✅ Raised soft spend limit from $1.00 → $3.00 (commit c1deb83)
-  - $1.00 was too aggressive; single briefing costs ~$1.20
-  - $3.00 allows 2-3 full briefings while catching runaway costs
-- ✅ **BUG-060 FIXED:** Timezone-naive datetime breaking signal computation
-  - **Root cause:** `datetime.now(timezone.utc).replace(tzinfo=None)` stripping timezone info
-  - **Impact:** Signal computation returned 0 results, blocking briefing generation
-  - **Fix:** Removed `.replace(tzinfo=None)` from 5 instances in signal_service.py
-  - **Commit:** 5808da4
-  - **Status:** ✅ Merged and deployed
-
-**Session 11 (Previous):**
-- ✅ **Investigated Soft Limit Blocker** — Ran comprehensive database queries
-  - **Finding:** Soft limit NOT actually hit. Actual spend $0.445 << $3.00 limit
-  - **Cost breakdown:** narrative_generate $0.262 (58%), entity_extraction $0.183 (42%)
-  - **Issue found:** No briefing generation operations recorded (zero `briefing_generate` calls in database)
-  - **Timeline:** Morning briefing scheduled 2026-04-09 13:00 UTC but no activity visible in cost tracking
-  - **Created:** BUG-061 to document findings (docs/tickets/bug-061-budget-tracking-discrepancy.md)
-- ✅ **TASK-045 Complete** — Removed verbose narrative logging
-  - Removed 26+ `[VELOCITY DEBUG]` lines from `calculate_recent_velocity()`
-  - Removed 17 `[MERGE NARRATIVE DEBUG]` lines from merge upsert section
-  - Replaced with concise single-line summaries
-  - Reduces per-cycle logging from 380+ lines to ~2 lines
-  - Commit: dde11bf
-
-**Session 12 (Previous):**
-- ✅ **TASK-046 Complete** — Verified briefing task registration with Celery
-  - **Finding:** All infrastructure already 100% in place
-  - **Task decorators:** ✅ All briefing tasks have @shared_task with correct names
-  - **Celery initialization:** ✅ tasks/__init__.py imports all tasks and enables autodiscover
-  - **Beat schedule:** ✅ All task names match @shared_task decorators
-  - **Celery config:** ✅ Beat schedule properly applied at app startup
-  - **Added:** test_task_registration.py verification script
-  - **Branch:** fix/task-046-register-briefing-tasks
-  - **Commit:** 91a72ab
-
-**Session 13 (Previous):**
-- ✅ **TASK-045 Critical Bug Fix** — Undefined variable in narrative merge log
-  - **Problem:** TASK-045 removed verbose logging but left a line with undefined `articles_by_id` variable
-  - **Location:** narrative_service.py line 1045 in merge upsert section
-  - **Symptom:** Crashes during narrative clustering when trying to calculate velocity
-  - **Fix:** Removed the velocity calculation line (undefined), kept simple merge summary log
-  - **Before:** `velocity = calculate_recent_velocity([a['timestamp'] for a in articles_by_id.values()]) if articles_by_id else 0.0`
-  - **After:** `logger.info(f"Merged {len(combined_article_ids)} articles into narrative '{title}'")`
-  - **Branch:** fix/narrative-clustering-merge-log
-  - **Commit:** 869baa8
-
-**Previous (Session 9):**
-- ✅ BUG-058: Raised soft limit to $1.00, fixed TypeError in narrative detection (commit 641e120)
-
-**Session 19 (Current):**
-- ✅ **BUG-066 FIXED** — Daily cost calculation using rolling 24hr window instead of calendar day
-  - **Problem:** `get_daily_cost()` used `timedelta(days=1)` creating rolling 24-hour windows
-  - **Impact:** At 16:05 UTC, returned cost for 08:05 yesterday + 16 hours today, triggering hard limit incorrectly
-  - **Actual daily spend:** $0.4193 (under $0.60 hard limit)
-  - **Reported by cache:** $0.7153 (includes yesterday's 8 hours)
-  - **Fix:** Changed to calendar-day alignment: `now - timedelta(days=days-1)` → `.replace(hour=0, minute=0, second=0, microsecond=0)`
-  - **Result:** days=1 returns today's cost (00:00 UTC onwards), days=2 returns yesterday, etc.
-  - **Branch:** fix/bug-066-daily-cost-calculation
-  - **Commit:** ac7341c
-  - **Tests:** All 11 cost_tracker tests passing ✅
-
-**Session 21 (2026-04-13) — BUG-067 Motor Truthiness Check Fix ✅**
-- ✅ **BUG-067 FIXED** — Motor AsyncIOMotorDatabase truthiness check fails
-  - **Problem:** Code checked `if briefing_id and db:` which triggers truthiness check on Motor object
-  - **Error:** `TypeError: Database objects do not implement truth value testing or bool()`
-  - **Location:** Line 437 of `briefing_agent.py` in `_self_refine()` method
-  - **Fix:** Changed to `if briefing_id and db is not None:`
-  - **Why:** Motor explicitly forbids `bool()` checks, allows `is None` / `is not None` comparisons
-  - **Impact:** Unblocks post-refine draft capture during briefing generation self-refine loop
-  - **Files Changed:** `src/crypto_news_aggregator/services/briefing_agent.py` (line 437)
-
-**Session 22 (2026-04-13 — CURRENT) — BUG-068 Double Cost Tracking Fix ✅**
-- ✅ **BUG-068 FIXED** — Removed manual cost tracking from OptimizedAnthropicLLM
-  - **Problem:** OptimizedAnthropicLLM manually called `CostTracker.track_call()` in parallel with LLMGateway, creating duplicate cost entries
-  - **Data Impact:** api_costs had 53,326 records (bloated with duplicates), llm_traces had 327 (clean from gateway only)
-  - **Cost Discrepancy:** Hard limit check read $0.6068 from api_costs vs actual $0.6300 from llm_traces → false hard_limit triggers
-  - **Root Cause:** OptimizedAnthropicLLM written before LLMGateway existed; never updated to remove manual tracking
-  - **Fix Applied:**
-    - Removed `self.cost_tracker` initialization and `_get_cost_tracker()` method
-    - Removed 4 manual `track_call()` invocations for entity extraction (cached + real)
-    - Removed 2 manual `track_call()` invocations for narrative extraction (cached + real)
-    - Removed 2 manual `track_call()` invocations for narrative summary (cached + real)
-    - Removed `get_cost_summary()` method
-    - Updated 3 tests to verify NO api_costs entries created
-    - Removed cost summary logging from RSS fetcher
-  - **Verification:** 9/9 tests passing, all optimized LLM integration tests pass
-  - **Impact:** LLMGateway now single source of truth for cost tracking; api_costs stops growing
-
-**Session 23 (2026-04-13) — BUG-069 Briefing Persistence Fix ✅**
-- ✅ **BUG-069 FIXED** — Briefing generation logs "Saved" but never persists to database
-  - **Problem:** `_save_briefing()` skipped database insert when `briefing_id` was provided
-  - **Root cause:** Logic assumed if `briefing_id` exists, save already happened elsewhere (false assumption)
-  - **Impact:** Briefings logged as saved but never inserted to `daily_briefings`, invisible on UI
-  - **User impact:** Generated briefings invisible, cost incurred but no output
-  - **Location:** Line 929-938 of `briefing_agent.py` in `_save_briefing()` method
-  - **Fix Applied:**
-    - Always call `await insert_briefing(briefing_doc)` regardless of `briefing_id` presence
-    - Set `_id` in document BEFORE inserting so MongoDB respects provided ID
-    - Ensures briefing persists to `daily_briefings` with `published: true`
-  - **Files Changed:** `src/crypto_news_aggregator/services/briefing_agent.py` (9 lines changed)
-  - **Branch:** `fix/bug-066-daily-cost-calculation` (parent: main) — will add to existing PR
-
-**Session 24 (2026-04-13) — BUG-070 Narrative Tier-1 Only Fix ✅**
-- ✅ **BUG-070 FIXED** — Narrative generation processes all articles instead of tier-1-only
-  - **Problem:** `MAX_RELEVANCE_TIER = 2` processes tier 1-2 articles, violating TASK-060 tier-1-only optimization
-  - **Impact:** 193 narrative_generate calls/day instead of expected 70 → $0.35/day spend (56% of budget)
-  - **Root cause:** Constant set to 2 (includes tier 2) when it should be 1 (tier 1 only)
-  - **Location:** Line 27 of `narrative_themes.py`
-  - **Fix Applied:**
-    - Changed `MAX_RELEVANCE_TIER = 2` → `MAX_RELEVANCE_TIER = 1`
-    - Filter logic already in place, only needed constant update
-    - Expected savings: -64% narrative calls, ~$0.38/day cost reduction
-  - **Files Changed:** `src/crypto_news_aggregator/services/narrative_themes.py` (1 line)
-  - **Branch:** `fix/bug-070-narrative-tier-1-only`
-  - **Commit:** 03df32f
-
-**Session 25 (2026-04-13) — BUG-071 Narrative Prompt Compression ✅**
-- ✅ **BUG-071 FIXED** — Narrative prompt bloat (~1,700 tokens) reduced to ~900 tokens
-  - **Problem:** Prompt included redundant rule statements (appear 3x), verbose explanations, token-heavy examples
-  - **Impact:** Paying for ~900 unnecessary tokens per call (~$0.105/day wasted)
-  - **Solution:** Compress to ~700-token system prompt + 4-line user message
-  - **Changes Applied:**
-    1. Added `NARRATIVE_SYSTEM_PROMPT` constant (lines 665-709) with concise rules
-    2. Replaced 128-line prompt building with 4-line user message (lines 774-777)
-    3. Updated gateway.call() to use `system=NARRATIVE_SYSTEM_PROMPT` (line 799)
-  - **Token Reduction Breakdown:**
-    - Salience explanation: 150 → 30 tokens (-120)
-    - Anti-hallucination rules: 100 → 20 tokens (-80)
-    - Entity normalization: 250 → 50 tokens (-200)
-    - JSON examples: 200 → 0 tokens (-200)
-    - Misc prose: 150 → 30 tokens (-120)
-    - **Total: 1,500 → 700 tokens (-800, -53%)**
-  - **Quality Maintained:** Haiku handles concise instructions without verbose examples
-  - **Files Changed:** `src/crypto_news_aggregator/services/narrative_themes.py` (add constant, replace prompt)
-  - **Tests Fixed:** Updated 6 discovery-narrative tests to mock `get_gateway()` instead of `get_llm_provider()`
-  - **Branch:** `fix/bug-070-narrative-tier-1-only`
-  - **Cost Impact:** ~$0.105/day savings on narrative_generate calls alone
-
-**Session 26 (2026-04-13) — BUG-072 LLM Cache Infrastructure Wiring ✅**
-- ✅ **BUG-072 FIXED** — Wire LLM cache infrastructure for narrative generation
-  - **Problem:** llm_cache MongoDB collection exists but narrative_generate never uses it
-  - **Impact:** 30% of narrative_generate calls are wasteful re-processing of unchanged articles (~$0.037/day waste)
-  - **Entity extraction reference:** Already has 99.1% cache hit rate (working model)
-  - **Solution:** Add cache lookup/save to both async and sync gateway methods
-  - **Implementation Details:**
-    1. Added async cache methods to LLMGateway:
-       - `_get_from_cache(operation, input_hash)` - Checks llm_cache, increments hit counter
-       - `_save_to_cache(operation, input_hash, response)` - Saves with upsert, 30-day TTL
-    2. Added sync cache methods (for entity extraction and sync contexts):
-       - `_get_from_cache_sync(operation, input_hash)` - Direct MongoDB sync lookup
-       - `_save_to_cache_sync(operation, input_hash, response)` - Sync save with upsert
-    3. Wired cache into `call()` (async):
-       - Generate SHA1 hash of input messages for deduplication
-       - Check cache before API calls for cacheable operations
-       - Return cached results with 0 cost/tokens on hit
-       - Save responses to cache after successful API calls
-    4. Wired cache into `call_sync()` (sync):
-       - Same cache logic for synchronous contexts
-    5. Cache configuration:
-       - **Cacheable operations:** narrative_generate, entity_extraction, narrative_theme_extract
-       - **Non-cacheable (always fresh):** briefing_generate, briefing_refine, briefing_critique
-  - **Testing:**
-    - ✅ `TestCacheMethods::test_get_from_cache_hit` - Cache hit returns correct response
-    - ✅ `TestCacheMethods::test_get_from_cache_miss` - Cache miss returns None
-    - ✅ `TestCacheMethods::test_save_to_cache` - Responses saved with upsert
-    - ✅ `TestCacheMethods::test_call_cache_hit` - Cached calls return 0 cost/tokens
-    - ✅ All 22 gateway tests passing
-  - **Files Changed:** 
-    - `src/crypto_news_aggregator/llm/gateway.py` (6 methods, cache logic in call/call_sync)
-    - `tests/llm/test_gateway.py` (4 new tests for cache behavior)
-  - **Branch:** `fix/bug-072-llm-cache-wiring`
-  - **Commit:** c68e760
-  - **Cost Impact:** -30% narrative_generate calls = ~$0.037/day savings
-  - **Expected annual savings:** ~$13.50 from cache alone
-
-**Session 27 (2026-04-13) — BUG-073 Article Fingerprint Generation Fix ✅**
-- ✅ **BUG-073 FIXED** — Articles inserted without fingerprints, breaking deduplication
-  - **Problem:** `create_or_update_articles()` in articles.py used direct MongoDB insert, bypassing fingerprint generation
-  - **Impact:** All articles ingested after April 9 have `fingerprint: null`, deduplication completely non-functional
-  - **Root Cause:** RSS fetcher calls `create_or_update_articles()` which inserted directly without calling `ArticleService.create_article()`
-  - **Solution:** Route all article inserts through `ArticleService.create_article()` which generates fingerprints and checks for duplicates
-  - **Files Changed:** `src/crypto_news_aggregator/db/operations/articles.py`
-    - Added import: `from crypto_news_aggregator.services.article_service import get_article_service`
-    - Modified `create_or_update_articles()` to call `article_service.create_article()` instead of direct `collection.insert_one()`
-    - Preserved existing `source_id` duplicate check for update path
-  - **Branch:** `fix/bug-073-fingerprint-generation`
-  - **Testing:** All article service tests pass (10/10), no regressions
-
-**Session 28 (2026-04-14) — BUG-074 Briefing Missing Sort Fix ✅**
-- ✅ **BUG-074 FIXED** — Briefing agent receives empty narrative list due to missing sort
-  - **Problem:** `_get_active_narratives()` in briefing_agent.py fetched narratives with no sort order
-  - **Impact:** MongoDB returned documents in natural insertion order (all from October 2025), all failed 7-day recency check, empty list returned
-  - **Root Cause:** Query had no `.sort()` call before `.limit()`, so oldest documents were fetched first
-  - **Solution:** Add `.sort("last_updated", -1)` before `.limit(limit * 3)` to return most recently updated narratives first
-  - **Files Changed:** 
-    - `src/crypto_news_aggregator/services/briefing_agent.py` (line 291: added sort to narratives query)
-    - `docs/tickets/bug-074-briefing-missing-sort.md` (updated ticket status to Fixed)
-  - **Database:** Existing `idx_lifecycle_state_last_updated` index supports this query efficiently, no migration needed
-  - **Commit:** 98f172d
-  - **Impact:** Briefing agent now receives recent narratives from April 2026 instead of empty list, generation succeeds
-
-**Session 29 (2026-04-14) — BUG-075 Model Routing Validation Fix ✅**
-- ✅ **BUG-075 FIXED** — Inconsistent model routing for `narrative_generate` causes 25× cost spike
-  - **Problem:** Two code paths called `narrative_generate` with wrong models (Opus/Sonnet) instead of Haiku
-    - `test_gateway.py:31` hardcoded `claude-opus-4-6` (25× more expensive)
-    - `tests/llm/test_gateway.py:477` hardcoded `claude-sonnet-4-5-20250929` (3× more expensive)
-  - **Impact:** If test path fired in production, would cost $0.038760/call vs $0.0015 → 25× spike at 70 calls/day = ~$2.70/day vs ~$0.10/day
-  - **Root Cause:** Gateway accepted any model from caller without validation; no operation→model routing enforcement
-  - **Solution:** Added model routing validation to gateway:
-    1. Created `_OPERATION_MODEL_ROUTING` config (9 operations mapped to Haiku)
-    2. Added `_validate_model_routing()` method to detect and log mismatches
-    3. Call validation in both `call()` and `call_sync()` entry points
-  - **Files Changed:**
-    - `test_gateway.py` (line 31: Opus → Haiku)
-    - `tests/llm/test_gateway.py` (line 477: Sonnet → Haiku)
-    - `src/crypto_news_aggregator/llm/gateway.py` (added routing config + validation)
-    - `docs/tickets/bug-075-inconsistent-model-routing.md` (updated ticket)
-  - **Testing:** All 22 gateway tests passing ✅
-  - **Branch:** `fix/bug-075-model-routing`
-  - **Impact:** Prevents silent cost spike; all narrative operations now guaranteed to use Haiku
-
-**Session 29 (2026-04-14) — BUG-076 Narrative Focus Parser Fix ✅**
-- ✅ **BUG-076 FIXED** — `narrative_focus` field stores full LLM response instead of extracted focus phrase
-  - **Problem:** LLM returns explanation text after the focus phrase, e.g.: `"defi ecosystem expansion"\n\nThis phrase captures the active process...`
-  - **Impact:** `narrative_focus` field bloated with explanation text instead of 2-5 word phrase
-  - **Root Cause:** No extraction logic after JSON parsing; raw LLM response stored directly
-  - **Solution:** Added `extract_focus_phrase()` function to isolate focus from explanation text:
-    1. Handles quoted strings (strips quotes)
-    2. Splits on double newlines or sentence boundaries
-    3. Takes first phrase before explanation text
-    4. Normalizes whitespace
-  - **Integration:** Applied in `discover_narrative_from_article()` immediately after JSON parsing
-  - **Files Changed:**
-    - `src/crypto_news_aggregator/services/narrative_themes.py` (added extract_focus_phrase + integrated in discovery)
-    - `tests/services/test_narrative_themes.py` (added TestExtractFocusPhrase: 13 unit tests)
-    - `docs/tickets/bug-076-narrative-focus-field-bad-response.md` (updated resolution)
-  - **Testing:** All 53 focus/validation/discovery tests passing ✅
-    - 13 new extract_focus_phrase tests (covers edge cases: empty, quoted, multi-line, real-world examples)
-    - 23 validate_narrative tests (backward compatible)
-    - 10 focus similarity tests
-    - 3 degraded narrative tests
-    - 2 validation failure tests
-  - **Branch:** `fix/bug-076-narrative-focus-parser`
-  - **Impact:** Prospectively fixes all new narrative detections; existing bad data can be backfilled later if needed
-
-**Session 29 (2026-04-14) — TASK-065 Narrative Backfill Observability ✅**
-- ✅ **TASK-065 COMPLETE** — Add observability to narrative backfill `update_one` calls
-  - **Problem:** Narrative backfill loop had no logging, error handling, or result checking for MongoDB writes
-  - **Impact:** Silent write failures impossible to detect; no visibility into write path health
-  - **Location:** `backfill_narratives_for_recent_articles()` in `narrative_themes.py:1254-1271`
-  - **Solution:** Added comprehensive observability at write point:
-    1. ✅ `logger.debug()` before `update_one`: logs article_id and fields being written
-    2. ✅ Check `result.modified_count`: log warning if 0 (document not found or no change)
-    3. ✅ `try/except` wrapper: logs error type and message on write failure
-  - **Files Changed:**
-    - `src/crypto_news_aggregator/services/narrative_themes.py` (lines 1255-1295)
-    - Extracted `update_fields` dict to improve readability before adding logging
-    - Added 40 lines of observability: debug log, modified_count check, exception handling
-  - **Logs Added:**
-    - DEBUG: `narrative_backfill: article_id=..., fields=[...]` (pre-write)
-    - WARNING: `narrative_backfill: article_id=..., modified_count=0 (...)` (no update)
-    - ERROR: `narrative_backfill: failed to update article_id=..., error=ExceptionType: message` (exception)
-    - INFO: `Updated article ... with narrative data` (success)
-  - **Testing:** Syntax validated with py_compile ✅
-  - **Branch:** `task/task-065-narrative-backfill-observability`
-  - **Commit:** `cde555c` (`chore(narratives): Add observability to narrative backfill update_one calls`)
-  - **Impact:** Closes blind spot in write path; future bugs causing write failures will be immediately visible in logs
-
-**Next Steps:** 
-- Create PR for BUG-076: focus phrase extraction (current branch: fix/bug-076-narrative-focus-parser)
-- Create PR for BUG-075: model routing validation (branch: fix/bug-075-model-routing)
-- Create PR for TASK-065: narrative backfill observability (current branch: task/task-065-narrative-backfill-observability)
-- Merge all to main once approved
-- Deploy to production (total narrative cost reduction: -68% from tier-1 filter + prompt compression, additional -30% from cache)
+`provider_fallback` will be near zero by end of day as pre-fix traces age out.
 
 ---
 
-## Sprint 13 Goal
+## Known Minor Issues
 
-Unify all LLM calls behind a single gateway, achieve full cost attribution, and identify the primary cost driver with measured data.
-
----
-
-## What's Next
-
-**Immediate (Today):**
-1. Create PR: `cost-optimization/tier-1-only` → main (contains both TASK-060 + TASK-062)
-2. Deploy to production (Railway)
-3. Monitor first hour: Check LLM call volume (expect <50 calls/hour from tier 1 enrichment)
-4. Verify tier 2-3 articles have tier assignment but no entities/sentiment
-5. Check logs for "No tier 1 articles, skipping enrichment" messages
-6. Verify cost trend: expect $0.36-0.45/day (down from $21/day)
-
-**Post-Deployment Monitoring (TASK-061):**
-1. Run MongoDB query to verify tier distribution (tier 1 enriched, tier 2-3 tier-only)
-2. Monitor cost trend for 24 hours
-3. If cost < $0.20/day unexpectedly: Investigate classifier behavior
-4. If cost on target: Proceed to optimization validation
-
-**After TASK-062 Stabilizes:**
-1. TASK-061: Post-deploy verification and cost impact validation
-2. TASK-041B: Analyze burn-in data and write findings doc
-3. Sprint 14 planning based on cost attribution data
+- `article_enrichment_batch` not in `_OPERATION_MODEL_ROUTING` in `gateway.py` — logs a routing warning per call, no cost impact (Haiku used regardless). Add to routing table in next pass.
+- BUG-076: 4 duplicate articles tagged, pending manual review before deletion.
 
 ---
 
-## Known Issues / Blockers
+## Open Sprint Tickets
 
-**Active:**
-- 🟢 Burn-in underway (started 2026-04-09 02:48 UTC, expected completion 2026-04-10 ~02:48 UTC)
-  - Hard limit at $15.00 (temporary for measurement)
-  - Current spend: $0.0061 (97% under budget)
-  - Gateway working correctly
-  - 5 traces collected so far (entity_extraction)
-- 🟡 Anthropic API balance — monitor during burn-in
-- 🟡 TASK-035 Slack webhook not configured
-
-**Resolved (Session 6 — TASK-043):**
-- ✅ Budget cache issue: Cleared api_costs ($0.9970 pre-burn-in costs), reset budget to "ok"
-- ✅ Signal generation issue: Identified as normal Celery beat scheduling (working as designed)
-- ✅ Production health: All systems healthy, no critical errors
-
-**Resolved (Sprint 13):**
-- ✅ TASK-036 through TASK-042: Complete LLM control layer with tracing + gateway unification
-- ✅ BUG-056: Spend cap code deployed with TASK-044 hard limit lift for measurement
-
-**Resolved (Session 9 — BUG-058):**
-- ✅ BUG-058: Soft spend limit + narrative type error fixed
-  - Raised `SOFT_SPEND_LIMIT` from $0.25 → $1.00 (allows burn-in ops, still 15x below hard limit)
-  - Fixed TypeError in `detect_narratives()`: `cluster.get()` → `primary_nucleus` (cluster is list, not dict)
-  - Commit: 641e120 `fix(config, narratives): Raise soft spend limit and fix type error in narrative detection`
-
-**Resolved (Sprint 12):**
-- ✅ BUG-054: Pipeline live
-- ✅ BUG-055: Smoke briefings stopped, MongoDB pruned
-- ✅ BUG-057: Retry storm fixed
-- ✅ BUG-059: Cost tracking fixed
+| ID | Title | Priority | Status |
+|---|---|---|---|
+| TASK-069 | Cost dashboard + Slack alerts | P2 | Ready |
+| TASK-070 | Narrative cost investigation | P3 | Backlog |
+| TASK-071 | Spend threshold recalibration | P4 | Ready (lower urgency — spend already under $1.00 limit) |
 
 ---
 
-## Infrastructure Reference
+## What Happened Before (Sessions 1–29)
 
-### Railway Services
+**Sessions 26–29 (Sprint 15 start):**
+- BUG-077 FIXED: model routing now enforces (not just warns); 5 missing operations added to routing table
+- BUG-076 FIXED: RSS fingerprint backfill — 1,766 articles fingerprinted, 4 duplicates tagged
+- BUG-079 FIXED: budget enforcement now reads `llm_traces` as single source of truth; entity_extraction ($0.177/day) now visible to enforcement; 110 lines of manual tracking removed
 
-| Service | Start Command | Memory Limit |
-|---------|--------------|--------------|
-| celery-worker | `cd src && celery -A crypto_news_aggregator.tasks worker --loglevel=info --queues=default,news,price,alerts,briefings --pool=solo --max-tasks-per-child=50` | 1 GB |
-| crypto-news-aggregator | (default) | 1 GB |
-| celery-beat | (default) | 1 GB |
-| Redis | (Railway managed) | (default) |
+**Sessions 14–25 (Sprint 14):**
+- Built unified LLM Gateway (TASK-036–042) with async/sync modes, budget enforcement, tracing
+- Fixed BUG-066 (rolling window daily cost), BUG-067 (Motor truthiness), BUG-068 (double cost tracking)
+- Fixed BUG-064 (memory leak + retry storm), BUG-065 (briefing soft limit incorrectly triggered)
+- TASK-063: Swapped briefing model to Haiku primary, Sonnet fallback (80-90% cost reduction per briefing)
+- Tier 1 enrichment filter: only ~17% of articles receive full LLM enrichment, saving ~75% on enrichment costs
 
-**Railway Redis internal URL:** `redis://default:...@redis.railway.internal:6379`
-
-### Health Endpoint
-
-```
-GET https://context-owl-production.up.railway.app/api/v1/health
-```
-
-### Cost Targets
-
-| Item | Monthly Target |
-|------|---------------|
-| Anthropic LLM | ~$10 |
-| Railway infra | ~$16-19 |
-| **Total** | **~$26-29** |
-
-### Session 18 (2026-04-10) — TASK-063 Switch Briefing Model to Haiku ✅
-**Switched briefing generation from Sonnet primary to Haiku primary (10x cost reduction)**
-
-**Problem:**
-- Briefing generation uses Sonnet 4.5 ($5/$15 per 1M tokens) costing ~$0.05 per briefing
-- Cost optimization opportunity: Haiku is 10x cheaper (~$0.005 per briefing)
-- Need to test Haiku's capability on briefing quality while keeping Sonnet as fallback safety net
-
-**Solution (TASK-063):**
-- Swapped model constants in `briefing_agent.py`:
-  - Line 53: `BRIEFING_PRIMARY_MODEL` → `"claude-haiku-4-5-20251001"` (was Sonnet)
-  - Line 54: `BRIEFING_FALLBACK_MODEL` → `"claude-sonnet-4-5-20250929"` (was Haiku)
-- Fixed undefined `DEFAULT_MODEL` reference at line 921:
-  - Changed `"model": DEFAULT_MODEL` → `"model": BRIEFING_PRIMARY_MODEL`
-  - Ensures briefing metadata correctly logs which model generated it
-
-**Implementation:**
-- File: `src/crypto_news_aggregator/services/briefing_agent.py`
-- 2 edits: lines 53-54 (model swap), line 921 (DEFAULT_MODEL fix)
-- Gateway automatically uses new model list at line 846: `models = [BRIEFING_PRIMARY_MODEL, BRIEFING_FALLBACK_MODEL]`
-- Fallback to Sonnet still available if Haiku fails (via gateway.call() at line 857-866)
-
-**Verification:**
-- ✅ Grep confirms: Haiku now primary, Sonnet now fallback, no DEFAULT_MODEL undefined references
-- ✅ Code syntax: Valid Python, no imports needed
-- ✅ Gateway integration: Automatic, no changes to call sites
-
-**Expected Impact:**
-- Cost reduction: ~$0.05/briefing (Sonnet) → ~$0.005-0.01/briefing (Haiku)
-- **Savings: 80-90% per briefing** (~$90/month for 3 briefings/day)
-- Quality: Haiku tested on entity extraction (already in use), briefing generation is new use case
-- Safety: Sonnet fallback available if quality issues detected
-
-**Status:** ✅ Code complete, committed to cost-optimization/tier-1-only branch
-**Testing:** Pending manual smoke test via `/admin/trigger-briefing?briefing_type=morning&is_smoke=true`
-
-### Session 19 (2026-04-12) — BUG-064 Memory Leak + Retry Storm Fix ✅
-
-**Issue:** Celery worker consuming 2.5GB RAM from unclosed event loops + retry storms
-- **Root cause 1:** Every task retry creates new asyncio event loop but never closes it (Motor/MongoDB connections leak)
-- **Root cause 2:** Operation name mismatch: `"briefing_generate"` (task) vs `"briefing_generation"` (critical ops list) → soft limit blocks briefing generation incorrectly
-- **Root cause 3:** `max_retries=2` too low; soft limit hits at 00:00:10 UTC every day, triggering 100+ retries over night
-- **Root cause 4:** `LLM_DAILY_SOFT_LIMIT=$0.25` too restrictive; post-optimization briefings cost $0.50-0.70/day
-
-**Fixes Applied:**
-1. ✅ **Event loop cleanup:** Already in place (line 37 of `briefing_tasks.py` has `loop.close()`)
-2. ✅ **Max retries:** Increased from 2 → 3 for all three briefing tasks
-   - Files: `src/crypto_news_aggregator/tasks/briefing_tasks.py` lines 72, 139, 206
-3. ✅ **Operation name mismatch:** Added `"briefing_generate"` to CRITICAL_OPERATIONS set
-   - File: `src/crypto_news_aggregator/services/cost_tracker.py` lines 304-307
-4. ⏳ **Soft limit increase:** `LLM_DAILY_SOFT_LIMIT=$0.25` → `$0.50` (requires Railway env var change)
-
-**Testing:**
-- ✅ All critical operation classification tests pass (7/7)
-- ✅ Cost tracker unit tests pass (8/8)
-- ✅ New test: `test_briefing_generate_is_critical()` validates operation name variant
-
-**Branch:** `fix/bug-064-memory-leak-retry-storm`
-**Files Changed:**
-- ✏️ `src/crypto_news_aggregator/tasks/briefing_tasks.py` (max_retries: 2 → 3, 3 places)
-- ✏️ `src/crypto_news_aggregator/services/cost_tracker.py` (add "briefing_generate" to CRITICAL_OPERATIONS)
-- ✨ `tests/test_bug_056_spend_cap.py` (add `test_briefing_generate_is_critical()`)
-
-**Expected Impact:**
-- Memory: Worker RAM drops from 2.5GB → <500MB (80%+ reduction)
-- Reliability: Briefing generation succeeds on first try (no 100+ retries/day)
-- Cost control: Soft limit now meaningful and correct
-
-**Next Steps:**
-1. ⏳ Create PR: `fix/bug-064-memory-leak-retry-storm` → main
-2. ⏳ Update Railway env var: `LLM_DAILY_SOFT_LIMIT=0.50`
-3. ⏳ Deploy to production
-4. ⏳ Manual smoke test + memory validation (expect <500MB after 24h)
-
----
-
-### Session 20 (2026-04-13) — BUG-065 Briefing Soft Limit Incorrectly Triggered ✅
-
-**Issue:** Briefing generation blocked with "Daily spend limit reached (soft_limit)" error despite daily cost ($0.311055) being **below** the soft limit threshold ($0.50).
-
-**Root Cause Found:** The briefing generation pipeline includes a **self-refine loop** that makes three LLM calls:
-1. `briefing_generate` - Initial generation (**WAS** marked critical) ✅
-2. `briefing_critique` - Quality check during self-refine (**WAS NOT** marked critical) ❌
-3. `briefing_refine` - Refinement during self-refine (**WAS NOT** marked critical) ❌
-
-When cache status transitioned to "degraded" (any soft/hard limit condition), `check_llm_budget()` would block non-critical operations. The critique and refine operations were missing from the `CRITICAL_OPERATIONS` set, causing the entire briefing pipeline to fail even though daily cost was under the soft limit.
-
-**Fixes Applied:**
-1. ✅ **Added missing critical operations:** Added `briefing_critique` and `briefing_refine` to `CRITICAL_OPERATIONS` set
-   - File: `src/crypto_news_aggregator/services/cost_tracker.py` lines 294-318
-   - These are essential parts of the core briefing pipeline, not optional enrichment
-   
-2. ✅ **Added comprehensive debug logging** for future troubleshooting:
-   - `[CACHE REFRESH]` in `refresh_budget_cache()` → shows cost/limits read from settings with type info (catches config issues)
-   - `[BUDGET CHECK]` (DEBUG level) in `check_llm_budget()` → shows operation name, cache status, daily_cost, cache age on each call
-   - `[DEGRADED MODE]` (INFO level) → shows operation criticality classification when in degraded mode
-
-3. ✅ **Added regression tests:**
-   - `test_briefing_operations_are_critical()` → verifies all briefing ops marked critical
-   - `test_entity_extraction_is_critical()` → verifies pipeline critical op
-   - `test_non_critical_operations()` → verifies non-critical ops not wrongly marked
-
-**Testing:**
-- ✅ All 11 cost tracker tests pass
-- ✅ No regressions in existing test suite
-
-**Branch:** `fix/bug-065-briefing-soft-limit`
-**Commit:** `b21e928` (`fix(cost-tracker): Mark briefing critique/refine as critical operations (BUG-065)`)
-**Files Changed:**
-- ✏️ `src/crypto_news_aggregator/services/cost_tracker.py` (add missing ops to CRITICAL_OPERATIONS, add debug logs)
-- ✨ `tests/services/test_cost_tracker.py` (add TestCriticalOperations class with 3 tests)
-- 📝 `docs/tickets/bug-065-fix-briefing-soft-limit.md` (updated with root cause analysis)
-
-**Impact:**
-- ✅ Fixes immediate blocker: briefing generation no longer incorrectly blocked by soft limit
-- ✅ Improves observability: debug logs will catch future budget check issues in production
-- ✅ Prevents regression: unit tests ensure all briefing pipeline operations remain critical
-
-**Next Steps:**
-1. Create PR: `fix/bug-065-briefing-soft-limit` → main
-2. Deploy to production
-3. Verify briefing generation succeeds end-to-end (no more "soft_limit" errors)
-4. Monitor logs for new debug output to validate soft limit behavior
-
----
-
-## Key Files
-
-**LLM pipeline (where token leak likely lives):**
-- `src/crypto_news_aggregator/llm/anthropic.py` — primary LLM client
-- `src/crypto_news_aggregator/llm/optimized_anthropic.py` — entity/narrative extraction
-- `src/crypto_news_aggregator/services/briefing_agent.py` — briefing generation
-- `src/crypto_news_aggregator/services/narrative_themes.py` — narrative enrichment
-- `src/crypto_news_aggregator/services/cost_tracker.py` — spend tracking + budget checks
-
-**Monitoring:**
-- `src/crypto_news_aggregator/services/heartbeat.py` — pipeline heartbeat
-- `src/crypto_news_aggregator/api/v1/health.py` — health endpoint
-
-**Config:**
-- `src/crypto_news_aggregator/core/config.py` — all settings
-- `src/crypto_news_aggregator/tasks/beat_schedule.py` — Celery Beat schedule
+**Sessions 1–13 (Sprint 12–13):**
+- Built complete Backdrop platform: FastAPI + Celery + MongoDB + Redis + Railway
+- Narrative fingerprinting/deduplication (89.1% match rate)
+- Entity extraction with tier classification
+- Twice-daily LLM-generated briefings (morning/evening)
+- Cost optimization from $90+/month to under $10/month
