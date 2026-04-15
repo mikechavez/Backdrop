@@ -1,13 +1,30 @@
 # Session Start
 
-**Date:** 2026-04-14 (Session 30, Sprint 15)
-**Status:** BUG-077 ✅ complete (model routing enforcement), BUG-076 ✅ complete (fingerprint backfill)
-**Branch:** docs/bug-076-migration-complete (parent: main)
-**Next:** Push PR, then start BUG-079 (budget enforcement blind spot)
+**Date:** 2026-04-14 (Session 31, Sprint 15)
+**Status:** BUG-078 ✅ complete (RSS enrichment operation names)
+**Branch:** fix/bug-078-rss-enrichment-operation-names (parent: main)
+**Next:** Create PR, then close Sprint 15
 
 ---
 
-## Current Session (Session 30 — Sprint 15)
+## Current Session (Session 31 — Sprint 15)
+
+**BUG-078 FIXED** — RSS enrichment operation names
+- **Problem:** Four async methods in `AnthropicProvider` were calling `_get_completion_with_usage()` without passing the `operation` parameter, causing all traces to fall back to `"provider_fallback"`
+- **Impact:** ~159 calls/day ($0.149/day) from enrichment operations were invisible in operation-level cost tracking
+- **Fix:** Added operation parameter to four call sites:
+  - `enrich_articles_batch` line 550: pass `operation="article_enrichment_batch"`
+  - `score_relevance_tracked` line 633: pass `operation=operation`
+  - `analyze_sentiment_tracked` line 695: pass `operation=operation`
+  - `extract_themes_tracked` line 758: pass `operation=operation`
+- **Cost impact:** All enrichment calls now properly tracked under correct operation names (sentiment_analysis, theme_extraction, relevance_scoring, article_enrichment_batch)
+- **Testing:** Post-deploy verification will show zero `provider_fallback` entries from enrichment after one cycle
+- **Commit:** 6448289
+- **Status:** ✅ Complete, ready to push
+
+---
+
+## Previous Session (Session 30 — Sprint 15)
 
 **BUG-077 FIXED** — Model routing enforcement
 - **Problem:** `_validate_model_routing()` logged warnings but allowed wrong models through, risking 25× cost multiplier
