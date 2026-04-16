@@ -49,7 +49,17 @@ class MarketEventDetector:
 
         Returns:
             List of detected market events with details
+
+        NOTE: DISABLED (BUG-083). The detection logic has six compounding
+        failures — OR keyword matching, no relevance validation, blind volume
+        extraction, low thresholds, missing narrative metadata, and force-boosted
+        ranking — that cause phantom narratives with fabricated financial figures
+        to lead every briefing. Disabled until a proper rebuild (TASK-072).
         """
+        logger.info("Market event detector disabled (BUG-083). Returning empty list.")
+        return []
+
+        # --- DISABLED CODE BELOW (BUG-083) ---
         db = await mongo_manager.get_async_database()
         articles_collection = db.articles
         now = datetime.now(timezone.utc)
