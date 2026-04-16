@@ -109,6 +109,27 @@ Infrastructure is stable and scheduled briefings are working. The blocker was co
 - **Defense-in-depth strategy:** Complements BUG-081's briefing-level critique checks with validation at the narrative layer
 - **Branch:** `fix/bug-082-narrative-implausible-figures` (ready for PR)
 
+### BUG-084: Narrative summary generator fabricates events not present in source articles ✅ FIXED
+- **Status:** ✅ RESOLVED — 2026-04-15
+- **Code fix deployed:** 2026-04-15 (commits 3edbf48, 4e03067)
+- **Root cause:** Three compounding issues:
+  1. **Prompt encouraged fabrication:** "Synthesize...into cohesive narrative" told LLM to find coherence even when articles shared only entity, not story
+  2. **Insufficient grounding:** Only 300 chars of article text provided; with minimal context like "Kraken + confidential + filing", model hallucinated security breach
+  3. **Wrong model:** Used Sonnet instead of Haiku, contradicting project standardization
+- **Changes:**
+  - Increased article context from 300 to 800 characters
+  - Replaced "synthesize cohesive narrative" with explicit grounding: "ONLY on events explicitly described in articles"
+  - Added CRITICAL instruction block against inferring/speculating events not in source text
+  - Switched from Sonnet to Haiku; reduced temperature 0.7 → 0.5
+  - Fixed cache key mismatch: use HAIKU_MODEL consistently
+- **Testing:** Manual verification required post-deploy:
+  1. Mark existing Kraken narrative dormant in MongoDB
+  2. Wait for next clustering cycle to regenerate from three IPO articles
+  3. Verify new summary describes IPO filing, not fabricated extortion event
+  4. Verify logs show Haiku model for `narrative_summary` operations
+- **Branch:** `fix/bug-084-narrative-summary-fabrication` (ready for PR)
+- **Follow-up:** TASK-073 (post-generation validation checks whether summary claims have lexical support in source articles)
+
 ### BUG-083: Market event detector creates phantom narratives with fabricated financial figures 🔴 PART 1 COMPLETE
 - **Status:** Part 1 complete, Part 2 pending — 2026-04-15
 - **Severity:** Critical — every briefing leads with fabricated financial data
@@ -192,6 +213,7 @@ Infrastructure is stable and scheduled briefings are working. The blocker was co
 - [x] BUG-080 resolved: Briefing date mismatch fixed with timezone-aware conversion (2026-04-15)
 - [x] BUG-081 resolved: Briefing quality guardrails for duplicate events, unnamed entities, implausible figures (2026-04-15)
 - [x] BUG-082 resolved: Narrative summary pipeline validates implausible figures with post-generation checks (2026-04-15)
+- [x] BUG-084 resolved: Narrative summary grounding constraints prevent fabrication of non-existent events (2026-04-15)
 - [x] BUG-083 Part 1 resolved: Market event detector disabled, no new phantom narratives created (2026-04-15)
 - [ ] BUG-083 Part 2: MongoDB cleanup of existing phantom narratives (pending approval)
 - [ ] TASK-071 complete: enforcement thresholds recalibrated to reflect true baseline
@@ -221,6 +243,7 @@ Infrastructure is stable and scheduled briefings are working. The blocker was co
 | BUG-080 | Briefing date mismatch in LLM prompt | P2 | ✅ COMPLETE (2026-04-15) |
 | BUG-081 | Briefing duplicate events and unnamed entities | P2 | ✅ COMPLETE (2026-04-15) |
 | BUG-082 | Narrative summary pipeline implausible figures | P2 | ✅ COMPLETE (2026-04-15) |
+| BUG-084 | Narrative summary generator fabricates events | P1 | ✅ COMPLETE (2026-04-15) |
 | BUG-083 | Market event detector phantom narratives | P1 | 🔴 PART 1 COMPLETE, PART 2 PENDING (2026-04-15) |
 | TASK-069 | Cost dashboard + Slack alerts | P2 | Ready |
 | TASK-070 | Narrative cost investigation | P3 | Backlog |
