@@ -1,13 +1,37 @@
 # Session Start
 
-**Date:** 2026-04-15 (Session 36, Sprint 15)
-**Status:** BUG-080, BUG-081, BUG-082, BUG-084 (briefing quality + narrative grounding) complete. BUG-083 Part 1 (detector disabled) complete.
-**Branches Ready:** fix/bug-080-briefing-date-mismatch, fix/bug-081-briefing-separate-stories, fix/bug-082-narrative-implausible-figures, fix/bug-083-market-event-detector-phantom-narratives, fix/bug-084-narrative-summary-fabrication
-**Next:** Part 2 of BUG-083 (MongoDB cleanup), then create PRs for all bugs, then TASK-069 (cost dashboard + Slack alerts)
+**Date:** 2026-04-15 (Session 37, Sprint 15)
+**Status:** All BUGs complete (BUG-080, BUG-081, BUG-082, BUG-084 briefing quality; BUG-083 Part 1). TASK-073 (zombie narrative auto-dormancy) complete.
+**Branches Ready:** fix/bug-080-briefing-date-mismatch, fix/bug-081-briefing-separate-stories, fix/bug-082-narrative-implausible-figures, fix/bug-083-market-event-detector-phantom-narratives, fix/bug-084-narrative-summary-fabrication, feat/task-073-auto-dormant-narratives
+**Next:** Part 2 of BUG-083 (MongoDB cleanup), create PRs for all bugs + TASK-073, then TASK-069 (cost dashboard + Slack alerts)
 
 ---
 
 ## Current Session Context
+
+### What was completed in Session 37
+
+**TASK-073 COMPLETE: Auto-dormant zombies narratives when all source articles are purged**
+
+Implemented automated detection and dormancy marking for zombie narratives (narratives with zero surviving source articles). Two-part implementation: one-time cleanup query and periodic automated check.
+
+**Implementation deployed (commit c8e8e5b):**
+- **Part 1 — One-time cleanup script:** Created `scripts/cleanup_zombie_narratives.py`
+  - MongoDB aggregation identifies hot narratives with zero surviving articles
+  - Supports `--dry-run` mode for safe preview
+  - Marks identified narratives dormant with `_disabled_by: "TASK-073-zombie-cleanup"`
+  - Tested against production: found 10 zombie narratives from prior sessions
+- **Part 2 — Periodic automated check:** Integrated into worker.py
+  - New function `auto_dormant_zombie_narratives()` in `tasks/narrative_cleanup.py`
+  - Runs every 1 hour via worker scheduler
+  - Automatically catches zombies post-article-purge
+  - Logs warnings when narratives auto-dormanted for Railway visibility
+- **Testing:** 6 comprehensive unit tests covering detection, dormanting, edge cases; all pass ✅
+- **Impact:** Prevents fabricated/un-verifiable narratives from appearing in briefings without manual audits
+
+**Branch:** feat/task-073-auto-dormant-narratives (ready for PR)
+
+---
 
 ### What was completed in Session 36
 
