@@ -109,6 +109,26 @@ Infrastructure is stable and scheduled briefings are working. The blocker was co
 - **Defense-in-depth strategy:** Complements BUG-081's briefing-level critique checks with validation at the narrative layer
 - **Branch:** `fix/bug-082-narrative-implausible-figures` (ready for PR)
 
+### BUG-083: Market event detector creates phantom narratives with fabricated financial figures 🔴 PART 1 COMPLETE
+- **Status:** Part 1 complete, Part 2 pending — 2026-04-15
+- **Severity:** Critical — every briefing leads with fabricated financial data
+- **Root cause:** Six compounding failures in detector:
+  1. OR keyword matching (matches unrelated articles)
+  2. No relevance validation
+  3. Blind volume extraction (sums unrelated dollar amounts)
+  4. Low thresholds (4+ articles, 3+ entities)
+  5. Missing narrative metadata (can't deduplicate)
+  6. Force-boosted ranking (guaranteed #1 in briefing)
+- **Part 1 — Code fix deployed (commit 6850efb):**
+  - `detect_market_events()` now returns empty list with info log
+  - Original implementation preserved as disabled code with detailed notes
+  - Detector no longer creates new phantom narratives
+- **Part 2 — MongoDB cleanup (PENDING):**
+  - Run cleanup query to mark existing market_shock narratives as dormant
+  - Query provided in ticket; awaiting approval to execute in production
+- **Branch:** `fix/bug-082-narrative-implausible-figures` (Part 1 added)
+- **Follow-up:** TASK-072 (rebuild detector with proper phrase matching, relevance validation, contextual extraction, higher thresholds)
+
 ---
 
 ## Priority 2 — Observability
@@ -172,6 +192,8 @@ Infrastructure is stable and scheduled briefings are working. The blocker was co
 - [x] BUG-080 resolved: Briefing date mismatch fixed with timezone-aware conversion (2026-04-15)
 - [x] BUG-081 resolved: Briefing quality guardrails for duplicate events, unnamed entities, implausible figures (2026-04-15)
 - [x] BUG-082 resolved: Narrative summary pipeline validates implausible figures with post-generation checks (2026-04-15)
+- [x] BUG-083 Part 1 resolved: Market event detector disabled, no new phantom narratives created (2026-04-15)
+- [ ] BUG-083 Part 2: MongoDB cleanup of existing phantom narratives (pending approval)
 - [ ] TASK-071 complete: enforcement thresholds recalibrated to reflect true baseline
 - [ ] TASK-069 complete: cost dashboard live, Slack alerts wired
 - [ ] Daily cost trending toward $0.50–0.70 target
@@ -199,6 +221,7 @@ Infrastructure is stable and scheduled briefings are working. The blocker was co
 | BUG-080 | Briefing date mismatch in LLM prompt | P2 | ✅ COMPLETE (2026-04-15) |
 | BUG-081 | Briefing duplicate events and unnamed entities | P2 | ✅ COMPLETE (2026-04-15) |
 | BUG-082 | Narrative summary pipeline implausible figures | P2 | ✅ COMPLETE (2026-04-15) |
+| BUG-083 | Market event detector phantom narratives | P1 | 🔴 PART 1 COMPLETE, PART 2 PENDING (2026-04-15) |
 | TASK-069 | Cost dashboard + Slack alerts | P2 | Ready |
 | TASK-070 | Narrative cost investigation | P3 | Backlog |
 | TASK-071 | Spend threshold recalibration | P4 | Ready (lower urgency — spend already under limit) |

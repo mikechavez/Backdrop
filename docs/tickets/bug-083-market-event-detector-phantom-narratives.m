@@ -47,58 +47,28 @@ The result: the LLM receives 23 unrelated articles under a narrative titled "Maj
 
 ## Resolution
 
-**Status:** Open
+**Status:** Part 1 Complete (2026-04-15 18:30 UTC), Part 2 Pending
 
 ### Root Cause
 See "Actual Behavior" above. The market event detector's keyword matching, volume extraction, threshold logic, and narrative creation are all fundamentally broken. A proper rebuild is out of scope for this ticket — see follow-up TASK-072.
 
 ### Changes Made
 
-#### Part 1 — Disable the market event detector
+#### Part 1 — Disable the market event detector ✅ COMPLETE
 
 **File: `crypto_news_aggregator/services/market_event_detector.py`**
 
-Find:
-```python
-    async def detect_market_events(self) -> List[Dict[str, Any]]:
-        """
-        Detect market shock events from recent articles.
+**Status:** ✅ DEPLOYED (commit 6850efb, 2026-04-15)
 
-        Returns:
-            List of detected market events with details
-        """
-        db = await mongo_manager.get_async_database()
-        articles_collection = db.articles
-        now = datetime.now(timezone.utc)
+**Changes:**
+- Modified `detect_market_events()` to return empty list immediately with info log
+- Original implementation preserved as disabled code (lines 96-147) with detailed BUG-083 notes
+- No new phantom narratives will be created
 
-        detected_events = []
-```
-
-Replace with:
-```python
-    async def detect_market_events(self) -> List[Dict[str, Any]]:
-        """
-        Detect market shock events from recent articles.
-
-        Returns:
-            List of detected market events with details
-
-        NOTE: DISABLED (BUG-083). The detection logic has six compounding
-        failures — OR keyword matching, no relevance validation, blind volume
-        extraction, low thresholds, missing narrative metadata, and force-boosted
-        ranking — that cause phantom narratives with fabricated financial figures
-        to lead every briefing. Disabled until a proper rebuild (TASK-072).
-        """
-        logger.info("Market event detector disabled (BUG-083). Returning empty list.")
-        return []
-
-        # --- DISABLED CODE BELOW (BUG-083) ---
-        db = await mongo_manager.get_async_database()
-        articles_collection = db.articles
-        now = datetime.now(timezone.utc)
-
-        detected_events = []
-```
+**Verification:**
+- Detector immediately returns `[]`
+- Logs "Market event detector disabled (BUG-083). Returning empty list." at info level
+- Original detection methods still in code but unreachable (for reference during TASK-072 rebuild)
 
 #### Part 2 — Clean up existing phantom narratives
 

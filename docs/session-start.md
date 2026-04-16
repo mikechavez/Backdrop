@@ -1,13 +1,29 @@
 # Session Start
 
-**Date:** 2026-04-15 (Session 34, Sprint 15)
-**Status:** All P1-P2 bugs complete and validated. BUG-080, BUG-081, BUG-082 (briefing quality) fixed. Ready for PR review.
-**Branches Ready:** fix/bug-080-briefing-date-mismatch, fix/bug-081-briefing-separate-stories, fix/bug-082-narrative-implausible-figures
-**Next:** Create PRs for BUG-080, BUG-081, BUG-082, then TASK-069 (cost dashboard + Slack alerts) or TASK-071 (threshold recalibration)
+**Date:** 2026-04-15 (Session 35, Sprint 15)
+**Status:** BUG-080, BUG-081, BUG-082 (briefing quality) fixed and ready for PR. BUG-083 Part 1 (detector disabled) complete.
+**Branches Ready:** fix/bug-080-briefing-date-mismatch, fix/bug-081-briefing-separate-stories, fix/bug-082-narrative-implausible-figures, fix/bug-082-narrative-implausible-figures (BUG-083 Part 1 added)
+**Next:** Part 2 of BUG-083 (MongoDB cleanup), then create PRs for all bugs, then TASK-069 (cost dashboard + Slack alerts)
 
 ---
 
 ## Current Session Context
+
+### What was completed in Session 35
+
+**BUG-083 PART 1: Disable market event detector creating phantom narratives**
+
+The market event detector was creating fictional narratives like "Major Market Liquidation Event - $5.0B Cascade" by matching 23 unrelated articles and summing unrelated dollar amounts. Six compounding failures: OR keyword matching, no relevance validation, blind volume extraction, low thresholds, missing narrative metadata, and force-boosted ranking.
+
+**Fix deployed (commit 6850efb):**
+- Modified `detect_market_events()` to return empty list immediately with info log
+- Preserved original implementation as disabled code with detailed BUG-083 notes
+- Detector no longer creates phantom narratives
+
+**Status:** Part 1 complete. Part 2 (MongoDB cleanup of existing phantom narratives) pending approval.
+**Branch:** `fix/bug-082-narrative-implausible-figures` (same branch, Part 1 added)
+
+---
 
 ### What was completed in Session 34
 
