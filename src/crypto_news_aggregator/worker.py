@@ -17,6 +17,7 @@ from crypto_news_aggregator.db.operations.narratives import upsert_narrative
 from crypto_news_aggregator.services.entity_alert_service import detect_alerts
 from crypto_news_aggregator.services.entity_normalization import normalize_entity_name
 from crypto_news_aggregator.services.narrative_deduplication import deduplicate_narratives
+from crypto_news_aggregator.tasks.narrative_cleanup import auto_dormant_zombie_narratives
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
@@ -237,14 +238,14 @@ async def schedule_narrative_updates(interval_seconds: int, run_immediately: boo
 async def check_alerts():
     """
     Check for entity alerts based on trending signals.
-    
+
     Runs alert detection and creates new alerts in the database.
     Scheduled to run every 2 minutes.
     """
     try:
         logger.info("Starting alert detection cycle...")
         triggered_alerts = await detect_alerts()
-        
+
         if triggered_alerts:
             logger.info(f"Triggered {len(triggered_alerts)} new alerts")
         else:
@@ -253,22 +254,52 @@ async def check_alerts():
         logger.exception(f"Error checking alerts: {e}")
 
 
+async def check_zombie_narratives():
+    """
+    Check for and dormant zombie narratives with no surviving source articles.
+
+    Runs auto-dormant check to identify narratives where all referenced
+    article_ids have been deleted (e.g., during MongoDB purges).
+    Scheduled to run daily or after RSS ingestion cycles.
+    """
+    try:
+        logger.info("Starting zombie narrative check...")
+        result = await auto_dormant_zombie_narratives()
+
+        checked = result.get("hot_narratives_checked", 0)
+        found = result.get("zombie_narratives_found", 0)
+        dormanted = result.get("narratives_dormanted", 0)
+
+        if dormanted > 0:
+            logger.warning(
+                f"Zombie narrative check complete: "
+                f"checked {checked}, found {found}, dormanted {dormanted}"
+            )
+        else:
+            logger.info(
+                f"Zombie narrative check complete: "
+                f"checked {checked}, found {found}, dormanted {dormanted}"
+            )
+    except Exception as e:
+        logger.exception(f"Error checking zombie narratives: {e}")
+
+
 async def schedule_alert_checks(interval_seconds: int, run_immediately: bool = False) -> None:
     """Continuously run alert checks on a fixed interval.
-    
+
     Args:
         interval_seconds: Time to wait between alert check cycles
         run_immediately: If True, run first check immediately on startup
     """
     logger.info("Starting alert check schedule with interval %s seconds", interval_seconds)
-    
+
     if run_immediately:
         logger.info("Running initial alert check on startup...")
         try:
             await check_alerts()
         except Exception as exc:
             logger.exception("Initial alert check failed: %s", exc)
-    
+
     while True:
         try:
             await asyncio.sleep(interval_seconds)
@@ -278,6 +309,33 @@ async def schedule_alert_checks(interval_seconds: int, run_immediately: bool = F
             raise
         except Exception as exc:
             logger.exception("Alert check cycle failed: %s", exc)
+
+
+async def schedule_zombie_narrative_checks(interval_seconds: int, run_immediately: bool = False) -> None:
+    """Continuously run zombie narrative checks on a fixed interval.
+
+    Args:
+        interval_seconds: Time to wait between zombie narrative check cycles
+        run_immediately: If True, run first check immediately on startup
+    """
+    logger.info("Starting zombie narrative check schedule with interval %s seconds", interval_seconds)
+
+    if run_immediately:
+        logger.info("Running initial zombie narrative check on startup...")
+        try:
+            await check_zombie_narratives()
+        except Exception as exc:
+            logger.exception("Initial zombie narrative check failed: %s", exc)
+
+    while True:
+        try:
+            await asyncio.sleep(interval_seconds)
+            await check_zombie_narratives()
+        except asyncio.CancelledError:
+            logger.info("Zombie narrative check schedule cancelled")
+            raise
+        except Exception as exc:
+            logger.exception("Zombie narrative check cycle failed: %s", exc)
 
 
 async def main():
@@ -317,6 +375,11 @@ async def main():
         logger.info("Starting alert check schedule (every %s seconds)", alert_interval)
         tasks.append(asyncio.create_task(schedule_alert_checks(alert_interval)))
         logger.info("Alert check task created.")
+
+        zombie_check_interval = 60 * 60  # 1 hour (daily check at scale)
+        logger.info("Starting zombie narrative check schedule (every %s seconds)", zombie_check_interval)
+        tasks.append(asyncio.create_task(schedule_zombie_narrative_checks(zombie_check_interval)))
+        logger.info("Zombie narrative check task created.")
 
     if not tasks:
         logger.warning("No background tasks to run. Worker will exit.")

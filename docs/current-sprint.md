@@ -152,6 +152,34 @@ Infrastructure is stable and scheduled briefings are working. The blocker was co
 
 ---
 
+## Maintenance & Preventive Measures
+
+### TASK-073: Auto-dormant narratives when all source articles are purged ✅ COMPLETE
+- **Status:** ✅ RESOLVED — 2026-04-15
+- **Code deployed:** 2026-04-15 (commit c8e8e5b)
+- **Problem:** When articles are deleted (e.g., MongoDB purges to free space), narratives remain hot indefinitely with summaries that can never be re-verified. These zombie narratives could contain fabricated content (as in BUG-084's Kraken narrative) with no way to detect it.
+- **Solution — Part 1 (One-time cleanup):**
+  - Created `scripts/cleanup_zombie_narratives.py`
+  - MongoDB aggregation identifies hot narratives with zero surviving articles
+  - Supports `--dry-run` mode for safe preview before executing cleanup
+  - Production test run found 10 zombies from prior sessions (all from BUG-084 cleanup)
+  - Marks identified narratives dormant: `lifecycle_state: "dormant"`, `_disabled_by: "TASK-073-zombie-cleanup"`
+- **Solution — Part 2 (Periodic automated check):**
+  - New async function `auto_dormant_zombie_narratives()` in `tasks/narrative_cleanup.py`
+  - Integrated into worker.py scheduler with 1-hour interval (escalates to daily at scale)
+  - Automatically catches newly-created zombies post-article-purge
+  - Logs warning message with narrative titles for Railway visibility: "Auto-dormanted {count} zombie narrative(s)"
+  - Updates include: `dormant_since` timestamp, `_disabled_by: "TASK-073-auto-cleanup"`
+- **Testing:**
+  - Created `tests/tasks/test_narrative_cleanup.py` with 6 comprehensive unit tests ✅
+  - Tests cover: zombie detection, multiple zombies, no-zombies case, empty articles list, field validation
+  - All 15 narrative cleanup tests pass (no regressions) ✅
+- **Defense strategy:** Complements BUG-084's grounding constraints by catching zombies that slip into the active set
+- **Branch:** `feat/task-073-auto-dormant-narratives` (ready for PR)
+- **Impact:** Prevents fabricated/un-verifiable narratives from appearing in user-facing briefings without manual audits
+
+---
+
 ## Priority 2 — Observability
 
 ### TASK-069: Cost dashboard + Slack alerts
@@ -215,6 +243,7 @@ Infrastructure is stable and scheduled briefings are working. The blocker was co
 - [x] BUG-082 resolved: Narrative summary pipeline validates implausible figures with post-generation checks (2026-04-15)
 - [x] BUG-084 resolved: Narrative summary grounding constraints prevent fabrication of non-existent events (2026-04-15)
 - [x] BUG-083 Part 1 resolved: Market event detector disabled, no new phantom narratives created (2026-04-15)
+- [x] TASK-073 resolved: Auto-dormant zombie narratives with one-time cleanup + periodic check (2026-04-15)
 - [ ] BUG-083 Part 2: MongoDB cleanup of existing phantom narratives (pending approval)
 - [ ] TASK-071 complete: enforcement thresholds recalibrated to reflect true baseline
 - [ ] TASK-069 complete: cost dashboard live, Slack alerts wired
@@ -245,6 +274,7 @@ Infrastructure is stable and scheduled briefings are working. The blocker was co
 | BUG-082 | Narrative summary pipeline implausible figures | P2 | ✅ COMPLETE (2026-04-15) |
 | BUG-084 | Narrative summary generator fabricates events | P1 | ✅ COMPLETE (2026-04-15) |
 | BUG-083 | Market event detector phantom narratives | P1 | 🔴 PART 1 COMPLETE, PART 2 PENDING (2026-04-15) |
+| TASK-073 | Auto-dormant narratives with no surviving articles | P3 | ✅ COMPLETE (2026-04-15) |
 | TASK-069 | Cost dashboard + Slack alerts | P2 | Ready |
 | TASK-070 | Narrative cost investigation | P3 | Backlog |
 | TASK-071 | Spend threshold recalibration | P4 | Ready (lower urgency — spend already under limit) |

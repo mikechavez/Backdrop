@@ -12,7 +12,8 @@ from bson import ObjectId
 from crypto_news_aggregator.tasks.narrative_cleanup import (
     cleanup_invalid_article_references,
     update_article_narrative_references,
-    validate_narrative_data_integrity
+    validate_narrative_data_integrity,
+    auto_dormant_zombie_narratives
 )
 
 
@@ -443,3 +444,330 @@ async def test_validate_narrative_data_integrity_multiple_issues():
         assert len(result["count_mismatches"]) == 1
         assert len(result["duplicates"]) == 1
         assert len(result["invalid_references"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_auto_dormant_zombie_narratives_finds_zombies():
+    """Test detection of narratives with no surviving articles."""
+    with patch("crypto_news_aggregator.tasks.narrative_cleanup.mongo_manager") as mock_mongo:
+        mock_db = MagicMock()
+        mock_narratives = MagicMock()
+        mock_articles = MagicMock()
+        mock_db.narratives = mock_narratives
+        mock_db.articles = mock_articles
+
+        oid1 = ObjectId()
+        oid2 = ObjectId()
+        zombie_oid1 = ObjectId()
+        zombie_oid2 = ObjectId()
+        zombie_id = ObjectId()
+
+        # Hot narratives: one with surviving articles, one without
+        mock_narratives.find.return_value.to_list = AsyncMock(
+            return_value=[
+                {
+                    "_id": ObjectId(),
+                    "title": "Active Narrative",
+                    "article_ids": [str(oid1), str(oid2)],
+                    "lifecycle_state": "hot"
+                },
+                {
+                    "_id": zombie_id,
+                    "title": "Zombie Narrative",
+                    "article_ids": [str(zombie_oid1), str(zombie_oid2)],  # Valid ObjectId format but don't exist
+                    "lifecycle_state": "hot"
+                }
+            ]
+        )
+
+        # Mock distinct to return different results based on what IDs are checked
+        distinct_calls = []
+        async def mock_distinct(field, query):
+            distinct_calls.append(query)
+            if "$in" in query["_id"]:
+                ids = query["_id"]["$in"]
+                # Return only the active narrative's articles
+                result = [oid for oid in ids if oid in [oid1, oid2]]
+                return result
+            return []
+
+        mock_articles.distinct = mock_distinct
+
+        # Mock update_one for dormanting
+        mock_update_result = MagicMock()
+        mock_update_result.modified_count = 1
+        mock_narratives.update_one = AsyncMock(return_value=mock_update_result)
+
+        async def get_db():
+            return mock_db
+
+        mock_mongo.get_async_database = get_db
+
+        # Run auto-dormant check
+        result = await auto_dormant_zombie_narratives()
+
+        # Verify results
+        assert result["hot_narratives_checked"] == 2
+        assert result["zombie_narratives_found"] == 1
+        assert result["narratives_dormanted"] == 1
+        assert "Zombie Narrative" in result["titles"]
+
+
+@pytest.mark.asyncio
+async def test_auto_dormant_zombie_narratives_no_zombies():
+    """Test when all hot narratives have surviving articles."""
+    with patch("crypto_news_aggregator.tasks.narrative_cleanup.mongo_manager") as mock_mongo:
+        mock_db = MagicMock()
+        mock_narratives = MagicMock()
+        mock_articles = MagicMock()
+        mock_db.narratives = mock_narratives
+        mock_db.articles = mock_articles
+
+        oid1 = ObjectId()
+        oid2 = ObjectId()
+
+        # Hot narratives with surviving articles
+        mock_narratives.find.return_value.to_list = AsyncMock(
+            return_value=[
+                {
+                    "_id": ObjectId(),
+                    "title": "Active Narrative 1",
+                    "article_ids": [str(oid1)],
+                    "lifecycle_state": "hot"
+                },
+                {
+                    "_id": ObjectId(),
+                    "title": "Active Narrative 2",
+                    "article_ids": [str(oid2)],
+                    "lifecycle_state": "hot"
+                }
+            ]
+        )
+
+        # All articles exist
+        async def mock_distinct(field, query):
+            if "$in" in query["_id"]:
+                ids = query["_id"]["$in"]
+                return ids  # All articles exist
+            return []
+
+        mock_articles.distinct = mock_distinct
+        mock_narratives.update_one = AsyncMock()
+
+        async def get_db():
+            return mock_db
+
+        mock_mongo.get_async_database = get_db
+
+        # Run auto-dormant check
+        result = await auto_dormant_zombie_narratives()
+
+        # Verify no zombies found
+        assert result["hot_narratives_checked"] == 2
+        assert result["zombie_narratives_found"] == 0
+        assert result["narratives_dormanted"] == 0
+        mock_narratives.update_one.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_auto_dormant_zombie_narratives_empty_articles():
+    """Test handling of narratives with empty article_ids list."""
+    with patch("crypto_news_aggregator.tasks.narrative_cleanup.mongo_manager") as mock_mongo:
+        mock_db = MagicMock()
+        mock_narratives = MagicMock()
+        mock_articles = MagicMock()
+        mock_db.narratives = mock_narratives
+        mock_db.articles = mock_articles
+
+        # Hot narrative with empty article_ids
+        mock_narratives.find.return_value.to_list = AsyncMock(
+            return_value=[
+                {
+                    "_id": ObjectId(),
+                    "title": "Narrative with no articles",
+                    "article_ids": [],
+                    "lifecycle_state": "hot"
+                }
+            ]
+        )
+
+        mock_articles.distinct = AsyncMock()
+        mock_narratives.update_one = AsyncMock()
+
+        async def get_db():
+            return mock_db
+
+        mock_mongo.get_async_database = get_db
+
+        # Run auto-dormant check
+        result = await auto_dormant_zombie_narratives()
+
+        # Narratives with empty article_ids are skipped
+        assert result["hot_narratives_checked"] == 1
+        assert result["zombie_narratives_found"] == 0
+        assert result["narratives_dormanted"] == 0
+        mock_articles.distinct.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_auto_dormant_zombie_narratives_multiple_zombies():
+    """Test dormanting multiple zombie narratives."""
+    with patch("crypto_news_aggregator.tasks.narrative_cleanup.mongo_manager") as mock_mongo:
+        mock_db = MagicMock()
+        mock_narratives = MagicMock()
+        mock_articles = MagicMock()
+        mock_db.narratives = mock_narratives
+        mock_db.articles = mock_articles
+
+        # Create valid ObjectId strings for zombies
+        zombie_oid1 = ObjectId()
+        zombie_oid2 = ObjectId()
+        zombie_oid3 = ObjectId()
+
+        # Multiple hot narratives, all zombies
+        mock_narratives.find.return_value.to_list = AsyncMock(
+            return_value=[
+                {
+                    "_id": ObjectId(),
+                    "title": "Zombie 1",
+                    "article_ids": [str(zombie_oid1)],
+                    "lifecycle_state": "hot"
+                },
+                {
+                    "_id": ObjectId(),
+                    "title": "Zombie 2",
+                    "article_ids": [str(zombie_oid2)],
+                    "lifecycle_state": "hot"
+                },
+                {
+                    "_id": ObjectId(),
+                    "title": "Zombie 3",
+                    "article_ids": [str(zombie_oid3)],
+                    "lifecycle_state": "hot"
+                }
+            ]
+        )
+
+        # No articles exist
+        async def mock_distinct(field, query):
+            return []
+
+        mock_articles.distinct = mock_distinct
+
+        # Mock update_one
+        mock_update_result = MagicMock()
+        mock_update_result.modified_count = 1
+        mock_narratives.update_one = AsyncMock(return_value=mock_update_result)
+
+        async def get_db():
+            return mock_db
+
+        mock_mongo.get_async_database = get_db
+
+        # Run auto-dormant check
+        result = await auto_dormant_zombie_narratives()
+
+        # Verify all zombies dormanted
+        assert result["hot_narratives_checked"] == 3
+        assert result["zombie_narratives_found"] == 3
+        assert result["narratives_dormanted"] == 3
+        assert len(result["titles"]) == 3
+        assert "Zombie 1" in result["titles"]
+        assert "Zombie 2" in result["titles"]
+        assert "Zombie 3" in result["titles"]
+        assert mock_narratives.update_one.call_count == 3
+
+
+@pytest.mark.asyncio
+async def test_auto_dormant_zombie_narratives_preserves_non_hot():
+    """Test that only hot narratives are checked."""
+    with patch("crypto_news_aggregator.tasks.narrative_cleanup.mongo_manager") as mock_mongo:
+        mock_db = MagicMock()
+        mock_narratives = MagicMock()
+        mock_articles = MagicMock()
+        mock_db.narratives = mock_narratives
+        mock_db.articles = mock_articles
+
+        # Find is called with lifecycle_state: "hot" filter
+        mock_narratives.find.return_value.to_list = AsyncMock(return_value=[])
+
+        mock_articles.distinct = AsyncMock()
+        mock_narratives.update_one = AsyncMock()
+
+        async def get_db():
+            return mock_db
+
+        mock_mongo.get_async_database = get_db
+
+        # Run auto-dormant check
+        result = await auto_dormant_zombie_narratives()
+
+        # Verify find was called with hot filter
+        mock_narratives.find.assert_called_once()
+        call_kwargs = mock_narratives.find.call_args
+        assert call_kwargs[0][0] == {"lifecycle_state": "hot"}
+
+        # No zombies or dormanting since no hot narratives returned
+        assert result["hot_narratives_checked"] == 0
+        assert result["zombie_narratives_found"] == 0
+        assert result["narratives_dormanted"] == 0
+
+
+@pytest.mark.asyncio
+async def test_auto_dormant_zombie_narratives_sets_dormant_fields():
+    """Test that dormant narratives have correct fields set."""
+    with patch("crypto_news_aggregator.tasks.narrative_cleanup.mongo_manager") as mock_mongo:
+        mock_db = MagicMock()
+        mock_narratives = MagicMock()
+        mock_articles = MagicMock()
+        mock_db.narratives = mock_narratives
+        mock_db.articles = mock_articles
+
+        zombie_id = ObjectId()
+        zombie_oid = ObjectId()
+
+        # One zombie narrative
+        mock_narratives.find.return_value.to_list = AsyncMock(
+            return_value=[
+                {
+                    "_id": zombie_id,
+                    "title": "Zombie",
+                    "article_ids": [str(zombie_oid)],
+                    "lifecycle_state": "hot"
+                }
+            ]
+        )
+
+        # No articles exist
+        async def mock_distinct(field, query):
+            return []
+
+        mock_articles.distinct = mock_distinct
+
+        # Capture the update call
+        update_calls = []
+        async def capture_update(*args, **kwargs):
+            update_calls.append((args, kwargs))
+            result = MagicMock()
+            result.modified_count = 1
+            return result
+
+        mock_narratives.update_one = capture_update
+
+        async def get_db():
+            return mock_db
+
+        mock_mongo.get_async_database = get_db
+
+        # Run auto-dormant check
+        result = await auto_dormant_zombie_narratives()
+
+        # Verify update_one was called with correct fields
+        assert len(update_calls) == 1
+        query, update_spec = update_calls[0][0]
+        assert query == {"_id": zombie_id}
+        assert "$set" in update_spec
+        set_data = update_spec["$set"]
+        assert set_data["lifecycle_state"] == "dormant"
+        assert "dormant_since" in set_data
+        assert set_data["_disabled_by"] == "TASK-073-auto-cleanup"
