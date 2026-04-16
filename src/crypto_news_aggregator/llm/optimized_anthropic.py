@@ -245,12 +245,12 @@ Actions: Key events or verbs"""
         use_cache: bool = True
     ) -> str:
         """
-        Generate narrative summary using Sonnet (complex reasoning required)
-        
+        Generate narrative summary using Haiku with strict grounding constraints
+
         Args:
             articles: List of related articles
             use_cache: Whether to use cached responses
-        
+
         Returns:
             Summary text
         """
@@ -259,16 +259,16 @@ Actions: Key events or verbs"""
         
         # Check cache
         if use_cache:
-            cached_response = await self.cache.get(prompt, self.SONNET_MODEL)
+            cached_response = await self.cache.get(prompt, self.HAIKU_MODEL)
             if cached_response:
                 return cached_response.get("summary", "")
 
-        # Make API call with Sonnet (complex task)
+        # Make API call with Haiku (grounding constraints via prompt)
         api_response = self._make_api_call(
             prompt=prompt,
-            model=self.SONNET_MODEL,
+            model=self.HAIKU_MODEL,
             max_tokens=500,
-            temperature=0.7,
+            temperature=0.5,
             operation="narrative_summary"
         )
 
@@ -294,7 +294,7 @@ Actions: Key events or verbs"""
 
         # Cache the result
         if use_cache:
-            await self.cache.set(prompt, self.SONNET_MODEL, result)
+            await self.cache.set(prompt, self.HAIKU_MODEL, result)
 
         return summary
     
@@ -302,19 +302,21 @@ Actions: Key events or verbs"""
         """Build prompt for narrative summary generation"""
         # Combine article titles and summaries
         articles_text = "\n\n".join([
-            f"Article {i+1}:\nTitle: {article['title']}\nSummary: {article.get('text', '')[:300]}"
+            f"Article {i+1}:\nTitle: {article['title']}\nText: {article.get('text', '')[:800]}"
             for i, article in enumerate(articles[:10])  # Limit to 10 articles
         ])
         
-        return f"""Synthesize these related crypto news articles into a cohesive narrative summary.
+        return f"""Summarize these related crypto news articles.
 
 {articles_text}
 
 Write a 2-3 sentence summary that:
-1. Identifies the main story/theme
+1. Identifies the main story or theme based ONLY on events explicitly described in the articles above
 2. Explains why it matters
 3. Notes any conflicting perspectives
 4. Verifies financial figures are consistent across articles — if sources disagree on a number, note the discrepancy rather than picking one
+
+CRITICAL: Your summary must describe only events, facts, and claims that are explicitly stated in the provided articles. Do not infer, speculate, or add events not present in the source text. If the articles describe an IPO filing, summarize the IPO filing — do not introduce security breaches, hacks, lawsuits, or other events unless they are explicitly described in the articles.
 
 Be concise and informative."""
     
