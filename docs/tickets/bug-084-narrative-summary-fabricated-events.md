@@ -38,10 +38,10 @@ Source article ObjectIds: `69dea2e61b80de5043c19775`, `69df1202b8ea0f0ffa9dfeb5`
 
 ## Resolution
 
-**Status:** Open
-**Fixed:**
-**Branch:**
-**Commit:**
+**Status:** Fixed
+**Fixed:** 2026-04-15
+**Branch:** fix/bug-084-narrative-summary-fabrication
+**Commit:** 3edbf48
 
 ### Root Cause
 Three compounding issues in `generate_narrative_summary()` and `_build_summary_prompt()`:
