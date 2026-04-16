@@ -1,13 +1,31 @@
 # Session Start
 
-**Date:** 2026-04-15 (Session 35, Sprint 15)
-**Status:** BUG-080, BUG-081, BUG-082 (briefing quality) fixed and ready for PR. BUG-083 Part 1 (detector disabled) complete.
-**Branches Ready:** fix/bug-080-briefing-date-mismatch, fix/bug-081-briefing-separate-stories, fix/bug-082-narrative-implausible-figures, fix/bug-082-narrative-implausible-figures (BUG-083 Part 1 added)
+**Date:** 2026-04-15 (Session 36, Sprint 15)
+**Status:** BUG-080, BUG-081, BUG-082, BUG-084 (briefing quality + narrative grounding) complete. BUG-083 Part 1 (detector disabled) complete.
+**Branches Ready:** fix/bug-080-briefing-date-mismatch, fix/bug-081-briefing-separate-stories, fix/bug-082-narrative-implausible-figures, fix/bug-083-market-event-detector-phantom-narratives, fix/bug-084-narrative-summary-fabrication
 **Next:** Part 2 of BUG-083 (MongoDB cleanup), then create PRs for all bugs, then TASK-069 (cost dashboard + Slack alerts)
 
 ---
 
 ## Current Session Context
+
+### What was completed in Session 36
+
+**BUG-084 FIXED: Narrative summary generator fabricates events not present in source articles**
+
+The narrative summary generator was producing summaries describing events not in source articles. Three root causes: (1) prompt encouraged "synthesizing" coherence without grounding, (2) only 300 chars of article text provided insufficient context for LLM to distinguish signal from noise, (3) used Sonnet instead of Haiku contradicting project standardization.
+
+**Fix deployed (commit 3edbf48):**
+- Increased article text context from 300 to 800 characters in `_build_summary_prompt()`
+- Replaced "synthesize into cohesive narrative" prompt with explicit grounding constraint: "only events explicitly stated in provided articles"
+- Added CRITICAL instruction block warning against inferring or speculating events not in source text
+- Switched from Sonnet to Haiku model to reduce cost while improving instruction adherence
+- Reduced temperature from 0.7 to 0.5 to limit creative drift under tighter grounding constraints
+- Fixed cache key mismatch: use HAIKU_MODEL consistently (was using SONNET_MODEL on cache.set)
+
+**Branch:** fix/bug-084-narrative-summary-fabrication (ready for PR)
+
+---
 
 ### What was completed in Session 35
 
