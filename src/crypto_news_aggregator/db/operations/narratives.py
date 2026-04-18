@@ -80,7 +80,8 @@ async def upsert_narrative(
     reawakened_from: Optional[datetime] = None,
     resurrection_velocity: Optional[float] = None,
     dormant_since: Optional[datetime] = None,
-    reactivated_count: Optional[int] = None
+    reactivated_count: Optional[int] = None,
+    needs_summary_update: Optional[bool] = None
 ) -> str:
     """
     Create or update a narrative record with full structure and timeline tracking.
@@ -108,6 +109,7 @@ async def upsert_narrative(
         resurrection_velocity: Articles per day in last 48 hours during reactivation (optional)
         dormant_since: Timestamp when narrative transitioned to dormant state (optional)
         reactivated_count: Number of times narrative has been reactivated from dormancy (optional)
+        needs_summary_update: Whether narrative summary should be refreshed; when None, field not modified (optional)
 
     Returns:
         The ID of the upserted narrative
@@ -245,7 +247,11 @@ async def upsert_narrative(
             update_data["dormant_since"] = dormant_since
         if reactivated_count is not None:
             update_data["reactivated_count"] = reactivated_count
-        
+
+        # Add summary update flag if provided
+        if needs_summary_update is not None:
+            update_data["needs_summary_update"] = needs_summary_update
+
         await collection.update_one(
             {"theme": theme},
             {"$set": update_data}
@@ -299,7 +305,11 @@ async def upsert_narrative(
             narrative_data["dormant_since"] = dormant_since
         if reactivated_count is not None:
             narrative_data["reactivated_count"] = reactivated_count
-        
+
+        # Add summary update flag if provided
+        if needs_summary_update is not None:
+            narrative_data["needs_summary_update"] = needs_summary_update
+
         result = await collection.insert_one(narrative_data)
         return str(result.inserted_id)
 

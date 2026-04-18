@@ -152,6 +152,31 @@ Infrastructure is stable and scheduled briefings are working. The blocker was co
 
 ---
 
+---
+
+## Priority 1.5 — Narrative Summary Staleness (emerging issue from BUG-084)
+
+### BUG-088: Merge path does not flag narratives for summary refresh 🔄 IN PROGRESS
+- **Status:** Code complete, tests passing — 2026-04-18
+- **Severity:** High — directly causes stale briefings (root cause of April 15/16 Bitcoin price mismatch)
+- **Root cause:** Half-shipped design. Merge path never writes `needs_summary_update: True` when articles merge into existing narratives. Creation path writes False but merge path was never implemented. Result: old summaries persist forever.
+- **Evidence:** Bitcoin narrative `68f32d197082f49df56956c6` had 8 fresh April articles but summary referenced $68K price from weeks ago while market traded $74K+
+- **Changes deployed:**
+  - **Merge path staleness detection (narrative_service.py ~1104):** Evaluate if summary stale before upsert. Flag if ANY of:
+    - 3+ net-new article IDs: `len(new_article_ids - existing_article_ids) >= 3`
+    - Lifecycle promotion: `lifecycle_state` transitions into `hot` or `emerging`
+    - Article age gap: newest article >24h newer than `last_summary_generated_at` or `last_updated`
+  - **Creation path enhancement (narrative_service.py ~1193):** Stamp `last_summary_generated_at = datetime.now(timezone.utc)` so merge path has accurate baseline
+  - **Database signature (narratives.py):** Added `needs_summary_update: Optional[bool] = None` parameter to upsert_narrative; when not None, includes in $set document
+- **Testing:**
+  - Created 5 unit tests: merge with 3+ articles, merge on age threshold, creation path tracking ✅
+  - All tests pass against updated merge path ✅
+  - Log verification: staleness detection working with explicit info logging
+- **Next steps:** git commit + PR; no blocking dependencies on FEATURE-012 consumer (feature can accumulate flags until refresh consumer deployed)
+- **Branch:** feat/task-073-auto-dormant-narratives (shared with TASK-073)
+
+---
+
 ## Maintenance & Preventive Measures
 
 ### TASK-073: Auto-dormant narratives when all source articles are purged ✅ COMPLETE
@@ -177,6 +202,37 @@ Infrastructure is stable and scheduled briefings are working. The blocker was co
 - **Defense strategy:** Complements BUG-084's grounding constraints by catching zombies that slip into the active set
 - **Branch:** `feat/task-073-auto-dormant-narratives` (ready for PR)
 - **Impact:** Prevents fabricated/un-verifiable narratives from appearing in user-facing briefings without manual audits
+
+### FEATURE-012: Scheduled narrative summary regen consumer ✅ COMPLETE
+- **Status:** ✅ RESOLVED — 2026-04-18
+- **Severity:** Critical — closes the loop on stale summary problem (BUG-088 flags narratives, FEATURE-012 refreshes them)
+- **Problem:** 85 narratives flagged via one-shot script had no consumer. Once BUG-088 ships, merge path will flag narratives with stale summaries, but nothing was draining the queue. Result: summaries never refresh, briefings reference weeks-old prices/events.
+- **Solution deployed:**
+  - **New task file:** `src/crypto_news_aggregator/tasks/narrative_refresh.py` with `@shared_task(name="refresh_flagged_narratives")`
+  - **Query:** Explicit positive match `{"needs_summary_update": True, "lifecycle_state": {"$ne": "dormant"}}` (no false positives from missing fields)
+  - **Priority sort:** `lifecycle_state` ordering (hot → emerging → rising → reactivated → cooling), then `last_updated` descending
+  - **Per-run cap:** 20 narratives max to prevent budget spikes
+  - **Budget enforcement:** Per-narrative budget check with graceful exit on soft limit (logs + breaks, no error)
+  - **Schedule:** 7:30 AM EST (morning, 30 min before briefing) + 7:30 PM EST (evening, 30 min before briefing)
+  - **Task registration:** Added to `tasks/__init__.py` imports and autodiscovery list
+  - **Beat schedule entries:** Two crontab entries in `beat_schedule.py` with 30-min expiry, 10-min hard timeout
+- **Implementation details:**
+  - Core logic: async function with MongoDB aggregation, article fetching, `generate_narrative_from_cluster()` call
+  - Error handling: Clears flags on empty articles or generation failures to prevent retry loops
+  - Metrics logged: `flagged_count_before`, `flagged_count_after`, `refreshed_count`, `skipped_budget_count`, `skipped_error_count`
+  - Uses `asyncio.new_event_loop()` pattern consistent with `narrative_consolidation_task`
+- **Testing:**
+  - Created `tests/tasks/test_narrative_refresh.py` with 5 comprehensive test cases:
+    - Basic refresh lifecycle (flag cleared, summary updated)
+    - Lifecycle priority sorting verification
+    - Budget limit enforcement (20-per-run cap, soft limit stop)
+    - Error handling (missing articles, generation failures)
+    - Dormant narrative exclusion (query excludes dormant)
+  - All 5 tests pass ✅
+- **Cost impact:** ~$0.08/day (20 refreshes × $0.002 per refresh × 2 runs/day) — well under daily limit
+- **Dependency:** Requires BUG-088 in same deploy for meaningful impact; works with existing 85 flagged narratives in interim
+- **Branch:** Not yet committed; implementation complete and tested
+- **Next steps:** Commit + PR once BUG-088 merges
 
 ---
 
@@ -274,7 +330,9 @@ Infrastructure is stable and scheduled briefings are working. The blocker was co
 | BUG-082 | Narrative summary pipeline implausible figures | P2 | ✅ COMPLETE (2026-04-15) |
 | BUG-084 | Narrative summary generator fabricates events | P1 | ✅ COMPLETE (2026-04-15) |
 | BUG-083 | Market event detector phantom narratives | P1 | 🔴 PART 1 COMPLETE, PART 2 PENDING (2026-04-15) |
+| BUG-088 | Merge path does not flag narratives for summary refresh | P1 | 🔄 CODE COMPLETE, TESTS PASSING (2026-04-18) |
 | TASK-073 | Auto-dormant narratives with no surviving articles | P3 | ✅ COMPLETE (2026-04-15) |
+| FEATURE-012 | Scheduled narrative summary regen consumer | P1 | ✅ COMPLETE (2026-04-18) |
 | TASK-069 | Cost dashboard + Slack alerts | P2 | Ready |
 | TASK-070 | Narrative cost investigation | P3 | Backlog |
 | TASK-071 | Spend threshold recalibration | P4 | Ready (lower urgency — spend already under limit) |

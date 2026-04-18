@@ -1101,6 +1101,36 @@ async def detect_narratives(
                         combined_article_ids = validated_article_ids
                         updated_article_count = len(validated_article_ids)
 
+                    # Evaluate summary staleness before upsert
+                    existing_article_ids = set(matching_narrative.get('article_ids', []))
+                    net_new_article_ids = set(combined_article_ids) - existing_article_ids
+                    previous_lifecycle = matching_narrative.get('lifecycle_state')
+                    lifecycle_promoted = (
+                        previous_lifecycle != lifecycle_state
+                        and lifecycle_state in ('hot', 'emerging')
+                    )
+                    last_summary_gen = matching_narrative.get('last_summary_generated_at') or matching_narrative.get('last_updated')
+                    if last_summary_gen and last_summary_gen.tzinfo is None:
+                        last_summary_gen = last_summary_gen.replace(tzinfo=timezone.utc)
+                    newest_article_date = max(article_dates) if article_dates else last_updated
+                    article_age_gap_hours = (
+                        (newest_article_date - last_summary_gen).total_seconds() / 3600
+                        if last_summary_gen else 0
+                    )
+
+                    needs_summary_update = (
+                        len(net_new_article_ids) >= 3
+                        or lifecycle_promoted
+                        or article_age_gap_hours > 24
+                    )
+
+                    if needs_summary_update:
+                        logger.info(
+                            f"Flagging narrative '{title}' for summary refresh: "
+                            f"net_new={len(net_new_article_ids)}, lifecycle_promoted={lifecycle_promoted}, "
+                            f"article_age_gap_hours={article_age_gap_hours:.1f}"
+                        )
+
                     try:
                         narrative_id = await upsert_narrative(
                             theme=theme,
@@ -1120,7 +1150,8 @@ async def detect_narratives(
                             reawakening_count=resurrection_fields.get('reawakening_count') if resurrection_fields else None,
                             reawakened_from=resurrection_fields.get('reawakened_from') if resurrection_fields else None,
                             resurrection_velocity=resurrection_fields.get('resurrection_velocity') if resurrection_fields else None,
-                            dormant_since=dormant_since
+                            dormant_since=dormant_since,
+                            needs_summary_update=needs_summary_update
                         )
                         
                         logger.info(
@@ -1191,6 +1222,7 @@ async def detect_narratives(
                         # Add fingerprint to narrative data
                         narrative['fingerprint'] = fingerprint
                         narrative['needs_summary_update'] = False  # Fresh summary, no update needed
+                        narrative['last_summary_generated_at'] = datetime.now(timezone.utc)
 
                         narrative_data = narrative
                         # Calculate mention velocity (articles per day) based on recent activity
