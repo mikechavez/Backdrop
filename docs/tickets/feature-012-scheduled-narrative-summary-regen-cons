@@ -1,0 +1,263 @@
+---
+id: FEATURE-012
+type: feature
+status: backlog
+priority: critical
+complexity: medium
+created: 2026-04-16
+updated: 2026-04-16
+---
+
+# Scheduled narrative summary regen consumer
+
+## Problem/Opportunity
+The `needs_summary_update` flag on narratives has no consumer anywhere in the codebase. Grep confirms zero readers. 85 narratives are currently flagged (set by a one-shot script, `scripts/add_articles_to_dormant_narratives.py`). Once BUG-088 ships and the merge path starts flagging narratives correctly, that number will grow without bound unless a consumer exists to drain it.
+
+The product impact is that stale summaries never refresh, which is why briefings reference outdated prices and context. A scheduled consumer closes the loop: merge path flags → consumer reads flag → summary regenerates → briefing consumes fresh summary.
+
+## Proposed Solution
+Add a new Celery task `refresh_flagged_narratives` that runs on a schedule, queries for flagged non-dormant narratives, regenerates their summaries via `generate_narrative_from_cluster`, and clears the flag. Budget-aware, capped per run, schedule-aligned with briefing runs so briefings see fresh summaries.
+
+Structure mirrors the existing `consolidate_narratives_task` — hourly cadence, operates on the narratives collection, registered with a short task name in `tasks/__init__.py`.
+
+## User Story
+As a Backdrop user reading the twice-daily briefing, I want narrative summaries to reflect the most recent articles attached to each narrative, so that the briefing doesn't reference price levels or events that are weeks out of date.
+
+## Acceptance Criteria
+- [ ] New task file `src/crypto_news_aggregator/tasks/narrative_refresh.py` created with `@shared_task(name="refresh_flagged_narratives")` decorator
+- [ ] Query uses explicit positive match: `{"needs_summary_update": True, "lifecycle_state": {"$ne": "dormant"}}` — NEVER `$ne: False` (per session 33 post-mortem, missing-field docs would falsely match)
+- [ ] Sort: `lifecycle_state` priority (hot first, then emerging), then `last_updated` descending — so hot narratives refresh before cooling ones
+- [ ] Per-run cap: 20 narratives max, to prevent budget blowouts from large backlogs (April 9 clustering spike precedent: 587 calls / $1.79 in 2 hours)
+- [ ] Budget check via `check_llm_budget("narrative_generate")` before each refresh; stop the run cleanly on soft limit (log and exit, don't error, don't retry)
+- [ ] For each flagged narrative: load `article_ids`, fetch article documents, call `generate_narrative_from_cluster(articles)`, update narrative with new `summary` and `title` (if changed), set `needs_summary_update: False`, set `last_summary_generated_at: now`
+- [ ] Task registered in `src/crypto_news_aggregator/tasks/__init__.py` alongside existing imports
+- [ ] Schedule entry added to `src/crypto_news_aggregator/tasks/beat_schedule.py` at 7:30 AM and 7:30 PM EST (30 min before each briefing run) to maximize briefing freshness
+- [ ] Metrics logged per run: `flagged_count_before`, `flagged_count_after`, `refreshed_count`, `skipped_budget_count`, `total_cost`
+- [ ] Flagged count in production measurably decreases within 24h of deploy
+
+## Dependencies
+- BUG-088 must ship in the same deploy or earlier — without it, the merge path doesn't flag narratives, so this consumer has nothing meaningful to drain beyond the 85 backfilled from the one-shot script.
+
+## Open Questions
+- [ ] Schedule cadence: 30 min before each briefing (proposed) vs. every 2 hours (alternative). Every-2-hours is smoother load but adds ~6 extra runs/day. Recommend briefing-aligned for freshness + cost.
+- [ ] Should the task also refresh the `fingerprint` field? Current scope says no — fingerprint is for matching, not display. Out of scope for this ticket.
+- [ ] What happens if `generate_narrative_from_cluster` returns `None` for a flagged narrative (e.g., articles were purged)? Proposed: clear the flag anyway with a warning log to prevent infinite retry, and queue for investigation.
+
+## Implementation Notes
+
+**New file: `src/crypto_news_aggregator/tasks/narrative_refresh.py`**
+
+```python
+"""
+Scheduled task to refresh narrative summaries flagged for update.
+
+Consumes narratives where needs_summary_update=True, regenerates their
+summaries via generate_narrative_from_cluster, and clears the flag.
+
+Budget-aware: respects check_llm_budget soft/hard limits.
+Capped at 20 narratives per run to prevent cost spikes.
+"""
+import logging
+import asyncio
+from datetime import datetime, timezone
+from bson import ObjectId
+from celery import shared_task
+
+from ..db.mongodb import mongo_manager
+from ..services.narrative_themes import generate_narrative_from_cluster
+from ..services.cost_tracker import check_llm_budget, refresh_budget_if_stale
+
+logger = logging.getLogger(__name__)
+
+MAX_REFRESH_PER_RUN = 20
+
+# Priority order for lifecycle_state (lower index = higher priority)
+LIFECYCLE_PRIORITY = {
+    "hot": 0,
+    "emerging": 1,
+    "rising": 2,
+    "reactivated": 3,
+    "cooling": 4,
+}
+
+
+async def _refresh_flagged_narratives_async() -> dict:
+    """
+    Core async logic. Returns metrics dict.
+    """
+    await refresh_budget_if_stale()
+    db = await mongo_manager.get_async_database()
+
+    # Explicit positive match on True. Do NOT use $ne: False (session 33 post-mortem:
+    # $ne: False matches missing fields, which inflated the query to 245+ narratives).
+    query = {
+        "needs_summary_update": True,
+        "lifecycle_state": {"$ne": "dormant"},
+    }
+
+    flagged_count_before = await db.narratives.count_documents(query)
+    logger.info(f"refresh_flagged_narratives start: flagged_count={flagged_count_before}")
+
+    cursor = db.narratives.find(query)
+    candidates = await cursor.to_list(length=None)
+
+    # Sort: lifecycle priority first, then last_updated desc
+    candidates.sort(key=lambda n: (
+        LIFECYCLE_PRIORITY.get(n.get("lifecycle_state", "cooling"), 99),
+        -(n.get("last_updated", datetime.min.replace(tzinfo=timezone.utc)).timestamp()),
+    ))
+
+    to_process = candidates[:MAX_REFRESH_PER_RUN]
+
+    refreshed_count = 0
+    skipped_budget_count = 0
+    skipped_error_count = 0
+
+    for narrative in to_process:
+        # Per-narrative budget check
+        allowed, reason = check_llm_budget("narrative_generate")
+        if not allowed:
+            logger.warning(
+                f"refresh_flagged_narratives stopping: budget limit hit "
+                f"({reason}) after {refreshed_count} refreshes"
+            )
+            skipped_budget_count = len(to_process) - refreshed_count - skipped_error_count
+            break
+
+        narrative_id = narrative["_id"]
+        article_ids = narrative.get("article_ids", [])
+
+        if not article_ids:
+            logger.warning(f"Narrative {narrative_id} has no article_ids, clearing flag")
+            await db.narratives.update_one(
+                {"_id": narrative_id},
+                {"$set": {"needs_summary_update": False}}
+            )
+            skipped_error_count += 1
+            continue
+
+        # Fetch articles
+        article_object_ids = [ObjectId(aid) if isinstance(aid, str) else aid for aid in article_ids]
+        articles_cursor = db.articles.find({"_id": {"$in": article_object_ids}})
+        articles = await articles_cursor.to_list(length=None)
+
+        if not articles:
+            logger.warning(
+                f"Narrative {narrative_id} article fetch returned empty, clearing flag"
+            )
+            await db.narratives.update_one(
+                {"_id": narrative_id},
+                {"$set": {"needs_summary_update": False}}
+            )
+            skipped_error_count += 1
+            continue
+
+        try:
+            new_narrative = await generate_narrative_from_cluster(articles)
+        except Exception as e:
+            logger.exception(f"generate_narrative_from_cluster failed for {narrative_id}: {e}")
+            skipped_error_count += 1
+            continue
+
+        if not new_narrative:
+            logger.warning(
+                f"generate_narrative_from_cluster returned None for {narrative_id}; "
+                f"clearing flag to prevent retry loop"
+            )
+            await db.narratives.update_one(
+                {"_id": narrative_id},
+                {"$set": {"needs_summary_update": False}}
+            )
+            skipped_error_count += 1
+            continue
+
+        # Update with fresh summary, clear flag, stamp timestamp
+        await db.narratives.update_one(
+            {"_id": narrative_id},
+            {"$set": {
+                "summary": new_narrative.get("summary", narrative.get("summary")),
+                "title": new_narrative.get("title", narrative.get("title")),
+                "needs_summary_update": False,
+                "last_summary_generated_at": datetime.now(timezone.utc),
+            }}
+        )
+        refreshed_count += 1
+        logger.info(
+            f"Refreshed narrative {narrative_id} "
+            f"(lifecycle_state={narrative.get('lifecycle_state')}, "
+            f"article_count={len(article_ids)})"
+        )
+
+    flagged_count_after = await db.narratives.count_documents(query)
+
+    metrics = {
+        "flagged_count_before": flagged_count_before,
+        "flagged_count_after": flagged_count_after,
+        "refreshed_count": refreshed_count,
+        "skipped_budget_count": skipped_budget_count,
+        "skipped_error_count": skipped_error_count,
+    }
+    logger.info(f"refresh_flagged_narratives complete: {metrics}")
+    return metrics
+
+
+@shared_task(name="refresh_flagged_narratives")
+def refresh_flagged_narratives_task() -> dict:
+    """
+    Celery entry point. Bridges to async core.
+    """
+    return asyncio.run(_refresh_flagged_narratives_async())
+```
+
+**Update: `src/crypto_news_aggregator/tasks/__init__.py`**
+
+Add alongside existing imports (after the `warm_cache` / `digest_tasks` block, before the `app = Celery(...)` line):
+
+```python
+from .narrative_refresh import refresh_flagged_narratives_task
+```
+
+Add to `__all__`:
+
+```python
+"refresh_flagged_narratives_task",
+```
+
+Add to `app.autodiscover_tasks([...])`:
+
+```python
+"crypto_news_aggregator.tasks.narrative_refresh",
+```
+
+**Update: `src/crypto_news_aggregator/tasks/beat_schedule.py`**
+
+Add inside the `schedule = {...}` dict returned by `get_schedule()`:
+
+```python
+# Refresh flagged narrative summaries 30 min before each briefing
+# Morning: 7:30 AM EST (briefing at 8:00 AM). Evening: 7:30 PM EST (briefing at 8:00 PM).
+"refresh-flagged-narratives-morning": {
+    "task": "refresh_flagged_narratives",
+    "schedule": crontab(hour=7, minute=30),
+    "options": {
+        "expires": 1800,  # 30 min
+        "time_limit": 600,  # 10 min hard limit
+    },
+},
+"refresh-flagged-narratives-evening": {
+    "task": "refresh_flagged_narratives",
+    "schedule": crontab(hour=19, minute=30),
+    "options": {
+        "expires": 1800,
+        "time_limit": 600,
+    },
+},
+```
+
+**Cost ceiling estimate**
+20 refreshes × typical narrative_generate cost (~$0.002 post-Haiku) = ~$0.04 per run × 2 runs/day = ~$0.08/day. Well under daily hard limit ($1.00). April 9 burst precedent confirms the 20-cap is the right guardrail — without it, backlog drains could spike costs like the creation-path spike did.
+
+## Completion Summary
+- Actual complexity:
+- Key decisions made:
+- Deviations from plan:

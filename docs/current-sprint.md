@@ -152,6 +152,31 @@ Infrastructure is stable and scheduled briefings are working. The blocker was co
 
 ---
 
+---
+
+## Priority 1.5 — Narrative Summary Staleness (emerging issue from BUG-084)
+
+### BUG-088: Merge path does not flag narratives for summary refresh 🔄 IN PROGRESS
+- **Status:** Code complete, tests passing — 2026-04-18
+- **Severity:** High — directly causes stale briefings (root cause of April 15/16 Bitcoin price mismatch)
+- **Root cause:** Half-shipped design. Merge path never writes `needs_summary_update: True` when articles merge into existing narratives. Creation path writes False but merge path was never implemented. Result: old summaries persist forever.
+- **Evidence:** Bitcoin narrative `68f32d197082f49df56956c6` had 8 fresh April articles but summary referenced $68K price from weeks ago while market traded $74K+
+- **Changes deployed:**
+  - **Merge path staleness detection (narrative_service.py ~1104):** Evaluate if summary stale before upsert. Flag if ANY of:
+    - 3+ net-new article IDs: `len(new_article_ids - existing_article_ids) >= 3`
+    - Lifecycle promotion: `lifecycle_state` transitions into `hot` or `emerging`
+    - Article age gap: newest article >24h newer than `last_summary_generated_at` or `last_updated`
+  - **Creation path enhancement (narrative_service.py ~1193):** Stamp `last_summary_generated_at = datetime.now(timezone.utc)` so merge path has accurate baseline
+  - **Database signature (narratives.py):** Added `needs_summary_update: Optional[bool] = None` parameter to upsert_narrative; when not None, includes in $set document
+- **Testing:**
+  - Created 5 unit tests: merge with 3+ articles, merge on age threshold, creation path tracking ✅
+  - All tests pass against updated merge path ✅
+  - Log verification: staleness detection working with explicit info logging
+- **Next steps:** git commit + PR; no blocking dependencies on FEATURE-012 consumer (feature can accumulate flags until refresh consumer deployed)
+- **Branch:** feat/task-073-auto-dormant-narratives (shared with TASK-073)
+
+---
+
 ## Maintenance & Preventive Measures
 
 ### TASK-073: Auto-dormant narratives when all source articles are purged ✅ COMPLETE
@@ -274,6 +299,7 @@ Infrastructure is stable and scheduled briefings are working. The blocker was co
 | BUG-082 | Narrative summary pipeline implausible figures | P2 | ✅ COMPLETE (2026-04-15) |
 | BUG-084 | Narrative summary generator fabricates events | P1 | ✅ COMPLETE (2026-04-15) |
 | BUG-083 | Market event detector phantom narratives | P1 | 🔴 PART 1 COMPLETE, PART 2 PENDING (2026-04-15) |
+| BUG-088 | Merge path does not flag narratives for summary refresh | P1 | 🔄 CODE COMPLETE, TESTS PASSING (2026-04-18) |
 | TASK-073 | Auto-dormant narratives with no surviving articles | P3 | ✅ COMPLETE (2026-04-15) |
 | TASK-069 | Cost dashboard + Slack alerts | P2 | Ready |
 | TASK-070 | Narrative cost investigation | P3 | Backlog |

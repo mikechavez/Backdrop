@@ -1,0 +1,74 @@
+---
+ticket_id: TASK-072
+title: Retire or rewrite add_articles_to_dormant_narratives.py
+priority: medium
+severity: low
+status: OPEN
+date_created: 2026-04-16
+branch:
+effort_estimate: 1h
+---
+
+# TASK-072: Retire or rewrite add_articles_to_dormant_narratives.py
+
+## Problem Statement
+
+`scripts/add_articles_to_dormant_narratives.py:85` is the only code in the repo that writes `needs_summary_update: True`. It is a one-shot script that adds articles to dormant narratives and flags them for summary refresh.
+
+Once BUG-088 (merge-path flagging) and FEATURE-012 (scheduled regen consumer) ship, this script becomes either redundant or actively misleading:
+- Redundant if the merge path handles the same cases automatically.
+- Misleading if future operators run it without realizing the production pipeline now handles this concern.
+
+All 85 currently-flagged narratives in production were written by this script (one candidate from session 34 grep; should be audited).
+
+---
+
+## Task
+
+1. **Confirm post-deploy that BUG-088 and FEATURE-012 cover the script's use case.**
+   After both ship and run for ≥48h, verify:
+   - Merge path is flagging narratives (query: `db.narratives.countDocuments({needs_summary_update: true})` shows live churn, not a flat 85)
+   - Consumer is draining the flag (same query should oscillate, not grow unbounded)
+   - Dormant narratives that receive new articles via normal clustering are being flagged correctly (the script's original purpose)
+
+2. **Decide: delete or rewrite.**
+   - **Delete** (recommended) if the merge path fully subsumes the script's behavior. Remove `scripts/add_articles_to_dormant_narratives.py`, grep the repo for any runbook or doc references, remove those too.
+   - **Rewrite** only if there is a specific operational use case the merge path does not cover (e.g., manual backfill for a specific dormant narrative during incident recovery). If rewriting, add a clear docstring distinguishing it from the automated path, and make it explicit that it is an operator tool not part of the pipeline.
+
+3. **Audit the 85 currently-flagged narratives.**
+   Query and sample-check origins:
+   ```
+   db.narratives.find({needs_summary_update: true}).limit(10)
+   ```
+   Spot-check `created_at` or `updated_at` timestamps against the known run date(s) of `add_articles_to_dormant_narratives.py`. If any flagged narratives don't match the script's origin, document where they came from in the resolution notes below.
+
+---
+
+## Verification
+
+- `scripts/add_articles_to_dormant_narratives.py` is either deleted or has a clear docstring explaining its post-FEATURE-012 role
+- No runbook, README, or deployment doc references the script without the updated context
+- Flagged narrative count in production shows healthy churn (not a flat backlog, not unbounded growth)
+
+---
+
+## Acceptance Criteria
+
+- [ ] BUG-088 and FEATURE-012 confirmed shipped and running for ≥48h before this ticket starts
+- [ ] Decision (delete vs. rewrite) documented with rationale
+- [ ] If delete: file removed, all references cleaned up
+- [ ] If rewrite: docstring clearly distinguishes manual/operator use from automated pipeline
+- [ ] Audit of 85 flagged narratives: origin confirmed or documented if unexpected
+
+---
+
+## Impact
+
+Low urgency, cleanup only. Prevents future confusion about which path writes the flag. Reduces the chance of an operator running a now-redundant script and double-flagging narratives.
+
+---
+
+## Related Tickets
+
+- BUG-088: Merge path does not flag narratives for summary refresh (must ship first)
+- FEATURE-012: Scheduled narrative summary regen consumer (must ship first)

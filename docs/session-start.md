@@ -1,13 +1,32 @@
 # Session Start
 
-**Date:** 2026-04-15 (Session 37, Sprint 15)
-**Status:** All BUGs complete (BUG-080, BUG-081, BUG-082, BUG-084 briefing quality; BUG-083 Part 1). TASK-073 (zombie narrative auto-dormancy) complete.
+**Date:** 2026-04-18 (Session 38, Sprint 15)
+**Status:** BUG-088 COMPLETE: Merge path now flags stale narratives for summary refresh. All briefing quality fixes deployed (BUG-080, BUG-081, BUG-082, BUG-084). TASK-073 (zombie narratives) complete.
 **Branches Ready:** fix/bug-080-briefing-date-mismatch, fix/bug-081-briefing-separate-stories, fix/bug-082-narrative-implausible-figures, fix/bug-083-market-event-detector-phantom-narratives, fix/bug-084-narrative-summary-fabrication, feat/task-073-auto-dormant-narratives
-**Next:** Part 2 of BUG-083 (MongoDB cleanup), create PRs for all bugs + TASK-073, then TASK-069 (cost dashboard + Slack alerts)
+**Next:** BUG-088 commit + PR, Part 2 of BUG-083 (MongoDB cleanup), then TASK-069 (cost dashboard + Slack alerts)
 
 ---
 
 ## Current Session Context
+
+### What was completed in Session 38
+
+**BUG-088 COMPLETE: Merge path flags stale narratives for summary refresh**
+
+When articles merge into existing narratives, the system now evaluates staleness and flags summaries for refresh. Root cause: merge path was half-shipped — creation path wrote `needs_summary_update: False` but merge path never wrote `True`, so stale summaries persisted indefinitely.
+
+**Implementation deployed (in progress):**
+- **Staleness detection:** Flag if ANY of: 3+ net-new articles, lifecycle transition to hot/emerging, newest article >24h newer than last summary
+- **Merge path (narrative_service.py ~1104):** Added staleness evaluation before upsert, passes `needs_summary_update` to upsert_narrative
+- **Creation path (narrative_service.py ~1193):** Added `last_summary_generated_at` timestamp so merge staleness check has accurate baseline
+- **Database layer (narratives.py):** Expanded upsert_narrative signature with optional `needs_summary_update` parameter
+- **Testing:** 5 unit tests pass, verifying merge flags on 3+ articles, age threshold, and new narratives set False
+- **Log evidence:** Staleness detection working: "Flagging narrative 'SEC Regulatory Crackdown' for summary refresh: net_new=0, lifecycle_promoted=True, article_age_gap_hours=72.0"
+
+**Status:** Code complete, tests passing ✅. Pending commit + PR workflow.
+**Branch:** feat/task-073-auto-dormant-narratives (shared with TASK-073)
+
+---
 
 ### What was completed in Session 37
 
