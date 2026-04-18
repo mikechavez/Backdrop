@@ -203,6 +203,37 @@ Infrastructure is stable and scheduled briefings are working. The blocker was co
 - **Branch:** `feat/task-073-auto-dormant-narratives` (ready for PR)
 - **Impact:** Prevents fabricated/un-verifiable narratives from appearing in user-facing briefings without manual audits
 
+### FEATURE-012: Scheduled narrative summary regen consumer ✅ COMPLETE
+- **Status:** ✅ RESOLVED — 2026-04-18
+- **Severity:** Critical — closes the loop on stale summary problem (BUG-088 flags narratives, FEATURE-012 refreshes them)
+- **Problem:** 85 narratives flagged via one-shot script had no consumer. Once BUG-088 ships, merge path will flag narratives with stale summaries, but nothing was draining the queue. Result: summaries never refresh, briefings reference weeks-old prices/events.
+- **Solution deployed:**
+  - **New task file:** `src/crypto_news_aggregator/tasks/narrative_refresh.py` with `@shared_task(name="refresh_flagged_narratives")`
+  - **Query:** Explicit positive match `{"needs_summary_update": True, "lifecycle_state": {"$ne": "dormant"}}` (no false positives from missing fields)
+  - **Priority sort:** `lifecycle_state` ordering (hot → emerging → rising → reactivated → cooling), then `last_updated` descending
+  - **Per-run cap:** 20 narratives max to prevent budget spikes
+  - **Budget enforcement:** Per-narrative budget check with graceful exit on soft limit (logs + breaks, no error)
+  - **Schedule:** 7:30 AM EST (morning, 30 min before briefing) + 7:30 PM EST (evening, 30 min before briefing)
+  - **Task registration:** Added to `tasks/__init__.py` imports and autodiscovery list
+  - **Beat schedule entries:** Two crontab entries in `beat_schedule.py` with 30-min expiry, 10-min hard timeout
+- **Implementation details:**
+  - Core logic: async function with MongoDB aggregation, article fetching, `generate_narrative_from_cluster()` call
+  - Error handling: Clears flags on empty articles or generation failures to prevent retry loops
+  - Metrics logged: `flagged_count_before`, `flagged_count_after`, `refreshed_count`, `skipped_budget_count`, `skipped_error_count`
+  - Uses `asyncio.new_event_loop()` pattern consistent with `narrative_consolidation_task`
+- **Testing:**
+  - Created `tests/tasks/test_narrative_refresh.py` with 5 comprehensive test cases:
+    - Basic refresh lifecycle (flag cleared, summary updated)
+    - Lifecycle priority sorting verification
+    - Budget limit enforcement (20-per-run cap, soft limit stop)
+    - Error handling (missing articles, generation failures)
+    - Dormant narrative exclusion (query excludes dormant)
+  - All 5 tests pass ✅
+- **Cost impact:** ~$0.08/day (20 refreshes × $0.002 per refresh × 2 runs/day) — well under daily limit
+- **Dependency:** Requires BUG-088 in same deploy for meaningful impact; works with existing 85 flagged narratives in interim
+- **Branch:** Not yet committed; implementation complete and tested
+- **Next steps:** Commit + PR once BUG-088 merges
+
 ---
 
 ## Priority 2 — Observability
@@ -301,6 +332,7 @@ Infrastructure is stable and scheduled briefings are working. The blocker was co
 | BUG-083 | Market event detector phantom narratives | P1 | 🔴 PART 1 COMPLETE, PART 2 PENDING (2026-04-15) |
 | BUG-088 | Merge path does not flag narratives for summary refresh | P1 | 🔄 CODE COMPLETE, TESTS PASSING (2026-04-18) |
 | TASK-073 | Auto-dormant narratives with no surviving articles | P3 | ✅ COMPLETE (2026-04-15) |
+| FEATURE-012 | Scheduled narrative summary regen consumer | P1 | ✅ COMPLETE (2026-04-18) |
 | TASK-069 | Cost dashboard + Slack alerts | P2 | Ready |
 | TASK-070 | Narrative cost investigation | P3 | Backlog |
 | TASK-071 | Spend threshold recalibration | P4 | Ready (lower urgency — spend already under limit) |

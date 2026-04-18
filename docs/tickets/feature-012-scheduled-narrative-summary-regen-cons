@@ -1,11 +1,11 @@
 ---
 id: FEATURE-012
 type: feature
-status: backlog
+status: complete
 priority: critical
 complexity: medium
 created: 2026-04-16
-updated: 2026-04-16
+updated: 2026-04-18
 ---
 
 # Scheduled narrative summary regen consumer
@@ -258,6 +258,15 @@ Add inside the `schedule = {...}` dict returned by `get_schedule()`:
 20 refreshes × typical narrative_generate cost (~$0.002 post-Haiku) = ~$0.04 per run × 2 runs/day = ~$0.08/day. Well under daily hard limit ($1.00). April 9 burst precedent confirms the 20-cap is the right guardrail — without it, backlog drains could spike costs like the creation-path spike did.
 
 ## Completion Summary
-- Actual complexity:
+- Actual complexity: Medium — async task with MongoDB integration, budget checks, and metric tracking
 - Key decisions made:
-- Deviations from plan:
+  - Used `asyncio.new_event_loop()` pattern consistent with existing `narrative_consolidation_task`
+  - Explicit `needs_summary_update: True` query with `lifecycle_state: {$ne: "dormant"}` per session 33 post-mortem
+  - Lifecycle priority sort implementation: hot > emerging > rising > reactivated > cooling
+  - Clear flags on empty articles and generation failures to prevent retry loops
+  - Budget check per-narrative to stop gracefully on soft limit (log + exit, no error)
+- Deviations from plan: None — implemented exactly as specified in ticket
+- Files created: `src/crypto_news_aggregator/tasks/narrative_refresh.py` (164 lines)
+- Files modified: `src/crypto_news_aggregator/tasks/__init__.py` (3 edits), `src/crypto_news_aggregator/tasks/beat_schedule.py` (1 edit)
+- Tests created: `tests/tasks/test_narrative_refresh.py` (5 test cases covering basic, priority, budget, error handling, dormant skip)
+- All 5 tests pass ✓

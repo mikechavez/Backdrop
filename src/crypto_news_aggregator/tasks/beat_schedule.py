@@ -114,6 +114,24 @@ def get_schedule():
                 "queue": "default",
             },
         },
+        # Refresh flagged narrative summaries 30 min before each briefing
+        # Morning: 7:30 AM EST (briefing at 8:00 AM). Evening: 7:30 PM EST (briefing at 8:00 PM).
+        "refresh-flagged-narratives-morning": {
+            "task": "refresh_flagged_narratives",
+            "schedule": crontab(hour=7, minute=30),
+            "options": {
+                "expires": 1800,  # 30 min
+                "time_limit": 600,  # 10 min hard limit
+            },
+        },
+        "refresh-flagged-narratives-evening": {
+            "task": "refresh_flagged_narratives",
+            "schedule": crontab(hour=19, minute=30),
+            "options": {
+                "expires": 1800,
+                "time_limit": 600,
+            },
+        },
     }
 
     return schedule

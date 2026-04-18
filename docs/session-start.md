@@ -1,13 +1,48 @@
 # Session Start
 
-**Date:** 2026-04-18 (Session 38, Sprint 15)
-**Status:** BUG-088 COMPLETE: Merge path now flags stale narratives for summary refresh. All briefing quality fixes deployed (BUG-080, BUG-081, BUG-082, BUG-084). TASK-073 (zombie narratives) complete.
+**Date:** 2026-04-18 (Session 39, Sprint 15)
+**Status:** FEATURE-012 COMPLETE: Scheduled narrative summary regen consumer implemented and tested. Closes loop for BUG-088 flagging. All briefing quality fixes ready for PR.
 **Branches Ready:** fix/bug-080-briefing-date-mismatch, fix/bug-081-briefing-separate-stories, fix/bug-082-narrative-implausible-figures, fix/bug-083-market-event-detector-phantom-narratives, fix/bug-084-narrative-summary-fabrication, feat/task-073-auto-dormant-narratives
-**Next:** BUG-088 commit + PR, Part 2 of BUG-083 (MongoDB cleanup), then TASK-069 (cost dashboard + Slack alerts)
+**Next:** Commit + PR FEATURE-012 and BUG-088 together, Part 2 of BUG-083 (MongoDB cleanup), then TASK-069 (cost dashboard + Slack alerts)
 
 ---
 
 ## Current Session Context
+
+### What was completed in Session 39
+
+**FEATURE-012 COMPLETE: Scheduled narrative summary regen consumer**
+
+Implemented the consumer task that drains the `needs_summary_update` queue flagged by BUG-088 merge path. This closes the loop: merge path flags stale summaries → consumer reads flag → `generate_narrative_from_cluster()` regenerates → briefing consumes fresh summary.
+
+**Implementation deployed (ready for commit):**
+- **New task file:** `src/crypto_news_aggregator/tasks/narrative_refresh.py` (164 lines)
+  - Async core: `_refresh_flagged_narratives_async()` with lifecycle priority sorting
+  - Celery entry point: `@shared_task(name="refresh_flagged_narratives")`
+  - Query: Explicit positive match on `needs_summary_update: True` with `lifecycle_state: {$ne: "dormant"}` per session 33 post-mortem
+  - Sorting: Hot narratives first, then emerging/rising/reactivated/cooling, then by `last_updated` descending
+  - Per-run cap: 20 narratives max to prevent cost spikes (April 9 clustering incident precedent)
+  - Budget enforcement: Per-narrative `check_llm_budget()` call with graceful stop on soft limit
+  - Error handling: Clears flags on empty articles/generation failures to prevent retry loops
+  - Metrics: Tracks `flagged_count_before`, `flagged_count_after`, `refreshed_count`, `skipped_budget_count`, `skipped_error_count`
+- **Task registration:** Added imports and autodiscovery to `tasks/__init__.py`
+- **Schedule:** Two beat entries in `beat_schedule.py`
+  - Morning: 7:30 AM EST (30 min before 8 AM briefing)
+  - Evening: 7:30 PM EST (30 min before 8 PM briefing)
+  - Each with 30-min expiry, 10-min hard timeout
+- **Testing:** 5 comprehensive unit tests, all pass ✅
+  - Basic refresh lifecycle
+  - Lifecycle priority sorting
+  - Budget limit enforcement + graceful stop
+  - Error handling (missing articles, generation failures)
+  - Dormant narrative exclusion
+- **Cost impact:** ~$0.08/day (20 × $0.002 × 2 runs) — negligible
+- **Dependencies:** Designed to work standalone; gains maximum value when deployed with BUG-088
+- **Status:** Code complete, tests passing, ready for commit + PR
+
+**Branch:** To be committed to feat/task-073-auto-dormant-narratives (consolidate with BUG-088) or new feat/feature-012 branch
+
+---
 
 ### What was completed in Session 38
 
