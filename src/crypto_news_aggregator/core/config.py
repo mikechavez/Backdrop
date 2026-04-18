@@ -1,5 +1,5 @@
 from pydantic_settings import BaseSettings
-from pydantic import model_validator
+from pydantic import model_validator, field_validator
 from functools import lru_cache
 from typing import Optional, List
 
@@ -141,6 +141,13 @@ class Settings(BaseSettings):
     LLM_DAILY_SOFT_LIMIT: float = 3.00   # Operational circuit breaker; allows 2-3 full briefings during burn-in
     LLM_DAILY_HARD_LIMIT: float = 15.00  # Temp: Lifted for Sprint 13 burn-in measurement. Will drop to ~$1-2 post-optimization.
 
+    # Monthly API spend guard. REQUIRED — must be set to a value below the
+    # actual Anthropic account ceiling. Soft limit triggers at 75% of this value
+    # (non-critical operations blocked, Slack alert fires). Hard limit triggers
+    # at this value (all operations blocked until next UTC month rollover).
+    # If unset or zero, the app refuses to start.
+    ANTHROPIC_MONTHLY_API_LIMIT: float = 0.0
+
     # Backlog throughput control
     ENRICHMENT_MAX_ARTICLES_PER_CYCLE: int = 5   # Max articles enriched per beat tick
 
@@ -175,6 +182,17 @@ class Settings(BaseSettings):
 
     # Database sync settings
     ENABLE_DB_SYNC: bool = False  # Enable/disable database synchronization
+
+    @field_validator("ANTHROPIC_MONTHLY_API_LIMIT")
+    @classmethod
+    def _require_monthly_limit(cls, v: float) -> float:
+        if v <= 0:
+            raise ValueError(
+                "ANTHROPIC_MONTHLY_API_LIMIT must be set to a positive value "
+                "(USD, below actual Anthropic account ceiling). "
+                "Monthly budget guard cannot operate without this setting."
+            )
+        return v
 
     @model_validator(mode="after")
     def build_postgres_url(self) -> "Settings":
