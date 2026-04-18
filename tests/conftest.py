@@ -4,6 +4,7 @@ os.environ.setdefault(
     "MONGODB_URI", "mongodb://localhost:27017/crypto_news"
 )
 os.environ.setdefault("MONGODB_NAME", "crypto_news")
+os.environ.setdefault("ANTHROPIC_MONTHLY_API_LIMIT", "100.00")
 
 """Pytest configuration and fixtures for testing the Crypto News Aggregator."""
 import asyncio
@@ -111,6 +112,9 @@ class TestSettings(Settings):
 
     # Polymarket API settings
     POLYMARKET_API_KEY: str = "test-polymarket-api-key"
+
+    # Monthly API spend guard (for testing)
+    ANTHROPIC_MONTHLY_API_LIMIT: float = 100.00  # Safe test limit
 
     # PostgreSQL settings (for backward compatibility)
     POSTGRES_SERVER: str = "localhost"
@@ -489,6 +493,7 @@ def configure_test_environment():
     os.environ["NEWS_API_KEY"] = "test-api-key"
     os.environ["SECRET_KEY"] = "test-secret-key-for-session"
     os.environ["API_KEYS"] = "testapikey123"
+    os.environ["ANTHROPIC_MONTHLY_API_LIMIT"] = "100.00"  # Monthly budget guard for tests
 
     # Configure Celery for testing
     os.environ["CELERY_BROKER_URL"] = "memory://"

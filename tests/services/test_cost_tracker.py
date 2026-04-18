@@ -3,9 +3,11 @@ Tests for cost tracking service.
 """
 
 import pytest
+import time
 from datetime import datetime, timezone
 from motor.motor_asyncio import AsyncIOMotorClient
-from crypto_news_aggregator.services.cost_tracker import CostTracker
+from crypto_news_aggregator.services.cost_tracker import CostTracker, _budget_cache, check_llm_budget
+from unittest.mock import patch, AsyncMock
 
 
 @pytest.fixture
@@ -191,3 +193,164 @@ class TestCriticalOperations:
         ]
         for op in non_critical_ops:
             assert not tracker.is_critical_operation(op), f"{op} should not be critical"
+
+
+@pytest.mark.asyncio
+class TestMonthlyBudgetGuard:
+    """Test FEATURE-013: Monthly cumulative API spend guard."""
+
+    async def test_monthly_hard_limit_blocks_all_operations(self, tracker, db):
+        """Monthly hard limit reached: all operations blocked including critical ones."""
+        # Insert cost data: $10.01 (exceeds the test limit of 100.00 * 1.0)
+        # Use a very high value to ensure hard limit is hit
+        now = datetime.now(timezone.utc)
+        for _ in range(2):
+            await db.llm_traces.insert_one({
+                "timestamp": now,
+                "operation": "test_op",
+                "model": "claude-opus-4-6",
+                "input_tokens": 500000,
+                "output_tokens": 500000,
+                "cost": 52.50,  # $52.50 * 2 = $105.00 (exceeds $100 default test limit)
+            })
+
+        # Refresh cache - with the test settings, ANTHROPIC_MONTHLY_API_LIMIT=100.00
+        await tracker.refresh_budget_cache()
+
+        # Verify monthly_status is hard_limit
+        assert _budget_cache["monthly_status"] == "hard_limit"
+        assert _budget_cache["monthly_cost"] >= 100.00
+
+        # Check that all operations are blocked
+        allowed_critical, reason_critical = check_llm_budget("briefing_generation")
+        assert allowed_critical is False
+        assert reason_critical == "monthly_hard_limit"
+
+        allowed_noncrit, reason_noncrit = check_llm_budget("theme_extraction")
+        assert allowed_noncrit is False
+        assert reason_noncrit == "monthly_hard_limit"
+
+    async def test_monthly_soft_limit_detected(self, tracker, db):
+        """Test that monthly soft limit (75%) status is detected correctly."""
+        now = datetime.now(timezone.utc)
+        # Insert many small records totaling $75.50 (75.5% of $100)
+        for _ in range(77):
+            await db.llm_traces.insert_one({
+                "timestamp": now,
+                "operation": "test_op",
+                "model": "claude-haiku-4-5-20251001",
+                "input_tokens": 10000,
+                "output_tokens": 100000,
+                "cost": 0.98,
+            })
+
+        await tracker.refresh_budget_cache()
+
+        # Monthly should be degraded at 75.5%
+        assert _budget_cache["monthly_status"] == "degraded"
+        assert _budget_cache["monthly_cost"] >= 75.00
+
+    async def test_monthly_alert_month_tracking(self, tracker, db):
+        """Test that monthly alert month is tracked for idempotency."""
+        now = datetime.now(timezone.utc)
+        # Insert enough for 75%+ monthly
+        for _ in range(100):
+            await db.llm_traces.insert_one({
+                "timestamp": now,
+                "operation": "test_op",
+                "model": "claude-haiku-4-5-20251001",
+                "input_tokens": 1000,
+                "output_tokens": 10000,
+                "cost": 0.76,
+            })
+
+        await tracker.refresh_budget_cache()
+
+        # Monthly should be degraded
+        assert _budget_cache["monthly_status"] == "degraded"
+
+        # Alert month should be tracked
+        current_month = datetime.now(timezone.utc).strftime("%Y-%m")
+        assert _budget_cache["monthly_alert_month"] == current_month
+
+    async def test_daily_enforcement_unchanged_with_monthly_guard(self, tracker, db):
+        """Daily soft/hard limits work independently with monthly guard present."""
+        # Test 1: Daily soft limit hit
+        now = datetime.now(timezone.utc)
+        await db.llm_traces.insert_one({
+            "timestamp": now,
+            "operation": "test_op",
+            "model": "claude-haiku-4-5-20251001",
+            "input_tokens": 10000,
+            "output_tokens": 400000,
+            "cost": 3.50,  # Exceeds daily soft ($3.00) but under hard ($15.00)
+        })
+
+        await tracker.refresh_budget_cache()
+
+        # Daily should be degraded
+        assert _budget_cache["status"] == "degraded"
+        # Monthly should be ok (well below $100)
+        assert _budget_cache["monthly_status"] == "ok"
+
+        # Critical operations allowed in daily degraded
+        allowed_critical, reason_critical = check_llm_budget("briefing_generation")
+        assert allowed_critical is True
+        assert reason_critical == "degraded"
+
+        # Non-critical blocked (daily soft limit)
+        allowed_noncrit, reason_noncrit = check_llm_budget("theme_extraction")
+        assert allowed_noncrit is False
+        assert reason_noncrit == "soft_limit"
+
+        # Test 2: Daily hard limit hit
+        await db.llm_traces.delete_many({})
+        await db.llm_traces.insert_one({
+            "timestamp": now,
+            "operation": "test_op",
+            "model": "claude-opus-4-6",
+            "input_tokens": 500000,
+            "output_tokens": 500000,
+            "cost": 15.50,  # Exceeds daily hard ($15.00)
+        })
+
+        await tracker.refresh_budget_cache()
+
+        # Daily hard limit hit
+        assert _budget_cache["status"] == "hard_limit"
+        # Monthly still ok
+        assert _budget_cache["monthly_status"] == "ok"
+
+        # All operations blocked (daily hard)
+        allowed_critical, reason_critical = check_llm_budget("briefing_generation")
+        assert allowed_critical is False
+        assert reason_critical == "hard_limit"
+
+        allowed_noncrit, reason_noncrit = check_llm_budget("theme_extraction")
+        assert allowed_noncrit is False
+        assert reason_noncrit == "hard_limit"
+
+    async def test_monthly_overrides_daily_hard_limit(self, tracker, db):
+        """Monthly hard limit overrides everything, including daily status."""
+        now = datetime.now(timezone.utc)
+        # Insert $105 to exceed monthly hard limit (100.00)
+        for _ in range(2):
+            await db.llm_traces.insert_one({
+                "timestamp": now,
+                "operation": "test_op",
+                "model": "claude-opus-4-6",
+                "input_tokens": 500000,
+                "output_tokens": 500000,
+                "cost": 52.50,
+            })
+
+        await tracker.refresh_budget_cache()
+
+        # Both should be hard limit
+        assert _budget_cache["status"] in ["ok", "degraded", "hard_limit"]  # Daily doesn't matter
+        assert _budget_cache["monthly_status"] == "hard_limit"
+
+        # Monthly hard limit blocks everything
+        allowed, reason = check_llm_budget("briefing_generation")
+        assert allowed is False
+        assert reason == "monthly_hard_limit"

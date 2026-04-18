@@ -18,9 +18,13 @@ logger = logging.getLogger(__name__)
 # All callers read from this cache. A single async refresh updates it.
 _budget_cache = {
     "daily_cost": 0.0,
-    "status": "ok",        # "ok" | "degraded" | "hard_limit"
-    "last_checked": 0.0,   # timestamp
-    "ttl": 30,             # seconds between DB reads
+    "status": "ok",                 # "ok" | "degraded" | "hard_limit"
+    "monthly_cost": 0.0,            # NEW
+    "monthly_status": "ok",         # NEW: "ok" | "degraded" | "hard_limit"
+    "monthly_alert_sent": False,    # NEW: idempotency for 75% Slack alert
+    "monthly_alert_month": None,    # NEW: tracks which UTC month the alert was sent for
+    "last_checked": 0.0,            # timestamp
+    "ttl": 30,                      # seconds between DB reads
 }
 
 
@@ -273,6 +277,7 @@ class CostTracker:
         Refresh the module-level budget cache from the database.
 
         Called periodically (every ~30s) rather than on every LLM call.
+        Evaluates both daily and monthly spend against limits.
         Returns the updated cache dict.
         """
         from ..core.config import get_settings
@@ -280,39 +285,68 @@ class CostTracker:
 
         try:
             daily_cost = await self.get_daily_cost(days=1)
+            monthly_cost = await self.get_monthly_cost()
         except Exception as e:
             logger.error(f"Failed to refresh budget cache: {e}")
-            # If DB read fails, mark as degraded (fail toward caution)
             _budget_cache["status"] = "degraded"
+            _budget_cache["monthly_status"] = "degraded"
             _budget_cache["last_checked"] = time.time()
             return _budget_cache
 
+        # Daily evaluation (existing)
         hard_limit = settings.LLM_DAILY_HARD_LIMIT
         soft_limit = settings.LLM_DAILY_SOFT_LIMIT
-
         _budget_cache["daily_cost"] = daily_cost
-        _budget_cache["last_checked"] = time.time()
-
-        logger.info(
-            f"[CACHE REFRESH] daily_cost=${daily_cost:.4f}, "
-            f"soft_limit=${soft_limit:.2f} (type={type(soft_limit).__name__}), "
-            f"hard_limit=${hard_limit:.2f} (type={type(hard_limit).__name__})"
-        )
 
         if daily_cost >= hard_limit:
             _budget_cache["status"] = "hard_limit"
-            logger.warning(
-                f"HARD LIMIT reached: ${daily_cost:.4f} >= ${hard_limit:.2f}"
-            )
         elif daily_cost >= soft_limit:
             _budget_cache["status"] = "degraded"
-            logger.info(
-                f"Soft limit reached: ${daily_cost:.4f} >= ${soft_limit:.2f}"
-            )
         else:
             _budget_cache["status"] = "ok"
 
+        # Monthly evaluation (NEW)
+        monthly_hard = settings.ANTHROPIC_MONTHLY_API_LIMIT
+        monthly_soft = monthly_hard * 0.75
+        _budget_cache["monthly_cost"] = monthly_cost
+
+        if monthly_cost >= monthly_hard:
+            _budget_cache["monthly_status"] = "hard_limit"
+            logger.warning(
+                f"MONTHLY HARD LIMIT reached: ${monthly_cost:.4f} >= ${monthly_hard:.2f}"
+            )
+        elif monthly_cost >= monthly_soft:
+            _budget_cache["monthly_status"] = "degraded"
+            # Fire Slack alert once per month at 75% crossing
+            current_month = datetime.now(timezone.utc).strftime("%Y-%m")
+            if _budget_cache.get("monthly_alert_month") != current_month:
+                await self._send_monthly_alert(monthly_cost, monthly_hard)
+                _budget_cache["monthly_alert_month"] = current_month
+        else:
+            _budget_cache["monthly_status"] = "ok"
+
+        _budget_cache["last_checked"] = time.time()
+
+        logger.info(
+            f"[CACHE REFRESH] daily=${daily_cost:.4f}/{hard_limit:.2f} ({_budget_cache['status']}), "
+            f"monthly=${monthly_cost:.4f}/{monthly_hard:.2f} ({_budget_cache['monthly_status']})"
+        )
+
         return _budget_cache
+
+    async def _send_monthly_alert(self, monthly_cost: float, monthly_hard: float) -> None:
+        """Send Slack alert at 75% monthly threshold. Idempotent via cache month tracking."""
+        try:
+            from .slack_service import send_slack_message
+            pct = (monthly_cost / monthly_hard) * 100
+            msg = (
+                f"[BUDGET ALERT] Monthly API spend at {pct:.0f}% of ceiling: "
+                f"${monthly_cost:.2f} / ${monthly_hard:.2f}. "
+                f"Non-critical operations will be blocked."
+            )
+            await send_slack_message(msg)
+        except Exception as e:
+            logger.error(f"Failed to send monthly budget alert: {e}")
 
     def is_critical_operation(self, operation: str) -> bool:
         """
@@ -396,14 +430,19 @@ def check_llm_budget(operation: str = "") -> tuple[bool, str]:
         - (True, "degraded"): Over soft limit, but operation is critical
         - (False, "soft_limit"): Over soft limit, non-critical operation blocked
         - (False, "hard_limit"): Over hard limit, all operations blocked
+        - (False, "monthly_hard_limit"): Monthly hard limit hit, all operations blocked
+        - (False, "monthly_soft_limit"): Monthly soft limit hit, non-critical operation blocked
         - (True, "no_data"): Cache never populated, fail open with warning
     """
     status = _budget_cache["status"]
+    monthly_status = _budget_cache["monthly_status"]
     age = time.time() - _budget_cache["last_checked"]
 
     logger.debug(
         f"[BUDGET CHECK] operation={operation}, status={status}, "
-        f"daily_cost=${_budget_cache['daily_cost']:.4f}, age={age:.1f}s"
+        f"monthly_status={monthly_status}, "
+        f"daily_cost=${_budget_cache['daily_cost']:.4f}, "
+        f"monthly_cost=${_budget_cache['monthly_cost']:.4f}, age={age:.1f}s"
     )
 
     # If the cache has never been populated, fail open but warn
@@ -414,33 +453,40 @@ def check_llm_budget(operation: str = "") -> tuple[bool, str]:
         return True, "no_data"
 
     # If the cache is extremely stale (>5 min), treat as degraded
-    # This is the "fail toward caution" path
     if age > 300:
         logger.warning(
             f"Budget cache stale ({age:.0f}s). Treating as degraded for '{operation}'."
         )
         status = "degraded"
+        monthly_status = "degraded"
 
+    # Monthly hard limit overrides everything
+    if monthly_status == "hard_limit":
+        logger.warning(
+            f"LLM call blocked: monthly hard limit. operation='{operation}', "
+            f"monthly_cost=${_budget_cache['monthly_cost']:.4f}"
+        )
+        return False, "monthly_hard_limit"
+
+    # Daily hard limit
     if status == "hard_limit":
         logger.warning(
-            f"LLM call blocked: hard limit. Operation='{operation}', "
+            f"LLM call blocked: daily hard limit. operation='{operation}', "
             f"daily_cost=${_budget_cache['daily_cost']:.4f}"
         )
         return False, "hard_limit"
 
-    if status == "degraded":
-        # Critical operations proceed, non-critical are blocked
-        tracker = CostTracker.__new__(CostTracker)  # lightweight, just need the method
+    # Degraded mode: either daily OR monthly soft breach triggers it
+    is_degraded = status == "degraded" or monthly_status == "degraded"
+    if is_degraded:
+        tracker = CostTracker.__new__(CostTracker)
         is_critical = tracker.is_critical_operation(operation)
-        logger.info(
-            f"[DEGRADED MODE] operation={operation}, is_critical={is_critical}"
-        )
         if is_critical:
-            return True, "degraded"
+            reason = "monthly_degraded" if monthly_status == "degraded" else "degraded"
+            return True, reason
         else:
-            logger.warning(
-                f"Soft limit active: blocking non-critical operation '{operation}'"
-            )
-            return False, "soft_limit"
+            reason = "monthly_soft_limit" if monthly_status == "degraded" else "soft_limit"
+            logger.warning(f"Soft limit active ({reason}): blocking non-critical '{operation}'")
+            return False, reason
 
     return True, "ok"
