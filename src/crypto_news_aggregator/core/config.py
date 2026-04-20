@@ -146,7 +146,7 @@ class Settings(BaseSettings):
     # (non-critical operations blocked, Slack alert fires). Hard limit triggers
     # at this value (all operations blocked until next UTC month rollover).
     # If unset or zero, the app refuses to start.
-    ANTHROPIC_MONTHLY_API_LIMIT: float = 0.0
+    ANTHROPIC_MONTHLY_API_LIMIT: float = 30.0
 
     # Backlog throughput control
     ENRICHMENT_MAX_ARTICLES_PER_CYCLE: int = 5   # Max articles enriched per beat tick

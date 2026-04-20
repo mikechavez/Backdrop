@@ -285,7 +285,20 @@ All tests written and passing:
 3. Deploy and monitor Slack alerts + cache refresh logs
 4. Verify no regressions in daily spend enforcement
 
+## Session 40 Deployment (2026-04-20)
+
+**Config Constant Initialized:**
+- ✅ Set `ANTHROPIC_MONTHLY_API_LIMIT = 30.0` in `src/crypto_news_aggregator/core/config.py` line 149
+- ✅ Hard limit: $30/month (blocks all operations)
+- ✅ Soft limit: $22.50/month (75% threshold)
+- ✅ Committed without AI attribution (commit 5331a01)
+- **App Status:** ✅ Boots cleanly; monthly budget guard active
+
+**Why this was needed:**
+FEATURE-013 code implementation from Session 39 was complete and tested, but the config default was `0.0`. The Pydantic validator requires a positive value and refuses to start with zero. Updated to operational value to unblock deployment.
+
 ## Completion Summary
 - Actual complexity: Medium (lower than expected — cache pattern reusable, no new call sites)
 - Key decisions made: Monthly checks leverage existing `_budget_cache` refresh cycle (no per-call overhead); idempotent alert via month tracking in cache
 - Deviations from plan: None — implementation follows spec exactly
+- **Status:** ✅ COMPLETE — Ready for PR to main

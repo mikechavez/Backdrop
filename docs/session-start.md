@@ -1,13 +1,35 @@
 # Session Start
 
-**Date:** 2026-04-18 (Session 39, Sprint 15)
-**Status:** FEATURE-012 COMPLETE: Scheduled narrative summary regen consumer implemented and tested. Closes loop for BUG-088 flagging. All briefing quality fixes ready for PR.
-**Branches Ready:** fix/bug-080-briefing-date-mismatch, fix/bug-081-briefing-separate-stories, fix/bug-082-narrative-implausible-figures, fix/bug-083-market-event-detector-phantom-narratives, fix/bug-084-narrative-summary-fabrication, feat/task-073-auto-dormant-narratives
-**Next:** Commit + PR FEATURE-012 and BUG-088 together, Part 2 of BUG-083 (MongoDB cleanup), then TASK-069 (cost dashboard + Slack alerts)
+**Date:** 2026-04-20 (Session 40, Sprint 15)
+**Status:** FEATURE-013 COMPLETE: Monthly API spend guard config initialized. App was broken due to missing `ANTHROPIC_MONTHLY_API_LIMIT` constant; fixed and committed.
+**Current Branch:** feat/feature-013-monthly-api-spend-guard (commit 5331a01)
+**Next:** PR FEATURE-013, then BUG-088 + FEATURE-012 PR, then Part 2 of BUG-083, then TASK-069
 
 ---
 
 ## Current Session Context
+
+### What was completed in Session 40
+
+**FEATURE-013 CONFIG FIX: Set ANTHROPIC_MONTHLY_API_LIMIT to $30.00**
+
+App startup was failing with Pydantic validation error: `ANTHROPIC_MONTHLY_API_LIMIT must be set to a positive value`. FEATURE-013 implementation from Session 39 was complete and tested, but the config default was still `0.0`. Updated to operational value.
+
+**Changes deployed:**
+- ✅ Set `ANTHROPIC_MONTHLY_API_LIMIT: float = 30.0` in `src/crypto_news_aggregator/core/config.py` line 149
+- ✅ Hard limit: $30/month (blocks all operations at 100%)
+- ✅ Soft limit: $22.50/month (75% threshold) — blocks non-critical ops, fires Slack alert
+- ✅ Committed without AI attribution per CLAUDE.md standards (commit 5331a01)
+- **Status:** App now starts cleanly; monthly budget guard active
+
+**Next steps:** 
+1. Create PR for FEATURE-013 on feat/feature-013-monthly-api-spend-guard
+2. Merge to main
+3. Continue with BUG-088 + FEATURE-012 PR
+
+---
+
+## Prior Session Context (Session 39)
 
 ### What was completed in Session 39
 
