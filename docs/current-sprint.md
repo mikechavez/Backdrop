@@ -17,6 +17,16 @@ Infrastructure is stable and scheduled briefings are working. The blocker was co
 
 ## Priority 1 — Cost Stability + Briefing Quality (required before feature work)
 
+### FEATURE-013: Monthly API spend guard ✅ COMPLETE (Session 40)
+- **Status:** ✅ Config initialized, app boots cleanly
+- **Changes deployed:** Set `ANTHROPIC_MONTHLY_API_LIMIT = 30.0` in `core/config.py` line 149 (commit 5331a01)
+- **Hard limit:** $30/month — all operations blocked at 100%
+- **Soft limit:** $22.50/month (75%) — non-critical operations blocked, Slack alert fires
+- **Enforcement:** Integrated into `check_llm_budget()` monthly dimension (Session 39), monthly hard overrides daily limits
+- **Branch:** `feat/feature-013-monthly-api-spend-guard`
+- **Next:** Create PR and merge to main
+- **Note:** Full implementation completed Session 39; this session deployed the required config constant to unblock app startup
+
 ### BUG-079: Budget enforcement blind to entity_extraction costs ✅ FIXED
 - **Status:** ✅ RESOLVED — 2026-04-14 18:55:00 UTC
 - **Code fix deployed:** 2026-04-14 (commits 533cbce, 50255cf)
