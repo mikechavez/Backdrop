@@ -28,19 +28,38 @@ The system generates three daily briefings (morning, afternoon, evening) via Cel
 
 ### Beat Schedule Configuration
 
-The beat schedule defines three daily briefing tasks:
+The beat schedule defines the following tasks. Note: several entries are currently commented out in `beat_schedule.py` — see status notes below.
 
 **File:** `src/crypto_news_aggregator/tasks/beat_schedule.py`
+
+**Active scheduled tasks:**
 
 - **Morning briefing** (line 47-61): `crontab(hour=8, minute=0)` → 8:00 AM EST
 - **Afternoon briefing** (line 64-75): `crontab(hour=14, minute=0)` → 2:00 PM EST
 - **Evening briefing** (line 77-88): `crontab(hour=20, minute=0)` → 8:00 PM EST
+- **Narrative summary refresh — morning** (lines 119-126): `crontab(hour=7, minute=30)` → 7:30 AM EST. Drains the `needs_summary_update` queue; runs up to 20 narratives per cycle. Added FEATURE-012 (Sprint 15).
+- **Narrative summary refresh — evening** (lines 127-134): `crontab(hour=19, minute=30)` → 7:30 PM EST. Same consumer, second daily run. Added FEATURE-012 (Sprint 15).
 
-Each schedule entry includes:
+**Disabled/commented-out entries:**
+
+- **fetch_news** (lines 22-30, commented out): Was re-enabled in BUG-054, then disabled in BUG-057 when both configured news API sources (CoinDesk JSON API, Bloomberg) were confirmed dead — CoinDesk returns HTML, Bloomberg returns 403. RSS fetcher handles all article ingestion. Manual trigger available via `POST /admin/trigger-fetch`.
+- **check-price-alerts** (lines 33-41, commented out): Placeholder stub only — no price API is integrated. Never a real feature.
+
+Each active schedule entry includes:
 - `task`: Short task name matching `@shared_task(name=...)` (src/crypto_news_aggregator/tasks/briefing_tasks.py:69, 130, 191)
 - `schedule`: Crontab expression using `celery.schedules.crontab` (src/crypto_news_aggregator/tasks/beat_schedule.py:4)
 - `kwargs`: Task parameters (e.g., `force=False` prevents duplicate generation)
 - `options`: Celery execution settings (expires, time_limit, queue routing)
+
+### Periodic Worker Tasks (Not Beat Schedule)
+
+Some recurring tasks run inside the Celery worker process on a timed interval rather than via beat schedule. These are registered in `worker.py` and do not appear in `beat_schedule.py`.
+
+**Auto-dormant zombie narratives** (`tasks/narrative_cleanup.py`, `worker.py` line 267):
+- **Interval:** Every 1 hour
+- **Function:** `auto_dormant_zombie_narratives()` — queries for active narratives where all source articles have been deleted (zero surviving articles). Marks them dormant to prevent fabricated or un-verifiable content from appearing in briefings.
+- **Logging:** Emits a Railway-visible warning with narrative titles when zombies are found.
+- Added TASK-073 (Sprint 15).
 
 ### Task Registration
 
@@ -52,6 +71,12 @@ The briefing tasks are registered with **short names** that must match beat sche
 @shared_task(name="generate_morning_briefing")   # Line 69
 @shared_task(name="generate_evening_briefing")   # Line 130
 @shared_task(name="generate_afternoon_briefing") # Line 191
+```
+
+**File:** `src/crypto_news_aggregator/tasks/narrative_refresh.py`
+
+```
+@shared_task(name="refresh_flagged_narratives")  # FEATURE-012
 ```
 
 These names are passed to the beat schedule without module paths (short form), enabling reliable dispatch.
@@ -102,9 +127,10 @@ celery -A crypto_news_aggregator.tasks inspect active_queues
 ```bash
 # List all registered task names
 celery -A crypto_news_aggregator.tasks inspect registered
-# Should include: "generate_morning_briefing", "generate_evening_briefing", "generate_afternoon_briefing"
+# Should include: "generate_morning_briefing", "generate_evening_briefing",
+#                 "generate_afternoon_briefing", "refresh_flagged_narratives"
 ```
-*File reference:* `src/crypto_news_aggregator/tasks/briefing_tasks.py:69, 130, 191` (task names)
+*File reference:* `src/crypto_news_aggregator/tasks/briefing_tasks.py:69, 130, 191`; `src/crypto_news_aggregator/tasks/narrative_refresh.py` (task names)
 
 **Check 3: Manual trigger works (proves worker is listening)**
 ```bash
@@ -185,6 +211,8 @@ To verify briefings will run tomorrow at 8 AM EST:
 ### Core Logic
 - `src/crypto_news_aggregator/tasks/beat_schedule.py` - Beat schedule definition and cron timing
 - `src/crypto_news_aggregator/tasks/briefing_tasks.py` - Task registration and execution wrapper
+- `src/crypto_news_aggregator/tasks/narrative_refresh.py` - Narrative summary refresh consumer (FEATURE-012)
+- `src/crypto_news_aggregator/tasks/narrative_cleanup.py` - Auto-dormant zombie narrative periodic task (TASK-073)
 - `src/crypto_news_aggregator/tasks/celery_config.py` - Celery app configuration (registers beat schedule)
 - `src/crypto_news_aggregator/tasks/__init__.py:25` - Applies beat schedule to Celery app
 
@@ -203,4 +231,4 @@ To verify briefings will run tomorrow at 8 AM EST:
 - **LLM Integration (60-llm.md)** - How briefing content is generated via Claude API
 
 ---
-*Last updated: 2026-02-10* | *Generated from: 02-celery-beat.txt, 02-celery-registration.txt, 05-briefing-generation.txt* | *Anchor: scheduling-task-dispatch*
+*Last updated: 2026-04-25* | *Generated from: 02-celery-beat.txt, 02-celery-registration.txt, 05-briefing-generation.txt* | *Anchor: scheduling-task-dispatch*

@@ -98,9 +98,9 @@ async def generate_briefing(
 
 ### LLM API Request
 
-**File:** `src/crypto_news_aggregator/services/briefing_agent.py:766-834`
+**File:** `src/crypto_news_aggregator/services/briefing_agent.py:854-900`
 
-Direct API call to Anthropic (bypasses Python SDK to avoid client initialization issues):
+`_call_llm()` is a briefing-specific orchestrator that delegates to the LLM gateway. It does not make direct HTTP calls:
 
 ```python
 async def _call_llm(
@@ -109,38 +109,23 @@ async def _call_llm(
     system_prompt: str,
     max_tokens: int = 2048,
 ) -> str:
-    """Call the LLM API with fallback models."""
-    models_to_try = [
-        "claude-sonnet-4-5-20250929",          # Primary (line 46)
-        "claude-3-5-haiku-20241022",           # Fallback 1 (line 48)
-        "claude-3-haiku-20240307",             # Fallback 2 (line 49)
-    ]
-
-    for model in models_to_try:
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                "https://api.anthropic.com/v1/messages",  # Line 779
-                headers={
-                    "x-api-key": self.api_key,
-                    "anthropic-version": "2023-06-01",
-                    "content-type": "application/json",
-                },
-                json={
-                    "model": model,
-                    "max_tokens": max_tokens,
-                    "system": system_prompt,
-                    "messages": [{"role": "user", "content": prompt}],
-                },
-                timeout=120,
-            )
+    """Call the LLM via gateway with briefing-specific fallback logic."""
+    # Delegates to gateway — all spend cap enforcement and tracing happen there
+    response = await self.gateway.call(          # Line 880
+        prompt=prompt,
+        system_prompt=system_prompt,
+        model=BRIEFING_PRIMARY_MODEL,
+        max_tokens=max_tokens,
+        operation="briefing_generate",
+    )
+    return response
 ```
 
 **Key behaviors:**
-- Uses **Sonnet 4.5** (primary model) for instruction following quality
-- Falls back to **Haiku** if API returns 403 Forbidden
-- Falls back further to **old Haiku** if 5 retries exhausted
-- Tracks tokens for cost monitoring (line 804-817)
-- Timeout: 120 seconds per request
+- Delegates to `gateway.py` (single LLM entry point) — spend caps, tracing, and model routing all enforced there
+- Primary model: **Haiku 4.5** (`claude-haiku-4-5-20251001`) — cost-optimized default
+- Fallback model: **Sonnet 4.5** (`claude-sonnet-4-5-20250929`) — used when Haiku returns 403 or exhausts retries
+- Model constants defined at lines 54-55 of `briefing_agent.py`
 
 ### System Prompt
 
@@ -159,9 +144,13 @@ IMPORTANT RULES:
 3. Keep key_insights concise (max 3-5 per briefing)
 4. Recommendations must reference narratives provided, not external
 5. Be accurate—if data conflicts with your training, trust the data provided
+6-8. [internal formatting rules]
+9. Consolidate duplicate events — if the same event appears under different narrative angles, present it once with full context, not as separate stories
+10. No unnamed entities — every referenced platform, exchange, or project must be explicitly named using only names present in the provided narratives
+11. Verify figure plausibility against ~$2-3T crypto market cap baseline — flag or omit figures that are historically unprecedented (e.g., $50B+ liquidations, $10B+ single hacks)
 ```
 
-The prompt is dynamically set to "morning" or "evening" context (line 404).
+The prompt is dynamically set to "morning" or "evening" context (line 404). Rules 9-11 were added in BUG-081 to address duplicate event framing and unnamed entity references.
 
 ### Generation Prompt Structure
 
@@ -169,7 +158,7 @@ The prompt is dynamically set to "morning" or "evening" context (line 404).
 
 The generation prompt includes:
 
-1. **Briefing Type & Context**: "Generate a morning briefing" with current time
+1. **Briefing Type & Context**: "Generate a morning briefing" with current time — date is converted from UTC to `America/Chicago` (CST/CDT) before formatting, so the LLM prompt date matches the frontend display timezone (BUG-080, commit 13d0ecc)
 2. **Recent Signals** (20 signals max): Market events, price movements, sentiment
 3. **Active Narratives** (15 max): Story threads with entities and recent articles
 4. **Detected Patterns** (8 max): Market anomalies, correlations, divergences
@@ -196,7 +185,10 @@ Two-iteration quality assurance:
 
 **Iteration 1:**
 1. Generate briefing (line 319-327)
-2. Build critique prompt evaluating: completeness, accuracy, grammar, actionability
+2. Build critique prompt evaluating: completeness, accuracy, grammar, actionability, plus:
+   - Check 8: Detect duplicate events presented as separate stories (critical flag)
+   - Check 9: Detect unnamed entity references — every platform/exchange must be explicitly named
+   - Check 10: Detect implausible figures ($50B+ liquidations, $10B+ hacks flagged as historically unprecedented)
 3. Call LLM to get critique response (line 359-363)
 4. Parse critique: Does it say "PASS" or list issues? (line 366)
 5. If PASS → Return with "Quality passed on iteration 1" (line 371)
@@ -218,30 +210,24 @@ Two-iteration quality assurance:
 
 ### Cost Tracking
 
-**File:** `src/crypto_news_aggregator/services/briefing_agent.py:809-817`
+**File:** `src/crypto_news_aggregator/llm/gateway.py` (primary), `src/crypto_news_aggregator/services/briefing_agent.py:809-817` (legacy reference)
 
-Token usage is logged asynchronously:
+All LLM calls are traced in the `llm_traces` MongoDB collection by the gateway. This is the single source of truth for cost enforcement and spend visibility:
 
 ```python
-# Extract usage from LLM response
-usage = data.get("usage", {})
-input_tokens = usage.get("input_tokens", 0)
-output_tokens = usage.get("output_tokens", 0)
-
-# Track asynchronously (non-blocking)
-tracker = await self._get_cost_tracker()
-asyncio.create_task(
-    tracker.track_call(
-        operation="briefing_generation",
-        model=model,
-        input_tokens=input_tokens,
-        output_tokens=output_tokens,
-        cached=False
-    )
-)
+# Written by gateway.py after every LLM call
+{
+    "operation": "briefing_generate",
+    "model": "claude-haiku-4-5-20251001",
+    "input_tokens": 1200,
+    "output_tokens": 800,
+    "cost": 0.00031,          # field name is "cost", not "cost_usd"
+    "timestamp": ISODate("..."),
+    "cached": false
+}
 ```
 
-Cost is tracked in `llm_usage` collection for billing and optimization.
+`llm_usage` is a legacy collection that still exists and receives some writes; treat it as secondary. Budget enforcement (`get_daily_cost()`, `get_monthly_cost()`) reads exclusively from `llm_traces` as of BUG-079.
 
 ### Response Parsing
 
@@ -317,16 +303,17 @@ time curl -X POST "http://localhost:8000/admin/trigger-briefing?force=true"
 ### Model Selection & Fallback
 
 **Current model hierarchy:**
-1. **Primary:** `claude-sonnet-4-5-20250929` (best quality, $5/$15 per 1M tokens)
-2. **Fallback 1:** `claude-3-5-haiku-20241022` (good quality, $0.80/$4 per 1M tokens)
-3. **Fallback 2:** `claude-3-haiku-20240307` (legacy, $0.80/$4 per 1M tokens)
+1. **Primary:** `claude-haiku-4-5-20251001` — cost-optimized default for all briefing generation (~10x cheaper than Sonnet)
+2. **Fallback:** `claude-sonnet-4-5-20250929` — used when Haiku returns 403 Forbidden or exhausts retries
 
 **When to fallback:**
-- 403 Forbidden: Model rate-limited or API key invalid
-- Other 4xx: Continue to next model
-- Timeout: Retry with same model (line 791)
+- 403 Forbidden: Model rate-limited or API key issue → retry with Sonnet
+- Spend limit breach: Gateway blocks call before it reaches Anthropic; no fallback attempted
+- Timeout: Retry with same model
 
-*File reference:* `src/crypto_news_aggregator/services/briefing_agent.py:46-50` (model list), `824-829` (fallback logic)
+**Model constants:** Defined at lines 54-55 of `briefing_agent.py` as `BRIEFING_PRIMARY_MODEL` and `BRIEFING_FALLBACK_MODEL`. All calls route through `gateway.py` which enforces model routing and spend caps before the Anthropic API is contacted.
+
+*File reference:* `src/crypto_news_aggregator/services/briefing_agent.py:54-55` (model constants), `854-900` (`_call_llm()` gateway delegation)
 
 ## Debugging
 
@@ -388,4 +375,4 @@ time curl -X POST "http://localhost:8000/admin/trigger-briefing?force=true"
 - **Data Model (50-data-model.md)** - Where generated briefings are stored
 
 ---
-*Last updated: 2026-02-10* | *Generated from: 04-llm-client.txt, 04-llm-prompts.txt, 05-briefing-generation.txt* | *Anchor: llm-integration-generation*
+*Last updated: 2026-04-25* | *Generated from: 04-llm-client.txt, 04-llm-prompts.txt, 05-briefing-generation.txt* | *Anchor: llm-integration-generation*

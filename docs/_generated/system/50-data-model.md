@@ -56,7 +56,7 @@ Each briefing document contains:
     "narrative_count": 15,             // Number of narratives used
     "pattern_count": 8,                // Number of patterns detected
     "manual_input_count": 2,           // Manual inputs from memory
-    "model": "claude-sonnet-4-5-20250929",  // LLM model used
+    "model": "claude-haiku-4-5-20251001",  // LLM model used (Haiku primary; Sonnet if fallback triggered)
     "refinement_iterations": 2         // Self-refine iterations
   },
   "is_smoke": false,                   // Smoke test marker (FEATURE-037)
@@ -125,11 +125,74 @@ Each pattern document:
 
 **Indexing:** Patterns are indexed by `briefing_id` for fast lookups when reading a specific briefing.
 
+### Infrastructure Collections
+
+These collections are written and read by the LLM gateway layer, not the business-logic layer. They are separate from briefings/narratives/articles/patterns.
+
+#### llm_traces Collection
+
+**File:** `src/crypto_news_aggregator/llm/gateway.py:325,360`, `src/crypto_news_aggregator/llm/tracing.py:14`
+
+Single source of truth for LLM cost enforcement and spend visibility. Written by `gateway.py` after every LLM call, regardless of operation type.
+
+```javascript
+{
+  "_id": ObjectId("..."),
+  "operation": "briefing_generate",       // Caller-supplied operation name (required)
+  "model": "claude-haiku-4-5-20251001",   // Actual model used
+  "input_tokens": 1200,
+  "output_tokens": 800,
+  "cost": 0.00031,                        // Field name is "cost" — NOT "cost_usd"
+  "timestamp": ISODate("..."),            // Query field — NOT "created_at"
+  "cached": false                         // True if response served from llm_cache
+}
+```
+
+**Indexes:**
+```javascript
+db.llm_traces.createIndex({ timestamp: 1 }, { expireAfterSeconds: 2592000 })  // TTL 30 days
+db.llm_traces.createIndex({ operation: 1 })
+db.llm_traces.createIndex({ operation: 1, timestamp: -1 })
+```
+
+**Critical field notes:**
+- Always query using `timestamp`, not `created_at` — the latter does not exist on this collection
+- Cost field is `cost`, not `cost_usd` — aggregations must use `"$cost"`
+- `operation` is required; traces with `operation: "provider_fallback"` indicate a call site that did not pass an operation name (should be zero in steady state post-BUG-078)
+
+**Budget enforcement:** `get_daily_cost()` and `get_monthly_cost()` aggregate exclusively from this collection (BUG-079). Monthly hard limit: $30 (`ANTHROPIC_MONTHLY_API_LIMIT`). Daily hard limit: $1.00.
+
+#### llm_cache Collection
+
+**File:** `src/crypto_news_aggregator/llm/cache.py:26`, `src/crypto_news_aggregator/llm/gateway.py:40,95,106,133,173,215`
+
+Prompt-response cache managed by `LLMCache`. Reduces redundant API calls for identical or near-identical prompts.
+
+```javascript
+{
+  "_id": ObjectId("..."),
+  "cache_key": "sha256_hash_of_prompt",
+  "response": "...",        // Cached LLM response text
+  "model": "claude-haiku-4-5-20251001",
+  "created_at": ISODate("...")
+}
+```
+
+Cache hit rate can be checked via `db.llm_cache` query. Wired since BUG-072 (Sprint 14); hit rate not yet measured (see TASK-070).
+
+#### llm_usage Collection (Legacy)
+
+Still exists and receives some writes, but is **not** the source of truth for budget enforcement. Admin dashboard endpoints (`/admin/cost/projection`, `/admin/cost/monthly`) still read from `api_costs` and `llm_usage`. Do not rely on this collection for spend accuracy — use `llm_traces`.
+
 ### Related Collections (Reference)
 
 **narratives** collection (used for recommendations):
 - Each narrative has `_id: ObjectId`, `title: string`, and `description: string`
 - Includes `fingerprint` field (SHA1 hash of nucleus_entity + top_actors) for matching and deduplication
+- `needs_summary_update: bool` — set `true` by merge path when summary is stale (3+ new articles, lifecycle promotion, or >24h age gap); consumed by `refresh_flagged_narratives` task (FEATURE-012, BUG-088)
+- `last_summary_generated_at: ISODate` — stamped at narrative creation; used by merge path to detect summary staleness
+- `dormant_since: ISODate` — set when narrative is auto-dormanted by zombie cleanup (TASK-073)
+- `_disabled_by: string` — set to `"TASK-073-zombie-cleanup"` or `"TASK-073-auto-cleanup"` when auto-dormanted; used for audit trail
 - **Reference:** `src/crypto_news_aggregator/services/briefing_agent.py:859-862` (matching recommendations to narrative IDs)
 
 **articles** collection (sources for briefings):
@@ -300,4 +363,4 @@ Smoke tests are marked but retained for testing:
 - **LLM Integration (60-llm.md)** - How content is generated before storage
 
 ---
-*Last updated: 2026-02-10* | *Generated from: 03-mongo-collections.txt, 05-briefing-save.txt* | *Anchor: data-model-mongodb*
+*Last updated: 2026-04-25* | *Generated from: 03-mongo-collections.txt, 05-briefing-save.txt* | *Anchor: data-model-mongodb*

@@ -27,7 +27,7 @@ The application exposes five main routes served from a single-page entry point:
 | `/signals` | Signals | Show active market signals and alerts | GET /signals |
 | `/narratives` | Narratives | Browse narrative threads | GET /narratives |
 | `/articles` | Articles | View collected news articles | GET /articles |
-| `/cost-monitor` | CostMonitor | Track LLM usage and costs | GET /usage/stats |
+| `/cost-monitor` | CostMonitor | Track LLM usage and costs | ⚠️ No live API endpoint — `get_usage_stats()` exists in `llm/tracking.py` as a Python function but is not exposed as an HTTP route. Cost Monitor UI is not yet backed by a real endpoint. TASK-069 will wire this up reading from `llm_traces`. |
 
 ## Implementation Details
 
@@ -148,13 +148,10 @@ async function getArticles(limit: number = 50) {
 
 **Cost Monitor API:**
 ```typescript
-// GET /usage/stats
-async function getCostStats() {
-  const response = await fetch(`${API_BASE}/usage/stats`);
-  return response.json();
-}
-
-// Returns: { total_tokens, total_cost, by_model, by_operation }
+// ⚠️ GET /usage/stats does not exist as an HTTP route.
+// get_usage_stats() is defined in llm/tracking.py but not wired to an API endpoint.
+// Cost Monitor page has no live data source. TASK-069 will implement the endpoint
+// reading from llm_traces collection (aggregate on "cost" field, query by "timestamp").
 ```
 
 ### Component State Management
@@ -375,4 +372,4 @@ curl http://localhost:8000/api/v1/articles
 - **Scheduling (20-scheduling.md)** - When briefings are generated (frontend polling shows latest)
 
 ---
-*Last updated: 2026-02-10* | *Generated from: 10-frontend-routes.txt* | *Anchor: frontend-routes-api*
+*Last updated: 2026-04-25* | *Generated from: 10-frontend-routes.txt* | *Anchor: frontend-routes-api*

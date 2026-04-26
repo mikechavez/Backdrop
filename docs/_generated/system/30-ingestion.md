@@ -20,20 +20,20 @@ The system continuously ingests cryptocurrency news from multiple RSS feeds, nor
 ### Data Flow
 
 ```
-1. Schedule Check      → Trigger fetch every 3 hours
-2. Feed Fetch          → Request RSS XML from configured sources
+1. Schedule Check      → Trigger fetch (manual via /admin/trigger-fetch or pipeline)
+2. Feed Fetch          → Request RSS XML from configured sources (via RSSService)
 3. Parse Feed          → Extract articles from feed entries
 4. Normalize Metadata  → Map source fields to standard schema
 5. Fingerprint Check   → Hash content; skip if duplicate
-6. Save to MongoDB     → Insert article document
-7. Queue Enrichment    → Task: extract entities
-8. Queue Enrichment    → Task: analyze sentiment
-9. Update Article      → Mark as enriched when complete
+6. Classify Tier       → Assign relevance_tier (1/2/3) before any LLM call
+7. Save to MongoDB     → Insert article document with tier info
+8. Queue Enrichment    → Tier 1 only: queue entity extraction + sentiment tasks
+9. Update Article      → Mark as enriched when both tasks complete (Tier 1 only)
 ```
 
 Time per article: 2-10 seconds (depending on content size and API lag)
-Throughput: 100-500 articles per fetch cycle
-Frequency: Every 3 hours (8 fetch cycles/day)
+Throughput: 300-500 articles ingested/day; ~70 Tier 1 enriched/day
+Frequency: Pipeline-driven (manual trigger or background job)
 
 ## Implementation Details
 
@@ -41,20 +41,12 @@ Frequency: Every 3 hours (8 fetch cycles/day)
 
 **File:** `src/crypto_news_aggregator/background/rss_fetcher.py:1-100`
 
-Feed sources and fetch logic:
+Feed sources are managed by `RSSService` (line 77-78) rather than a hardcoded `FEED_SOURCES` list. Active sources after TASK-059 (Sprint 13) removed low-quality feeds: CoinTelegraph, CoinDesk, Decrypt, The Block. Source list is configurable via RSSService.
 
 ```python
-FEED_SOURCES = [
-    {"name": "CoinTelegraph", "url": "https://cointelegraph.com/feed"},  # Line 15
-    {"name": "CoinDesk", "url": "https://www.coindesk.com/feed"},        # Line 16
-    {"name": "Decrypt", "url": "https://decrypt.co/feed"},               # Line 17
-    {"name": "The Block", "url": "https://www.theblockcrypto.com/rss"},  # Line 18
-    # ... more feeds
-]
-
 async def fetch_feeds():
     """Periodically fetch articles from all configured feeds."""
-    for feed in FEED_SOURCES:
+    for feed in rss_service.get_active_feeds():
         try:
             articles = await _fetch_feed(feed["url"])  # Line 45
             for article in articles:
@@ -64,9 +56,8 @@ async def fetch_feeds():
 ```
 
 **Scheduling:**
-- **File:** `src/crypto_news_aggregator/tasks/beat_schedule.py:103-115`
-- **Schedule:** Every 3 hours via Celery Beat
-- **Task:** `fetch_news_feeds` (line 104)
+- **File:** `src/crypto_news_aggregator/tasks/beat_schedule.py:22-30`
+- **Status:** `fetch_news` beat schedule entry is currently commented out (BUG-057). RSS ingestion is triggered via `POST /admin/trigger-fetch` for manual runs; the RSS fetcher runs as part of the article processing pipeline.
 - **Timeout:** 300 seconds (5 minutes per fetch cycle)
 
 **Feed parsing library:**
@@ -147,6 +138,7 @@ async def check_duplicate(fingerprint: str) -> bool:
 - **Collection:** `articles`
 - **Index:** `{"fingerprint": 1}` (unique index)
 - **Query speed:** ~1ms (indexed lookup)
+- **Coverage:** Both the service layer path and the RSS ingest path now generate fingerprints (BUG-076, Sprint 15). 1,762 existing articles were backfilled; 4 duplicates were identified and tagged for manual review.
 
 **Duplicate handling:**
 1. Calculate fingerprint from title + first 500 chars of content
@@ -160,9 +152,13 @@ async def check_duplicate(fingerprint: str) -> bool:
 
 ### Entity & Sentiment Enrichment
 
+**Tier classification runs before enrichment (TASK-062, Sprint 13).** Articles are classified into relevance tiers immediately after normalization. Only Tier 1 articles proceed to full enrichment — this change reduced enrichment LLM costs by ~98% (from ~333 enriched/day to ~70).
+
+**Tier 2/3 handling:** Saved to MongoDB with `relevance_tier` and `relevance_reason` populated, but no entity extraction or sentiment analysis. They remain available for search/archive but are excluded from narrative detection and briefing context.
+
 **File:** `src/crypto_news_aggregator/tasks/process_article.py:1-150`
 
-Async enrichment tasks:
+Async enrichment tasks (Tier 1 only):
 
 ```python
 @shared_task(name="extract_article_entities")
@@ -200,10 +196,10 @@ def analyze_sentiment_task(article_id: str):
 - **Latency:** 1-2 seconds per article
 
 **Queuing strategy:**
-1. Insert article with `enriched: false`
-2. Queue entity extraction task
-3. Queue sentiment analysis task
-4. When both complete, set `enriched: true`
+1. Insert article with `relevance_tier` set (Tier 1/2/3) and `enriched: false`
+2. **If Tier 1:** Queue entity extraction task and sentiment analysis task
+3. **If Tier 2/3:** Save with `relevance_tier` and `relevance_reason` only — no enrichment tasks queued
+4. When both Tier 1 enrichment tasks complete, set `enriched: true`
 
 **Retry logic:**
 - **Retries:** Up to 3 on API timeout
@@ -250,11 +246,14 @@ db.articles.find({sentiment: {$exists: true}}).count()
 
 | Metric | Target | Current |
 |--------|--------|---------|
-| Articles ingested/day | 300-500 | ~450 |
+| Articles ingested/day (RSS) | 300-500 | ~300-500 |
+| Tier 1 enriched/day | ~70 | ~56-70 |
 | Duplicates filtered | >95% | 96% |
-| Enrichment success rate | >95% | 94% |
+| Enrichment success rate (Tier 1) | >95% | 94% |
 | Avg article age | <6 hours | 4h 30m |
 | Avg content length | 500-5000 chars | 2800 chars |
+
+**Note:** Ingestion and enrichment counts are intentionally different. Tier classification runs before enrichment (TASK-062), so only ~70 Tier 1 articles per day are fully enriched. Tier 2/3 are saved unenriched.
 
 ### Debugging
 
@@ -308,4 +307,4 @@ db.articles.find({sentiment: {$exists: true}}).count()
 - **[20-scheduling.md](#scheduling-task-dispatch)** - Feed fetch scheduling details
 
 ---
-*Last updated: 2026-02-10* | *Anchor: ingestion-pipeline*
+*Last updated: 2026-04-25* | *Anchor: ingestion-pipeline*

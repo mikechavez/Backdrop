@@ -120,7 +120,18 @@ async def detect_or_match_narrative(
   "sentiment": "bearish",                           // Aggregate sentiment
   "first_seen": ISODate("2026-02-01T..."),         // When narrative started
   "last_updated": ISODate("2026-02-10T..."),       // Last article added
-  "lifecycle_state": "emerging" | "active" | "dormant" | "resolved"
+  "lifecycle_state": "emerging" | "rising" | "hot" | "cooling" | "dormant" | "echo" | "reactivated",
+  // State machine: emerging → rising → hot → cooling → dormant
+  // echo: narrative resurfaces after resolution without new articles
+  // reactivated: dormant narrative receives new articles and re-enters active flow
+
+  // Summary staleness tracking (BUG-088)
+  "needs_summary_update": false,                   // true when merge path detects stale summary
+  "last_summary_generated_at": ISODate("..."),     // Stamped at creation; baseline for staleness check
+
+  // Auto-dormant audit trail (TASK-073)
+  "dormant_since": ISODate("..."),                 // Set when zombie cleanup marks dormant
+  "_disabled_by": "TASK-073-auto-cleanup"          // Audit label; null on active narratives
 }
 ```
 
@@ -220,6 +231,7 @@ async def detect_signals_from_narrative(
 - `technical`: Chart patterns (double bottom, breakdown, etc.)
 - `on_chain`: Blockchain metrics (whale movements, network activity)
 - `correlation`: Multiple assets moving in sync
+- `market_shock`: ⚠️ **Currently disabled** — `detect_market_events()` returns an empty list as of BUG-083 Part 1 (commit 6850efb). The original implementation had six compounding failures (OR keyword matching, no relevance validation, blind volume extraction) that produced fabricated financial figures. Pending rebuild as TASK-072 with proper phrase matching and relevance validation.
 
 **Signal strength:** "high" | "medium" | "low"
 
@@ -369,4 +381,4 @@ db.patterns.find({created_at: {$gte: ISODate("2026-02-09T00:00:00Z")}}).count()
 - **[50-data-model.md](#data-model-mongodb)** - Narrative and signal collection schemas
 
 ---
-*Last updated: 2026-02-10* | *Anchor: processing-pipeline*
+*Last updated: 2026-04-25* | *Anchor: processing-pipeline*

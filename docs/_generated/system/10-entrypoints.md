@@ -61,10 +61,11 @@ app.include_router(router, prefix="/api/v1")  # Line 25
 
 **Key initialization steps:**
 
-1. **FastAPI instantiation** (line 8): Creates app instance
-2. **CORS middleware** (line 11-17): Enables frontend requests
-3. **Router registration** (line 25-30): Includes API endpoints from `api/v1/__init__.py`
-4. **Lifespan events** (line 32-50): Startup/shutdown hooks for database initialization
+1. **Sentry initialization** (lines 8-22): Runs at module load time, before FastAPI instantiation — not in a startup event. Integrates with both FastAPI and Celery.
+2. **FastAPI instantiation** (line 8): Creates app instance
+3. **CORS middleware** (line 11-17): Enables frontend requests
+4. **Router registration** (line 25-30): Includes API endpoints from `api/v1/__init__.py`
+5. **Lifespan events** (line 32-50): Startup/shutdown hooks for database initialization
 
 **File:** `src/crypto_news_aggregator/main.py:32-50` (Lifespan events)
 
@@ -120,6 +121,8 @@ async def get_database():
 - `articles` - News articles
 - `entity_mentions` - Entity index
 - `signals` - Market signals
+- `llm_traces` - LLM call traces with cost attribution (TTL 30 days; Sprint 13)
+- `llm_cache` - LLM request/response cache (BUG-072)
 
 **Health check:**
 ```bash
@@ -242,7 +245,14 @@ curl -X POST "http://localhost:8000/admin/trigger-briefing?briefing_type=morning
 # Direct HTTP endpoint (preferred over CLI)
 ```
 
-3. **Database health check**:
+3. **Trigger manual RSS fetch** (added BUG-054):
+```bash
+curl -X POST "http://localhost:8000/admin/trigger-fetch"
+# File: src/crypto_news_aggregator/api/admin.py:504
+# Manually triggers RSS ingestion outside the beat schedule
+```
+
+4. **Database health check**:
 ```bash
 python -c "
 import asyncio
@@ -270,7 +280,7 @@ class Settings(BaseSettings):
 
     # LLM
     ANTHROPIC_API_KEY: str = Field(..., env="ANTHROPIC_API_KEY")  # Line 20
-    ANTHROPIC_DEFAULT_MODEL: str = "claude-3-5-haiku-20241022"    # Line 21
+    ANTHROPIC_DEFAULT_MODEL: str = "claude-haiku-4-5-20251001"    # Line 21
 
     # Celery
     CELERY_BROKER_URL: str = Field(..., env="CELERY_BROKER_URL")  # Line 25
@@ -386,4 +396,4 @@ Full healthy startup should show:
 - **[50-data-model.md](#data-model-mongodb)** - MongoDB collections and indexing
 
 ---
-*Last updated: 2026-02-10* | *Generated from: 01-entrypoints.txt, 02-celery-registration.txt, 03-celery-beat.txt, 04-mongo-init.txt, 12-config.txt* | *Anchor: application-entrypoints*
+*Last updated: 2026-04-25* | *Generated from: 01-entrypoints.txt, 02-celery-registration.txt, 03-celery-beat.txt, 04-mongo-init.txt, 12-config.txt* | *Anchor: application-entrypoints*

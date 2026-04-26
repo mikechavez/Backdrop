@@ -11,25 +11,27 @@ The Crypto News Aggregator is a distributed system for collecting cryptocurrency
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                      External Data Sources                       │
-│  RSS Feeds │ NewsAPI │ Reddit │ Twitter │ CoinDask │ CoinGecko  │
+│              RSS Feeds (CoinTelegraph, CoinDesk,                │
+│                         Decrypt, The Block)                      │
 └─────────────────────────┬───────────────────────────────────────┘
                           │
                           ▼
         ┌──────────────────────────────────┐
         │      RSS Fetcher & Collector     │
-        │  (background/news-fetching)      │
-        │  - Fetch RSS feeds every 3hrs    │
+        │  (background/rss_fetcher.py)     │
+        │  - Classify relevance tier first │
+        │  - Fetch RSS feeds (RSSService)  │
         │  - Normalize article structure   │
         │  - Deduplicate via fingerprint   │
         └──────────────┬───────────────────┘
                        │
                        ▼
         ┌──────────────────────────────────┐
-        │      Article Enrichment          │
+        │   Article Enrichment (Tier 1)    │
         │  (tasks/process_article.py)      │
         │  - Entity extraction (NER)       │
         │  - Sentiment analysis            │
-        │  - Relevance classification      │
+        │  - Tier 2/3: saved unenriched    │
         └──────────────┬───────────────────┘
                        │
         ┌──────────────▼──────────────────┐
@@ -38,11 +40,11 @@ The Crypto News Aggregator is a distributed system for collecting cryptocurrency
 ┌─────────────────────┐        ┌──────────────────────┐
 │   Narratives Index  │        │   Signals Detection  │
 │  (detect patterns)  │        │  (identify trends)   │
-│  - Clustering       │        │  - Market events     │
-│  - Entity linking   │        │  - Price anomalies   │
-│  - Theme detection  │        │  - Sentiment shifts  │
-└─────────────┬───────┘        └──────────┬───────────┘
-              │                           │
+│  - Clustering       │        │  - Velocity/diversity │
+│  - Entity linking   │        │  - Sentiment shifts  │
+│  - Theme detection  │        │  (market event det.  │
+└─────────────┬───────┘        │   currently offline) │
+              │                └──────────┬───────────┘
               └──────────────┬────────────┘
                              │
                              ▼
@@ -55,12 +57,27 @@ The Crypto News Aggregator is a distributed system for collecting cryptocurrency
             └────────────────┬───────────┘
                              │
                              ▼
+            ┌────────────────────────────┐
+            │      LLM Gateway           │
+            │  (llm/gateway.py)          │
+            │  - Single LLM entry point  │
+            │  - Model routing/enforce   │
+            │  - Spend cap enforcement   │
+            │  - Request/response cache  │
+            │  - Tracing to llm_traces   │
+            └────────────────┬───────────┘
+                             │
+                         Claude API
+                             │
+                             ▼
               ┌──────────────────────────┐
               │    MongoDB (Persistence)  │
               │  - daily_briefings        │
               │  - narratives             │
               │  - articles               │
               │  - entity_mentions        │
+              │  - llm_traces             │
+              │  - llm_cache              │
               └──────────────┬────────────┘
                              │
                              ▼
@@ -76,9 +93,9 @@ The Crypto News Aggregator is a distributed system for collecting cryptocurrency
 ## Module Interconnections
 
 ### Data Ingestion Layer
-- **RSS Fetcher** (`background/rss_fetcher.py`): Periodically fetches articles from configured feeds
+- **RSS Fetcher** (`background/rss_fetcher.py`): Periodically fetches articles from configured feeds via `RSSService`; runs relevance tier classification before enrichment
 - **News Collector** (`core/news_collector.py`): Normalizes articles to consistent schema
-- **Fingerprinter** (`services/article_service.py`): Deduplicates via content hashing
+- **Fingerprinter** (`services/article_service.py`): Deduplicates via content hashing (both ingestion paths covered)
 
 ### Enrichment Layer
 - **Entity Extractor** (`services/entity_service.py`): Identifies companies, people, concepts via Claude API
@@ -87,12 +104,15 @@ The Crypto News Aggregator is a distributed system for collecting cryptocurrency
 
 ### Analysis Layer
 - **Narrative Service** (`services/narrative_service.py`): Groups articles into story threads using semantic similarity
-- **Signal Service** (`services/signal_service.py`): Detects market events, trends, anomalies
+- **Signal Service** (`services/signal_service.py`): Detects trends via velocity, diversity, and sentiment signals. The market event detector (`detect_market_events()`) is currently disabled (BUG-083, commit 6850efb) and returns an empty list pending a rebuild with proper validation.
 - **Pattern Detector** (`services/pattern_detector.py`): Identifies correlations and divergences
 
 ### Generation & Persistence Layer
-- **Briefing Agent** (`services/briefing_agent.py`): Orchestrates briefing generation using Claude API
-- **Cost Tracker** (`services/cost_tracker.py`): Logs LLM token usage for billing
+- **Briefing Agent** (`services/briefing_agent.py`): Orchestrates briefing generation using Claude API via the LLM Gateway
+- **LLM Gateway** (`llm/gateway.py`): Single entry point for all LLM calls; enforces model routing, spend caps, and caching; writes traces to `llm_traces`
+- **LLM Tracing** (`llm/tracing.py`): Trace schema and aggregation queries for cost attribution
+- **LLM Cache** (`llm/draft_capture.py`): Dataset capture and request/response caching backed by `llm_cache` collection
+- **Cost Tracker** (`services/cost_tracker.py`): Logs LLM token usage; reads from `llm_traces` as single source of truth
 - **MongoDB Operations** (`db/operations/`): CRUD operations for briefings, narratives, articles
 
 ### Frontend Layer
@@ -143,7 +163,7 @@ Access: Public (no auth for briefings), Admin for manual triggers
 ### 2. LLM-Centric Briefing
 **Decision:** Use Claude API for generation + self-refine loop
 - **Rationale:** High-quality narratives; handles ambiguity better than templates
-- **Trade-off:** Higher cost (~$0.05/briefing), 30-60s latency
+- **Trade-off:** ~$0.01/briefing (Haiku model, validated Sprint 14), 30-60s latency
 - **Alternative:** Template-based (faster, cheaper, lower quality)
 
 ### 3. MongoDB for Scalability
@@ -214,4 +234,4 @@ Access: Public (no auth for briefings), Admin for manual triggers
 - **Cost Optimization** - LLM token reduction strategies
 
 ---
-*Last updated: 2026-02-10* | *Anchor: architecture-overview*
+*Last updated: 2026-04-25* | *Anchor: architecture-overview*
