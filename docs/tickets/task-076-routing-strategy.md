@@ -3,10 +3,12 @@ ticket_id: TASK-076
 title: RoutingStrategy Implementation — Complete + Wire Routing Into Gateway
 priority: critical
 severity: high
-status: OPEN
+status: COMPLETE
 date_created: 2026-04-27
 updated: 2026-04-27
+completed: 2026-04-27
 effort_estimate: 3-4 hours
+actual_effort: 1.5 hours
 ---
 
 # TASK-076: RoutingStrategy Implementation — Complete + Wire Routing Into Gateway
@@ -405,3 +407,42 @@ def test_get_routing_strategy_unknown_raises():
 - BUG-090 (must be merged first; this completes it)
 - TASK-077 (GeminiProvider must be available for routing)
 - FEATURE-053 (Flash evals need routing control)
+
+---
+
+## Completion Summary (2026-04-27)
+
+✅ **TASK-076 COMPLETE**
+
+**Implementation Details:**
+- ✅ Added `RoutingStrategy.select(routing_key: str) → str` method with MD5 bucketing
+- ✅ Critical guard clause: if variant is None OR ratio == 0, ALWAYS return primary
+- ✅ Created centralized `_OPERATION_ROUTING` dict with all 14 operations (all primary=Haiku)
+- ✅ Updated `_get_routing_strategy()` to raise ValueError for unknown operations
+- ✅ Integrated `select()` into `_resolve_routing()` method
+- ✅ Both `call()` and `call_sync()` accept `routing_key` parameter (default: f"{operation}:{trace_id}")
+- ✅ `GatewayResponse` fields populated: actual_model, requested_model, model_overridden
+
+**Test Coverage:**
+- ✅ 17 new unit tests in `tests/llm/test_task_076_routing.py`
+  - Guard clause tests (variant=None, ratio=0)
+  - Determinism tests (same key → same output)
+  - A/B split tests (50/50, 75/25 ratios)
+  - Override detection tests
+  - Operation routing tests (all 14 operations)
+  - Error handling tests (unknown operations)
+- ✅ All 22 existing gateway tests pass (no regressions)
+- ✅ Total: 39 tests passing
+
+**Files Modified:**
+1. `src/crypto_news_aggregator/llm/gateway.py` — RoutingStrategy completion, integration
+2. `tests/llm/test_task_076_routing.py` — New comprehensive unit tests
+
+**Branch:** `fix/bug-090-eliminate-silent-model-override` (commit 713358f)
+**Ready for:** PR → merge → unblocks FEATURE-053
+
+**Impact:**
+- Model routing now supports deterministic A/B testing via MD5 bucketing
+- Foundation complete for FEATURE-053 (Flash evaluations)
+- Guard clause prevents ambiguous routing scenarios
+- All acceptance criteria met, all tests passing

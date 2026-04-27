@@ -1,13 +1,51 @@
 # Session Start
 
-**Date:** 2026-04-27 (Session 42, Sprint 16)
-**Status:** BUG-090 COMPLETE: Observable routing system implemented. Ready for PR.
-**Current Branch:** fix/bug-090-eliminate-silent-model-override (commit e89dc44)
-**Next:** Create PR, merge, then proceed to TASK-076 (RoutingStrategy completion with MD5 bucketing)
+**Date:** 2026-04-27 (Session 43, Sprint 16)
+**Status:** TASK-076 COMPLETE: RoutingStrategy fully wired with MD5 bucketing. All 39 tests passing.
+**Current Branch:** fix/bug-090-eliminate-silent-model-override (commit 713358f)
+**Next:** Create PR, merge, then proceed to TASK-077 (GeminiProvider) or parallel TASK-078/079
 
 ---
 
-## Current Session Context (Session 42)
+## Current Session Context (Session 43)
+
+### What was completed in Session 43
+
+**TASK-076 COMPLETE: RoutingStrategy Implementation — Complete + Wire Routing Into Gateway**
+
+RoutingStrategy skeleton from BUG-090 is now complete with deterministic MD5 bucketing and full gateway integration. This unblocks FEATURE-053 (Flash evaluations) with observable, testable routing control.
+
+**Implementation deployed (commit 713358f, branch fix/bug-090-eliminate-silent-model-override):**
+- ✅ Added `RoutingStrategy.select(routing_key)` method:
+  - Critical guard clause: if variant is None OR ratio == 0, ALWAYS return primary
+  - MD5 hash-based bucketing: hash_int = int(md5(routing_key).hexdigest(), 16) % 100
+  - Deterministic variant selection: if hash_int < (ratio * 100): return variant else primary
+- ✅ Centralized `_OPERATION_ROUTING` dict:
+  - Moved from inline DEFAULT_STRATEGIES to module-level dict
+  - All 14 operations with explicit routing strategies
+  - All primary model = anthropic:claude-haiku-4-5-20251001 (no variants yet)
+- ✅ Updated `_get_routing_strategy()`:
+  - Now raises ValueError for unknown operations (with helpful error message)
+  - Replaces temporary defaults from BUG-090
+- ✅ Integrated into gateway methods:
+  - `_resolve_routing()` now accepts routing_key and calls strategy.select()
+  - `call()` accepts routing_key parameter (default: f"{operation}:{trace_id}")
+  - `call_sync()` accepts routing_key parameter (same default)
+- ✅ Comprehensive test coverage:
+  - 17 new unit tests in test_task_076_routing.py
+  - Tests cover: guard clause, determinism, A/B splits (50/50, 75/25), override detection
+  - All 22 existing gateway tests pass (zero regressions)
+  - Total: 39 tests passing ✅
+- **Impact:** Model routing now supports deterministic A/B testing; unblocks FEATURE-053 Flash evaluations
+- **Status:** Code complete, all tests passing, ready for PR
+
+**Related tickets unblocked:**
+- FEATURE-053: Now has foundation for deterministic Flash vs. Haiku testing
+- TASK-077: Can proceed in parallel with GeminiProvider implementation
+
+---
+
+## Prior Session Context (Session 42)
 
 ### What was completed in Session 42
 
