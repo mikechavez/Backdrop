@@ -1,327 +1,324 @@
-# Sprint 15 — Cost Stability + Enforcement
+# Sprint 16 — Model Routing Observable + Tier 1 Flash Evaluations
 
-**Status:** IN PROGRESS
-**Target Start:** 2026-04-14
-**Target End:** 2026-04-21
-**Sprint Goal:** Fix budget enforcement blind spot so the hard limit enforces against true spend, close model routing enforcement gap, label all cost operations correctly, complete RSS fingerprint coverage, and establish a reliable cost baseline for feature development.
-
----
-
-## Context from Sprint 14
-
-Infrastructure is stable and scheduled briefings are working. The blocker was cost enforcement: the hard limit was silent because the enforcement system read from `api_costs` while entity_extraction costs only wrote to `llm_traces`. BUG-079 fixed this by making `llm_traces` the single source of truth.
-
-**Note:** The $1.134/day figure cited at sprint start was inflated by BUG-066's rolling 24hr window (fixed in Session 19). True baseline spend confirmed in Session 30 post-fix validation: **~$0.54/day**. System is already under the $1.00 hard limit — TASK-071 threshold relief is useful but not urgent.
+**Status:** NOT STARTED  
+**Target Start:** 2026-04-27  
+**Target End:** 2026-05-03  
+**Sprint Goal:** Make model routing observable and deterministic, wire multi-model provider support, and complete Tier 1 Flash evaluations against a golden set (3 operations, 2-3 decision records with data-driven outcomes).
 
 ---
 
-## Priority 1 — Cost Stability + Briefing Quality (required before feature work)
+## Context from Sprint 15
 
-### FEATURE-013: Monthly API spend guard ✅ COMPLETE (Session 40)
-- **Status:** ✅ Config initialized, app boots cleanly
-- **Changes deployed:** Set `ANTHROPIC_MONTHLY_API_LIMIT = 30.0` in `core/config.py` line 149 (commit 5331a01)
-- **Hard limit:** $30/month — all operations blocked at 100%
-- **Soft limit:** $22.50/month (75%) — non-critical operations blocked, Slack alert fires
-- **Enforcement:** Integrated into `check_llm_budget()` monthly dimension (Session 39), monthly hard overrides daily limits
-- **Branch:** `feat/feature-013-monthly-api-spend-guard`
-- **Next:** Create PR and merge to main
-- **Note:** Full implementation completed Session 39; this session deployed the required config constant to unblock app startup
+Sprint 15 stabilized cost tracking and enforcement across all 14 LLM operations. True daily spend is ~$0.54, well under the $1.00 hard limit. Cost dashboard and Slack alerts are wired. 
 
-### BUG-079: Budget enforcement blind to entity_extraction costs ✅ FIXED
-- **Status:** ✅ RESOLVED — 2026-04-14 18:55:00 UTC
-- **Code fix deployed:** 2026-04-14 (commits 533cbce, 50255cf)
-- **Decision:** Option B — Use `llm_traces` as single source of truth for budget enforcement
-- **Changes:** Updated `get_daily_cost()`, `get_monthly_cost()`, `get_cost_by_operation()`, `get_cost_by_model()` to query `llm_traces` instead of `api_costs`
-- **Removed fragile code:** Eliminated manual async cost tracking task from `extract_entities_batch()` (110 lines removed)
-- **Testing:** All 50 cost-related tests pass; verified entity_extraction costs now visible
-- **ADR:** Created ADR-079 documenting the decision and rationale
-- **Production validation (Session 30):**
-  - `llm_traces` field name confirmed as `cost` (not `cost_usd`) — `get_daily_cost()` aggregates `"$cost"` correctly ✅
-  - `entity_extraction` visible at $0.145/day, 174 calls ✅
-  - True daily spend confirmed ~$0.54 — system is under $1.00 hard limit ✅
-  - All LLM calls confirmed routing through gateway; no direct httpx bypass paths ✅
+Key finding: `narrative_generate` has **0% cache hit rate** despite being the second-largest cost driver ($6.64/month). This is gated for investigation in Sprint 16 (TASK-075) but explicitly NOT in evaluation scope unless cache is unfixable.
 
-### BUG-077: Model routing warns but does not enforce ✅ FIXED
-- **Status:** ✅ RESOLVED — 2026-04-14 18:30:00 UTC
-- **Code fix deployed:** 2026-04-14 (commit c05404e)
-- **Changes:** `_validate_model_routing()` now returns corrected model string; both `call()` and `call_sync()` use return value
-- **Enforcement:** Silently overrides wrong models and logs warning; 5 missing operations added to routing table
-- **Testing:** All 22 gateway tests pass; enforcement verified with manual validation
-- **Cost impact:** Prevents Opus ($0.039/call) from bypassing enforcement, protects against 25× cost multiplier
-- **Note:** `article_enrichment_batch` is not yet in `_OPERATION_MODEL_ROUTING` — will log a routing warning post BUG-078 fix. Low priority since calls use Haiku regardless; add in next routing table pass.
+Current blocker for multi-model testing: model routing is hard-coded and not observable. **BUG-090 tears out the old system entirely and introduces RoutingStrategy as foundation.** TASK-076 completes the implementation with deterministic A/B bucketing. Without this, Flash evaluations cannot run.
 
-### BUG-078: RSS enrichment calls have no operation name ✅ FIXED
-- **Status:** ✅ RESOLVED — 2026-04-14 19:15:00 UTC (second fix; first fix 94dc5fb was incorrect)
-- **Code fix deployed:** 2026-04-14 (commit 6448289)
-- **Root cause (corrected in Session 30):** Original fix (94dc5fb) patched the four sync methods (`analyze_sentiment`, `extract_themes`, `score_relevance`, `generate_insight`) which were already passing correct operation names. The actual broken call sites were the async `_tracked` wrapper methods and `enrich_articles_batch` — all calling `_get_completion_with_usage(prompt)` without passing the `operation` argument that was already in scope.
-- **Changes (correct fix):** Passed operation names to `_get_completion_with_usage()` in four async methods:
-  - `enrich_articles_batch` line 550: hardcoded `operation="article_enrichment_batch"`
-  - `score_relevance_tracked` line 633: `operation=operation` (parameter pass-through)
-  - `analyze_sentiment_tracked` line 695: `operation=operation` (parameter pass-through)
-  - `extract_themes_tracked` line 758: `operation=operation` (parameter pass-through)
-- **Production validation (Session 30):**
-  - Last `provider_fallback` trace timestamp: 2026-04-15T01:40:22 UTC (15 min before deploy at 01:55 UTC) ✅
-  - `article_enrichment_batch` appeared in operation breakdown post-deploy with 8 calls ✅
-  - No new `provider_fallback` entries generated after deploy ✅
+---
 
-### BUG-076: RSS ingest path does not generate article fingerprints ✅ FIXED
-- **Status:** ✅ RESOLVED — Migration completed 2026-04-14 18:07:45 UTC
-- **Code fix deployed:** 2026-04-13 (commit 28f65db)
-- **Backfill:** 1,766 articles fingerprinted, 4 duplicates identified
-- Deduplication by fingerprint now working for RSS ingest path
-- **Verification needed:** Manual review of 4 tagged duplicates before deletion
+## Priority 1 — Model Routing + Provider Abstraction (Required Before Evals)
 
-### BUG-080: Briefing date mismatch — prompt says April 15, header says April 14 ✅ FIXED
-- **Status:** ✅ RESOLVED — 2026-04-15
-- **Code fix deployed:** 2026-04-15 (commit 13d0ecc)
-- **Root cause:** `_build_generation_prompt()` formatted UTC timestamp directly; frontend displays in local timezone (CST/CDT). Evening briefing at 6 PM CST = midnight UTC next day → prompt dated April 15 while header showed April 14.
-- **Changes:**
-  - Added `ZoneInfo` import for timezone conversion
-  - Defined `BRIEFING_DISPLAY_TZ = ZoneInfo("America/Chicago")` constant to match frontend
-  - Convert `generated_at` from UTC to display timezone before formatting for LLM prompt
-- **Testing:** 
-  - Unit test: midnight UTC (2026-04-15 00:00 UTC) → "Tuesday, April 14, 2026" ✅
-  - Unit test: 2 PM UTC (2026-04-15 14:00 UTC) → "Wednesday, April 15, 2026" ✅
-  - All 5 briefing prompt tests pass ✅
-- **Branch:** `fix/bug-080-briefing-date-mismatch` (ready for PR)
+### BUG-090: Eliminate Silent Model Override — Introduce Observable Routing
+- **Status:** OPEN
+- **Priority:** CRITICAL
+- **Effort:** 2-3 hours
+- **Goal:** **Tear out old `_OPERATION_MODEL_ROUTING` dict entirely.** Introduce `RoutingStrategy` skeleton as observable foundation for future variant routing.
+- **Why This Approach:** 
+  - Old system is hardcoded and silent (no trace of overrides)
+  - New system is extensible and observable (all routing decisions are recorded)
+  - Clean break prevents dead code + confusion about source of truth
+- **Changes Required:**
+  - **REMOVE:** Delete entire `_OPERATION_MODEL_ROUTING` dict (dead code)
+  - **ADD:** `RoutingStrategy` class with:
+    - `__init__()` for operation, primary model, variant, ratio
+    - `resolve_model(requested)` → returns (actual_model, overridden: bool)
+  - **ADD:** `_get_routing_strategy(operation)` helper (temporary hardcoded dict for 14 ops)
+  - **UPDATE:** `GatewayResponse` fields: `actual_model`, `requested_model`, `model_overridden`
+  - **UPDATE:** Both `call()` and `call_sync()` to use `resolve_model()` and populate new fields
+  - **UPDATE:** Cost tracking to use `actual_model` (not requested)
+  - **LOG:** Override with operation + requested + actual + trace_id for debugging
+- **Testing:** All 22 gateway tests pass; override detection verified
+- **Branch:** `fix/bug-090-observable-routing`
+- **Blocks:** TASK-076, FEATURE-053
+- **Next:** Merge immediately; do NOT parallelize with TASK-076 (same surface area)
 
-### BUG-081: Briefing presents duplicate events as separate stories and references unnamed entities ✅ FIXED
-- **Status:** ✅ RESOLVED — 2026-04-15
-- **Code fix deployed:** 2026-04-15 (commits bd2a8c7, 891d073)
-- **Root cause:** System prompt lacked rules for consolidating duplicate events or preventing unnamed entity references. Critique prompt lacked checks for duplicate events, unnamed entities, and implausible figures.
-- **Changes:**
-  - **System prompt rules 9-11 added:**
-    - Rule 9: Consolidate duplicate events from different narrative angles
-    - Rule 10: No unnamed entities — every referenced platform/exchange must be explicitly named
-    - Rule 11: Verify figure plausibility against ~$2-3T crypto market cap baseline
-  - **Critique checks 8-10 added:**
-    - Check 8: Detect duplicate events with different framing (critical flag)
-    - Check 9: Detect unnamed entity references (require explicit names from narratives)
-    - Check 10: Detect implausible figures ($50B+ liquidations, $10B+ hacks as historically unprecedented)
+---
+
+### TASK-076: RoutingStrategy Implementation — Complete + Wire Routing Into Gateway
+- **Status:** OPEN
+- **Priority:** CRITICAL
+- **Effort:** 3-4 hours
+- **Dependency:** BUG-090 must merge first
+- **Goal:** Complete `RoutingStrategy` with deterministic MD5 bucketing; wire into gateway for A/B testing
+- **Key Fix (from Feedback):** **Add explicit guard clause:** If `variant is None` OR `variant_ratio == 0`, ALWAYS return primary (no ambiguity)
+- **Changes Required:**
+  - **ADD:** `RoutingStrategy.select(routing_key)` method with:
+    - Guard clause: `if not self.variant or self.variant_ratio == 0: return self.primary`
+    - MD5 hash bucketing: hash_int = int(md5(routing_key).hexdigest(), 16) % 100
+    - Split point: int(self.variant_ratio * 100)
+    - Return variant if hash_int < split_point else primary
+  - **CREATE:** `_OPERATION_ROUTING` dict with all 14 operations; all primary=Haiku, no variants yet
+  - **UPDATE:** `_get_routing_strategy()` to use `_OPERATION_ROUTING` (remove temporary defaults)
+  - **UPDATE:** `gateway.call()` signature to accept `routing_key` parameter (default: f"{operation}:{trace_id}")
+  - **UPDATE:** `gateway.call()` to call `strategy.select(routing_key)` and `strategy.resolve_model()`
+  - **UPDATE:** Both `call()` and `call_sync()` identically
+  - **PARSE:** Model strings: "provider:model_name" (e.g., "anthropic:claude-haiku-..." or "gemini:gemini-2.5-flash")
+  - **POPULATE:** `GatewayResponse.actual_model`, `requested_model`, `model_overridden`
+  - **USE:** Cost tracking with `actual_model` (not requested)
 - **Testing:**
-  - Created `tests/services/test_bug_081_briefing_quality.py` with 7 comprehensive tests ✅
-  - All 7 new tests pass ✅
-  - All 5 existing briefing prompt tests pass (no regressions) ✅
-- **Branch:** `fix/bug-081-briefing-separate-stories` (ready for PR)
+  - Determinism: same routing_key → same output (unit test)
+  - Guard clause: variant=None → always primary (unit test)
+  - Guard clause: ratio=0 → always primary (unit test)
+  - A/B split: 50 calls with ratio=0.5 → ~25 to each (unit test with tolerance)
+  - All 22 existing gateway tests pass (no regression)
+- **Branch:** `feat/task-076-routing-strategy`
+- **Blocks:** FEATURE-053
+- **Next:** Merge immediately after BUG-090
 
-### BUG-082: Narrative summary pipeline passes implausible financial figures without warning ✅ FIXED
-- **Status:** ✅ RESOLVED — 2026-04-15
-- **Code fix deployed:** 2026-04-15 (commit 1d633f8)
-- **Root cause:** No validation layer between LLM output and narrative summary cache. Summary prompt did not instruct LLM to verify figures against source articles.
-- **Changes:**
-  - **Prompt enhancement:** Updated `_build_summary_prompt()` with rule 4 to instruct LLM to verify financial figures are consistent across articles
-  - **Post-generation validation:** Added figure plausibility check in `generate_narrative_summary()` that logs warnings for figures exceeding $50B threshold
-  - **Regex pattern:** Matches all financial figure formats ($XXB, $XX billion, $XXT, $XX trillion) with comma support and case-insensitive matching
+---
+
+### TASK-077: GeminiProvider Implementation — Stub + Factory Integration
+- **Status:** OPEN
+- **Priority:** CRITICAL
+- **Effort:** 3-4 hours
+- **Dependency:** Can be done in parallel with BUG-090/TASK-076 (no conflicts)
+- **Goal:** Create `GeminiProvider` class and wire into provider factory; support real or mocked API calls
+- **Key Fix (from Feedback):** **Explicitly document return contract:** `GeminiProvider.call()` MUST return same response shape as `AnthropicProvider.call()` (text, input_tokens, output_tokens, model, cost, latency_ms)
+- **Changes Required:**
+  - **CREATE:** `src/crypto_news_aggregator/llm/gemini.py` with:
+    - `GeminiProvider` class inheriting from `LLMProvider`
+    - Constructor: `__init__(api_key)` with validation (raise ValueError if empty)
+    - Method: `call(model, prompt, messages, **kwargs)` that raises `NotImplementedError` with clear Sprint 17 reference
+    - **CRITICAL DOCSTRING:** Document exact return shape (dict with text, input_tokens, output_tokens, model, cost, latency_ms)
+  - **UPDATE:** `factory.py`:
+    - Import `GeminiProvider`
+    - Add `"gemini": GeminiProvider` to `PROVIDER_MAP`
+    - Add `GEMINI_API_KEY` handling in `get_llm_provider()` (raise if key not set)
+  - **UPDATE:** `config.py`:
+    - Add `GEMINI_API_KEY: Optional[str] = None` field (env var, default None)
 - **Testing:**
-  - Created `tests/test_bug_082_implausible_figures.py` with 15 comprehensive unit tests ✅
-  - All 15 tests pass, covering: prompt verification, threshold detection, regex format matching, multiple figures, and caching behavior ✅
-  - No regressions: all 9 LLM cost tracking tests pass ✅
-- **Defense-in-depth strategy:** Complements BUG-081's briefing-level critique checks with validation at the narrative layer
-- **Branch:** `fix/bug-082-narrative-implausible-figures` (ready for PR)
-
-### BUG-084: Narrative summary generator fabricates events not present in source articles ✅ FIXED
-- **Status:** ✅ RESOLVED — 2026-04-15
-- **Code fix deployed:** 2026-04-15 (commits 3edbf48, 4e03067)
-- **Root cause:** Three compounding issues:
-  1. **Prompt encouraged fabrication:** "Synthesize...into cohesive narrative" told LLM to find coherence even when articles shared only entity, not story
-  2. **Insufficient grounding:** Only 300 chars of article text provided; with minimal context like "Kraken + confidential + filing", model hallucinated security breach
-  3. **Wrong model:** Used Sonnet instead of Haiku, contradicting project standardization
-- **Changes:**
-  - Increased article context from 300 to 800 characters
-  - Replaced "synthesize cohesive narrative" with explicit grounding: "ONLY on events explicitly described in articles"
-  - Added CRITICAL instruction block against inferring/speculating events not in source text
-  - Switched from Sonnet to Haiku; reduced temperature 0.7 → 0.5
-  - Fixed cache key mismatch: use HAIKU_MODEL consistently
-- **Testing:** Manual verification required post-deploy:
-  1. Mark existing Kraken narrative dormant in MongoDB
-  2. Wait for next clustering cycle to regenerate from three IPO articles
-  3. Verify new summary describes IPO filing, not fabricated extortion event
-  4. Verify logs show Haiku model for `narrative_summary` operations
-- **Branch:** `fix/bug-084-narrative-summary-fabrication` (ready for PR)
-- **Follow-up:** TASK-073 (post-generation validation checks whether summary claims have lexical support in source articles)
-
-### BUG-089: Dead SONNET_MODEL constant in optimized_anthropic.py ✅ FIXED
-- **Status:** ✅ RESOLVED — 2026-04-26
-- **Code fix deployed:** 2026-04-26 (commit 3ad3082)
-- **Root cause:** `SONNET_MODEL` was defined but never referenced after Sprint 13's consolidation of model routing into `gateway.py`
-- **Changes:** Removed unused constant and updated docstrings to reflect that model routing is handled by `_OPERATION_MODEL_ROUTING`
-- **Verification:** `grep -rn "SONNET_MODEL" src/` returns zero results
-- **Impact:** Eliminates developer confusion during model tiering work (low severity, code cleanliness)
-
-### BUG-083: Market event detector creates phantom narratives with fabricated financial figures 🔴 PART 1 COMPLETE
-- **Status:** Part 1 complete, Part 2 pending — 2026-04-15
-- **Severity:** Critical — every briefing leads with fabricated financial data
-- **Root cause:** Six compounding failures in detector:
-  1. OR keyword matching (matches unrelated articles)
-  2. No relevance validation
-  3. Blind volume extraction (sums unrelated dollar amounts)
-  4. Low thresholds (4+ articles, 3+ entities)
-  5. Missing narrative metadata (can't deduplicate)
-  6. Force-boosted ranking (guaranteed #1 in briefing)
-- **Part 1 — Code fix deployed (commit 6850efb):**
-  - `detect_market_events()` now returns empty list with info log
-  - Original implementation preserved as disabled code with detailed notes
-  - Detector no longer creates new phantom narratives
-- **Part 2 — MongoDB cleanup (PENDING):**
-  - Run cleanup query to mark existing market_shock narratives as dormant
-  - Query provided in ticket; awaiting approval to execute in production
-- **Branch:** `fix/bug-082-narrative-implausible-figures` (Part 1 added)
-- **Follow-up:** TASK-072 (rebuild detector with proper phrase matching, relevance validation, contextual extraction, higher thresholds)
+  - `get_llm_provider("gemini")` returns `GeminiProvider` instance (with key set)
+  - `GeminiProvider` raises ValueError if api_key empty
+  - `GeminiProvider.call()` raises NotImplementedError (deferred to Sprint 17)
+  - All existing tests pass (no regression to sentient/anthropic)
+- **Branch:** `feat/task-077-gemini-provider`
+- **Note:** Real Gemini API calls not required for this sprint; mock at provider level is acceptable. Priority is factory integration + return contract clarity.
+- **Next:** Merge before FEATURE-053 starts; can be done in parallel with TASK-076
 
 ---
 
+## Priority 2 — Decision Framework (Required For Evals Framing)
+
+### TASK-078: Model Selection Rubric — Write Decision Framework Document
+- **Status:** OPEN
+- **Priority:** HIGH
+- **Effort:** 2-3 hours
+- **Goal:** Write generalizable framework for model selection decisions; becomes interview material and template for future model choices
+- **Deliverable:** `docs/model-selection-rubric.md` with:
+  - **Section 1:** Operation classification (5 types: Extraction, Synthesis, Critique, Polish, Agentic)
+  - **Section 2:** Decision dimensions (5 axes: Quality Requirement, Volume, Latency Sensitivity, Determinism, Failure Cost)
+  - **Section 3:** Tiering rules (Tier 0/1/2/3 with criteria, Flash strategy per tier)
+    - Tier 1: High volume + deterministic + low failure cost (aggressive Flash testing)
+    - Tier 2: Medium volume + generation + user-facing (cautious testing)
+    - Tier 3: Low volume + reasoning required + safety-critical (no testing)
+  - **Section 4:** Override conditions (when to break default tier assignment)
+  - **Section 5:** Model selection algorithm (step-by-step for any new operation)
+  - **Section 6:** Interview positioning notes
+- **Testing:** Rubric is readable one-pager; all 14 operations can be classified using it
+- **Branch:** Not a code change; document only
+- **Next:** Complete before TASK-079; reference in FEATURE-053 decision records
+
 ---
 
-## Priority 1.5 — Narrative Summary Staleness (emerging issue from BUG-084)
+### TASK-079: Operation Tier Mapping — Classify All 14 Operations
+- **Status:** OPEN
+- **Priority:** HIGH
+- **Effort:** 2-3 hours
+- **Dependency:** TASK-078 must exist first
+- **Goal:** Classify all 14 LLM operations into tiers using the rubric; determines evaluation scope and priority
+- **Deliverable:** `docs/operation-tiers.md` with:
+  - Classification table for all 14 operations (operation, type, tier, rationale)
+  - Summary by tier (which ops in each tier)
+  - **Flash Evaluation Priority:**
+    - **Phase 1 (Tier 1, Aggressive):** entity_extraction, sentiment_analysis, theme_extraction, actor_tension_extract, relevance_scoring (5 ops total)
+    - **Phase 2 (Tier 2, Cautious):** narrative_generate (if cache miss confirmed), narrative_theme_extract, cluster_narrative_gen, narrative_polish, insight_generation
+    - **Phase 3 (Tier 3, Deferred):** briefing_generate, briefing_critique, briefing_refine, provider_fallback (no testing)
+  - **SPRINT 16 SCOPE NOTE:** "Sprint 16 evaluates **subset** of Tier 1 (3 ops: entity_extraction, sentiment_analysis, theme_extraction) due to time constraints. Full Tier 1 (5 ops) and Tier 2 evals deferred to Sprint 17+"
+  - Decision gate: TASK-075 narrative_generate cache fix determines whether to include narrative_generate in later phases
+- **Testing:** Each operation has clear rationale; rubric criteria applied consistently
+- **Branch:** Not a code change; document only
+- **Note:** SPRINT 16 EXPLICITLY LIMITS FEATURE-053 TO 3 OPS (subset of 5 Tier 1 operations)
+- **Next:** Complete before FEATURE-053 Phase 1 starts; determines execution order
 
-### BUG-088: Merge path does not flag narratives for summary refresh 🔄 IN PROGRESS
-- **Status:** Code complete, tests passing — 2026-04-18
-- **Severity:** High — directly causes stale briefings (root cause of April 15/16 Bitcoin price mismatch)
-- **Root cause:** Half-shipped design. Merge path never writes `needs_summary_update: True` when articles merge into existing narratives. Creation path writes False but merge path was never implemented. Result: old summaries persist forever.
-- **Evidence:** Bitcoin narrative `68f32d197082f49df56956c6` had 8 fresh April articles but summary referenced $68K price from weeks ago while market traded $74K+
-- **Changes deployed:**
-  - **Merge path staleness detection (narrative_service.py ~1104):** Evaluate if summary stale before upsert. Flag if ANY of:
-    - 3+ net-new article IDs: `len(new_article_ids - existing_article_ids) >= 3`
-    - Lifecycle promotion: `lifecycle_state` transitions into `hot` or `emerging`
-    - Article age gap: newest article >24h newer than `last_summary_generated_at` or `last_updated`
-  - **Creation path enhancement (narrative_service.py ~1193):** Stamp `last_summary_generated_at = datetime.now(timezone.utc)` so merge path has accurate baseline
-  - **Database signature (narratives.py):** Added `needs_summary_update: Optional[bool] = None` parameter to upsert_narrative; when not None, includes in $set document
+---
+
+## Priority 3 — Enablement + Investigation
+
+### TASK-074: Helicone Setup — Proxy + Kill Switch Configuration
+- **Status:** OPEN
+- **Priority:** MEDIUM
+- **Effort:** 2-3 hours
+- **Goal:** Add Helicone proxy integration for trace visibility during Anthropic calls; toggle via env var
+- **Key Note (from Feedback):** **Helicone only traces Anthropic calls.** Gemini calls via GeminiProvider will NOT appear in Helicone dashboards. This is expected and acceptable (separate observability for Gemini is out of scope).
+- **Changes Required:**
+  - Add `USE_HELICONE_PROXY: bool = False` to `config.py` (env var, default off)
+  - Add `HELICONE_API_KEY: Optional[str] = None` to `config.py` (env var)
+  - Implement `_get_anthropic_url()` in `gateway.py` to return proxy URL if enabled
+  - Update `_build_headers()` to add `Helicone-Auth` header when proxy enabled
+  - Verify no performance degradation when proxy disabled
 - **Testing:**
-  - Created 5 unit tests: merge with 3+ articles, merge on age threshold, creation path tracking ✅
-  - All tests pass against updated merge path ✅
-  - Log verification: staleness detection working with explicit info logging
-- **Next steps:** git commit + PR; no blocking dependencies on FEATURE-012 consumer (feature can accumulate flags until refresh consumer deployed)
-- **Branch:** feat/task-073-auto-dormant-narratives (shared with TASK-073)
+  - Gateway works with proxy disabled (baseline)
+  - Gateway works with proxy enabled (requires valid key)
+  - Helicone dashboard receives traces when enabled
+  - No header leakage when proxy disabled
+- **Branch:** `feat/task-074-helicone-setup`
+- **Note:** Optional for Sprint 16; prioritize if eval debugging needs are high. Not blocking FEATURE-053.
+- **Next:** Optional completion; can be deferred if time is tight
 
 ---
 
-## Maintenance & Preventive Measures
-
-### TASK-073: Auto-dormant narratives when all source articles are purged ✅ COMPLETE
-- **Status:** ✅ RESOLVED — 2026-04-15
-- **Code deployed:** 2026-04-15 (commit c8e8e5b)
-- **Problem:** When articles are deleted (e.g., MongoDB purges to free space), narratives remain hot indefinitely with summaries that can never be re-verified. These zombie narratives could contain fabricated content (as in BUG-084's Kraken narrative) with no way to detect it.
-- **Solution — Part 1 (One-time cleanup):**
-  - Created `scripts/cleanup_zombie_narratives.py`
-  - MongoDB aggregation identifies hot narratives with zero surviving articles
-  - Supports `--dry-run` mode for safe preview before executing cleanup
-  - Production test run found 10 zombies from prior sessions (all from BUG-084 cleanup)
-  - Marks identified narratives dormant: `lifecycle_state: "dormant"`, `_disabled_by: "TASK-073-zombie-cleanup"`
-- **Solution — Part 2 (Periodic automated check):**
-  - New async function `auto_dormant_zombie_narratives()` in `tasks/narrative_cleanup.py`
-  - Integrated into worker.py scheduler with 1-hour interval (escalates to daily at scale)
-  - Automatically catches newly-created zombies post-article-purge
-  - Logs warning message with narrative titles for Railway visibility: "Auto-dormanted {count} zombie narrative(s)"
-  - Updates include: `dormant_since` timestamp, `_disabled_by: "TASK-073-auto-cleanup"`
-- **Testing:**
-  - Created `tests/tasks/test_narrative_cleanup.py` with 6 comprehensive unit tests ✅
-  - Tests cover: zombie detection, multiple zombies, no-zombies case, empty articles list, field validation
-  - All 15 narrative cleanup tests pass (no regressions) ✅
-- **Defense strategy:** Complements BUG-084's grounding constraints by catching zombies that slip into the active set
-- **Branch:** `feat/task-073-auto-dormant-narratives` (ready for PR)
-- **Impact:** Prevents fabricated/un-verifiable narratives from appearing in user-facing briefings without manual audits
-
-### FEATURE-012: Scheduled narrative summary regen consumer ✅ COMPLETE
-- **Status:** ✅ RESOLVED — 2026-04-18
-- **Severity:** Critical — closes the loop on stale summary problem (BUG-088 flags narratives, FEATURE-012 refreshes them)
-- **Problem:** 85 narratives flagged via one-shot script had no consumer. Once BUG-088 ships, merge path will flag narratives with stale summaries, but nothing was draining the queue. Result: summaries never refresh, briefings reference weeks-old prices/events.
-- **Solution deployed:**
-  - **New task file:** `src/crypto_news_aggregator/tasks/narrative_refresh.py` with `@shared_task(name="refresh_flagged_narratives")`
-  - **Query:** Explicit positive match `{"needs_summary_update": True, "lifecycle_state": {"$ne": "dormant"}}` (no false positives from missing fields)
-  - **Priority sort:** `lifecycle_state` ordering (hot → emerging → rising → reactivated → cooling), then `last_updated` descending
-  - **Per-run cap:** 20 narratives max to prevent budget spikes
-  - **Budget enforcement:** Per-narrative budget check with graceful exit on soft limit (logs + breaks, no error)
-  - **Schedule:** 7:30 AM EST (morning, 30 min before briefing) + 7:30 PM EST (evening, 30 min before briefing)
-  - **Task registration:** Added to `tasks/__init__.py` imports and autodiscovery list
-  - **Beat schedule entries:** Two crontab entries in `beat_schedule.py` with 30-min expiry, 10-min hard timeout
-- **Implementation details:**
-  - Core logic: async function with MongoDB aggregation, article fetching, `generate_narrative_from_cluster()` call
-  - Error handling: Clears flags on empty articles or generation failures to prevent retry loops
-  - Metrics logged: `flagged_count_before`, `flagged_count_after`, `refreshed_count`, `skipped_budget_count`, `skipped_error_count`
-  - Uses `asyncio.new_event_loop()` pattern consistent with `narrative_consolidation_task`
-- **Testing:**
-  - Created `tests/tasks/test_narrative_refresh.py` with 5 comprehensive test cases:
-    - Basic refresh lifecycle (flag cleared, summary updated)
-    - Lifecycle priority sorting verification
-    - Budget limit enforcement (20-per-run cap, soft limit stop)
-    - Error handling (missing articles, generation failures)
-    - Dormant narrative exclusion (query excludes dormant)
-  - All 5 tests pass ✅
-- **Cost impact:** ~$0.08/day (20 refreshes × $0.002 per refresh × 2 runs/day) — well under daily limit
-- **Dependency:** Requires BUG-088 in same deploy for meaningful impact; works with existing 85 flagged narratives in interim
-- **Branch:** Not yet committed; implementation complete and tested
-- **Next steps:** Commit + PR once BUG-088 merges
+### TASK-075: Narrative Cache Investigation — Root Cause Analysis & Fix Proposal
+- **Status:** OPEN
+- **Priority:** CRITICAL
+- **Effort:** 4-6 hours
+- **Goal:** Determine why `narrative_generate` has 0% cache hit rate; propose fix or accept as-is
+- **Phases:**
+  - **Phase 1 (Investigation):**
+    - Verify cache is enabled for narrative_generate in `CACHEABLE_OPERATIONS` list
+    - Query `llm_cache` collection for narrative_generate entries
+    - Run aggregation on `llm_traces`: group by input_hash, count duplicates
+    - Root cause analysis: unique inputs vs. excluded operation vs. hashing issue
+  - **Phase 2 (Solution Design):**
+    - Propose architecture (normalized input caching, re-enable, deterministic serialization)
+    - Estimate cache hit improvement (if fixed)
+    - Project cost savings ($X/month if implemented)
+    - Document tradeoffs and risks
+- **Decision Gate (Required Before Tier 2 Evals):**
+  - Option A: Root cause is fixable → design solution, estimate benefit
+  - Option B: Root cause is unfixable → accept as-is, confirm Flash swap justified
+  - Option C: Working as intended → document why excluded
+- **Deliverable:** `docs/decisions/NARRATIVE_CACHE_FIX.md` with root cause, proposed solution, cost impact
+- **Branch:** `feature/narrative-cache-investigation`
+- **Note:** **SPRINT 16 DOES NOT INCLUDE NARRATIVE_GENERATE IN FLASH EVALS.** This investigation runs in parallel; results inform Sprint 17 decisions.
+- **Next:** Complete before sprint end; gate any Tier 2 decisions on findings
 
 ---
 
-## Priority 2 — Observability
+## Priority 4 — Tier 1 Flash Evaluations (Main Feature, Scoped)
 
-### TASK-069: Cost dashboard + Slack alerts
-- Build dashboard reading from `llm_traces` (confirmed single source of truth)
-- Aggregate on `cost` field (not `cost_usd`)
-- Add Slack alerts at soft limit ($0.80) and hard limit ($1.00, or revised per TASK-071)
-- **Unblocked:** BUG-079 complete and validated
+### FEATURE-053: Flash Evaluations — Tier 1 Testing Against Golden Set
+- **Status:** OPEN
+- **Priority:** CRITICAL
+- **Effort:** 6-8 hours (Phases 1-2 only; Tier 1 operations only)
+- **Dependencies:**
+  - BUG-090 merged (routing observable)
+  - TASK-076 merged (RoutingStrategy wired)
+  - TASK-077 merged (GeminiProvider available)
+  - TASK-078 complete (rubric for framing)
+  - TASK-079 complete (tier assignments)
+- **Scope (EXPLICIT LIMITS):**
+  - **Tier 1 Operations ONLY (3 operations, subset of 5 Tier 1 ops):**
+    - `entity_extraction`
+    - `sentiment_analysis`
+    - `theme_extraction`
+  - **NOT in Sprint 16:**
+    - Other Tier 1 ops (actor_tension_extract, relevance_scoring)
+    - Tier 2 operations (narrative_generate, narrative_theme_extract, etc.)
+    - Full rollout decisions
+    - Production swaps
+- **Phases (Tier 1 only):**
+  - **Phase 1: Extract Golden Set**
+    - Load 50-100 samples per operation from `briefing_drafts` collection (last 7-14 days)
+    - Schema: operation, input_id, input_text, articles[], timestamp, haiku_output{}
+    - Include edge cases (long inputs, multiple articles)
+  - **Phase 2: Baseline from Existing Haiku Outputs (OPTIMIZED)**
+    - **KEY OPTIMIZATION (from Feedback):** Use existing `haiku_output` from golden set as baseline if available + valid
+    - Only re-run Haiku if missing or inconsistent
+    - Saves ~3-4 hours of unnecessary API calls
+    - Collect: latency (p50, p95 ms), cost, input/output tokens, output text
+    - Track source: "historical" (from golden set) vs. "recomputed" (fresh run)
+  - **Phase 3: Run Flash Variant**
+    - Set RoutingStrategy.variant = "gemini:gemini-2.5-flash", variant_ratio = 1.0
+    - Run same golden set inputs through gateway
+    - Collect same metrics as Phase 2
+  - **Phase 4: Compare & Score**
+    - Quality scoring:
+      - Tier 1 (extraction): exact match or overlap score (0-100)
+      - Regression threshold: >5% of samples show quality drop
+    - Build comparison table (model, quality, cost/1k, p50, p95 latency)
+  - **Phase 5: Produce Data-Driven Decision Records**
+    - Write 2-3 decision records (MSD-001, MSD-002, MSD-003) minimum
+    - Format: `docs/decisions/MSD-XXX-operation.md`
+    - **CRITICAL (from Feedback):** Decisions must be data-driven; no forced outcomes
+      - SWAP if cost reduction is significant AND no material quality loss
+      - STAY if quality regression exceeds threshold
+      - CONDITIONAL if tradeoffs depend on context
+    - Each record includes: operation, metrics, **data-driven decision**, rationale, override conditions, rollout plan
+- **Success Criteria for Sprint 16:**
+  - [ ] Golden set extracted: 50-100 samples per operation (3 ops)
+  - [ ] **Phase 2 optimization applied:** existing haiku_output used where available
+  - [ ] Haiku baseline collected: latency, cost, output for all samples
+  - [ ] Flash variant run: same metrics, real API calls (or deterministic mock if key unavailable)
+  - [ ] Comparison table: Model | Quality | Cost/1k | p50ms | p95ms
+  - [ ] Quality regression detected and flagged if >5%
+  - [ ] 2-3 decision records written (MSD-001+)
+  - [ ] **Decisions are data-driven (no pressure to force "SWAP" outcomes)**
+  - [ ] Golden set definition documented (reproducible)
+  - [ ] Eval methodology documented (quality scoring rules, regression threshold)
+- **Interview Value:**
+  - Decision records become talking points: "Here's how we evaluated Haiku vs. Flash"
+  - Demonstrates systematic, data-driven cost-quality reasoning
+  - Shows rigor in model selection process
+  - Shows confidence in decision framework (not result-oriented)
+- **Branch:** `feat/feature-053-tier1-flash-evals`
+- **Note:**
+  - Real Gemini API calls preferred if key available; deterministic mock acceptable
+  - Phase 3 may raise NotImplementedError from GeminiProvider if deferred to Sprint 17; that's acceptable if mock is substituted
+  - Do NOT attempt other Tier 1 ops or Tier 2 operations in this sprint
+  - Do NOT plan production rollouts; decision records are for decision-making, not deployment
+- **Next:** Start after all Priority 1/2 tickets merge; execute Phases 1-5 sequentially
 
 ---
 
-## Priority 3 — Narrative cost investigation
+## Success Criteria (Outcome-Based)
 
-### TASK-070: Investigate narrative_generate volume
-- Current (Session 30 confirmed): 51 calls today, $0.125 — tracking toward ~$0.30–0.40/day
-- Previously cited 186 calls/$0.59 figure was inflated by rolling window bug
-- Hourly trace data shows concentration in early UTC hours — likely a batch job
-- Investigate what triggers that batch and whether it is necessary at current volume
-- BUG-072 cache is wired but cache hit rate is unknown — query `db.llm_cache` to check
-- Target: narrative costs under $0.30/day
+✅ **Model routing is observable and deterministic**
+- [ ] BUG-090 merged: `GatewayResponse` includes actual_model, requested_model, model_overridden fields
+- [ ] TASK-076 merged: `RoutingStrategy` class exists with deterministic MD5 bucketing verified
+- [ ] Guard clause verified: variant=None or ratio=0 → always primary (unit test)
+- [ ] Same routing_key → same output verified (determinism test)
+- [ ] A/B split test passes: variant_ratio=0.5 → ~50/50 split
 
----
+✅ **Provider abstraction supports multi-model routing**
+- [ ] TASK-077 merged: `GeminiProvider` exists and is wired in factory.py
+- [ ] `get_llm_provider("gemini")` returns instance without error (with key set)
+- [ ] `get_llm_provider("gemini")` raises ValueError if key not set
+- [ ] **Return contract documented:** GeminiProvider.call() matches AnthropicProvider response shape
+- [ ] Model string format "provider:model_name" enforced across gateway
 
-## Priority 4 — Threshold recalibration
+✅ **Decision framework documents systematic model selection**
+- [ ] TASK-078 complete: `docs/model-selection-rubric.md` written, one-pager + tables
+- [ ] TASK-079 complete: `docs/operation-tiers.md` with all 14 ops classified
+- [ ] Tier 1 classification matches rubric (high volume + deterministic)
+- [ ] Sprint 16 scope note in TASK-079: "subset of 5 Tier 1 ops (3 ops for time constraints)"
 
-### TASK-071: Recalibrate spend thresholds
-- **Context updated:** True spend is ~$0.54/day — already under $1.00 hard limit. No emergency relief needed.
-- Still worth recalibrating to set meaningful soft/hard limits that reflect actual baseline
-- Suggested targets: soft limit $0.70, hard limit $1.00
-- Revisit after TASK-070 to see if narrative costs come down further
-- Target end state: $0.50–0.70/day with correct enforcement
+✅ **Tier 1 Flash evaluation completed with data-driven outcomes**
+- [ ] Golden set created: 50-100 samples per operation (3 ops)
+- [ ] **Phase 2 optimization applied:** baseline from existing haiku_output where possible
+- [ ] Haiku baseline collected: latency, cost, quality metrics
+- [ ] Flash comparison run: same metrics on Gemini 2.5 Flash
+- [ ] Comparison table produced: Model | Quality | Cost/1k | p50ms | p95ms
+- [ ] Quality regression analyzed: flag any >5% drop
+- [ ] 2-3 Decision records written (MSD-001+)
+- [ ] **Decisions are data-driven (no forced "SWAP" or "STAY" outcomes)**
+- [ ] Eval methodology documented: quality scoring rules, regression threshold
 
----
-
-## Confirmed Cost Baseline (Session 30, 2026-04-15)
-
-| Operation | Calls/day | Cost/day |
-|---|---|---|
-| provider_fallback (pre-fix, fading) | ~180 | $0.168 |
-| entity_extraction | ~174 | $0.152 |
-| narrative_generate | ~51 | $0.125 |
-| briefing_refine | ~4 | $0.032 |
-| briefing_critique | ~4 | $0.023 |
-| briefing_generate | ~2 | $0.020 |
-| article_enrichment_batch (post-fix) | growing | — |
-| cluster_narrative_gen | ~6 | $0.006 |
-| narrative_polish | ~6 | $0.003 |
-| **Total** | | **~$0.54** |
-
-`provider_fallback` will collapse to near zero by end of day as pre-fix traces age and post-fix cycles accumulate under correct operation names.
-
----
-
-## Success Criteria
-
-- [x] BUG-079 resolved: `get_daily_cost()` returns true spend matching `llm_traces` aggregate total (2026-04-14)
-- [x] BUG-077 resolved: no Opus calls reach the API from production code paths (2026-04-14)
-- [x] BUG-078 resolved: zero `provider_fallback` entries in `llm_traces` from enrichment operations — verified post-deploy 2026-04-15 01:55 UTC
-- [x] BUG-076 resolved: Migration backfilled 1,762 articles; 4 duplicates tagged for review (2026-04-14)
-- [x] BUG-080 resolved: Briefing date mismatch fixed with timezone-aware conversion (2026-04-15)
-- [x] BUG-081 resolved: Briefing quality guardrails for duplicate events, unnamed entities, implausible figures (2026-04-15)
-- [x] BUG-082 resolved: Narrative summary pipeline validates implausible figures with post-generation checks (2026-04-15)
-- [x] BUG-084 resolved: Narrative summary grounding constraints prevent fabrication of non-existent events (2026-04-15)
-- [x] BUG-083 Part 1 resolved: Market event detector disabled, no new phantom narratives created (2026-04-15)
-- [x] TASK-073 resolved: Auto-dormant zombie narratives with one-time cleanup + periodic check (2026-04-15)
-- [ ] BUG-083 Part 2: MongoDB cleanup of existing phantom narratives (pending approval)
-- [ ] TASK-071 complete: enforcement thresholds recalibrated to reflect true baseline
-- [ ] TASK-069 complete: cost dashboard live, Slack alerts wired
-- [ ] Daily cost trending toward $0.50–0.70 target
+✅ **Narrative cache investigation complete and gates Tier 2**
+- [ ] TASK-075 root cause documented: unique inputs / excluded / hashing issue
+- [ ] Decision recorded: fixable / unfixable / working as intended
+- [ ] Cost impact projection included (if fixable)
+- [ ] Explicitly gates Tier 2 ops from Sprint 16 scope
 
 ---
 
@@ -329,29 +326,59 @@ Infrastructure is stable and scheduled briefings are working. The blocker was co
 
 | Risk | Probability | Impact | Mitigation |
 |---|---|---|---|
-| `article_enrichment_batch` not in routing table logs warnings | High | Low | Add to `_OPERATION_MODEL_ROUTING` in next routing pass; no cost impact since Haiku is used regardless |
-| Narrative batch job volume higher than expected | Low | Medium | Investigate before disabling; check cache hit rate first |
-| BUG-077 enforcement change breaks test suite | Low | Low | Tests already updated to Haiku in Sprint 14; run full gateway test suite after change |
+| BUG-090 / TASK-076 merge conflicts in gateway.py | Medium | Medium | Do sequentially (not parallel); test both in same PR review; same files require care |
+| Gemini API key not available, mock not deterministic | Medium | Medium | Use deterministic mock at GeminiProvider level (same input → same output); acceptable for eval purposes |
+| RoutingStrategy guard clause off-by-one bug | Low | High | Unit test variant=None, ratio=0, and ratio=0.5 edge cases before merging |
+| Flash cost wildly higher than expected | Low | Medium | Tier 1 ops are low-failure-cost; can revert to Haiku without impact; decision records document surprises |
+| FEATURE-053 scope creep (pressure to add Tier 2 mid-sprint) | High | High | Explicitly document "3 ops, Tier 1 ONLY" in sprint goal; defer all Tier 2 discussion to Sprint 17 |
+| Cache investigation discovers major refactoring needed | Low | Medium | TASK-075 is parallel (not blocking); findings gate Tier 2 decisions, not Tier 1 evals |
+| Golden set size too small | Low | Low | Baseline is 50 samples per op; can increase to 100 if data available in 7-14 day window |
+| Phase 2 optimization fails (no haiku_output in golden set) | Low | Medium | Fall back to re-running Haiku baseline; adds ~3-4 hours but doesn't block evals |
 
 ---
 
 ## Open Tickets
 
-| ID | Title | Priority | Status |
-|---|---|---|---|
-| BUG-079 | Budget enforcement blind to entity_extraction costs | P1 | ✅ COMPLETE + VALIDATED (2026-04-15) |
-| BUG-077 | `_validate_model_routing` warns but does not enforce | P1 | ✅ COMPLETE (2026-04-14) |
-| BUG-078 | RSS enrichment calls have no operation name | P1 | ✅ COMPLETE + VALIDATED (2026-04-15) |
-| BUG-076 | RSS ingest path does not generate article fingerprints | P1 | ✅ COMPLETE (2026-04-14) |
-| BUG-080 | Briefing date mismatch in LLM prompt | P2 | ✅ COMPLETE (2026-04-15) |
-| BUG-081 | Briefing duplicate events and unnamed entities | P2 | ✅ COMPLETE (2026-04-15) |
-| BUG-082 | Narrative summary pipeline implausible figures | P2 | ✅ COMPLETE (2026-04-15) |
-| BUG-084 | Narrative summary generator fabricates events | P1 | ✅ COMPLETE (2026-04-15) |
-| BUG-089 | Dead SONNET_MODEL constant | P4 | ✅ COMPLETE (2026-04-26) |
-| BUG-083 | Market event detector phantom narratives | P1 | 🔴 PART 1 COMPLETE, PART 2 PENDING (2026-04-15) |
-| BUG-088 | Merge path does not flag narratives for summary refresh | P1 | 🔄 CODE COMPLETE, TESTS PASSING (2026-04-18) |
-| TASK-073 | Auto-dormant narratives with no surviving articles | P3 | ✅ COMPLETE (2026-04-15) |
-| FEATURE-012 | Scheduled narrative summary regen consumer | P1 | ✅ COMPLETE (2026-04-18) |
-| TASK-069 | Cost dashboard + Slack alerts | P2 | Ready |
-| TASK-070 | Narrative cost investigation | P3 | Backlog |
-| TASK-071 | Spend threshold recalibration | P4 | Ready (lower urgency — spend already under limit) |
+| ID | Title | Priority | Status | Effort | Blocks |
+|---|---|---|---|---|---|
+| BUG-090 | Model routing observable (tear out old, introduce RoutingStrategy) | P1 | OPEN | 2-3h | TASK-076, FEATURE-053 |
+| TASK-076 | RoutingStrategy completion + wiring (with guard clause) | P1 | OPEN | 3-4h | FEATURE-053 |
+| TASK-077 | GeminiProvider stub + factory integration (return contract) | P1 | OPEN | 3-4h | FEATURE-053 |
+| TASK-078 | Model Selection Rubric (5-tier framework) | P2 | OPEN | 2-3h | TASK-079, framing |
+| TASK-079 | Operation Tier Mapping (all 14 ops + scope note) | P2 | OPEN | 2-3h | FEATURE-053 priority |
+| TASK-074 | Helicone Setup (proxy + kill switch, Anthropic-only) | P3 | OPEN | 2-3h | Optional |
+| TASK-075 | Narrative Cache Investigation (gates Tier 2) | P3 | OPEN | 4-6h | Sprint 17 (parallel) |
+| FEATURE-053 | Flash Evaluations (Tier 1 only, 3 ops, data-driven decisions) | P4 | OPEN | 6-8h | All P1/P2 tickets |
+
+---
+
+## Execution Order (Dependencies Respected)
+
+1. **Day 1-2:** BUG-090 (tear out old routing, introduce RoutingStrategy skeleton)
+2. **Day 2-3:** TASK-076 (complete + wire RoutingStrategy with guard clause)
+3. **Day 1-3 (parallel):** TASK-077 (GeminiProvider with return contract)
+4. **Day 2-3 (parallel):** TASK-078 (write rubric)
+5. **Day 3 (after TASK-078):** TASK-079 (classify all ops, note scope)
+6. **Day 3-7 (parallel):** TASK-075 (cache investigation, gates Tier 2)
+7. **Day 4-7 (after all P1/P2):** FEATURE-053 (Tier 1 evals with Phase 2 optimization + data-driven decisions)
+8. **Day 5-7 (optional):** TASK-074 (Helicone, if bandwidth available)
+
+---
+
+## Notes for Sprint
+
+**Tier 1 ONLY (3 ops).** Do not evaluate other Tier 1 operations (actor_tension_extract, relevance_scoring), Tier 2 operations (narrative_generate, etc.), or plan production rollouts. The goal is to validate the evaluation infrastructure and produce 2-3 data-driven decision records for interview material.
+
+**Scope discipline.** This is how sprints stay on track. Enforce the 3-op, Tier 1-only boundary.
+
+**TASK-075 gates Tier 2.** Narrative cache findings will inform whether narrative_generate needs Flash evaluation or just a cache fix. Do not wait for TASK-075; run in parallel. But do not include narrative_generate in FEATURE-053 scope.
+
+**Phase 2 optimization matters.** Use existing haiku_output from golden set as baseline. Saves time and avoids drift (historical data is fixed reference).
+
+**Data-driven decisions.** Let the metrics decide SWAP/STAY/CONDITIONAL. No pressure to produce a specific outcome. Bad data leading to "STAY" is better than forced "SWAP" without justification.
+
+**Real evals preferred, mock acceptable.** If Gemini API key available, use real calls. If not, mock at provider level with deterministic responses (same input → same output). Eval loop must run reproducibly.
+
+**Decision records are the deliverable.** MSD-001, MSD-002, MSD-003 are worth more than perfect coverage. Aim for quality over quantity.
+
+**Helicone only traces Anthropic.** Gemini calls won't appear in dashboards. This is expected. Don't plan Gemini tracing for this sprint.
