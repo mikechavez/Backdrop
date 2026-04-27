@@ -140,6 +140,14 @@ Infrastructure is stable and scheduled briefings are working. The blocker was co
 - **Branch:** `fix/bug-084-narrative-summary-fabrication` (ready for PR)
 - **Follow-up:** TASK-073 (post-generation validation checks whether summary claims have lexical support in source articles)
 
+### BUG-089: Dead SONNET_MODEL constant in optimized_anthropic.py ✅ FIXED
+- **Status:** ✅ RESOLVED — 2026-04-26
+- **Code fix deployed:** 2026-04-26 (commit 3ad3082)
+- **Root cause:** `SONNET_MODEL` was defined but never referenced after Sprint 13's consolidation of model routing into `gateway.py`
+- **Changes:** Removed unused constant and updated docstrings to reflect that model routing is handled by `_OPERATION_MODEL_ROUTING`
+- **Verification:** `grep -rn "SONNET_MODEL" src/` returns zero results
+- **Impact:** Eliminates developer confusion during model tiering work (low severity, code cleanliness)
+
 ### BUG-083: Market event detector creates phantom narratives with fabricated financial figures 🔴 PART 1 COMPLETE
 - **Status:** Part 1 complete, Part 2 pending — 2026-04-15
 - **Severity:** Critical — every briefing leads with fabricated financial data
@@ -339,6 +347,7 @@ Infrastructure is stable and scheduled briefings are working. The blocker was co
 | BUG-081 | Briefing duplicate events and unnamed entities | P2 | ✅ COMPLETE (2026-04-15) |
 | BUG-082 | Narrative summary pipeline implausible figures | P2 | ✅ COMPLETE (2026-04-15) |
 | BUG-084 | Narrative summary generator fabricates events | P1 | ✅ COMPLETE (2026-04-15) |
+| BUG-089 | Dead SONNET_MODEL constant | P4 | ✅ COMPLETE (2026-04-26) |
 | BUG-083 | Market event detector phantom narratives | P1 | 🔴 PART 1 COMPLETE, PART 2 PENDING (2026-04-15) |
 | BUG-088 | Merge path does not flag narratives for summary refresh | P1 | 🔄 CODE COMPLETE, TESTS PASSING (2026-04-18) |
 | TASK-073 | Auto-dormant narratives with no surviving articles | P3 | ✅ COMPLETE (2026-04-15) |

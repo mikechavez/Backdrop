@@ -1,13 +1,28 @@
 # Session Start
 
-**Date:** 2026-04-20 (Session 40, Sprint 15)
-**Status:** FEATURE-013 COMPLETE: Monthly API spend guard config initialized. App was broken due to missing `ANTHROPIC_MONTHLY_API_LIMIT` constant; fixed and committed.
-**Current Branch:** feat/feature-013-monthly-api-spend-guard (commit 5331a01)
-**Next:** PR FEATURE-013, then BUG-088 + FEATURE-012 PR, then Part 2 of BUG-083, then TASK-069
+**Date:** 2026-04-26 (Session 41, Sprint 15)
+**Status:** BUG-089 COMPLETE: Removed dead SONNET_MODEL constant and updated docstrings. Currently on docs/system-documentation-update branch.
+**Current Branch:** docs/system-documentation-update (commit 3ad3082)
+**Next:** Continue docs updates, then PR final batch of fixes
 
 ---
 
 ## Current Session Context
+
+### What was completed in Session 41
+
+**BUG-089 COMPLETE: Remove dead SONNET_MODEL constant**
+
+`SONNET_MODEL = "claude-sonnet-4-5-20250929"` was defined but never referenced after Sprint 13's consolidation of model routing into `gateway.py`. Cleaned up dead code and updated docstrings to reflect that model selection is now handled by `_OPERATION_MODEL_ROUTING`.
+
+**Changes deployed:**
+- ✅ Removed SONNET_MODEL constant from `OptimizedAnthropicLLM` class (line 32)
+- ✅ Updated module docstring to note gateway handles model routing (line 1-7)
+- ✅ Updated class docstring removing outdated model selection language (line 23-27)
+- ✅ Verified zero references: `grep -rn "SONNET_MODEL" src/ --include="*.py"` returns no results
+- **Status:** Clean, committed as 3ad3082
+
+---
 
 ### What was completed in Session 40
 

@@ -37,7 +37,7 @@ grep -rn "SONNET_MODEL" src/ --include="*.py"
 **Status:** ✅ COMPLETED
 **Fixed:** 2026-04-26
 **Branch:** `docs/system-documentation-update`
-**Commit:** (pending)
+**Commit:** 3ad3082
 
 ### Root Cause
 `OptimizedAnthropicLLM` previously selected between Haiku and Sonnet based on task complexity. Sprint 13 consolidated all model routing into `gateway.py` via `_OPERATION_MODEL_ROUTING`. The constant was not removed during that refactor.
