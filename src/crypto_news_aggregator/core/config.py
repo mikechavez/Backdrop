@@ -1,5 +1,5 @@
 from pydantic_settings import BaseSettings
-from pydantic import model_validator, field_validator
+from pydantic import model_validator, field_validator, Field
 from functools import lru_cache
 from typing import Optional, List
 
@@ -42,6 +42,11 @@ class Settings(BaseSettings):
     NEWS_API_KEY: str = ""  # Kept for backward compatibility
     TWITTER_BEARER_TOKEN: str = ""
     ANTHROPIC_API_KEY: str = ""
+    GEMINI_API_KEY: Optional[str] = Field(
+        default=None,
+        env="GEMINI_API_KEY",
+        description="Google Gemini API key (required for Flash evaluations in FEATURE-053)"
+    )
     ANTHROPIC_DEFAULT_MODEL: str = "claude-haiku-4-5-20251001"
     ANTHROPIC_ENTITY_MODEL: str = "claude-haiku-4-5-20251001"
     # DEPRECATED by BUG-039: Entity extraction no longer falls back to Sonnet.

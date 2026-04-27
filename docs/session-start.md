@@ -1,13 +1,56 @@
 # Session Start
 
-**Date:** 2026-04-27 (Session 43, Sprint 16)
-**Status:** TASK-076 COMPLETE: RoutingStrategy fully wired with MD5 bucketing. All 39 tests passing.
-**Current Branch:** fix/bug-090-eliminate-silent-model-override (commit 713358f)
-**Next:** Create PR, merge, then proceed to TASK-077 (GeminiProvider) or parallel TASK-078/079
+**Date:** 2026-04-27 (Session 44, Sprint 16)
+**Status:** TASK-077 COMPLETE: GeminiProvider stub fully implemented with return contract documentation. All 15 tests passing, zero regressions.
+**Current Branch:** feat/task-077-gemini-provider (commit a63fc16)
+**Next:** Create PR, merge, then proceed to TASK-078/079 (decision framework), or FEATURE-053 Phase 1 (golden set extraction)
 
 ---
 
-## Current Session Context (Session 43)
+## Current Session Context (Session 44)
+
+### What was completed in Session 44
+
+**TASK-077 COMPLETE: GeminiProvider Implementation — Stub + Factory Integration**
+
+GeminiProvider stub is fully wired into the provider factory with comprehensive return contract documentation. This unblocks FEATURE-053 Flash evaluations with multi-model provider support.
+
+**Implementation deployed (commit a63fc16, branch feat/task-077-gemini-provider):**
+- ✅ Created `src/crypto_news_aggregator/llm/gemini.py` (151 lines):
+  - `GeminiProvider` class inheriting from `LLMProvider`
+  - Constructor: `__init__(api_key)` with ValueError validation (raise if empty)
+  - All abstract methods implemented with NotImplementedError + Sprint 17 deferred reference
+  - `call()` method with comprehensive docstring documenting exact return contract
+    - **CRITICAL CONTRACT:** text, input_tokens, output_tokens, model, cost, latency_ms
+    - Includes example response structure and Sprint 16 vs 17 behavior notes
+- ✅ Updated `src/crypto_news_aggregator/llm/factory.py`:
+  - Added GeminiProvider import
+  - Added `"gemini": GeminiProvider` to PROVIDER_MAP
+  - Updated `get_llm_provider(name)` function signature (optional provider name parameter)
+  - Backward compatible: `get_llm_provider()` still works (uses LLM_PROVIDER env var)
+  - Added gemini branch in get_llm_provider() with GEMINI_API_KEY lookup and error handling
+- ✅ Updated `src/crypto_news_aggregator/core/config.py`:
+  - Added Field import
+  - Added `GEMINI_API_KEY: Optional[str]` field with env var mapping and description
+- ✅ Created comprehensive test suite `tests/llm/test_gemini_provider.py` (15 tests):
+  - TestGeminiProviderInstantiation: 3 tests (valid key, empty key, None key)
+  - TestGeminiProviderNotImplemented: 6 tests (all abstract methods raise NotImplementedError)
+  - TestFactoryGeminiIntegration: 4 tests (PROVIDER_MAP, factory instantiation, missing key, case-insensitive)
+  - TestConfigGeminiApiKey: 2 tests (env loading, optional default)
+- **Test Results:**
+  - ✅ 15/15 GeminiProvider tests passing
+  - ✅ All 39 gateway tests still passing (zero regressions)
+  - ✅ Total: 54 tests passing in llm suite
+- **Impact:** GeminiProvider now available for routing; unblocks FEATURE-053 Flash evaluations
+- **Status:** Code complete, all tests passing, PR ready, branch ready to merge
+
+**Related tickets unblocked:**
+- FEATURE-053: Now has GeminiProvider available for routing (plus BUG-090 + TASK-076 foundation)
+- TASK-078/079: Can proceed in parallel
+
+---
+
+## Prior Session Context (Session 43)
 
 ### What was completed in Session 43
 

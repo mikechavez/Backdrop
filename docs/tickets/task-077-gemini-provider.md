@@ -3,10 +3,12 @@ ticket_id: TASK-077
 title: GeminiProvider Implementation — Stub + Factory Integration
 priority: critical
 severity: high
-status: OPEN
+status: ✅ COMPLETE
 date_created: 2026-04-27
 updated: 2026-04-27
+completed: 2026-04-27
 effort_estimate: 3-4 hours
+actual_effort: 1 hour
 ---
 
 # TASK-077: GeminiProvider Implementation — Stub + Factory Integration
@@ -255,28 +257,73 @@ def test_provider_map_includes_gemini():
 
 ## Verification
 
-- [ ] `gemini.py` created with `GeminiProvider` class
-- [ ] `GeminiProvider` inherits from `LLMProvider` base class (or compatible interface)
-- [ ] `factory.py` imports `GeminiProvider` without import errors
-- [ ] `PROVIDER_MAP` includes `"gemini": GeminiProvider`
-- [ ] `config.py` loads `GEMINI_API_KEY` correctly
-- [ ] `get_llm_provider("gemini")` returns `GeminiProvider` instance (with key set)
-- [ ] `GeminiProvider.call()` raises `NotImplementedError` with clear message
-- [ ] All existing provider tests pass (no regression)
+- [x] `gemini.py` created with `GeminiProvider` class (commit a63fc16)
+- [x] `GeminiProvider` inherits from `LLMProvider` base class ✅
+- [x] `factory.py` imports `GeminiProvider` without import errors ✅
+- [x] `PROVIDER_MAP` includes `"gemini": GeminiProvider` ✅
+- [x] `config.py` loads `GEMINI_API_KEY` correctly ✅
+- [x] `get_llm_provider("gemini")` returns `GeminiProvider` instance (with key set) ✅
+- [x] `GeminiProvider.call()` raises `NotImplementedError` with clear message ✅
+- [x] All existing provider tests pass (no regression) ✅
 
 ---
 
 ## Acceptance Criteria
 
-- [ ] `GeminiProvider` class exists and is importable
-- [ ] `GeminiProvider` in `PROVIDER_MAP`
-- [ ] `GEMINI_API_KEY` in `config.py` (optional, default None)
-- [ ] `factory.get_llm_provider("gemini")` returns `GeminiProvider` instance (if key set)
-- [ ] `factory.get_llm_provider("gemini")` raises `ValueError` if key not set
-- [ ] `GeminiProvider.call()` raises `NotImplementedError` with reference to Sprint 17
-- [ ] **CRITICAL: `GeminiProvider.call()` docstring documents return contract matching `AnthropicProvider.call()`**
-- [ ] All existing tests pass (no regression)
-- [ ] Code is ready for Sprint 17 implementation (no structural changes needed)
+- [x] `GeminiProvider` class exists and is importable ✅
+- [x] `GeminiProvider` in `PROVIDER_MAP` ✅
+- [x] `GEMINI_API_KEY` in `config.py` (optional, default None) ✅
+- [x] `factory.get_llm_provider("gemini")` returns `GeminiProvider` instance (if key set) ✅
+- [x] `factory.get_llm_provider("gemini")` raises `ValueError` if key not set ✅
+- [x] `GeminiProvider.call()` raises `NotImplementedError` with reference to Sprint 17 ✅
+- [x] **CRITICAL: `GeminiProvider.call()` docstring documents return contract matching `AnthropicProvider.call()`** ✅
+- [x] All existing tests pass (no regression) ✅
+- [x] Code is ready for Sprint 17 implementation (no structural changes needed) ✅
+
+---
+
+## Implementation Summary (Session 44)
+
+**Status: ✅ COMPLETE — All acceptance criteria met, 15/15 tests passing**
+
+**Files Created:**
+- `src/crypto_news_aggregator/llm/gemini.py` — GeminiProvider stub class (151 lines)
+  - Inherits from LLMProvider, implements all abstract methods
+  - All methods raise NotImplementedError with Sprint 17 deferred reference
+  - `__init__(api_key)` validates key presence
+  - `call()` method has comprehensive docstring with exact return contract specification
+  
+**Files Modified:**
+- `src/crypto_news_aggregator/llm/factory.py`
+  - Added GeminiProvider import
+  - Added `"gemini": GeminiProvider` to PROVIDER_MAP
+  - Updated `get_llm_provider(name)` function signature (was `get_llm_provider()`) to accept optional provider name parameter
+  - Backward compatible: `get_llm_provider()` still works (uses LLM_PROVIDER env var)
+  - Added gemini branch in get_llm_provider() with GEMINI_API_KEY lookup
+  
+- `src/crypto_news_aggregator/core/config.py`
+  - Added Field import
+  - Added GEMINI_API_KEY optional field with env var mapping and description
+
+**Tests Created:**
+- `tests/llm/test_gemini_provider.py` — Comprehensive test suite (15 tests, all passing)
+  - TestGeminiProviderInstantiation: 3 tests (valid key, empty key, None key)
+  - TestGeminiProviderNotImplemented: 6 tests (all abstract methods raise NotImplementedError)
+  - TestFactoryGeminiIntegration: 4 tests (PROVIDER_MAP, factory instantiation, missing key, case-insensitive)
+  - TestConfigGeminiApiKey: 2 tests (env loading, optional default)
+
+**Branch:** `feat/task-077-gemini-provider` (commit a63fc16)
+
+**Test Results:**
+- ✅ 15/15 GeminiProvider tests passing
+- ✅ No regressions to existing tests (all gateway tests still pass)
+- ✅ Total: 39 gateway tests + 15 gemini tests = 54 tests in llm suite all passing
+
+**Return Contract Documentation:**
+- ✅ Comprehensively documented in `GeminiProvider.call()` docstring
+- ✅ Matches AnthropicProvider.call() response shape (text, input_tokens, output_tokens, model, cost, latency_ms)
+- ✅ Includes example response structure
+- ✅ Flags Sprint 16 vs Sprint 17 behavior expectations
 
 ---
 
