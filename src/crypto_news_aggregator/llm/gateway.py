@@ -27,11 +27,7 @@ _ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
 
 class RoutingStrategy:
     """
-    Encapsulates model selection for an operation.
-    Supports deterministic routing for A/B testing in future sprints.
-
-    Currently: all operations use primary model (no variants).
-    Sprint 16+: variant_ratio controls split between primary and variant.
+    Encapsulates model selection for an operation with support for A/B testing.
     """
 
     def __init__(
@@ -48,62 +44,138 @@ class RoutingStrategy:
         self.variant_ratio = max(0.0, min(1.0, variant_ratio))
         self.mode = mode
 
+    def select(self, routing_key: str) -> str:
+        """
+        Deterministically select primary or variant using MD5 bucketing.
+
+        Args:
+            routing_key: Stable identifier (e.g., "entity_extraction:trace_id_xyz")
+
+        Returns:
+            Selected model string (primary or variant)
+
+        Logic:
+        - If variant is None OR variant_ratio == 0: ALWAYS return primary
+        - If variant exists AND ratio > 0: MD5 hash key, bucket into [0, 100)
+        - If bucket < (ratio * 100): return variant
+        - Else: return primary
+        """
+        if not self.variant or self.variant_ratio == 0:
+            return self.primary
+
+        hash_val = hashlib.md5(routing_key.encode()).hexdigest()
+        hash_int = int(hash_val, 16) % 100
+
+        split_point = int(self.variant_ratio * 100)
+
+        return self.variant if hash_int < split_point else self.primary
+
     def resolve_model(
         self,
+        selected: str,
         requested: Optional[str]
     ) -> tuple[str, bool]:
         """
         Determine actual model and whether routing overrode the request.
 
         Args:
+            selected: Model from select() (what routing chose)
             requested: Model from caller (what they asked for, if any)
 
         Returns:
             (actual_model, overridden: bool)
-
-        Currently: always returns primary (no variant yet).
         """
-        if not self.variant or self.variant_ratio == 0:
-            actual = self.primary
-        else:
-            actual = self.primary
+        overridden = requested is not None and requested != selected
+        return selected, overridden
 
-        overridden = requested is not None and requested != actual
-        return actual, overridden
+
+_OPERATION_ROUTING = {
+    "narrative_generate": RoutingStrategy(
+        "narrative_generate",
+        primary="anthropic:claude-haiku-4-5-20251001"
+    ),
+    "entity_extraction": RoutingStrategy(
+        "entity_extraction",
+        primary="anthropic:claude-haiku-4-5-20251001"
+    ),
+    "narrative_theme_extract": RoutingStrategy(
+        "narrative_theme_extract",
+        primary="anthropic:claude-haiku-4-5-20251001"
+    ),
+    "actor_tension_extract": RoutingStrategy(
+        "actor_tension_extract",
+        primary="anthropic:claude-haiku-4-5-20251001"
+    ),
+    "cluster_narrative_gen": RoutingStrategy(
+        "cluster_narrative_gen",
+        primary="anthropic:claude-haiku-4-5-20251001"
+    ),
+    "narrative_polish": RoutingStrategy(
+        "narrative_polish",
+        primary="anthropic:claude-haiku-4-5-20251001"
+    ),
+    "briefing_generate": RoutingStrategy(
+        "briefing_generate",
+        primary="anthropic:claude-haiku-4-5-20251001"
+    ),
+    "briefing_refine": RoutingStrategy(
+        "briefing_refine",
+        primary="anthropic:claude-haiku-4-5-20251001"
+    ),
+    "briefing_critique": RoutingStrategy(
+        "briefing_critique",
+        primary="anthropic:claude-haiku-4-5-20251001"
+    ),
+    "provider_fallback": RoutingStrategy(
+        "provider_fallback",
+        primary="anthropic:claude-haiku-4-5-20251001"
+    ),
+    "sentiment_analysis": RoutingStrategy(
+        "sentiment_analysis",
+        primary="anthropic:claude-haiku-4-5-20251001"
+    ),
+    "theme_extraction": RoutingStrategy(
+        "theme_extraction",
+        primary="anthropic:claude-haiku-4-5-20251001"
+    ),
+    "relevance_scoring": RoutingStrategy(
+        "relevance_scoring",
+        primary="anthropic:claude-haiku-4-5-20251001"
+    ),
+    "insight_generation": RoutingStrategy(
+        "insight_generation",
+        primary="anthropic:claude-haiku-4-5-20251001"
+    ),
+    "test_operation": RoutingStrategy(
+        "test_operation",
+        primary="anthropic:claude-haiku-4-5-20251001"
+    ),
+    "sync_operation": RoutingStrategy(
+        "sync_operation",
+        primary="anthropic:claude-haiku-4-5-20251001"
+    ),
+}
 
 
 def _get_routing_strategy(operation: str) -> RoutingStrategy:
     """
     Retrieve routing strategy for an operation.
 
-    Sprint 16: All operations point to Haiku (primary only, no variants).
-    Sprint 16+: TASK-076 wires variant routing for A/B testing.
+    Args:
+        operation: Operation name
+
+    Returns:
+        RoutingStrategy instance
+
+    Raises:
+        ValueError if operation not in _OPERATION_ROUTING
     """
-    DEFAULT_STRATEGIES = {
-        "narrative_generate": RoutingStrategy("narrative_generate", "anthropic:claude-haiku-4-5-20251001"),
-        "entity_extraction": RoutingStrategy("entity_extraction", "anthropic:claude-haiku-4-5-20251001"),
-        "narrative_theme_extract": RoutingStrategy("narrative_theme_extract", "anthropic:claude-haiku-4-5-20251001"),
-        "actor_tension_extract": RoutingStrategy("actor_tension_extract", "anthropic:claude-haiku-4-5-20251001"),
-        "cluster_narrative_gen": RoutingStrategy("cluster_narrative_gen", "anthropic:claude-haiku-4-5-20251001"),
-        "narrative_polish": RoutingStrategy("narrative_polish", "anthropic:claude-haiku-4-5-20251001"),
-        "briefing_generate": RoutingStrategy("briefing_generate", "anthropic:claude-haiku-4-5-20251001"),
-        "briefing_refine": RoutingStrategy("briefing_refine", "anthropic:claude-haiku-4-5-20251001"),
-        "briefing_critique": RoutingStrategy("briefing_critique", "anthropic:claude-haiku-4-5-20251001"),
-        "provider_fallback": RoutingStrategy("provider_fallback", "anthropic:claude-haiku-4-5-20251001"),
-        "sentiment_analysis": RoutingStrategy("sentiment_analysis", "anthropic:claude-haiku-4-5-20251001"),
-        "theme_extraction": RoutingStrategy("theme_extraction", "anthropic:claude-haiku-4-5-20251001"),
-        "relevance_scoring": RoutingStrategy("relevance_scoring", "anthropic:claude-haiku-4-5-20251001"),
-        "insight_generation": RoutingStrategy("insight_generation", "anthropic:claude-haiku-4-5-20251001"),
-    }
-
-    if operation in DEFAULT_STRATEGIES:
-        return DEFAULT_STRATEGIES[operation]
-
-    logger.warning(
-        f"Unknown operation '{operation}' - using default Haiku routing. "
-        f"Add to DEFAULT_STRATEGIES if this is a new operation."
-    )
-    return RoutingStrategy(operation, "anthropic:claude-haiku-4-5-20251001")
+    if operation not in _OPERATION_ROUTING:
+        raise ValueError(
+            f"Operation '{operation}' has no routing strategy. "
+            f"Available: {list(_OPERATION_ROUTING.keys())}"
+        )
+    return _OPERATION_ROUTING[operation]
 
 
 @dataclass
@@ -306,15 +378,26 @@ class LLMGateway:
                 model="n/a",
             )
 
-    def _resolve_routing(self, operation: str, requested_model: Optional[str]) -> tuple[str, bool]:
+    def _resolve_routing(
+        self,
+        operation: str,
+        requested_model: Optional[str],
+        routing_key: Optional[str] = None
+    ) -> tuple[str, bool]:
         """
         Resolve model routing for an operation using RoutingStrategy.
+
+        Args:
+            operation: LLM operation name
+            requested_model: Model requested by caller (if any)
+            routing_key: Stable identifier for deterministic A/B split
 
         Returns:
             (actual_model, overridden: bool)
         """
         strategy = _get_routing_strategy(operation)
-        actual_model, overridden = strategy.resolve_model(requested_model)
+        selected_model = strategy.select(routing_key or f"{operation}:default")
+        actual_model, overridden = strategy.resolve_model(selected_model, requested_model)
 
         if overridden:
             logger.warning(
@@ -462,6 +545,7 @@ class LLMGateway:
         temperature: float = 0.3,
         system: Optional[str] = None,
         requested_model: Optional[str] = None,
+        routing_key: Optional[str] = None,
     ) -> GatewayResponse:
         """
         Async LLM call with cache support.
@@ -477,6 +561,8 @@ class LLMGateway:
             temperature: Sampling temperature
             system: System prompt
             requested_model: What caller requested (not guaranteed to be used)
+            routing_key: Stable identifier for deterministic A/B split.
+                         Default: f"{operation}:{trace_id}"
 
         Raises:
             LLMError: On spend cap breach or API failure.
@@ -485,10 +571,14 @@ class LLMGateway:
         self._check_budget(operation)
 
         requested_model = requested_model or model
-        actual_model, model_overridden = self._resolve_routing(operation, requested_model)
-        model = actual_model
 
         trace_id = str(uuid.uuid4())
+
+        if routing_key is None:
+            routing_key = f"{operation}:{trace_id}"
+
+        actual_model, model_overridden = self._resolve_routing(operation, requested_model, routing_key)
+        model = actual_model
         start = time.monotonic()
 
         # ═══ CACHE SUPPORT ═══
@@ -594,6 +684,7 @@ class LLMGateway:
         temperature: float = 0.3,
         system: Optional[str] = None,
         requested_model: Optional[str] = None,
+        routing_key: Optional[str] = None,
     ) -> GatewayResponse:
         """
         Sync LLM call with cache support.
@@ -609,6 +700,8 @@ class LLMGateway:
             temperature: Sampling temperature
             system: System prompt
             requested_model: What caller requested (not guaranteed to be used)
+            routing_key: Stable identifier for deterministic A/B split.
+                         Default: f"{operation}:{trace_id}"
 
         Raises:
             LLMError: On spend cap breach or API failure.
@@ -616,10 +709,14 @@ class LLMGateway:
         self._check_budget(operation)
 
         requested_model = requested_model or model
-        actual_model, model_overridden = self._resolve_routing(operation, requested_model)
-        model = actual_model
 
         trace_id = str(uuid.uuid4())
+
+        if routing_key is None:
+            routing_key = f"{operation}:{trace_id}"
+
+        actual_model, model_overridden = self._resolve_routing(operation, requested_model, routing_key)
+        model = actual_model
         start = time.monotonic()
 
         # ═══ CACHE SUPPORT ═══
