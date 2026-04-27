@@ -25,25 +25,85 @@ logger = logging.getLogger(__name__)
 
 _ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
 
-# BUG-075 FIX: Model routing configuration to prevent inconsistent model selection.
-# Each operation must route to exactly one model to ensure deterministic costs.
-_OPERATION_MODEL_ROUTING = {
-    "narrative_generate": "claude-haiku-4-5-20251001",
-    "entity_extraction": "claude-haiku-4-5-20251001",
-    "narrative_theme_extract": "claude-haiku-4-5-20251001",
-    "actor_tension_extract": "claude-haiku-4-5-20251001",
-    "cluster_narrative_gen": "claude-haiku-4-5-20251001",
-    "narrative_polish": "claude-haiku-4-5-20251001",
-    "briefing_generate": "claude-haiku-4-5-20251001",
-    "briefing_refine": "claude-haiku-4-5-20251001",
-    "briefing_critique": "claude-haiku-4-5-20251001",
-    # BUG-077: Add missing operation names from RSS enrichment sync path
-    "provider_fallback": "claude-haiku-4-5-20251001",
-    "sentiment_analysis": "claude-haiku-4-5-20251001",
-    "theme_extraction": "claude-haiku-4-5-20251001",
-    "relevance_scoring": "claude-haiku-4-5-20251001",
-    "insight_generation": "claude-haiku-4-5-20251001",
-}
+class RoutingStrategy:
+    """
+    Encapsulates model selection for an operation.
+    Supports deterministic routing for A/B testing in future sprints.
+
+    Currently: all operations use primary model (no variants).
+    Sprint 16+: variant_ratio controls split between primary and variant.
+    """
+
+    def __init__(
+        self,
+        operation: str,
+        primary: str,
+        variant: Optional[str] = None,
+        variant_ratio: float = 0.0,
+        mode: str = "single"
+    ):
+        self.operation = operation
+        self.primary = primary
+        self.variant = variant
+        self.variant_ratio = max(0.0, min(1.0, variant_ratio))
+        self.mode = mode
+
+    def resolve_model(
+        self,
+        requested: Optional[str]
+    ) -> tuple[str, bool]:
+        """
+        Determine actual model and whether routing overrode the request.
+
+        Args:
+            requested: Model from caller (what they asked for, if any)
+
+        Returns:
+            (actual_model, overridden: bool)
+
+        Currently: always returns primary (no variant yet).
+        """
+        if not self.variant or self.variant_ratio == 0:
+            actual = self.primary
+        else:
+            actual = self.primary
+
+        overridden = requested is not None and requested != actual
+        return actual, overridden
+
+
+def _get_routing_strategy(operation: str) -> RoutingStrategy:
+    """
+    Retrieve routing strategy for an operation.
+
+    Sprint 16: All operations point to Haiku (primary only, no variants).
+    Sprint 16+: TASK-076 wires variant routing for A/B testing.
+    """
+    DEFAULT_STRATEGIES = {
+        "narrative_generate": RoutingStrategy("narrative_generate", "anthropic:claude-haiku-4-5-20251001"),
+        "entity_extraction": RoutingStrategy("entity_extraction", "anthropic:claude-haiku-4-5-20251001"),
+        "narrative_theme_extract": RoutingStrategy("narrative_theme_extract", "anthropic:claude-haiku-4-5-20251001"),
+        "actor_tension_extract": RoutingStrategy("actor_tension_extract", "anthropic:claude-haiku-4-5-20251001"),
+        "cluster_narrative_gen": RoutingStrategy("cluster_narrative_gen", "anthropic:claude-haiku-4-5-20251001"),
+        "narrative_polish": RoutingStrategy("narrative_polish", "anthropic:claude-haiku-4-5-20251001"),
+        "briefing_generate": RoutingStrategy("briefing_generate", "anthropic:claude-haiku-4-5-20251001"),
+        "briefing_refine": RoutingStrategy("briefing_refine", "anthropic:claude-haiku-4-5-20251001"),
+        "briefing_critique": RoutingStrategy("briefing_critique", "anthropic:claude-haiku-4-5-20251001"),
+        "provider_fallback": RoutingStrategy("provider_fallback", "anthropic:claude-haiku-4-5-20251001"),
+        "sentiment_analysis": RoutingStrategy("sentiment_analysis", "anthropic:claude-haiku-4-5-20251001"),
+        "theme_extraction": RoutingStrategy("theme_extraction", "anthropic:claude-haiku-4-5-20251001"),
+        "relevance_scoring": RoutingStrategy("relevance_scoring", "anthropic:claude-haiku-4-5-20251001"),
+        "insight_generation": RoutingStrategy("insight_generation", "anthropic:claude-haiku-4-5-20251001"),
+    }
+
+    if operation in DEFAULT_STRATEGIES:
+        return DEFAULT_STRATEGIES[operation]
+
+    logger.warning(
+        f"Unknown operation '{operation}' - using default Haiku routing. "
+        f"Add to DEFAULT_STRATEGIES if this is a new operation."
+    )
+    return RoutingStrategy(operation, "anthropic:claude-haiku-4-5-20251001")
 
 
 @dataclass
@@ -56,6 +116,9 @@ class GatewayResponse:
     model: str
     operation: str
     trace_id: str
+    actual_model: Optional[str] = None
+    requested_model: Optional[str] = None
+    model_overridden: bool = False
 
 
 class LLMGateway:
@@ -243,31 +306,24 @@ class LLMGateway:
                 model="n/a",
             )
 
-    def _validate_model_routing(self, operation: str, model: str) -> str:
+    def _resolve_routing(self, operation: str, requested_model: Optional[str]) -> tuple[str, bool]:
         """
-        Validate and enforce model routing for an operation.
-
-        BUG-077 FIX: If the operation has a registered expected model and the caller
-        passed a different model, overrides to the expected model and logs a warning.
-        This prevents cost spikes from inconsistent model selection.
-
-        Args:
-            operation: LLM operation name
-            model: Model string passed by caller
+        Resolve model routing for an operation using RoutingStrategy.
 
         Returns:
-            The model string to use for the API call (may differ from input if override applied)
+            (actual_model, overridden: bool)
         """
-        if operation in _OPERATION_MODEL_ROUTING:
-            expected_model = _OPERATION_MODEL_ROUTING[operation]
-            if model != expected_model:
-                logger.warning(
-                    f"Model routing mismatch: operation '{operation}' "
-                    f"expected '{expected_model}' but got '{model}'. "
-                    f"Overriding to '{expected_model}'."
-                )
-                return expected_model
-        return model
+        strategy = _get_routing_strategy(operation)
+        actual_model, overridden = strategy.resolve_model(requested_model)
+
+        if overridden:
+            logger.warning(
+                f"Model override: operation={operation}, "
+                f"requested={requested_model}, "
+                f"actual={actual_model}"
+            )
+
+        return actual_model, overridden
 
     def _build_headers(self) -> dict:
         return {
@@ -405,6 +461,7 @@ class LLMGateway:
         max_tokens: int = 2048,
         temperature: float = 0.3,
         system: Optional[str] = None,
+        requested_model: Optional[str] = None,
     ) -> GatewayResponse:
         """
         Async LLM call with cache support.
@@ -412,12 +469,24 @@ class LLMGateway:
         Cache is used for non-critical operations. Critical operations
         (briefing generation) bypass cache to ensure freshness.
 
+        Args:
+            messages: Message history
+            model: Deprecated - use requested_model instead
+            operation: LLM operation name
+            max_tokens: Max output tokens
+            temperature: Sampling temperature
+            system: System prompt
+            requested_model: What caller requested (not guaranteed to be used)
+
         Raises:
             LLMError: On spend cap breach or API failure.
         """
         await refresh_budget_if_stale()
         self._check_budget(operation)
-        model = self._validate_model_routing(operation, model)
+
+        requested_model = requested_model or model
+        actual_model, model_overridden = self._resolve_routing(operation, requested_model)
+        model = actual_model
 
         trace_id = str(uuid.uuid4())
         start = time.monotonic()
@@ -456,6 +525,9 @@ class LLMGateway:
                     model=model,
                     operation=operation,
                     trace_id=trace_id,
+                    actual_model=actual_model,
+                    requested_model=requested_model,
+                    model_overridden=model_overridden,
                 )
 
         # ═══ CACHE MISS - CALL API ═══
@@ -506,6 +578,9 @@ class LLMGateway:
             model=model,
             operation=operation,
             trace_id=trace_id,
+            actual_model=actual_model,
+            requested_model=requested_model,
+            model_overridden=model_overridden,
         )
 
     # ── Sync entry point ─────────────────────────────────────
@@ -518,6 +593,7 @@ class LLMGateway:
         max_tokens: int = 2048,
         temperature: float = 0.3,
         system: Optional[str] = None,
+        requested_model: Optional[str] = None,
     ) -> GatewayResponse:
         """
         Sync LLM call with cache support.
@@ -525,11 +601,23 @@ class LLMGateway:
         Cache is used for non-critical operations. Critical operations
         (briefing generation) bypass cache to ensure freshness.
 
+        Args:
+            messages: Message history
+            model: Deprecated - use requested_model instead
+            operation: LLM operation name
+            max_tokens: Max output tokens
+            temperature: Sampling temperature
+            system: System prompt
+            requested_model: What caller requested (not guaranteed to be used)
+
         Raises:
             LLMError: On spend cap breach or API failure.
         """
         self._check_budget(operation)
-        model = self._validate_model_routing(operation, model)
+
+        requested_model = requested_model or model
+        actual_model, model_overridden = self._resolve_routing(operation, requested_model)
+        model = actual_model
 
         trace_id = str(uuid.uuid4())
         start = time.monotonic()
@@ -567,6 +655,9 @@ class LLMGateway:
                     model=model,
                     operation=operation,
                     trace_id=trace_id,
+                    actual_model=actual_model,
+                    requested_model=requested_model,
+                    model_overridden=model_overridden,
                 )
 
         # ═══ CACHE MISS - CALL API ═══
@@ -626,6 +717,9 @@ class LLMGateway:
             model=model,
             operation=operation,
             trace_id=trace_id,
+            actual_model=actual_model,
+            requested_model=requested_model,
+            model_overridden=model_overridden,
         )
 
 

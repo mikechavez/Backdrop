@@ -242,9 +242,13 @@ class TestAsyncCall:
         assert response.text == "Test response"
         assert response.input_tokens == 5
         assert response.output_tokens == 10
-        assert response.model == "claude-sonnet-4-5-20250929"
         assert response.operation == "test_operation"
         assert response.trace_id  # Should be populated
+        # With routing strategy, model gets overridden from requested to actual
+        assert response.requested_model == "claude-sonnet-4-5-20250929"
+        assert response.actual_model == "anthropic:claude-haiku-4-5-20251001"
+        assert response.model_overridden is True
+        assert response.model == "anthropic:claude-haiku-4-5-20251001"  # actual_model used for call
 
     @pytest.mark.asyncio
     @patch("src.crypto_news_aggregator.llm.gateway.get_settings")
@@ -344,8 +348,12 @@ class TestSyncCall:
         assert response.text == "Sync response"
         assert response.input_tokens == 8
         assert response.output_tokens == 12
-        assert response.model == "claude-haiku-4-5-20251001"
         assert response.operation == "sync_operation"
+        # With routing strategy, model gets routed to actual (default Haiku for unknown operations)
+        assert response.requested_model == "claude-haiku-4-5-20251001"
+        assert response.actual_model == "anthropic:claude-haiku-4-5-20251001"
+        assert response.model_overridden is True  # String differs (provider prefix added)
+        assert response.model == "anthropic:claude-haiku-4-5-20251001"
 
     @patch("src.crypto_news_aggregator.llm.gateway.get_settings")
     @patch("src.crypto_news_aggregator.llm.gateway.check_llm_budget")
