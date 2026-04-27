@@ -1,11 +1,11 @@
 ---
 id: BUG-083
 type: bug
-status: backlog
+status: resolved
 priority: critical
 severity: critical
 created: 2026-04-15
-updated: 2026-04-15
+updated: 2026-04-26
 ---
 
 # Market event detector creates phantom narratives from unrelated articles, fabricating financial figures
@@ -47,7 +47,7 @@ The result: the LLM receives 23 unrelated articles under a narrative titled "Maj
 
 ## Resolution
 
-**Status:** Part 1 Complete (2026-04-15 18:30 UTC), Part 2 Pending
+**Status:** Part 1 Complete (2026-04-15 18:30 UTC), Part 2 Complete (2026-04-26 18:45 UTC)
 
 ### Root Cause
 See "Actual Behavior" above. The market event detector's keyword matching, volume extraction, threshold logic, and narrative creation are all fundamentally broken. A proper rebuild is out of scope for this ticket — see follow-up TASK-072.
