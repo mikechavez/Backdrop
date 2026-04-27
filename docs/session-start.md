@@ -1,13 +1,49 @@
 # Session Start
 
-**Date:** 2026-04-26 (Session 41, Sprint 15)
-**Status:** BUG-089 COMPLETE: Removed dead SONNET_MODEL constant and updated docstrings. Currently on docs/system-documentation-update branch.
-**Current Branch:** docs/system-documentation-update (commit 3ad3082)
-**Next:** Continue docs updates, then PR final batch of fixes
+**Date:** 2026-04-27 (Session 42, Sprint 16)
+**Status:** BUG-090 COMPLETE: Observable routing system implemented. Ready for PR.
+**Current Branch:** fix/bug-090-eliminate-silent-model-override (commit e89dc44)
+**Next:** Create PR, merge, then proceed to TASK-076 (RoutingStrategy completion with MD5 bucketing)
 
 ---
 
-## Current Session Context
+## Current Session Context (Session 42)
+
+### What was completed in Session 42
+
+**BUG-090 COMPLETE: Eliminate Silent Model Override — Introduce Observable Routing**
+
+Model routing was silent and hardcoded. Callers had no way to know if their requested model was overridden, making cost debugging impossible. This ticket tears out the old system and introduces `RoutingStrategy` as foundation for observable, testable routing.
+
+**Implementation deployed (commit e89dc44, branch fix/bug-090-eliminate-silent-model-override):**
+- ✅ Deleted entire `_OPERATION_MODEL_ROUTING` hardcoded dict (was causing silent overrides)
+- ✅ Implemented `RoutingStrategy` class:
+  - `__init__(operation, primary, variant, variant_ratio, mode)` for flexible routing setup
+  - `resolve_model(requested)` → returns (actual_model, overridden: bool)
+  - Guard clause: variant=None or ratio=0 → always primary (no ambiguity)
+- ✅ Added `_get_routing_strategy(operation)` helper:
+  - All 14 operations have explicit strategies (all primary=Haiku, no variants yet)
+  - Unknown operations default to Haiku with warning (prevents crashes in tests)
+- ✅ Updated `GatewayResponse` dataclass with routing tracking:
+  - `actual_model: Optional[str]` — what we really used
+  - `requested_model: Optional[str]` — what caller asked for
+  - `model_overridden: bool` — whether routing overrode the request
+- ✅ Integrated into both `call()` and `call_sync()`:
+  - New `requested_model` parameter (optional, defaults to `model` for backward compat)
+  - Call `_resolve_routing()` to determine actual model and override flag
+  - Log all overrides with operation + requested + actual for debugging
+  - Populate all three routing fields in response
+- ✅ Updated test suite:
+  - Modified 2 tests to verify override tracking (async and sync paths)
+  - All 22 gateway tests pass (zero regressions)
+- **Impact:** Model routing now observable; cost attribution possible; blocks lifted for TASK-076 and FEATURE-053
+- **Status:** Code complete, tests passing, ready for PR
+
+**Related tickets unblocked:**
+- TASK-076: Can now implement MD5 bucketing on top of this foundation
+- FEATURE-053: Flash evaluations require observable routing to compare models
+
+---
 
 ### What was completed in Session 41
 
