@@ -70,33 +70,35 @@ Current blocker for multi-model testing: model routing is hard-coded and not obs
 
 ---
 
-### TASK-077: GeminiProvider Implementation — Stub + Factory Integration
-- **Status:** OPEN
+### TASK-077: GeminiProvider Implementation — Stub + Factory Integration ✅ COMPLETE
+- **Status:** COMPLETE (2026-04-27)
 - **Priority:** CRITICAL
-- **Effort:** 3-4 hours
-- **Dependency:** Can be done in parallel with BUG-090/TASK-076 (no conflicts)
-- **Goal:** Create `GeminiProvider` class and wire into provider factory; support real or mocked API calls
-- **Key Fix (from Feedback):** **Explicitly document return contract:** `GeminiProvider.call()` MUST return same response shape as `AnthropicProvider.call()` (text, input_tokens, output_tokens, model, cost, latency_ms)
-- **Changes Required:**
-  - **CREATE:** `src/crypto_news_aggregator/llm/gemini.py` with:
-    - `GeminiProvider` class inheriting from `LLMProvider`
-    - Constructor: `__init__(api_key)` with validation (raise ValueError if empty)
-    - Method: `call(model, prompt, messages, **kwargs)` that raises `NotImplementedError` with clear Sprint 17 reference
-    - **CRITICAL DOCSTRING:** Document exact return shape (dict with text, input_tokens, output_tokens, model, cost, latency_ms)
-  - **UPDATE:** `factory.py`:
-    - Import `GeminiProvider`
-    - Add `"gemini": GeminiProvider` to `PROVIDER_MAP`
-    - Add `GEMINI_API_KEY` handling in `get_llm_provider()` (raise if key not set)
-  - **UPDATE:** `config.py`:
-    - Add `GEMINI_API_KEY: Optional[str] = None` field (env var, default None)
+- **Effort:** 3-4 hours (actual: 1 hour)
+- **Goal:** ✅ Create `GeminiProvider` class and wire into provider factory; return contract documented
+- **Implementation:** 
+  - ✅ Created `src/crypto_news_aggregator/llm/gemini.py` (151 lines)
+  - ✅ `GeminiProvider` class inheriting from `LLMProvider`
+  - ✅ Constructor: `__init__(api_key)` with ValueError validation ✅
+  - ✅ All abstract methods implemented with NotImplementedError (Sprint 17 deferred)
+  - ✅ `call()` method with comprehensive docstring documenting exact return shape
+  - ✅ Updated `factory.py`:
+    - Added GeminiProvider import
+    - Added `"gemini": GeminiProvider` to PROVIDER_MAP
+    - Updated `get_llm_provider(name)` function signature (optional provider name parameter, backward compatible)
+    - Added gemini branch with GEMINI_API_KEY lookup
+  - ✅ Updated `config.py`:
+    - Added Field import
+    - Added `GEMINI_API_KEY: Optional[str]` field with env var mapping
 - **Testing:**
-  - `get_llm_provider("gemini")` returns `GeminiProvider` instance (with key set)
-  - `GeminiProvider` raises ValueError if api_key empty
-  - `GeminiProvider.call()` raises NotImplementedError (deferred to Sprint 17)
-  - All existing tests pass (no regression to sentient/anthropic)
-- **Branch:** `feat/task-077-gemini-provider`
-- **Note:** Real Gemini API calls not required for this sprint; mock at provider level is acceptable. Priority is factory integration + return contract clarity.
-- **Next:** Merge before FEATURE-053 starts; can be done in parallel with TASK-076
+  - ✅ 15 new unit tests all passing (test_gemini_provider.py)
+  - ✅ `get_llm_provider("gemini")` returns GeminiProvider instance ✅
+  - ✅ `GeminiProvider` raises ValueError if api_key empty ✅
+  - ✅ `GeminiProvider.call()` raises NotImplementedError ✅
+  - ✅ All existing tests pass (no regression) ✅
+  - ✅ Total: 39 gateway tests + 15 gemini tests = 54 passing
+- **Branch:** `feat/task-077-gemini-provider` (commit a63fc16)
+- **PR:** Ready for merge
+- **Unblocks:** ✅ FEATURE-053 (GeminiProvider now available for routing)
 
 ---
 
@@ -283,11 +285,11 @@ Current blocker for multi-model testing: model routing is hard-coded and not obs
 - [x] A/B split test passes: variant_ratio=0.5 → 40-60 split (test_select_50_50_split PASSED)
 
 ✅ **Provider abstraction supports multi-model routing**
-- [ ] TASK-077 merged: `GeminiProvider` exists and is wired in factory.py
-- [ ] `get_llm_provider("gemini")` returns instance without error (with key set)
-- [ ] `get_llm_provider("gemini")` raises ValueError if key not set
-- [ ] **Return contract documented:** GeminiProvider.call() matches AnthropicProvider response shape
-- [ ] Model string format "provider:model_name" enforced across gateway
+- [x] TASK-077 complete: `GeminiProvider` exists and is wired in factory.py (commit a63fc16)
+- [x] `get_llm_provider("gemini")` returns instance without error (with key set) ✅
+- [x] `get_llm_provider("gemini")` raises ValueError if key not set ✅
+- [x] **Return contract documented:** GeminiProvider.call() matches AnthropicProvider response shape ✅
+- [x] Model string format "provider:model_name" enforced across gateway (TASK-076) ✅
 
 ✅ **Decision framework documents systematic model selection**
 - [ ] TASK-078 complete: `docs/model-selection-rubric.md` written, one-pager + tables
@@ -335,7 +337,7 @@ Current blocker for multi-model testing: model routing is hard-coded and not obs
 |---|---|---|---|---|---|
 | BUG-090 | Model routing observable (tear out old, introduce RoutingStrategy) | P1 | ✅ COMPLETE | 2h | UNBLOCKED |
 | TASK-076 | RoutingStrategy completion + wiring (with guard clause) | P1 | ✅ COMPLETE | 1.5h | UNBLOCKED |
-| TASK-077 | GeminiProvider stub + factory integration (return contract) | P1 | OPEN | 3-4h | FEATURE-053 |
+| TASK-077 | GeminiProvider stub + factory integration (return contract) | P1 | ✅ COMPLETE | 1h | UNBLOCKED |
 | TASK-078 | Model Selection Rubric (5-tier framework) | P2 | OPEN | 2-3h | TASK-079, framing |
 | TASK-079 | Operation Tier Mapping (all 14 ops + scope note) | P2 | OPEN | 2-3h | FEATURE-053 priority |
 | TASK-074 | Helicone Setup (proxy + kill switch, Anthropic-only) | P3 | OPEN | 2-3h | Optional |
