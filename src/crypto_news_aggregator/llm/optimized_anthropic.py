@@ -2,7 +2,7 @@
 Optimized Anthropic LLM Client with Cost Reduction Features:
 1. Response caching to avoid duplicate API calls
 2. Uses Haiku for simple tasks (entity extraction) - 12x cheaper
-3. Uses Sonnet for complex tasks (narrative summaries)
+3. Model routing handled by LLMGateway via _OPERATION_MODEL_ROUTING
 4. Cost tracking handled by LLMGateway (no manual tracking needed)
 """
 
@@ -22,14 +22,12 @@ logger = logging.getLogger(__name__)
 class OptimizedAnthropicLLM:
     """
     Optimized LLM client that minimizes API costs through:
-    - Model selection (Haiku for simple, Sonnet for complex)
     - Response caching
-    - Gateway-managed cost tracking
+    - Gateway-managed model routing and cost tracking
     """
-    
-    # Model selection
+
+    # Model constant
     HAIKU_MODEL = "claude-haiku-4-5-20251001"  # 4-5x faster, better quality
-    SONNET_MODEL = "claude-sonnet-4-5-20250929"  # For complex reasoning
     API_URL = "https://api.anthropic.com/v1/messages"
     
     def __init__(self, db, api_key: Optional[str] = None):
