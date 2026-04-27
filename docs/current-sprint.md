@@ -38,36 +38,35 @@ Current blocker for multi-model testing: model routing is hard-coded and not obs
 
 ---
 
-### TASK-076: RoutingStrategy Implementation — Complete + Wire Routing Into Gateway
-- **Status:** OPEN
+### TASK-076: RoutingStrategy Implementation — Complete + Wire Routing Into Gateway ✅ COMPLETE
+- **Status:** COMPLETE (2026-04-27)
 - **Priority:** CRITICAL
-- **Effort:** 3-4 hours
-- **Dependency:** BUG-090 must merge first
-- **Goal:** Complete `RoutingStrategy` with deterministic MD5 bucketing; wire into gateway for A/B testing
-- **Key Fix (from Feedback):** **Add explicit guard clause:** If `variant is None` OR `variant_ratio == 0`, ALWAYS return primary (no ambiguity)
-- **Changes Required:**
-  - **ADD:** `RoutingStrategy.select(routing_key)` method with:
+- **Effort:** 3-4 hours (actual: 1.5 hours)
+- **Dependency:** BUG-090 ✅ merged first
+- **Goal:** ✅ Complete `RoutingStrategy` with deterministic MD5 bucketing; wire into gateway for A/B testing
+- **Implementation:** 
+  - ✅ Added `RoutingStrategy.select(routing_key)` method with:
     - Guard clause: `if not self.variant or self.variant_ratio == 0: return self.primary`
     - MD5 hash bucketing: hash_int = int(md5(routing_key).hexdigest(), 16) % 100
     - Split point: int(self.variant_ratio * 100)
     - Return variant if hash_int < split_point else primary
-  - **CREATE:** `_OPERATION_ROUTING` dict with all 14 operations; all primary=Haiku, no variants yet
-  - **UPDATE:** `_get_routing_strategy()` to use `_OPERATION_ROUTING` (remove temporary defaults)
-  - **UPDATE:** `gateway.call()` signature to accept `routing_key` parameter (default: f"{operation}:{trace_id}")
-  - **UPDATE:** `gateway.call()` to call `strategy.select(routing_key)` and `strategy.resolve_model()`
-  - **UPDATE:** Both `call()` and `call_sync()` identically
-  - **PARSE:** Model strings: "provider:model_name" (e.g., "anthropic:claude-haiku-..." or "gemini:gemini-2.5-flash")
-  - **POPULATE:** `GatewayResponse.actual_model`, `requested_model`, `model_overridden`
-  - **USE:** Cost tracking with `actual_model` (not requested)
+  - ✅ Created `_OPERATION_ROUTING` dict with all 14 operations; all primary=Haiku, no variants yet
+  - ✅ Updated `_get_routing_strategy()` to use `_OPERATION_ROUTING` (raises ValueError for unknown ops)
+  - ✅ Updated `gateway.call()` and `call_sync()` to accept `routing_key` parameter (default: f"{operation}:{trace_id}")
+  - ✅ Both methods now call `strategy.select(routing_key)` and `strategy.resolve_model()`
+  - ✅ Model strings enforced as "provider:model_name" format
+  - ✅ `GatewayResponse.actual_model`, `requested_model`, `model_overridden` all populated
+  - ✅ Cost tracking uses `actual_model`
 - **Testing:**
-  - Determinism: same routing_key → same output (unit test)
-  - Guard clause: variant=None → always primary (unit test)
-  - Guard clause: ratio=0 → always primary (unit test)
-  - A/B split: 50 calls with ratio=0.5 → ~25 to each (unit test with tolerance)
-  - All 22 existing gateway tests pass (no regression)
-- **Branch:** `feat/task-076-routing-strategy`
-- **Blocks:** FEATURE-053
-- **Next:** Merge immediately after BUG-090
+  - ✅ Determinism: same routing_key → same output (test_select_deterministic PASSED)
+  - ✅ Guard clause: variant=None → always primary (test_guard_clause_none_variant PASSED)
+  - ✅ Guard clause: ratio=0 → always primary (test_guard_clause_zero_ratio PASSED)
+  - ✅ A/B split: 50 calls with ratio=0.5 → 40-60 split (test_select_50_50_split PASSED)
+  - ✅ All 22 existing gateway tests pass (zero regressions)
+  - ✅ Total: 39 tests passing (22 existing + 17 new)
+- **Branch:** `fix/bug-090-eliminate-silent-model-override` (commit 713358f)
+- **PR:** Ready for merge
+- **Unblocks:** ✅ FEATURE-053 (Flash evaluations now have deterministic routing foundation)
 
 ---
 
@@ -278,10 +277,10 @@ Current blocker for multi-model testing: model routing is hard-coded and not obs
 
 ✅ **Model routing is observable and deterministic**
 - [x] BUG-090 complete: `GatewayResponse` includes actual_model, requested_model, model_overridden fields
-- [ ] TASK-076 merged: `RoutingStrategy` class exists with deterministic MD5 bucketing verified
-- [ ] Guard clause verified: variant=None or ratio=0 → always primary (unit test)
-- [ ] Same routing_key → same output verified (determinism test)
-- [ ] A/B split test passes: variant_ratio=0.5 → ~50/50 split
+- [x] TASK-076 complete: `RoutingStrategy` class exists with deterministic MD5 bucketing verified (commit 713358f)
+- [x] Guard clause verified: variant=None or ratio=0 → always primary (test_guard_clause_none_variant PASSED)
+- [x] Same routing_key → same output verified (test_select_deterministic PASSED)
+- [x] A/B split test passes: variant_ratio=0.5 → 40-60 split (test_select_50_50_split PASSED)
 
 ✅ **Provider abstraction supports multi-model routing**
 - [ ] TASK-077 merged: `GeminiProvider` exists and is wired in factory.py
@@ -335,7 +334,7 @@ Current blocker for multi-model testing: model routing is hard-coded and not obs
 | ID | Title | Priority | Status | Effort | Blocks |
 |---|---|---|---|---|---|
 | BUG-090 | Model routing observable (tear out old, introduce RoutingStrategy) | P1 | ✅ COMPLETE | 2h | UNBLOCKED |
-| TASK-076 | RoutingStrategy completion + wiring (with guard clause) | P1 | OPEN | 3-4h | FEATURE-053 |
+| TASK-076 | RoutingStrategy completion + wiring (with guard clause) | P1 | ✅ COMPLETE | 1.5h | UNBLOCKED |
 | TASK-077 | GeminiProvider stub + factory integration (return contract) | P1 | OPEN | 3-4h | FEATURE-053 |
 | TASK-078 | Model Selection Rubric (5-tier framework) | P2 | OPEN | 2-3h | TASK-079, framing |
 | TASK-079 | Operation Tier Mapping (all 14 ops + scope note) | P2 | OPEN | 2-3h | FEATURE-053 priority |
