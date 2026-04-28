@@ -3,8 +3,9 @@ ticket_id: TASK-079
 title: Operation Tier Mapping — Classify All 14 Operations
 priority: high
 severity: medium
-status: OPEN
+status: COMPLETE
 date_created: 2026-04-27
+date_completed: 2026-04-27
 effort_estimate: 2-3 hours
 ---
 
@@ -193,3 +194,33 @@ Execute after Tier 1, pending TASK-075 findings:
 - TASK-078 (Model Selection Rubric defines tiers)
 - TASK-075 (narrative_generate classification depends on cache decision)
 - FEATURE-053 (Flash Evaluations uses this priority order)
+
+---
+
+## Completion Notes
+
+✅ **COMPLETE** — 2026-04-27
+
+The operation tier mapping has been written and is available at:
+**[`docs/decisions/operation-tiers.md`](../decisions/operation-tiers.md)**
+
+The mapping includes:
+- ✅ All 14 operations classified into tiers 0–3
+- ✅ Each operation has detailed rationale (why this tier?)
+- ✅ All 5 decision dimensions documented for each operation
+- ✅ Tier 1 (5 operations): Aggressive Flash testing candidates
+- ✅ Tier 2 (5 operations): Cautious Flash testing candidates
+- ✅ Tier 3 (4 operations): No Flash testing (safety-critical)
+- ✅ Flash evaluation execution order prioritized (Phase 1: Tier 1 only, Phase 2: Tier 2)
+- ✅ **Sprint 16 scope note:** Tier 1 limited to 3 operations (entity_extraction, sentiment_analysis, theme_extraction) due to time constraints
+- ✅ TASK-075 decision gate: narrative_generate classification depends on cache investigation
+- ✅ Interview positioning notes demonstrating systematic thinking
+
+**Summary by Tier:**
+- **Tier 1 (Aggressive):** entity_extraction, sentiment_analysis, theme_extraction, actor_tension_extract, relevance_scoring
+- **Tier 2 (Cautious):** narrative_generate (pending TASK-075), narrative_theme_extract, cluster_narrative_gen, insight_generation, narrative_polish
+- **Tier 3 (No testing):** briefing_generate, briefing_critique, briefing_refine, provider_fallback
+
+**Sprint 16 Phase 1 (Tier 1 subset):** 3 operations (entity_extraction, sentiment_analysis, theme_extraction)
+
+Ready as input for FEATURE-053 Phase 1 (golden set extraction and Flash evaluations).
