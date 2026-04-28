@@ -57,6 +57,18 @@ class Settings(BaseSettings):
     ENTITY_EXTRACTION_BATCH_SIZE: int = 10
     POLYMARKET_API_KEY: str = ""
 
+    # Helicone proxy settings (TASK-074)
+    USE_HELICONE_PROXY: bool = Field(
+        default=False,
+        env="USE_HELICONE_PROXY",
+        description="Enable Helicone proxy for trace visibility on Anthropic calls (kill switch)"
+    )
+    HELICONE_API_KEY: Optional[str] = Field(
+        default=None,
+        env="HELICONE_API_KEY",
+        description="Helicone API key for proxy authentication (required if USE_HELICONE_PROXY=True)"
+    )
+
     # Reddit settings
     REDDIT_CLIENT_ID: str = ""
     REDDIT_CLIENT_SECRET: str = ""
