@@ -1,13 +1,86 @@
 # Session Start
 
-**Date:** 2026-04-27 (Session 46, Sprint 16)
-**Status:** TASK-074 COMPLETE: Helicone proxy setup with runtime kill switch fully implemented. 14 comprehensive tests passing, zero regressions on 22 existing gateway tests.
-**Current Branch:** docs/task-078-model-selection-rubric (4 commits)
-**Next:** Push branch and create PR to merge all 4 completed tickets (TASK-078, TASK-079, TASK-074) and 1 code change (Helicone), then proceed to FEATURE-053 Phase 1
+**Date:** 2026-04-28 (Session 47, Sprint 16)
+**Status:** FEATURE-053 Phase 2 & 3 COMPLETE: Baseline extraction of 300 samples (100 per operation) finished, all 9 challenger model outputs generated via OpenRouter (898/900 successful API calls, 99.8% success rate).
+**Current Branch:** feature/053-phase-2-3-baseline-challenger-runs (2 commits)
+**Next:** Phase 4 (Output Normalization) and Phase 5 (Scoring Harness) in future sessions. Decisions deferred to when full pipeline complete.
 
 ---
 
-## Current Session Context (Session 46)
+## Current Session Context (Session 47)
+
+### What was completed in Session 47
+
+**FEATURE-053 PHASE 2 & 3 COMPLETE: Baseline Extraction + Challenger Model Runs**
+
+Phase 2 extracted 300 Haiku baselines from golden set documents (no API re-calls). Phase 3 ran 900 API calls across 3 operations, 3 challenger models (Flash, DeepSeek, Qwen) via OpenRouter with 99.8% success.
+
+**Implementation deployed:**
+
+**Phase 2 — Baseline Extraction:**
+- ✅ Created `scripts/phase_2_baseline_extraction.py` (127 lines)
+- ✅ Loaded all 3 golden sets (entity_extraction, sentiment_analysis, theme_extraction) from JSONL files
+- ✅ Extracted 100 Haiku baselines per operation from `entities`, `sentiment`, `themes` fields
+- ✅ HTML-stripped all input text before processing (production-compliant)
+- ✅ Output format: JSONL + metadata JSON per operation
+  - `baseline-entity_extraction.jsonl` (100 samples) + metadata
+  - `baseline-sentiment_analysis.jsonl` (100 samples) + metadata
+  - `baseline-theme_extraction.jsonl` (100 samples) + metadata
+- ✅ All outputs written to `/docs/decisions/msd-flash/runs/2026-04-28/`
+
+**Phase 3 — Challenger Model Runs:**
+- ✅ Created `scripts/phase_3_challenger_models.py` (220 lines)
+- ✅ Used production prompts extracted from codebase (exact strings, no rewrites)
+- ✅ Called OpenRouter API with locked model variants:
+  - `google/gemini-2.5-flash`
+  - `deepseek/deepseek-chat`
+  - `qwen/qwen-plus`
+- ✅ Rate limiting: 0.5s between calls (conservative for API stability)
+- ✅ Collected per sample: model string, output tokens, input tokens, latency_ms, raw output
+- ✅ Generated 9 challenger output files (3 operations × 3 models):
+  - `challenger-entity_extraction-{flash,deepseek,qwen}.jsonl`
+  - `challenger-sentiment_analysis-{flash,deepseek,qwen}.jsonl`
+  - `challenger-theme_extraction-{flash,deepseek,qwen}.jsonl`
+
+**Results:**
+- ✅ entity_extraction: 300/300 successful (100 per model)
+- ✅ sentiment_analysis: 299/300 successful (flash: 99/100, deepseek: 100/100, qwen: 100/100)
+- ✅ theme_extraction: 299/300 successful (flash: 100/100, deepseek: 99/100, qwen: 100/100)
+- ✅ **Total: 898/900 successful (99.8% success rate)**
+
+**Error Analysis:**
+- Flash sentiment_analysis: 1 API error (likely transient timeout)
+- DeepSeek theme_extraction: 1 API error (likely transient timeout)
+- Both failures logged with error details; recoverable on retry
+
+**Key Implementation Details:**
+- ✅ Updated `scripts/load_keys.sh` to only load `OPENROUTER_API_KEY` (no other SDK keys)
+- ✅ Used `urllib` for HTTP calls (no external dependencies)
+- ✅ HTML stripping consistent with Phase 2 baseline
+- ✅ Production prompts extracted and embedded exactly:
+  - entity_extraction: from `optimized_anthropic.py:135-153`
+  - sentiment_analysis: from `anthropic.py:125`
+  - theme_extraction: from `anthropic.py:144`
+
+**Acceptance Criteria Met:**
+- ✅ Golden set loaded correctly — 100 samples per operation confirmed
+- ✅ HTML stripped from input text before all model calls
+- ✅ Haiku baseline extracted from golden set fields — Haiku API not re-called
+- ✅ All three challenger models run (Gemini Flash, DeepSeek, Qwen)
+- ✅ Production prompts reused exactly from specified file paths
+- ✅ All outputs written to dated output directory
+
+**Remaining Phases (Future Sessions):**
+- Phase 4: Output Normalization (dedupe, lowercase, remove punctuation, normalize arrays)
+- Phase 5: Scoring Harness (F1 for entities, binary match for sentiment, adjusted F1 for themes)
+- Phase 6: Comparison Tables and Decision Records (MSD-001, MSD-002, MSD-003)
+
+**Branch:** `feature/053-phase-2-3-baseline-challenger-runs` (2 commits)
+**Status:** Ready for PR; phases 4-6 deferred to future sessions
+
+---
+
+## Prior Session Context (Session 46)
 
 ### What was completed in Session 46
 

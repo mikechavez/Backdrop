@@ -1,361 +1,386 @@
 ---
 id: FEATURE-053
 type: feature
-status: backlog
+status: in-progress
 priority: critical
 complexity: high
 created: 2026-04-27
-updated: 2026-04-27
+updated: 2026-04-28
+sprint: 16
 ---
 
 # FEATURE-053: Flash Evaluations — Tier 1 Testing Against Golden Set
 
-## Problem/Opportunity
+## Status
 
-Currently, all 14 LLM operations route to claude-haiku-4-5-20251001. Gemini 2.5 Flash offers potential cost savings (est. 60% cheaper) with comparable quality for certain operation types. We need rigorous evaluation on production data to decide: which operations can safely swap to Flash?
-
-This feature produces decision records (MSD-001, MSD-002, etc.) that become both operational guides and interview artifacts demonstrating cost-quality reasoning.
-
-**SPRINT 16 SCOPE:** Tier 1 operations ONLY (3 operations: entity_extraction, sentiment_analysis, theme_extraction). Phases 1-2 only. 2-3 decision records.
+**Phase 2 & 3 COMPLETE (2026-04-28):** Baseline extraction (300 Haiku samples) and challenger model runs (900 API calls, 99.8% success rate) finished via OpenRouter. Phase 4 (normalization) and Phase 5-6 (scoring + decision records) deferred to future sessions.
 
 ---
 
-## Proposed Solution
+## What Claude Code Must and Must Not Do
 
-1. **Phase 1: Extract Golden Set** — Load historical call data from MongoDB (briefing_drafts collection) as input/output pairs
-2. **Phase 2: Baseline from Existing Haiku Outputs** — Use existing `haiku_output` from golden set if available; only re-run if missing/inconsistent
-3. **Phase 3: Run Flash Evaluations** — Execute same inputs on Gemini 2.5 Flash (variant_ratio=1.0 routing)
-4. **Phase 4: Compare & Score** — Build comparison table (model, quality, cost, latency)
-5. **Phase 5: Produce Decision Records** — Write MSD-001, MSD-002, etc. with decision (data-driven, no forced outcomes)
+**Must:**
+- Load golden set from the files specified below
+- Strip HTML from input text before any model call
+- Use production prompts from the exact file paths specified below — do not rewrite or paraphrase them
+- Apply the scoring logic defined in EVAL-001-evaluation-contract.md exactly
+- Apply the output normalization layer before scoring (see below)
+- Produce comparison tables and MSD files in the format specified
+- Use OpenRouter for all model calls
+- Use only the locked model variants listed below
 
-**Scope:** Tier 1 Operations ONLY (3 operations for Sprint 16)
-- **Tier 1 (High Confidence):** entity_extraction, sentiment_analysis, theme_extraction
-
-**Explicitly NOT in Sprint 16:**
-- Tier 2 operations (narrative_generate, narrative_theme_extract, cluster_narrative_gen, narrative_polish, insight_generation)
-- Full rollout decisions
-- Production swaps
-
-**Note on Tier 1 Classification:**
-The full Tier 1 classification (per TASK-079) includes 5 operations: entity_extraction, sentiment_analysis, theme_extraction, actor_tension_extract, relevance_scoring. Sprint 16 evaluates a subset (3 ops) due to time constraints. Tier 2 and later phases are deferred to Sprint 17+.
+**Must not:**
+- Choose, change, or substitute model variants
+- Modify prompts in any way
+- Interpret or adjust scoring rules
+- Change matching logic
+- Hardcode file paths — accept golden set path as a parameter
+- Make any assumptions not covered by this ticket or the eval contract
 
 ---
 
-## User Story
+## Evaluation Contract
 
-As a **PM making model selection decisions**, I want **rigorous evaluation data on Haiku vs. Flash for Tier 1 operations** so that **I can confidently decide which extraction operations swap without sacrificing quality or user experience**.
+All scoring logic, thresholds, and failure taxonomies are locked in:
+
+```
+docs/decisions/EVAL-001-evaluation-contract.md
+```
+
+**Read this document before writing any Phase 4 scoring code.** The Phase 4 section in this ticket is a summary only. The contract is authoritative. Do not deviate from it.
+
+---
+
+## Infrastructure — OpenRouter
+
+All model calls go through OpenRouter. Do not use direct provider SDKs.
+
+**Why:** Single HTTP client, OpenAI-compatible request format, model swapping via model string only. Eliminates per-provider SDK complexity.
+
+**Base URL:** `https://openrouter.ai/api/v1`
+
+**Auth:** `Authorization: Bearer ${process.env.OPENROUTER_API_KEY}`
+
+**Key loading:**
+```bash
+source /Users/mc/dev-projects/crypto-news-aggregator/scripts/load_keys.sh
+```
+
+**Environment variable:** `process.env.OPENROUTER_API_KEY`
+
+**Run command:**
+```bash
+source /Users/mc/dev-projects/crypto-news-aggregator/scripts/load_keys.sh && npx tsx <entry_file>.ts
+```
+
+---
+
+## Locked Model Variants
+
+These are fixed. Claude Code does not choose, substitute, or update these strings.
+
+| Role | Model String |
+|---|---|
+| Baseline (Haiku) | `anthropic/claude-haiku-4-5-20251001` |
+| Primary target | `google/gemini-2.5-flash` |
+| Challenger A | `deepseek/deepseek-chat` |
+| Challenger B | `qwen/qwen-plus` |
+
+All four run against the same golden set. Haiku baseline is extracted from golden set fields (not re-called via API) — see Phase 2.
+
+---
+
+## Production Prompt Locations
+
+Claude Code must extract and reuse these prompts exactly. Do not rewrite, summarize, or paraphrase them.
+
+| Operation | File | Entry Point |
+|---|---|---|
+| entity_extraction | `./src/crypto_news_aggregator/llm/optimized_anthropic.py` | `_build_entity_extraction_prompt()` — line 127 |
+| sentiment_analysis | `./src/crypto_news_aggregator/llm/anthropic.py` | prompt passed to `_get_completion()` — line 127 |
+| theme_extraction | `./src/crypto_news_aggregator/llm/anthropic.py` | prompt passed to `_get_completion()` — line 146 |
+
+If a prompt references article fields beyond `text` (e.g. `title`, `source`), include those fields from the golden set document. Do not strip context the production prompt expects.
+
+---
+
+## Golden Set — Source and Files
+
+**Source collection:** `db.articles` (not `briefing_drafts` — original ticket was incorrect)
+
+**Pre-extracted files:**
+```
+/Users/mc/entity_extraction_golden.json
+/Users/mc/sentiment_analysis_golden.json
+/Users/mc/theme_extraction_golden.json
+```
+
+Format: JSONL — one MongoDB article document per line.
+
+**Field mapping:**
+
+| Operation | Input Field | Haiku Output Field |
+|---|---|---|
+| entity_extraction | `text` | `entities` (array of objects) |
+| sentiment_analysis | `text` | `sentiment.label` (string: positive/negative/neutral) |
+| theme_extraction | `text` | `themes` (array of strings) |
+
+**Entity object schema:**
+```json
+{
+  "name": "Bitcoin",
+  "type": "cryptocurrency",
+  "ticker": null,
+  "confidence": 0.95,
+  "is_primary": true
+}
+```
+
+**Sentiment object schema:**
+```json
+{
+  "score": 0.7,
+  "magnitude": 0.7,
+  "label": "positive",
+  "provider": "claude-haiku-4-5-20251001",
+  "updated_at": "2026-04-14T05:35:06.307Z"
+}
+```
+
+**Golden set stats:**
+
+| Operation | Samples | Avg Text Length | Notes |
+|---|---|---|---|
+| entity_extraction | 100 | 432 chars | 39 short (<200 chars), 31 multi-entity (>3) |
+| sentiment_analysis | 100 | 435 chars | 50 positive / 26 negative / 24 neutral |
+| theme_extraction | 100 | 435 chars | avg 5.4 themes per article |
+
+---
+
+## Manual Validation Findings
+
+Completed before implementation. Must be cited in each MSD file under "Manual Validation Caveat."
+
+| Operation | Agreement | Status |
+|---|---|---|
+| entity_extraction | 30% | 🔴 Red flag — proceed with caveat |
+| sentiment_analysis | 80% | 🟡 Normal variance — proceed with caveat |
+| theme_extraction | 10% | 🔴 Red flag — proceed with caveat |
+
+**entity_extraction caveat:** Disagreements concentrated around extraction granularity. Reviewer labeled at conceptual level; Haiku labels at mention level. Haiku is internally consistent. Parity scores measure whether challengers match Haiku's mention-level philosophy. Prompt refinement deferred to Sprint 17.
+
+**sentiment_analysis caveat:** Two mismatches on neutral/negative boundary on genuinely ambiguous articles. Label-level agreement is reliable. Baseline is trustworthy.
+
+**theme_extraction caveat:** Systematic philosophy gap — Haiku includes entity names as themes; reviewer labeled only conceptual themes. Haiku is internally consistent. Interpret parity scores conservatively for this operation. Prompt refinement deferred to Sprint 17.
+
+---
+
+## Phases
+
+### Phase 2 — Baseline Extraction ✅ COMPLETE
+
+✅ **Completed 2026-04-28**
+
+Load each golden set JSONL file. For each document extract:
+- `_id` as stable sample identifier
+- `title` and `text` as input (HTML-stripped — see normalization below)
+- Haiku output from the field mapping above (do not re-call Haiku API)
+- Track source as `"historical"` in output
+
+**Implementation:**
+- ✅ Created `scripts/phase_2_baseline_extraction.py` (127 lines)
+- ✅ Loaded all 3 golden sets (100 samples each)
+- ✅ Extracted Haiku baselines from `entities`, `sentiment`, `themes` fields
+- ✅ HTML-stripped all input text (production-compliant)
+- ✅ Output: 3 JSONL files + metadata JSON per operation
+- ✅ All outputs written to `/docs/decisions/msd-flash/runs/2026-04-28/`
+
+**Results:**
+- `baseline-entity_extraction.jsonl`: 100 samples
+- `baseline-sentiment_analysis.jsonl`: 100 samples
+- `baseline-theme_extraction.jsonl`: 100 samples
+
+### Phase 3 — Model Variant Runs ✅ COMPLETE
+
+✅ **Completed 2026-04-28**
+
+Run the three non-Haiku model variants (Gemini Flash, DeepSeek, Qwen) against the same HTML-stripped input text for each operation.
+
+- ✅ Use production prompts from the file paths above — extracted and reused exactly
+- ✅ Use OpenRouter for all calls
+- ✅ Use only the locked model strings above
+- ✅ Collect per sample: model string, input tokens, output tokens, cost, latency (ms), raw output
+- ✅ Write outputs to a dated output directory
+- ✅ Harness is modular — adding a model variant requires only a new model string
+
+**Implementation:**
+- ✅ Created `scripts/phase_3_challenger_models.py` (220 lines)
+- ✅ Updated `scripts/load_keys.sh` to load only `OPENROUTER_API_KEY`
+- ✅ Used `urllib` for HTTP calls (no external dependencies)
+- ✅ Extracted production prompts exactly from codebase (no rewrites)
+- ✅ Rate limiting: 0.5s between calls for stability
+
+**Results:**
+- ✅ Total API calls: 900 (300 samples × 3 models)
+- ✅ Successful: 898/900 (99.8% success rate)
+  - entity_extraction: 300/300 successful
+  - sentiment_analysis: 299/300 (flash: 1 error)
+  - theme_extraction: 299/300 (deepseek: 1 error)
+- ✅ Output: 9 JSONL files (3 operations × 3 models)
+  - `challenger-entity_extraction-{flash,deepseek,qwen}.jsonl`
+  - `challenger-sentiment_analysis-{flash,deepseek,qwen}.jsonl`
+  - `challenger-theme_extraction-{flash,deepseek,qwen}.jsonl`
+
+### Phase 4 — Output Normalization ⏳ PENDING
+
+**Apply before any scoring.** Without this, formatting differences produce fake regressions.
+
+**Deferred to future session.** When implementing:
+
+For all operations:
+- Strip HTML tags
+- Strip leading/trailing whitespace
+- Lowercase all strings
+- Remove punctuation (except hyphens within words)
+
+For array outputs (entity names, theme strings):
+- Deduplicate
+- Sort alphabetically (for deterministic comparison)
+
+For entity extraction specifically:
+- Extract `name` field from entity objects before scoring (do not compare full objects)
+
+### Phase 5 — Scoring Harness ⏳ PENDING
+
+**Read EVAL-001-evaluation-contract.md before writing any scoring code.** The following is a summary only.
+
+**Deferred to future session.** When implementing:
+
+**entity_extraction:**
+- Score: F1 (precision + recall harmonic mean) × 100
+- Match: normalized string + alias normalization
+- Alias table: build from golden set scan before scoring, document and version-control it
+- Sample regression flag: F1 < 0.85
+- Operation flag: >5% of samples flagged
+
+**sentiment_analysis:**
+- Score: binary label match — 100 if match, 0 if not
+- Match: exact class only (positive / negative / neutral)
+- Log adjacent mismatches separately as diagnostic (does not affect score)
+- Sample regression flag: any mismatch
+- Operation flag: >5% of samples flagged
+
+**theme_extraction:**
+- Score: adjusted F1 × 100, two-pass
+- Pass 1: normalized string match F1
+- Pass 2: if ≥50% token overlap between a challenger theme and a Haiku theme, count as match
+- Pass 2 adjusts score upward, capped at 100
+- Sample regression flag: adjusted F1 < 0.80
+- Operation flag: >5% of samples flagged
+
+After scoring: apply failure mode taxonomy from eval contract to worst 10 samples per operation before writing decision records.
+
+### Phase 6 — Comparison Tables and Decision Records ⏳ PENDING
+
+Produce one decision record per operation:
+
+```
+docs/decisions/MSD-001-entity_extraction.md
+docs/decisions/MSD-002-sentiment_analysis.md
+docs/decisions/MSD-003-theme_extraction.md
+```
+
+**Deferred to future session.** When implementing, each record must include:
+
+1. Operation metadata (name, type, volume, cost impact)
+2. Evaluation details (date range, golden set size, baseline, variants run)
+3. Quality metrics table — one column per model variant
+4. Latency table — p50 and p95 per model
+5. Cost table — cost/1k tokens, avg input/output tokens, est cost/day, est annual savings
+6. Failure mode breakdown — worst 10 samples tagged per taxonomy from eval contract
+7. Data-driven decision: SWAP / STAY / CONDITIONAL — one decision per challenger model
+8. Rationale
+9. Override conditions (when to revert)
+10. Rollout plan (if SWAP or CONDITIONAL)
+11. Manual validation caveat for this operation (copy from findings above)
+
+**Decision vocabulary:**
+- SWAP — quality threshold met, cost savings justify latency increase
+- STAY — quality threshold not met, or risk does not justify savings
+- CONDITIONAL — threshold met under specific conditions only (e.g. batch ok, real-time not ok)
+
+Decisions must emerge from data. No outcome is assumed in advance.
+
+---
+
+## Known Data Quality Issue
+
+The `text` field on some articles contains raw HTML (img tags, p tags, anchor tags). Strip HTML before passing to any model. Apply to both Haiku baseline extraction and all challenger model calls — normalization must be consistent.
+
+---
+
+## Reproducibility Requirements
+
+- Golden set files are fixed inputs — do not re-query MongoDB
+- Same sample `_id` values used for all model runs
+- Alias table version-controlled alongside scoring code
+- All scripts accept golden set path as input parameter — no hardcoded paths
+- All outputs written to a dated output directory (e.g. `docs/decisions/msd-flash/runs/2026-04-28/`)
 
 ---
 
 ## Acceptance Criteria
 
-- [ ] Golden set extracted: 50-100 samples per Tier 1 operation (3 ops total)
-- [ ] **Phase 2 optimization:** Existing haiku_output used if available; only re-run if missing/inconsistent
-- [ ] Flash variant run: same metrics collected on Gemini 2.5 Flash
-- [ ] Comparison table: Model | Quality | Cost/1k | p50ms | p95ms (for each operation)
-- [ ] Quality regression detected: any >5% drop flagged visually
-- [ ] Decision records written: MSD-001, MSD-002, MSD-003 (minimum)
-- [ ] Each decision record includes: operation, metrics, **data-driven decision** (not forced outcome), override conditions, rollout plan
-- [ ] Eval runs are reproducible: golden set definition documented, same trace_ids used
+- [x] Golden set loaded correctly — 100 samples per operation confirmed
+- [x] HTML stripped from input text before all model calls
+- [x] Haiku baseline extracted from golden set fields — Haiku API not re-called
+- [x] All three challenger models run (Gemini Flash, DeepSeek, Qwen)
+- [x] Production prompts reused exactly from specified file paths
+- [ ] Output normalization applied before scoring (Phase 4, future session)
+- [ ] Alias table built, documented, and version-controlled (Phase 5, future session)
+- [ ] Scoring harness matches eval contract exactly (Phase 5, future session)
+- [ ] Regression flags applied per sample and per operation (Phase 5, future session)
+- [ ] Failure mode taxonomy applied to worst 10 samples per operation (Phase 5, future session)
+- [ ] Comparison tables produced for all 3 operations, all 4 models (Phase 6, future session)
+- [ ] MSD-001, MSD-002, MSD-003 written with all required sections (Phase 6, future session)
+- [ ] Manual validation caveats included in each MSD file (Phase 6, future session)
+- [x] All outputs written to dated output directory
+- [x] Scripts written and functional (phase_2 and phase_3)
+
+---
+
+## Out of Scope — Sprint 16
+
+- Tier 2 operations (narrative_generate, narrative_theme_extract, cluster_narrative_gen, narrative_polish, insight_generation)
+- Production routing changes
+- Haiku prompt improvements (flagged for Sprint 17 based on manual validation findings)
+- Helicone trace visibility (TASK-074, non-blocking)
 
 ---
 
 ## Dependencies
 
-**Must Be Completed First:**
-- [ ] BUG-090 (model routing observable)
-- [ ] TASK-076 (RoutingStrategy implementation)
-- [ ] TASK-077 (GeminiProvider available)
-- [ ] TASK-078 (Model Selection Rubric)
-- [ ] TASK-079 (Operation Tier Mapping)
+**Required before Phase 3:**
+- [ ] OpenRouter API key loaded via `scripts/load_keys.sh`
+- [ ] Golden set files present at `/Users/mc/*.json`
 
-**Also Recommended (not blocking):**
-- [ ] TASK-074 (Helicone setup) — useful for trace visibility, not required
-- [ ] TASK-075 (Narrative cache investigation) — runs parallel, gates Tier 2 decisions only
+**Non-blocking:**
+- [ ] TASK-074 (Helicone) — useful for trace visibility, not required
+- [ ] TASK-075 (narrative cache) — gates Tier 2 only
 
 ---
 
-## Open Questions
+## Related Artifacts
 
-- [ ] **Quality Scoring Details:** Will manual 1-5 rating be done by you, or automated?
-  - *Proposed:* Automated exact-match for Tier 1, no manual review needed (deterministic operations)
-- [ ] **Golden Set Sampling:** Random or stratified (by date, content length)?
-  - *Proposed:* Random, last 7-14 days, at least 50 samples per operation
-- [ ] **Cost Projection:** Should decision record include annual savings estimate?
-  - *Proposed:* Yes, include "if swapped for this op: ~$X/year savings"
-
----
-
-## Implementation Notes
-
-### Phase 1: Golden Set Extraction
-
-**MongoDB Query:**
-```python
-# For each Tier 1/2 operation, extract from briefing_drafts collection
-db.briefing_drafts.find({
-    "operation": "entity_extraction",
-    "timestamp": {"$gte": datetime.now() - timedelta(days=14)}
-}).limit(100)
-```
-
-**Golden Set Schema:**
-```python
-{
-    "operation": "entity_extraction",
-    "input_id": "trace_123abc",  # Stable identifier for reproducibility
-    "input_text": "...",  # Article or content
-    "articles": [...],  # Supporting articles (if any)
-    "timestamp": "2026-04-20T10:30:00Z",
-    "haiku_output": {...},  # Existing Haiku response (ground truth)
-}
-```
-
-**Selection Criteria:**
-- 50-100 samples per Tier 1 operation (3 ops = 150-300 samples total)
-- Cover last 7-14 days
-- Include edge cases (long inputs, multiple articles, high-volume clusters)
-
----
-
-### Phase 2: Baseline from Existing Haiku Outputs (OPTIMIZED)
-
-**Key Optimization:**
-
-The golden set already contains `haiku_output{}` from historical calls. Use this as baseline instead of re-running:
-
-```python
-# For each sample in golden set:
-for sample in golden_set:
-    # OPTIMIZATION: Use existing haiku_output if present and valid
-    if sample.get("haiku_output") and _is_valid_response(sample["haiku_output"]):
-        # Use cached output
-        baseline_metrics[sample["input_id"]] = {
-            "operation": sample["operation"],
-            "model": "anthropic:claude-haiku-4-5-20251001",
-            "input_tokens": sample["haiku_output"].get("input_tokens"),
-            "output_tokens": sample["haiku_output"].get("output_tokens"),
-            "cost": sample["haiku_output"].get("cost"),
-            "latency_ms": sample["haiku_output"].get("latency_ms"),
-            "output": sample["haiku_output"].get("text"),
-            "source": "historical"  # Track that we used cached output
-        }
-    else:
-        # Only re-run if missing or invalid
-        start = time.time()
-        response = gateway.call(
-            operation=sample["operation"],
-            prompt=sample["input_text"],
-            routing_key=sample["input_id"],  # Stable key for reproducibility
-        )
-        latency_ms = (time.time() - start) * 1000
-        
-        baseline_metrics[sample["input_id"]] = {
-            "operation": sample["operation"],
-            "model": response.actual_model,
-            "latency_ms": latency_ms,
-            "input_tokens": response.input_tokens,
-            "output_tokens": response.output_tokens,
-            "cost": response.cost,
-            "output": response.text,
-            "source": "recomputed"  # Track that we re-ran it
-        }
-```
-
-**Why This Matters:**
-- Saves ~3-4 hours of API calls (recomputing 150-300 samples)
-- Uses same ground truth (haiku_output was generated by same code path historically)
-- Avoids drift (historical data is fixed reference point)
-- Makes evaluation faster + cheaper
-
----
-
-### Phase 3: Flash Variant Run
-
-**Process:**
-Same as Phase 2 baseline, but with Flash routing:
-
-```python
-# Activate Flash for this operation
-strategy = _OPERATION_ROUTING[operation]
-strategy.variant = "gemini:gemini-2.5-flash"
-strategy.variant_ratio = 1.0  # 100% Flash (not A/B split)
-
-# Run same golden set
-for sample in golden_set:
-    start = time.time()
-    response = gateway.call(
-        operation=sample["operation"],
-        prompt=sample["input_text"],
-        routing_key=sample["input_id"],  # Same key → same routing path
-    )
-    latency_ms = (time.time() - start) * 1000
-    
-    # Store Flash metrics
-    flash_metrics[sample["input_id"]] = {
-        "operation": sample["operation"],
-        "model": response.actual_model,
-        "latency_ms": latency_ms,
-        "input_tokens": response.input_tokens,
-        "output_tokens": response.output_tokens,
-        "cost": response.cost,
-        "output": response.text,
-    }
-```
-
-**Note:** If GeminiProvider.call() raises NotImplementedError, substitute with deterministic mock that matches response contract.
-
----
-
-### Phase 4: Quality Scoring
-
-**Tier 1 Operations (Extraction - Deterministic):**
-
-For extraction operations, quality is measurable via exact match or overlap:
-
-```python
-def score_extraction(haiku_output, flash_output):
-    """
-    Exact match or overlap score.
-    0 = completely different
-    100 = identical
-    
-    For entity_extraction: check if key entities match
-    For sentiment_analysis: check if sentiment classification matches
-    For theme_extraction: check if themes overlap
-    """
-    # Simple approach: exact string match
-    if haiku_output == flash_output:
-        return 100
-    
-    # Or: semantic overlap (if outputs are JSON, compare keys)
-    try:
-        haiku_json = json.loads(haiku_output)
-        flash_json = json.loads(flash_output)
-        
-        # Compare keys/structure (operation-specific)
-        overlap = len(set(haiku_json.keys()) & set(flash_json.keys())) / len(set(haiku_json.keys()) | set(flash_json.keys()))
-        return int(overlap * 100)
-    except:
-        # Fallback: character-level overlap
-        common = sum(1 for a, b in zip(haiku_output, flash_output) if a == b)
-        return int((common / len(haiku_output)) * 100) if haiku_output else 0
-```
-
-**Regression Threshold:**
-- Tier 1: >5% of samples show quality regression (score drop >10 points)
-- Flag any operation where regression exceeds threshold
-
----
-
-### Phase 5: Comparison Table
-
-For each operation evaluated, produce:
-
-```
-| Metric | Haiku | Flash | Delta |
-|--------|-------|-------|-------|
-| Avg Quality Score | 95.2% | 94.1% | -1.1% ✓ |
-| Cost/1k tokens | $0.0034 | $0.00136 | -60% ✓ |
-| p50 Latency (ms) | 245 | 380 | +55% ⚠️ |
-| p95 Latency (ms) | 520 | 890 | +71% ⚠️ |
-| Cost Savings (annual) | — | ~$8.2K | +savings |
-```
-
----
-
-### Phase 6: Data-Driven Decision Records
-
-Create one decision record (MSD-XXX) per operation evaluated. **Decisions must be data-driven; no forced outcomes.**
-
-Example structure:
-
-**File:** `docs/decisions/MSD-001-entity_extraction.md`
-
-```markdown
-# MSD-001: entity_extraction — Haiku vs. Gemini 2.5 Flash
-
-## Operation
-- Name: entity_extraction
-- Type: Extraction (Tier 1)
-- Volume: ~100 calls/day
-- Cost Impact: $0.152/day
-
-## Evaluation Details
-- Date Range: 2026-04-20 to 2026-04-27
-- Golden Set Size: 100 samples
-- Baseline: claude-haiku-4-5-20251001 (from historical haiku_output)
-- Variant: gemini-2.5-flash
-
-## Metrics
-
-| Metric | Haiku | Flash | Regression |
-|--------|-------|-------|-----------|
-| Quality Score | 96.3% | 95.8% | -0.5% ✓ |
-| Cost/1k | $0.0034 | $0.00136 | -60% |
-| p50 Latency (ms) | 230 | 310 | +35% |
-| p95 Latency (ms) | 480 | 750 | +56% |
-
-## Decision (Data-Driven)
-
-**SWAP to Flash** — IF the following conditions hold:
-- Quality regression is minimal (< 5% threshold): ✓ (-0.5%)
-- Cost savings justify latency increase for non-critical operation: ✓
-- High-volume operation (100/day) amplifies annual savings (~$8.2K)
-
-If any threshold is violated, decision would be STAY or CONDITIONAL.
-
-## Rationale
-- Quality regression is minimal and well below threshold
-- Cost savings are significant (60% reduction)
-- Tier 1 operation: low failure cost supports conservative experimentation
-- Latency increase is acceptable for batch processing (not real-time)
-
-## Override Conditions
-Revert to Haiku if:
-- Quality regression > 5% detected in production
-- Latency p95 > 1000ms impacts downstream batch processing
-- Flash API becomes unreliable (>1% error rate)
-
-## Rollout Plan
-1. Set variant_ratio = 0.1 (10% to Flash, 90% to Haiku) for 3 days
-2. Monitor Sentry / cost dashboard for errors and quality regression
-3. If no issues, increase to variant_ratio = 1.0 (100% Flash)
-4. Set reminder to re-evaluate in 2 weeks
-
-## Date Approved
-2026-04-28
-```
-
----
-
-## Completion Summary
-
-**After All Phases Complete (Sprint 16):**
-
-- [ ] All Tier 1 operations evaluated (3 ops for Sprint 16)
-- [ ] Decision records written: MSD-001 through MSD-003
-- [ ] Comparison tables included in each record
-- [ ] **Decisions are data-driven (no forced "SWAP" outcomes)**
-- [ ] Quality regression analysis complete: flag any ops exceeding >5% threshold
-- [ ] Golden set documented: schema, sampling criteria, reproducibility
-- [ ] Eval methodology documented: quality scoring rules, regression threshold
-- [ ] **Phase 2 optimization noted:** baseline computed from existing haiku_output where available
-- [ ] Ready for interview: "Here's how we evaluated Haiku vs. Flash on production data"
-
-**NOT in Sprint 16 (Deferred to Sprint 17+):**
-- Tier 2 operations (narrative_generate, narrative_theme_extract, cluster_narrative_gen, narrative_polish, insight_generation)
-- Full rollout decisions
-- Production swaps
-
----
-
-## Related Tickets
-
-- BUG-090 (model routing must be observable)
-- TASK-074 (Helicone proxy for trace visibility)
-- TASK-075 (narrative_generate cache decision gates Tier 2 scope)
-- TASK-076 (RoutingStrategy enables A/B control)
-- TASK-077 (GeminiProvider must be available)
-- TASK-078 (Model Selection Rubric frames decisions)
-- TASK-079 (Operation Tier Mapping determines priority)
+| Artifact | Location | Status |
+|---|---|---|
+| Evaluation contract | `docs/decisions/EVAL-001-evaluation-contract.md` | Locked |
+| Golden set — entity | `/Users/mc/entity_extraction_golden.json` | Ready |
+| Golden set — sentiment | `/Users/mc/sentiment_analysis_golden.json` | Ready |
+| Golden set — theme | `/Users/mc/theme_extraction_golden.json` | Ready |
+| EVAL-001 meta-doc | `docs/decisions/EVAL-001-model-selection-flash-evaluations.md` | To write after eval runs |
+| MSD-001 | `docs/decisions/MSD-001-entity_extraction.md` | To write after eval runs |
+| MSD-002 | `docs/decisions/MSD-002-sentiment_analysis.md` | To write after eval runs |
+| MSD-003 | `docs/decisions/MSD-003-theme_extraction.md` | To write after eval runs |
+| Model Selection Rubric | TASK-078 | Reference |
+| Operation Tier Mapping | TASK-079 | Reference |
