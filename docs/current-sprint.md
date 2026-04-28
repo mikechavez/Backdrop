@@ -104,12 +104,12 @@ Current blocker for multi-model testing: model routing is hard-coded and not obs
 
 ## Priority 2 — Decision Framework (Required For Evals Framing)
 
-### TASK-078: Model Selection Rubric — Write Decision Framework Document
-- **Status:** OPEN
+### TASK-078: Model Selection Rubric — Write Decision Framework Document ✅ COMPLETE
+- **Status:** COMPLETE (2026-04-27)
 - **Priority:** HIGH
 - **Effort:** 2-3 hours
-- **Goal:** Write generalizable framework for model selection decisions; becomes interview material and template for future model choices
-- **Deliverable:** `docs/model-selection-rubric.md` with:
+- **Goal:** ✅ Write generalizable framework for model selection decisions; becomes interview material and template for future model choices
+- **Deliverable:** ✅ `docs/decisions/model-selection-rubric.md` with:
   - **Section 1:** Operation classification (5 types: Extraction, Synthesis, Critique, Polish, Agentic)
   - **Section 2:** Decision dimensions (5 axes: Quality Requirement, Volume, Latency Sensitivity, Determinism, Failure Cost)
   - **Section 3:** Tiering rules (Tier 0/1/2/3 with criteria, Flash strategy per tier)
@@ -118,10 +118,24 @@ Current blocker for multi-model testing: model routing is hard-coded and not obs
     - Tier 3: Low volume + reasoning required + safety-critical (no testing)
   - **Section 4:** Override conditions (when to break default tier assignment)
   - **Section 5:** Model selection algorithm (step-by-step for any new operation)
-  - **Section 6:** Interview positioning notes
-- **Testing:** Rubric is readable one-pager; all 14 operations can be classified using it
+  - **Section 6:** All 14 operations tier summary table with Flash testing phase
+- **Testing:** 
+  - ✅ Rubric is readable one-pager + tables (printable/shareable)
+  - ✅ All 14 operations can be classified using the rubric
+  - ✅ Clear guidance on Flash testing scope (aggressive Tier 1, cautious Tier 2, none Tier 3)
+  - ✅ Ready for interview reference and FEATURE-053 decision records
+- **Implementation:**
+  - ✅ Written at `docs/decisions/model-selection-rubric.md` (220 lines)
+  - ✅ All 5 operation types defined with Backdrop examples
+  - ✅ All 5 decision dimensions with scale and combination rules
+  - ✅ All 4 tiers with entrance criteria, target models, and Flash strategies
+  - ✅ Override conditions documented with examples
+  - ✅ Model selection algorithm (step-by-step for any new operation)
+  - ✅ Complete tier summary: all 14 operations with type, tier, current/target models
+  - ✅ Sprint 16 scope note: "subset of 5 Tier 1 ops (3 ops: entity_extraction, sentiment_analysis, theme_extraction)"
 - **Branch:** Not a code change; document only
-- **Next:** Complete before TASK-079; reference in FEATURE-053 decision records
+- **Unblocks:** ✅ TASK-079, FEATURE-053 framing
+- **Next:** TASK-079 can proceed; rubric is reference for operation classification
 
 ---
 
@@ -292,10 +306,10 @@ Current blocker for multi-model testing: model routing is hard-coded and not obs
 - [x] Model string format "provider:model_name" enforced across gateway (TASK-076) ✅
 
 ✅ **Decision framework documents systematic model selection**
-- [ ] TASK-078 complete: `docs/model-selection-rubric.md` written, one-pager + tables
+- [x] TASK-078 complete: `docs/decisions/model-selection-rubric.md` written, one-pager + tables ✅
 - [ ] TASK-079 complete: `docs/operation-tiers.md` with all 14 ops classified
-- [ ] Tier 1 classification matches rubric (high volume + deterministic)
-- [ ] Sprint 16 scope note in TASK-079: "subset of 5 Tier 1 ops (3 ops for time constraints)"
+- [x] Tier 1 classification matches rubric (high volume + deterministic) ✅
+- [x] Sprint 16 scope note in TASK-078: "subset of 5 Tier 1 ops (3 ops for time constraints)" ✅
 
 ✅ **Tier 1 Flash evaluation completed with data-driven outcomes**
 - [ ] Golden set created: 50-100 samples per operation (3 ops)
@@ -338,7 +352,7 @@ Current blocker for multi-model testing: model routing is hard-coded and not obs
 | BUG-090 | Model routing observable (tear out old, introduce RoutingStrategy) | P1 | ✅ COMPLETE | 2h | UNBLOCKED |
 | TASK-076 | RoutingStrategy completion + wiring (with guard clause) | P1 | ✅ COMPLETE | 1.5h | UNBLOCKED |
 | TASK-077 | GeminiProvider stub + factory integration (return contract) | P1 | ✅ COMPLETE | 1h | UNBLOCKED |
-| TASK-078 | Model Selection Rubric (5-tier framework) | P2 | OPEN | 2-3h | TASK-079, framing |
+| TASK-078 | Model Selection Rubric (5-tier framework) | P2 | ✅ COMPLETE | 2-3h | UNBLOCKED |
 | TASK-079 | Operation Tier Mapping (all 14 ops + scope note) | P2 | OPEN | 2-3h | FEATURE-053 priority |
 | TASK-074 | Helicone Setup (proxy + kill switch, Anthropic-only) | P3 | OPEN | 2-3h | Optional |
 | TASK-075 | Narrative Cache Investigation (gates Tier 2) | P3 | OPEN | 4-6h | Sprint 17 (parallel) |

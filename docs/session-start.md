@@ -1,13 +1,67 @@
 # Session Start
 
-**Date:** 2026-04-27 (Session 44, Sprint 16)
-**Status:** TASK-077 COMPLETE: GeminiProvider stub fully implemented with return contract documentation. All 15 tests passing, zero regressions.
+**Date:** 2026-04-27 (Session 45, Sprint 16)
+**Status:** TASK-078 COMPLETE: Model Selection Rubric written and deployed to `docs/decisions/model-selection-rubric.md`. Complete framework with all 14 operations classified into tiers.
 **Current Branch:** feat/task-077-gemini-provider (commit a63fc16)
-**Next:** Create PR, merge, then proceed to TASK-078/079 (decision framework), or FEATURE-053 Phase 1 (golden set extraction)
+**Next:** Proceed to TASK-079 (operation tier mapping), then FEATURE-053 Phase 1 (golden set extraction)
 
 ---
 
-## Current Session Context (Session 44)
+## Current Session Context (Session 45)
+
+### What was completed in Session 45
+
+**TASK-078 COMPLETE: Model Selection Rubric — Decision Framework Document**
+
+The model selection rubric is now complete and deployed at `docs/decisions/model-selection-rubric.md`. This comprehensive framework provides systematic, data-driven decision-making for all LLM operations and serves as the foundation for TASK-079 (operation tier mapping) and FEATURE-053 (Flash evaluations).
+
+**Implementation deployed (docs/decisions/model-selection-rubric.md):**
+- ✅ **Section 1: Operation Classification (5 Types)**
+  - Extraction, Synthesis, Critique, Polish, Agentic
+  - All 14 Backdrop operations classified with examples
+  - Key insight: classification drives tier assignment
+- ✅ **Section 2: Decision Dimensions (5 Axes)**
+  - Quality Requirement, Volume, Latency Sensitivity, Determinism, Failure Cost
+  - Clear guidance on how dimensions combine to tier operations
+  - Reading patterns for Tier 1/2/3 defaults
+- ✅ **Section 3: Tiering Rules (4 Tiers)**
+  - **Tier 0:** Rule-replaceable (no LLM needed)
+  - **Tier 1:** Structured Extraction (high volume, deterministic, low failure cost) — aggressive Flash testing
+  - **Tier 2:** Structured Generation (medium volume, user-facing, quality matters) — cautious Flash testing
+  - **Tier 3:** Reasoning/Critique (low volume, reasoning required, safety-critical) — no Flash testing
+  - Each tier includes entrance criteria, target model, Flash strategy, and real operation examples
+  - **Sprint 16 scope note:** Tier 1 evaluations limited to 3 of 5 operations (entity_extraction, sentiment_analysis, theme_extraction) due to time
+- ✅ **Section 4: Override Conditions**
+  - When to break default tier assignment
+  - Caching changes, quality regression, new operations, latency changes
+  - Backdrop examples for each override type
+- ✅ **Section 5: Model Selection Algorithm**
+  - Step-by-step process for classifying any operation
+  - Deterministic decision rules
+  - Decision record output format (MSD-###)
+- ✅ **Section 6: Tier Summary Table**
+  - All 14 operations with type, tier, Flash testing phase, current model, target model
+  - Clear visualization of evaluation scope and model upgrade targets
+- ✅ **Acceptance Criteria Met:**
+  - Rubric is printable one-pager + tables (shareable, interview-ready)
+  - All 14 operations can be classified using the framework
+  - Clear guidance on Flash testing scope (aggressive Tier 1, cautious Tier 2, none Tier 3)
+  - Ready as reference for FEATURE-053 decision records
+- **Status:** Complete, committed to ticket, input ready for TASK-079
+
+**Impact:**
+- Provides systematic framework for operation tier mapping (TASK-079)
+- Becomes decision-making template for all future model changes
+- Interview material demonstrating systematic thinking about cost-quality tradeoffs
+- Framing reference for FEATURE-053 decision records (MSD-001+)
+
+**Related tickets unblocked:**
+- TASK-079: Can now proceed with operation classification (rubric as reference)
+- FEATURE-053: Has framing for evaluation scope and decision record format
+
+---
+
+## Prior Session Context (Session 44)
 
 ### What was completed in Session 44
 
