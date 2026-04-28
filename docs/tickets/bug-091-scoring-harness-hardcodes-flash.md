@@ -3,8 +3,9 @@ ticket_id: BUG-060
 title: Scoring Harness Hardcodes flash_label for All Challenger Models
 priority: P2
 severity: medium
-status: OPEN
+status: COMPLETE
 date_created: 2026-04-28
+date_fixed: 2026-04-28
 component: scripts/phase_5_scoring_harness.py
 discovered_in: TASK-080
 ---
@@ -76,11 +77,23 @@ field names.
 
 ## Acceptance Criteria
 
-- [ ] `flash_label` hardcoding removed from scoring harness
-- [ ] Label field name derived from model identifier
-- [ ] Verified against all three model strings (flash, deepseek, qwen)
-- [ ] Note added to 2026-04-28 run README or in EVAL-001 meta-doc (already
+- [x] `flash_label` hardcoding removed from scoring harness
+- [x] Label field name derived from model identifier
+- [x] Verified against all three model strings (flash, deepseek, qwen)
+- [x] Note added to 2026-04-28 run README or in EVAL-001 meta-doc (already
       documented in EVAL-001-model-selection-flash-evaluations.md)
+
+## Resolution
+
+Fixed in commit 29f34ec. The `score_sentiment_analysis()` function now:
+1. Accepts a `model` parameter
+2. Derives the label field name dynamically: `f"{model}_label"`
+3. Returns model-specific field names (flash_label, deepseek_label, qwen_label)
+
+All scored output files regenerated with correct field names verified:
+- Flash: `flash_label` ✅
+- DeepSeek: `deepseek_label` ✅
+- Qwen: `qwen_label` ✅
 
 ## Blocking
 
