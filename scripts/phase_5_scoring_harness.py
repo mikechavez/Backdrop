@@ -108,19 +108,22 @@ def score_entity_extraction(haiku_names: list[str], flash_names: list[str], alia
     }
 
 
-def score_sentiment_analysis(haiku_label: str, flash_label: str) -> dict:
+def score_sentiment_analysis(haiku_label: str, challenger_label: str, model: str) -> dict:
     """
     Score sentiment analysis using binary label match.
     Labels are already normalized (lowercase).
     """
-    match = haiku_label == flash_label
+    match = haiku_label == challenger_label
     score = 100.0 if match else 0.0
+
+    # Derive label field name from model identifier
+    label_field = f"{model}_label"
 
     return {
         'score': score,
         'match': match,
         'haiku_label': haiku_label,
-        'flash_label': flash_label,
+        label_field: challenger_label,
     }
 
 
@@ -198,7 +201,8 @@ def score_operation(operation: str, baseline_samples: list[dict], challenger_sam
         elif operation == 'sentiment_analysis':
             score_result = score_sentiment_analysis(
                 haiku_output if isinstance(haiku_output, str) else '',
-                flash_output if isinstance(flash_output, str) else ''
+                flash_output if isinstance(flash_output, str) else '',
+                model
             )
             flagged = not score_result['match']
         elif operation == 'theme_extraction':
