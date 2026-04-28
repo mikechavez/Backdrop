@@ -24,6 +24,7 @@ from ..core.config import get_settings
 logger = logging.getLogger(__name__)
 
 _ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
+_HELICONE_API_URL = "https://api.helicone.ai/anthropic/v1/messages"
 
 class RoutingStrategy:
     """
@@ -408,12 +409,28 @@ class LLMGateway:
 
         return actual_model, overridden
 
+    def _get_anthropic_url(self) -> str:
+        """
+        Determine API URL based on Helicone proxy configuration.
+
+        Returns:
+            Helicone proxy URL if USE_HELICONE_PROXY=True, otherwise direct Anthropic URL.
+        """
+        settings = get_settings()
+        if settings.USE_HELICONE_PROXY:
+            return _HELICONE_API_URL
+        return _ANTHROPIC_API_URL
+
     def _build_headers(self) -> dict:
-        return {
+        settings = get_settings()
+        headers = {
             "x-api-key": self.api_key,
             "anthropic-version": "2023-06-01",
             "content-type": "application/json",
         }
+        if settings.USE_HELICONE_PROXY and settings.HELICONE_API_KEY:
+            headers["Helicone-Auth"] = f"Bearer {settings.HELICONE_API_KEY}"
+        return headers
 
     def _build_payload(
         self,
@@ -624,7 +641,7 @@ class LLMGateway:
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.post(
-                    _ANTHROPIC_API_URL,
+                    self._get_anthropic_url(),
                     headers=self._build_headers(),
                     json=self._build_payload(messages, model, max_tokens, temperature, system),
                     timeout=120,
@@ -761,7 +778,7 @@ class LLMGateway:
         try:
             with httpx.Client() as client:
                 response = client.post(
-                    _ANTHROPIC_API_URL,
+                    self._get_anthropic_url(),
                     headers=self._build_headers(),
                     json=self._build_payload(messages, model, max_tokens, temperature, system),
                     timeout=30,

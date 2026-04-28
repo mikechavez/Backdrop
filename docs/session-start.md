@@ -1,13 +1,67 @@
 # Session Start
 
-**Date:** 2026-04-27 (Session 45, Sprint 16)
-**Status:** TASK-078 COMPLETE: Model Selection Rubric written and deployed to `docs/decisions/model-selection-rubric.md`. Complete framework with all 14 operations classified into tiers.
-**Current Branch:** feat/task-077-gemini-provider (commit a63fc16)
-**Next:** Proceed to TASK-079 (operation tier mapping), then FEATURE-053 Phase 1 (golden set extraction)
+**Date:** 2026-04-27 (Session 46, Sprint 16)
+**Status:** TASK-074 COMPLETE: Helicone proxy setup with runtime kill switch fully implemented. 14 comprehensive tests passing, zero regressions on 22 existing gateway tests.
+**Current Branch:** docs/task-078-model-selection-rubric (4 commits)
+**Next:** Push branch and create PR to merge all 4 completed tickets (TASK-078, TASK-079, TASK-074) and 1 code change (Helicone), then proceed to FEATURE-053 Phase 1
 
 ---
 
-## Current Session Context (Session 45)
+## Current Session Context (Session 46)
+
+### What was completed in Session 46
+
+**TASK-074 COMPLETE: Helicone Setup — Proxy + Kill Switch Configuration**
+
+Helicone proxy integration is fully implemented with zero-friction runtime toggling. Configuration can be changed at runtime without code changes or gateway restarts.
+
+**Implementation deployed:**
+- ✅ **Configuration (`config.py`):**
+  - Added `USE_HELICONE_PROXY: bool = False` (env var, safe default)
+  - Added `HELICONE_API_KEY: Optional[str] = None` (env var)
+  - Both support environment variable overrides
+
+- ✅ **Gateway Integration (`gateway.py`):**
+  - Added `_get_anthropic_url()` method for dynamic URL selection
+    - Returns `https://api.helicone.ai/anthropic/v1/messages` when proxy enabled
+    - Returns `https://api.anthropic.com/v1/messages` when proxy disabled
+  - Updated `_build_headers()` to conditionally add `Helicone-Auth` header
+    - Added only when both `USE_HELICONE_PROXY=True` AND `HELICONE_API_KEY` is set
+    - Format: `Helicone-Auth: Bearer {API_KEY}`
+    - No header leakage when proxy disabled
+  - Updated both async `call()` and sync `call_sync()` to use dynamic URL
+
+- ✅ **Test Suite (14 comprehensive tests):**
+  - Configuration defaults and env overrides (3 tests)
+  - Dynamic URL selection (enabled/disabled/toggling) (3 tests)
+  - Helicone-Auth header construction (4 tests)
+  - Runtime toggling behavior (2 tests)
+  - Backward compatibility (2 tests)
+
+- **Test Results:**
+  - ✅ 14/14 Helicone proxy tests PASSED
+  - ✅ All 22 existing gateway tests PASSED (zero regressions)
+  - ✅ Total: 36 gateway+helicone tests passing
+
+**Key Features:**
+- Runtime toggle (no restart required)
+- Safe defaults (proxy disabled by default)
+- Zero code changes to swap between proxy and direct API
+- Full backward compatibility
+- Production-ready implementation
+
+**Known Limitation:** Helicone only traces Anthropic calls. Gemini calls via GeminiProvider will not appear in Helicone dashboards (expected; separate Gemini observability out of scope for Sprint 16).
+
+**Status:** Code complete, all tests passing, committed to branch
+
+**Impact:**
+- Enables trace visibility for Anthropic calls during Flash evaluations (FEATURE-053)
+- Foundation for future observability enhancements
+- No blocking impact on FEATURE-053 (optional but useful)
+
+---
+
+## Prior Session Context (Session 45)
 
 ### What was completed in Session 45
 

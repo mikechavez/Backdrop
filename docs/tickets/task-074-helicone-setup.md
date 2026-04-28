@@ -3,8 +3,9 @@ ticket_id: TASK-074
 title: Helicone Setup — Proxy + Kill Switch Configuration
 priority: medium
 severity: low
-status: OPEN
+status: COMPLETE
 date_created: 2026-04-27
+date_completed: 2026-04-27
 updated: 2026-04-27
 effort_estimate: 2-3 hours
 ---
@@ -95,3 +96,43 @@ This means Helicone is useful for debugging Anthropic routing/latency, but is no
 
 - BUG-090 (blocking: model routing must be observable first)
 - FEATURE-053 (evals benefit from trace visibility, not required)
+
+---
+
+## Completion Notes
+
+✅ **COMPLETE** — 2026-04-27
+
+Helicone proxy setup is fully implemented with zero-friction toggling. Configuration can be changed at runtime without code changes.
+
+**Implementation:**
+- ✅ Added `USE_HELICONE_PROXY: bool = False` to `config.py` (env override supported)
+- ✅ Added `HELICONE_API_KEY: Optional[str] = None` to `config.py` (env override supported)
+- ✅ Added `_get_anthropic_url()` method to `LLMGateway`:
+  - Returns Helicone proxy URL when `USE_HELICONE_PROXY=True`
+  - Returns direct Anthropic URL when `USE_HELICONE_PROXY=False`
+  - Can be toggled at runtime without gateway restart
+- ✅ Updated `_build_headers()` to add Helicone-Auth header when proxy enabled:
+  - Header added only if both `USE_HELICONE_PROXY=True` AND `HELICONE_API_KEY` is set
+  - No header leakage when proxy disabled
+  - Format: `Helicone-Auth: Bearer {API_KEY}`
+- ✅ Updated both async `call()` and sync `call_sync()` to use dynamic URL selection
+- ✅ Created comprehensive test suite: 14 tests covering:
+  - Configuration defaults and env overrides
+  - Dynamic URL selection (proxy on/off)
+  - Header construction with/without proxy
+  - Runtime toggling behavior
+  - Backward compatibility
+
+**Test Results:**
+- ✅ 14/14 Helicone proxy tests passing
+- ✅ All 22 existing gateway tests passing (zero regressions)
+- ✅ Total: 36 gateway+helicone tests passing
+
+**Usage:**
+- Default: proxy disabled (backward compatible)
+- To enable: set `USE_HELICONE_PROXY=true` and `HELICONE_API_KEY=<key>` via env vars
+- No code changes required to toggle proxy on/off
+- Helicone dashboard receives traces when enabled (Anthropic calls only; Gemini calls require separate setup)
+
+**Known Limitation:** Helicone traces Anthropic API calls only. Gemini Flash calls via GeminiProvider will not appear in Helicone dashboards (expected; separate Gemini observability out of scope for Sprint 16).
