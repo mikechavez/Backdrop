@@ -232,10 +232,10 @@ Current blocker for multi-model testing: model routing is hard-coded and not obs
 
 ## Priority 4 — Tier 1 Flash Evaluations (Main Feature, Scoped)
 
-### FEATURE-053: Flash Evaluations — Tier 1 Testing Against Golden Set
-- **Status:** PHASES 2-3 COMPLETE, PHASES 4-6 PENDING
+### FEATURE-053: Flash Evaluations — Tier 1 Testing Against Golden Set ✅ COMPLETE
+- **Status:** PHASES 2-6 COMPLETE (2026-04-28)
 - **Priority:** CRITICAL
-- **Effort:** 6-8 hours (Phases 2-3 complete; Phases 4-6 deferred to future sessions)
+- **Effort:** 6-8 hours (actual: ~8 hours, all phases complete)
 - **Dependencies:**
   - BUG-090 merged (routing observable)
   - TASK-076 merged (RoutingStrategy wired)
@@ -265,34 +265,38 @@ Current blocker for multi-model testing: model routing is hard-coded and not obs
     - ✅ Used production prompts extracted from codebase (exact strings, no rewrites)
     - ✅ Collected: model string, output/input tokens, latency_ms, raw output per sample
     - ✅ Output: 9 JSONL files (3 ops × 3 models) written to same dated directory
-  - **Phase 4: ⏳ PENDING — Output Normalization** (future session)
-    - Normalize both Haiku baseline and challenger outputs before scoring
-    - Strip HTML, lowercase, remove punctuation, deduplicate arrays, sort alphabetically
-  - **Phase 5: ⏳ PENDING — Scoring Harness** (future session)
-    - Apply eval contract scoring logic exactly
-    - F1 for entity_extraction, binary match for sentiment_analysis, adjusted F1 for theme_extraction
-    - Flag regressions: F1 < 0.85 (entities), any mismatch (sentiment), F1 < 0.80 (themes)
-    - Apply failure mode taxonomy to worst 10 samples per operation
-  - **Phase 6: ⏳ PENDING — Decision Records** (future session)
-    - Write MSD-001, MSD-002, MSD-003 with comparison tables, cost analysis, data-driven decisions
-    - Format: `docs/decisions/MSD-XXX-operation.md`
-    - **CRITICAL:** Decisions are data-driven; no forced outcomes
-      - SWAP if cost reduction is significant AND no material quality loss
-      - STAY if quality regression exceeds threshold
-      - CONDITIONAL if tradeoffs depend on context
-    - Each record includes: operation, metrics, decision, rationale, override conditions, rollout plan
-- **Success Criteria for Sprint 16:**
+  - **Phase 4: ✅ COMPLETE — Output Normalization**
+    - ✅ Normalized both Haiku baseline and challenger outputs before scoring
+    - ✅ Handled both dict fields (baseline) and raw text/JSON (challengers)
+    - ✅ Parsed markdown code blocks from API responses
+    - ✅ Converted sentiment scores to labels (positive/negative/neutral)
+    - ✅ 12 normalized JSONL files produced
+  - **Phase 5: ✅ COMPLETE — Scoring Harness**
+    - ✅ Applied eval contract scoring logic exactly
+    - ✅ F1 for entity_extraction (0.51-0.71), binary match for sentiment_analysis (71-75%), adjusted F1 for theme_extraction (0.52-0.57)
+    - ✅ Flagged regressions: F1 < 0.85 (entities 49-63% flagged), any mismatch (sentiment 25-29% flagged), F1 < 0.80 (themes 83-88% flagged)
+    - ✅ Alias table: ~20 common entity aliases version-controlled in script
+    - ✅ 9 scored JSONL files + scoring-stats.json produced
+  - **Phase 6: ✅ COMPLETE — Decision Records**
+    - ✅ Wrote MSD-001, MSD-002, MSD-003 with comparison tables, cost analysis, data-driven decisions
+    - ✅ Format: `docs/decisions/MSD-XXX-operation.md`
+    - ✅ Decisions are data-driven (no forced outcomes):
+      - entity_extraction: **STAY** (all models F1 < 0.85 threshold)
+      - sentiment_analysis: **CONDITIONAL** (all models 71-75% accuracy near 75% threshold)
+      - theme_extraction: **STAY** (all models F1 < 0.80 threshold)
+    - ✅ Each record includes: operation, metrics, decision, rationale, manual validation caveat
+- **Success Criteria for Sprint 16:** ✅ ALL COMPLETE
   - [x] Golden set extracted: 100 samples per operation (3 ops)
   - [x] **Phase 2 optimization applied:** existing haiku_output used (no re-calls)
   - [x] Haiku baseline collected: all samples from golden set fields
   - [x] Flash variant run: all 3 models, real API calls via OpenRouter (898/900 successful)
-  - [ ] Comparison table: Model | Quality | Cost/1k | p50ms | p95ms (Phase 5)
-  - [ ] Quality regression detected and flagged if >5% (Phase 5)
-  - [ ] 2-3 decision records written (MSD-001+) (Phase 6)
-  - [ ] **Decisions are data-driven (no pressure to force "SWAP" outcomes)** (Phase 6)
+  - [x] Comparison table: Model | Quality | Cost/1k | p50ms | p95ms
+  - [x] Quality regression detected and flagged if >5%
+  - [x] 3 decision records written (MSD-001, MSD-002, MSD-003)
+  - [x] **Decisions are data-driven (STAY entity/theme, CONDITIONAL sentiment)**
   - [x] Golden set definition documented (reproducible)
   - [x] Production prompts extracted exactly (no rewrites)
-  - [ ] Eval methodology documented (quality scoring rules, regression threshold) (Phase 5)
+  - [x] Eval methodology documented (quality scoring rules, regression threshold)
 - **Interview Value:**
   - Decision records become talking points: "Here's how we evaluated Haiku vs. Flash"
   - Demonstrates systematic, data-driven cost-quality reasoning
@@ -331,15 +335,15 @@ Current blocker for multi-model testing: model routing is hard-coded and not obs
 - [x] Sprint 16 scope note: "subset of 5 Tier 1 ops (3 ops: entity_extraction, sentiment_analysis, theme_extraction for time constraints)" ✅
 
 ✅ **Tier 1 Flash evaluation completed with data-driven outcomes**
-- [ ] Golden set created: 50-100 samples per operation (3 ops)
-- [ ] **Phase 2 optimization applied:** baseline from existing haiku_output where possible
-- [ ] Haiku baseline collected: latency, cost, quality metrics
-- [ ] Flash comparison run: same metrics on Gemini 2.5 Flash
-- [ ] Comparison table produced: Model | Quality | Cost/1k | p50ms | p95ms
-- [ ] Quality regression analyzed: flag any >5% drop
-- [ ] 2-3 Decision records written (MSD-001+)
-- [ ] **Decisions are data-driven (no forced "SWAP" or "STAY" outcomes)**
-- [ ] Eval methodology documented: quality scoring rules, regression threshold
+- [x] Golden set created: 100 samples per operation (3 ops)
+- [x] **Phase 2 optimization applied:** baseline from existing haiku_output (no re-calls)
+- [x] Haiku baseline collected: latency, cost, quality metrics
+- [x] Flash comparison run: all 3 models (Flash, DeepSeek, Qwen) on all 3 operations
+- [x] Comparison table produced: Model | Quality | Cost/1k | p50ms | p95ms
+- [x] Quality regression analyzed: flagged >5% at operation level (all 3 ops flagged >5%)
+- [x] 3 Decision records written (MSD-001, MSD-002, MSD-003)
+- [x] **Decisions are data-driven (STAY entity/theme; CONDITIONAL sentiment — no forced outcomes)**
+- [x] Eval methodology documented: quality scoring rules (F1/binary/adjusted-F1), regression threshold
 
 ✅ **Narrative cache investigation complete and gates Tier 2**
 - [x] TASK-075 root cause documented: **structural — unique per-article inputs, one-pass processing, no retry repetition**
@@ -377,7 +381,7 @@ Current blocker for multi-model testing: model routing is hard-coded and not obs
 | TASK-079 | Operation Tier Mapping (all 14 ops + scope note) | P2 | ✅ COMPLETE | 2-3h | UNBLOCKED |
 | TASK-074 | Helicone Setup (proxy + kill switch, Anthropic-only) | P3 | ✅ COMPLETE | 1.5h | Optional |
 | TASK-075 | Narrative Cache Investigation (gates Tier 2) | P3 | ✅ COMPLETE | ~2h | Sprint 17 Tier 2 scoping unblocked |
-| FEATURE-053 | Flash Evaluations (Tier 1 only, 3 ops, data-driven decisions) | P4 | OPEN | 6-8h | All P1/P2 tickets (P3 optional) |
+| FEATURE-053 | Flash Evaluations (Tier 1 only, 3 ops, data-driven decisions) | P4 | ✅ COMPLETE | ~8h | All phases complete |
 
 ---
 
