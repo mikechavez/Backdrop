@@ -1,0 +1,1754 @@
+{
+  "operation": "theme_extraction",
+  "run_date": "2026-04-28T13:51:14.371903",
+  "golden_set_file": "/Users/mc/theme_extraction_golden.json",
+  "samples": [
+    {
+      "sample_id": "theme_extraction_1",
+      "article_id": "69ddd19a972adb5ad8c76bbf",
+      "title": "Bitcoin, Ether ETFs See Nearly $1 Billion in Weekly Inflows",
+      "text_original_length": 714,
+      "text": "Bitcoin and ether ETFs reclaimed positive territory after recent volatility with combined inflows of $973 million. XRP quietly gained ground, while solana slipped into outflows. Key Takeaways Bitcoin ETFs gained $786 million and ether $187 million from April 6\u201310, led by Blackrock IBIT demand. IBIT and ETHA drove flows, while Grayscale GBTC outflows show uneven [\u2026]",
+      "haiku_output": [
+        "Bitcoin",
+        "Ethereum",
+        "ETFs",
+        "Institutional Investment",
+        "Market Inflows",
+        "XRP",
+        "Solana"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-14T05:33:14.962Z"
+    },
+    {
+      "sample_id": "theme_extraction_2",
+      "article_id": "69dde0a0972adb5ad8c76c09",
+      "title": "Circle, Dunamu Partner on Crypto Education in South Korea",
+      "text_original_length": 726,
+      "text": "Circle and Dunamu have signed a partnership to promote digital asset education in South Korea. The collaboration aims to strengthen trust and regulatory alignment in the local crypto market. Key Takeaways: Circle and Dunamu signed a 2026 deal to boost USDC education, strengthening Korea\u2019s crypto trust. Upbit operator Dunamu\u2019s partnership with Circle signals tighter compliance [\u2026]",
+      "haiku_output": [
+        "Circle",
+        "Dunamu",
+        "USDC",
+        "Crypto Education",
+        "South Korea",
+        "Regulation",
+        "Compliance",
+        "Trust"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-14T06:37:20.811Z"
+    },
+    {
+      "sample_id": "theme_extraction_3",
+      "article_id": "69ddf73b972adb5ad8c76c56",
+      "title": "US Justice Department opens claims for victims of $4 billion OneCoin fraud",
+      "text_original_length": 119,
+      "text": "DOJ opened a compensation process for OneCoin victims, offering more than $40 million from the $4 billion fraud.",
+      "haiku_output": [
+        "Fraud",
+        "Regulation",
+        "OneCoin",
+        "Victim Compensation",
+        "Law Enforcement"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-14T08:13:47.44Z"
+    },
+    {
+      "sample_id": "theme_extraction_4",
+      "article_id": "69ddfffbfd916384e1c76c39",
+      "title": "Relm Insurance Launches Crypto and Cannabis Kidnap Coverage",
+      "text_original_length": 677,
+      "text": "Relm Insurance has launched a specialized kidnap and ransom insurance product specifically for the Web3 and cannabis sectors. Key Takeaways: Relm Insurance launched a K&R product to protect web3 and cannabis leaders from rising physical threats. Crypto attacks from 2024 to 2026 comprise over 33% of all-time sector violence, driving niche demand. Clients gain a [\u2026]",
+      "haiku_output": [
+        "Insurance",
+        "Web3",
+        "Security",
+        "Risk Management",
+        "Crypto Industry"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-14T08:51:07.99Z"
+    },
+    {
+      "sample_id": "theme_extraction_5",
+      "article_id": "69de0dd8972adb5ad8c76c93",
+      "title": "DOJ Opens $40M Compensation Process for OneCoin Crypto Fraud Victims",
+      "text_original_length": 131,
+      "text": "Victims of the $4 billion OneCoin scam can petition for the opportunity to recover funds from over $40 million in forfeited assets.",
+      "haiku_output": [
+        "Fraud",
+        "Regulation",
+        "OneCoin",
+        "Victim Compensation",
+        "Legal Action"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-14T09:50:16.984Z"
+    },
+    {
+      "sample_id": "theme_extraction_6",
+      "article_id": "69de0de0972adb5ad8c76c94",
+      "title": "Crypto Market Cap Hits $2.6 Trillion as Bitcoin Eyes $75K Amid Hormuz Standoff",
+      "text_original_length": 635,
+      "text": "The crypto market surged past a $2.6 trillion valuation on April 14, led by bitcoin\u2019s climb to nearly $75,000 and a significant rally in altcoins like ethereum and RAVE. Key Takeaways: The crypto market cap hit $2.6 trillion on April 14 as bitcoin reached a session high of $74,959. A rally in assets like ethereum [\u2026]",
+      "haiku_output": [
+        "Bitcoin",
+        "Market Cap",
+        "Price Movement",
+        "Ethereum",
+        "Altcoins",
+        "Rally"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-14T09:50:24.886Z"
+    },
+    {
+      "sample_id": "theme_extraction_7",
+      "article_id": "69de1566972adb5ad8c76cb6",
+      "title": "Bitcoin ETFs clock $291M outflows as BTC blasts past $74K",
+      "text_original_length": 503,
+      "text": "US spot Bitcoin ETFs recorded $291 million in outflows on Monday as BTC climbed above $74,000, marking the biggest day of redemptions since March 27, led by FBTC.",
+      "haiku_output": [
+        "Bitcoin",
+        "ETF",
+        "Price Movement",
+        "Market Flows"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-14T10:22:30.524Z"
+    },
+    {
+      "sample_id": "theme_extraction_8",
+      "article_id": "69de1566972adb5ad8c76cb7",
+      "title": "Web3 hacks cost $464M in Q1 as phishing drives majority of losses: Hacken",
+      "text_original_length": 534,
+      "text": "Hacken\u2019s Q1 2026 report finds $464.5 million lost across 43 incidents, with phishing, legacy code bugs and key compromises driving losses as regulators tighten security demands.",
+      "haiku_output": [
+        "Web3",
+        "Security",
+        "Hacking",
+        "Phishing",
+        "Regulation"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-14T10:22:30.673Z"
+    },
+    {
+      "sample_id": "theme_extraction_9",
+      "article_id": "69de2491972adb5ad8c76d0b",
+      "title": "Bitcoin price soars to 4 week high passing multiple resistance levels within hours with eyes on $77k",
+      "text_original_length": 646,
+      "text": "Bitcoin reclaims $71.5k and pushes through the old ATH band, now the market has to prove it can hold there Bitcoin spent the last 24 to 48 hours doing what the market had repeatedly failed to do through the first part of the year. It moved through the $71,500 ceiling, reclaimed $72,000, and then started [\u2026]\nThe post Bitcoin price soars to 4 week high passing multiple resistance levels within hours with eyes on $77k appeared first on CryptoSlate.",
+      "haiku_output": [
+        "Bitcoin",
+        "Price Action",
+        "Technical Analysis",
+        "Resistance Levels",
+        "Market Movement"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-14T11:27:13.406Z"
+    },
+    {
+      "sample_id": "theme_extraction_10",
+      "article_id": "69de2c1c972adb5ad8c76d30",
+      "title": "Morning Minute: The SEC Just Gave DeFi The Green Light",
+      "text_original_length": 104,
+      "text": "Bitcoin and Ethereum are pumping. DeFi is winning. Saylor is buying big. And Kraken is getting extorted.",
+      "haiku_output": [
+        "SEC",
+        "DeFi",
+        "Bitcoin",
+        "Ethereum",
+        "Regulation",
+        "Market Movement",
+        "Security"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-14T11:59:24.995Z"
+    },
+    {
+      "sample_id": "theme_extraction_11",
+      "article_id": "69de2d77fd916384e1c76c97",
+      "title": "Deutsche B\u00f6rse invests $200 million in Kraken parent Payward",
+      "text_original_length": 485,
+      "text": "Deutsche B\u00f6rse said it will invest $200 million in Kraken\u2019s parent company for a fully diluted stake of 1.5%, subject to regulatory approval.",
+      "haiku_output": [
+        "Kraken",
+        "Deutsche B\u00f6rse",
+        "Investment",
+        "Institutional adoption",
+        "Exchange",
+        "Regulation"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-14T12:05:11.393Z"
+    },
+    {
+      "sample_id": "theme_extraction_12",
+      "article_id": "69de3cb3fd916384e1c76ccb",
+      "title": "XRP Ledger taps Boundless for bank-grade privacy on public blockchains",
+      "text_original_length": 535,
+      "text": "XRPL is integrating Boundless\u2019 zero-knowledge tech into its base layer, stepping into the race to offer banks confidential onchain transactions without losing regulatory visibility.",
+      "haiku_output": [
+        "XRP Ledger",
+        "Privacy",
+        "Zero-Knowledge Proofs",
+        "Banking",
+        "Blockchain Technology",
+        "Regulation"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-14T13:10:11.208Z"
+    },
+    {
+      "sample_id": "theme_extraction_13",
+      "article_id": "69de4a67972adb5ad8c76da6",
+      "title": "Fake Ledger app on Apple App Store linked to $9.5M crypto theft across Bitcoin, Tron, Solana: ZachXBT",
+      "text_original_length": 132,
+      "text": "A fake Ledger app on Apple's App Store drained $9.5M from more than 50 victims across Bitcoin, Tron and Solana, ZachXBT said.",
+      "haiku_output": [
+        "Security",
+        "Fraud",
+        "Bitcoin",
+        "Tron",
+        "Solana",
+        "Wallet",
+        "Theft"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-14T14:08:39.019Z"
+    },
+    {
+      "sample_id": "theme_extraction_14",
+      "article_id": "69de51f7972adb5ad8c76dba",
+      "title": "Fake Ledger Live app on Apple App Store drained $9.5M from victims: ZachXBT",
+      "text_original_length": 538,
+      "text": "A Fake Ledger Live app on Apple\u2019s store is tied to $9.5 million in crypto thefts, as ZachXBT links over 50 victims\u2019 funds to a KuCoin-linked mixer and questions Apple\u2019s liability.",
+      "haiku_output": [
+        "Security",
+        "Scam",
+        "Wallet",
+        "Apple App Store",
+        "Money Laundering",
+        "KuCoin"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-14T14:40:55.398Z"
+    },
+    {
+      "sample_id": "theme_extraction_15",
+      "article_id": "69de51fd972adb5ad8c76dbd",
+      "title": "Strategy\u2019s STRC hits $1.1 billion volume as preferred stock drives Saylor\u2019s bitcoin buying engine",
+      "text_original_length": 141,
+      "text": "Strategy\u2019s STRC preferred stock saw record $1.1 billion daily volume, becoming the firm's main engine for funding recent bitcoin buys.",
+      "haiku_output": [
+        "Bitcoin",
+        "MicroStrategy",
+        "Institutional Adoption",
+        "Stock Trading",
+        "Bitcoin Accumulation"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-14T14:41:01.911Z"
+    },
+    {
+      "sample_id": "theme_extraction_16",
+      "article_id": "69de5201972adb5ad8c76dbf",
+      "title": "ZachXBT Says Apple App Store Fake Ledger App Stole $9.5M From 50+ Victims in One Week",
+      "text_original_length": 749,
+      "text": "Onchain investigator ZachXBT publicly alleged that more than $9.5 million stolen through a fraudulent Ledger Live app on Apple\u2019s App Store was laundered through over 150 Kucoin deposit addresses. Key Takeaways: ZachXBT linked $9.5M in theft from a fake Ledger Live Apple App Store app to an alleged 150+ Kucoin deposit addresses. Musician G. Love [\u2026]",
+      "haiku_output": [
+        "Security",
+        "Fraud",
+        "Ledger",
+        "Apple App Store",
+        "Cryptocurrency Theft",
+        "KuCoin"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-14T14:41:05.934Z"
+    },
+    {
+      "sample_id": "theme_extraction_17",
+      "article_id": "69de599c972adb5ad8c76dd5",
+      "title": "Senators Eye Draft Deal on Stablecoin Yield Amid Banking Lobby Pushback",
+      "text_original_length": 109,
+      "text": "Banks and crypto firms remain divided even as White House data says a yield ban wouldn\u2019t do much for lending.",
+      "haiku_output": [
+        "Stablecoin",
+        "Regulation",
+        "Banking",
+        "Yield",
+        "Policy"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-14T15:13:32.551Z"
+    },
+    {
+      "sample_id": "theme_extraction_18",
+      "article_id": "69de59a4972adb5ad8c76dd7",
+      "title": "US DOJ Opens Compensation for $4 Billion Onecoin Fraud Victims",
+      "text_original_length": 710,
+      "text": "The U.S. Department of Justice has launched a compensation process for victims of the $4 billion Onecoin fraud. More than $40 million in recovered assets will be distributed to eligible claimants. Key Takeaways: U.S. DOJ launched claims for Onecoin victims, distributing $40 million from a $4 billion fraud case. The scam investment, which ran from [\u2026]",
+      "haiku_output": [
+        "Fraud",
+        "Onecoin",
+        "Compensation",
+        "DOJ",
+        "Scam"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-14T15:13:40.68Z"
+    },
+    {
+      "sample_id": "theme_extraction_19",
+      "article_id": "69de6136972adb5ad8c76df4",
+      "title": "Goldman Sachs files for Bitcoin ETF that invests in other Bitcoin exchange-traded products",
+      "text_original_length": 132,
+      "text": "The fund would provide exposure to ETPs that hold bitcoin, options on spot Bitcoin ETPs and options on \u201cBitcoin ETP Indices.\"",
+      "haiku_output": [
+        "Bitcoin",
+        "ETF",
+        "Goldman Sachs",
+        "Options",
+        "Institutional Investment"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-14T15:45:58.496Z"
+    },
+    {
+      "sample_id": "theme_extraction_20",
+      "article_id": "69de613a972adb5ad8c76df6",
+      "title": "Goldman Sachs Files for Bitcoin Premium Income ETF With Covered Call Strategy",
+      "text_original_length": 740,
+      "text": "Asset manager and financial giant Goldman Sachs filed a registration statement with the Securities and Exchange Commission (SEC) on Tuesday, for a new actively managed fund called the Goldman Sachs Bitcoin Premium Income ETF. Key Takeaways: Goldman Sachs filed for a Bitcoin Premium Income ETF on April 14, 2026, targeting current income via a covered [\u2026]",
+      "haiku_output": [
+        "Bitcoin",
+        "ETF",
+        "Goldman Sachs",
+        "Institutional Adoption",
+        "Covered Call Strategy"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-14T15:46:02.48Z"
+    },
+    {
+      "sample_id": "theme_extraction_21",
+      "article_id": "69de6146972adb5ad8c76df8",
+      "title": "Goldman Sachs Files for Its First Bitcoin-Linked ETF",
+      "text_original_length": 155,
+      "text": "The Goldman Sachs Bitcoin Premium Income ETF primarily will offer exposure to other Bitcoin exchange-traded products, but the fund won't hold BTC directly.",
+      "haiku_output": [
+        "Bitcoin",
+        "ETF",
+        "Goldman Sachs",
+        "Institutional Investment",
+        "Bitcoin Exposure"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-14T15:46:14.583Z"
+    },
+    {
+      "sample_id": "theme_extraction_22",
+      "article_id": "69de68d1972adb5ad8c76e16",
+      "title": "CLARITY Act faces a 2 week deadline as Senate gridlock and bank pressure threaten freeze out until 2030",
+      "text_original_length": 665,
+      "text": "A coordinated push to enact the CLARITY Act is colliding with a rapidly closing legislative window, prompting warnings from industry advocates that a failure to pass the bill this spring could stall crypto developments until the end of the decade. With the November 2026 midterms looming, the legislative calendar is shrinking, and the complex jurisdictional [\u2026]\nThe post CLARITY Act faces a 2 week deadline as Senate gridlock and bank pressure threaten freeze out until 2030 appeared first on CryptoSlate.",
+      "haiku_output": [
+        "Regulation",
+        "CLARITY Act",
+        "Legislation",
+        "Senate",
+        "Crypto Policy"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-14T16:18:25.138Z"
+    },
+    {
+      "sample_id": "theme_extraction_23",
+      "article_id": "69de706f3aa1e4bbbbc76bda",
+      "title": "Goldman Sachs Files to Launch Bitcoin Income ETF Tied to Options",
+      "text_original_length": 133,
+      "text": "Goldman Sachs filed an application for an ETF that seeks to generate income for investors by selling options tied to Bitcoin\u2019s price.",
+      "haiku_output": [
+        "Bitcoin",
+        "ETF",
+        "Goldman Sachs",
+        "Options",
+        "Income Strategy"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-14T16:50:55.399Z"
+    },
+    {
+      "sample_id": "theme_extraction_24",
+      "article_id": "69de78033aa1e4bbbbc76bf6",
+      "title": "XRP consolidation may transform into explosive rally if $1.40 is topped: Data",
+      "text_original_length": 494,
+      "text": "XRP transaction activity on Binance mirrors a 2025 signal that preceded the altcoin\u2019s run to an all-time high. Could it happen again?",
+      "haiku_output": [
+        "XRP",
+        "Altcoin",
+        "Price Analysis",
+        "Technical Analysis",
+        "Rally Potential"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-14T17:23:15.682Z"
+    },
+    {
+      "sample_id": "theme_extraction_25",
+      "article_id": "69de8ac92adcac6279c19769",
+      "title": "STRC Trading Volume Tops $1.1 Billion as Strategy Expands Bitcoin Treasury Play",
+      "text_original_length": 649,
+      "text": "Strategy Inc.\u2019s perpetual preferred stock STRC just posted its busiest day yet, and the real headline is not the ticker tape theater but the simple fact that the company\u2019s bitcoin buying machine found another way to run hotter. Key Takeaways: Strategy\u2019s STRC hit $1.1B on April 13, 2026, setting a new daily volume record. Nasdaq-traded [\u2026]",
+      "haiku_output": [
+        "Bitcoin",
+        "Treasury Strategy",
+        "Trading Volume",
+        "STRC",
+        "Market Activity"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-14T18:43:21.242Z"
+    },
+    {
+      "sample_id": "theme_extraction_26",
+      "article_id": "69de92542adcac6279c1977f",
+      "title": "Strategy\u2019s STRC hits record trading volume after massive $1B Bitcoin purchase as market cap doubles since Friday",
+      "text_original_length": 704,
+      "text": "Strategy's\u00a0perpetual preferred stock, STRC, played a key role in the company's\u00a0Bitcoin strategy this week after it saw more than $1.1 billion in daily trading volume. In an X post, Strategy declared April 13 the record date for STRC. Michael Saylor also noted that the security closed at par with just \u201cone penny of volatility\u201d after [\u2026]\nThe post Strategy\u2019s STRC hits record trading volume after massive $1B Bitcoin purchase as market cap doubles since Friday appeared first on CryptoSlate.",
+      "haiku_output": [
+        "Bitcoin",
+        "STRC",
+        "Trading Volume",
+        "Market Cap Growth",
+        "Corporate Bitcoin Holdings"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-14T19:15:32.105Z"
+    },
+    {
+      "sample_id": "theme_extraction_27",
+      "article_id": "69dea1b22adcac6279c19793",
+      "title": "Goldman Sachs to use options strategy for planned Bitcoin income ETF",
+      "text_original_length": 480,
+      "text": "The proposed fund would invest in Bitcoin ETPs and sell call options to generate income while limiting exposure to price swings.",
+      "haiku_output": [
+        "Bitcoin",
+        "ETF",
+        "Options Strategy",
+        "Institutional Adoption"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-14T20:21:06.56Z"
+    },
+    {
+      "sample_id": "theme_extraction_28",
+      "article_id": "69dea1bb2adcac6279c19794",
+      "title": "Crypto Short Sellers Vaporized: $500M Wiped out as Bitcoin Tests $76K",
+      "text_original_length": 644,
+      "text": "On Tuesday, bitcoin hit a peak of $76,120, driving its market cap to $1.52 trillion as investors pivoted toward a risk-on sentiment. This rally was sparked by potential diplomatic talks between the U.S. and Iran, which overshadowed the ongoing naval blockade in the Strait of Hormuz. Key Takeaways: Bitcoin hit $76,120 on April 14, triggering [\u2026]",
+      "haiku_output": [
+        "Bitcoin",
+        "Price Movement",
+        "Short Squeeze",
+        "Market Rally"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-14T20:21:15.882Z"
+    },
+    {
+      "sample_id": "theme_extraction_29",
+      "article_id": "69dea2e61b80de5043c19775",
+      "title": "Kraken Co-CEO Arjun Sethi Confirms Confidential IPO Filing at Semafor World Economy Summit",
+      "text_original_length": 772,
+      "text": "Kraken co-CEO Arjun Sethi confirmed Monday that the U.S. crypto exchange has a confidential IPO filing with the SEC, reaffirming the company\u2019s path toward a public offering despite a reported pause earlier this year. Key Takeaways: Kraken co-CEO Arjun Sethi confirmed the exchange\u2019s confidential SEC IPO filing at the April 14, 2026, Semafor event. Kraken\u2019s [\u2026]",
+      "haiku_output": [
+        "Kraken",
+        "IPO",
+        "Crypto Exchange",
+        "Institutional Adoption"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-14T20:26:14.186Z"
+    },
+    {
+      "sample_id": "theme_extraction_30",
+      "article_id": "69dea94c2adcac6279c197a4",
+      "title": "Kraken Confirms Confidential IPO Filing as Deutsche B\u00f6rse Takes $200M Stake",
+      "text_original_length": 131,
+      "text": "Co-CEO Arjun Sethi said the exchange wants to give retail traders access to the same tools used by firms like Citadel and JPMorgan.",
+      "haiku_output": [
+        "Kraken",
+        "IPO",
+        "Deutsche B\u00f6rse",
+        "Institutional Investment"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-14T20:53:32.521Z"
+    },
+    {
+      "sample_id": "theme_extraction_31",
+      "article_id": "69deb0ca2adcac6279c197a9",
+      "title": "DAO behind CoW Swap urges users to stay off platform after \u2018hijacking\u2018",
+      "text_original_length": 469,
+      "text": "The decentralized exchange aggregator said users should refrain from visiting its website after a frontend exploit.",
+      "haiku_output": [
+        "DeFi",
+        "Security Exploit",
+        "CoW Swap",
+        "Smart Contract Risk"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-14T21:25:30.369Z"
+    },
+    {
+      "sample_id": "theme_extraction_32",
+      "article_id": "69deb8582adcac6279c197b4",
+      "title": "Ethereum DeFi Exchange CoW Swap Pauses Protocol Following Website Compromise",
+      "text_original_length": 135,
+      "text": "CoW Swap, a decentralized exchange used by Ethereum co-founder Vitalik Buterin, paused its protocol after suffering a front-end attack.",
+      "haiku_output": [
+        "Ethereum",
+        "DeFi",
+        "Security",
+        "CoW Swap",
+        "Protocol Attack"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-14T21:57:44.505Z"
+    },
+    {
+      "sample_id": "theme_extraction_33",
+      "article_id": "69deb85f2adcac6279c197b5",
+      "title": "Bitcoin ETFs See $291 Million Outflow as Ether Gains $9 Million",
+      "text_original_length": 736,
+      "text": "Bitcoin exchange-traded funds (ETFs) opened the week with heavy outflows, reversing last week\u2019s momentum. Ether ETFs posted modest gains, while XRP declined, and solana activity stalled. Key Takeaways: Bitcoin ETFs saw $291.11 million outflows led by Fidelity FBTC, signaling renewed caution. Ether ETFs gained $9.44 million as ETH transactions rose 41% to 3.6 million, hinting [\u2026]",
+      "haiku_output": [
+        "Bitcoin ETF",
+        "Ethereum",
+        "XRP",
+        "Solana",
+        "Capital Flows",
+        "Market Sentiment"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-14T21:57:51.685Z"
+    },
+    {
+      "sample_id": "theme_extraction_34",
+      "article_id": "69deb8642adcac6279c197b6",
+      "title": "SEC Approves Elimination of Pattern Day Trader Rule and $25,000 Minimum: FINRA",
+      "text_original_length": 166,
+      "text": "The SEC granted accelerated approval to FINRA's rule change eliminating the Pattern Day Trader designation and its $25,000 minimum equity requirement for day traders.",
+      "haiku_output": [
+        "Regulation",
+        "SEC",
+        "Trading Rules",
+        "FINRA"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-14T21:57:56.608Z"
+    },
+    {
+      "sample_id": "theme_extraction_35",
+      "article_id": "69debfef2adcac6279c197c6",
+      "title": "Goldman Sachs to offer low-risk, low-reward Bitcoin ETF",
+      "text_original_length": 84,
+      "text": "Goldman Sachs wants to offer a Bitcoin ETF. But it won\u2019t invest in Bitcoin directly.",
+      "haiku_output": [
+        "Bitcoin",
+        "ETF",
+        "Goldman Sachs",
+        "Institutional Adoption"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-14T22:30:07.273Z"
+    },
+    {
+      "sample_id": "theme_extraction_36",
+      "article_id": "69ded7cb1b80de5043c1978c",
+      "title": "Ether.fi commits $3 billion in ETH as \u2018validator liquidity\u2019 to ETHGas over three years",
+      "text_original_length": 144,
+      "text": "ETHGas is a marketplace for Ethereum blockspace futures that allows blockspace to be bought and sold in advance for guaranteed execution.",
+      "haiku_output": [
+        "Ethereum",
+        "DeFi",
+        "Staking",
+        "Liquidity",
+        "ETH",
+        "Validator",
+        "Blockspace"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-15T00:11:55.367Z"
+    },
+    {
+      "sample_id": "theme_extraction_37",
+      "article_id": "69deebd2443072964173a764",
+      "title": "Evernorth Says XRP ETF Demand Signals Shift Toward Active Institutional Participation",
+      "text_original_length": 779,
+      "text": "XRP ETF inflows are accelerating, signaling rising institutional conviction while exposing a gap between demand and real network use. Evernorth highlighted a $120 million weekly surge, showing capital is validating the asset without directly supporting ecosystem activity. Key Takeaways: Evernorth highlights strong XRP ETF inflows, reflecting rising institutional confidence. Institutional demand for XRP remains passive, [\u2026]",
+      "haiku_output": [
+        "XRP",
+        "ETF",
+        "Institutional Investment",
+        "Market Demand"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-15T01:37:22.121Z"
+    },
+    {
+      "sample_id": "theme_extraction_38",
+      "article_id": "69deebd7443072964173a766",
+      "title": "21Shares Files Updated Hyperliquid ETF Application With Ticker $THYP: SEC",
+      "text_original_length": 137,
+      "text": "21Shares submitted an updated regulatory filing for a US-listed Hyperliquid ETF with ticker symbol $THYP, with fee details still pending.",
+      "haiku_output": [
+        "Hyperliquid",
+        "ETF",
+        "SEC Regulation",
+        "Institutional Products"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-15T01:37:27.729Z"
+    },
+    {
+      "sample_id": "theme_extraction_39",
+      "article_id": "69defa6db9431fdea59dfe80",
+      "title": "\u2018Closer Than Ever\u2019: Ripple CEO Says CLARITY Act Window Is Open and Now Is the Moment to Act",
+      "text_original_length": 746,
+      "text": "Ripple CEO Brad Garlinghouse said the push for U.S. crypto regulation is nearing a turning point, citing growing legislative momentum. After years of uncertainty, he stressed the industry is closer than ever to achieving lasting regulatory clarity. Key Takeaways: Garlinghouse said the industry is closer than ever to securing U.S. crypto clarity. Garlinghouse suggested Washington [\u2026]",
+      "haiku_output": [
+        "Ripple",
+        "Regulation",
+        "CLARITY Act",
+        "Crypto Policy",
+        "Legislative Momentum"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-15T02:39:41.173Z"
+    },
+    {
+      "sample_id": "theme_extraction_40",
+      "article_id": "69df1202b8ea0f0ffa9dfeb5",
+      "title": "Kraken boss signals IPO still in play despite reports of pause",
+      "text_original_length": 493,
+      "text": "Kraken\u2019s market valuation has dropped from $20 billion to $13.3 billion since the company confidentially filed for an IPO with the SEC in November.",
+      "haiku_output": [
+        "Kraken",
+        "IPO",
+        "Valuation",
+        "Exchange",
+        "Market Sentiment"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-15T04:20:18.818Z"
+    },
+    {
+      "sample_id": "theme_extraction_41",
+      "article_id": "69df396bd323a1ae6ceffa31",
+      "title": "Virginia to hold dormant crypto \u2018in-kind\u2019 for at least one year under new law",
+      "text_original_length": 129,
+      "text": "The legislation stipulates that unclaimed crypto assets in customer accounts will be transferred to state custody in-kind.",
+      "haiku_output": [
+        "Regulation",
+        "Custody",
+        "Unclaimed Assets",
+        "State Policy"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-15T07:08:27.022Z"
+    },
+    {
+      "sample_id": "theme_extraction_42",
+      "article_id": "69df39fc6ebd3c6aafeffa35",
+      "title": "North Korean hackers used AI-enabled social engineering in Zerion attack",
+      "text_original_length": 474,
+      "text": "It is the second long-term social-engineering attack this month, after the $280 million exploit of the Drift Protocol.",
+      "haiku_output": [
+        "Security",
+        "Hacking",
+        "Social Engineering",
+        "DeFi",
+        "North Korea",
+        "Zerion",
+        "Exploit"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-15T07:10:52.73Z"
+    },
+    {
+      "sample_id": "theme_extraction_43",
+      "article_id": "69df57c8d323a1ae6ceffa6d",
+      "title": "Bitcoin ETFs post $412M in inflows as Goldman Sachs files for BTC ETF",
+      "text_original_length": 523,
+      "text": "US-listed spot Bitcoin ETFs posted $411.5 million in inflows Tuesday as Goldman Sachs filed for a Bitcoin-linked ETF, lifting 2026 net flows back into positive territory.",
+      "haiku_output": [
+        "Bitcoin",
+        "ETF",
+        "Institutional Adoption",
+        "Goldman Sachs",
+        "Capital Inflows"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-15T09:18:00.428Z"
+    },
+    {
+      "sample_id": "theme_extraction_44",
+      "article_id": "69df5f6ea634582621effa00",
+      "title": "\u2018Game-Changer\u2019: Rakuten Wallet Adds XRP, Giving 44 Million Users Broader Crypto Access",
+      "text_original_length": 678,
+      "text": "XRP is moving deeper into daily commerce in Japan through Rakuten\u2019s payments and loyalty network. The integration expands how consumers can acquire and spend digital assets while linking crypto use to a large retail ecosystem. Key Takeaways: Rakuten enables 44 million users to buy XRP and convert it for spending at 5 million merchant locations. [\u2026]",
+      "haiku_output": [
+        "XRP",
+        "Adoption",
+        "Payments",
+        "Retail Integration",
+        "Japan",
+        "Rakuten",
+        "Merchant Ecosystem"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-15T09:50:38.324Z"
+    },
+    {
+      "sample_id": "theme_extraction_45",
+      "article_id": "69df6707a634582621effa21",
+      "title": "Second Flash Crash in a Week Sends ARIA Down 90%",
+      "text_original_length": 582,
+      "text": "The native token of the gaming platform Aria, ARIA, has experienced its second massive crash in less than a week, plummeting over 90% from its April 14 all-time high of $1.12 to a low of $0.09. Key Takeaways: ARIA crashed over 90% from its April 14 peak of $1.12, marking its second major nosedive in [\u2026]",
+      "haiku_output": [
+        "Token crash",
+        "Price volatility",
+        "Gaming platform",
+        "ARIA",
+        "Market instability"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-15T10:23:03.48Z"
+    },
+    {
+      "sample_id": "theme_extraction_46",
+      "article_id": "69df6e9aa634582621effa3d",
+      "title": "eToro bets on self-custody with $70 million acquisition of crypto wallet startup Zengo",
+      "text_original_length": 145,
+      "text": "eToro has agreed to acquire crypto wallet startup Zengo for $70 million, adding self-custody and Web3 capabilities after a New York debut.",
+      "haiku_output": [
+        "M&A",
+        "Self-custody",
+        "Web3",
+        "Wallet",
+        "eToro",
+        "Zengo"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-15T10:55:22.142Z"
+    },
+    {
+      "sample_id": "theme_extraction_47",
+      "article_id": "69df762ea634582621effa65",
+      "title": "Pakistan allows banks to serve licensed crypto firms after years-long ban",
+      "text_original_length": 540,
+      "text": "Pakistan\u2019s central bank has allowed banks to open accounts for licensed virtual asset service providers, ending years of restrictions and marking a shift toward a regulated framework.",
+      "haiku_output": [
+        "Regulation",
+        "Banking",
+        "Adoption",
+        "Pakistan",
+        "Institutional Access"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-15T11:27:42.684Z"
+    },
+    {
+      "sample_id": "theme_extraction_48",
+      "article_id": "69df7631a634582621effa67",
+      "title": "Virginia Governor Signs Law Protecting Dormant Crypto From Forced Liquidation",
+      "text_original_length": 140,
+      "text": "The legislation ensures unclaimed digital assets are held in their native form for at least one year before the state can move to sell them.",
+      "haiku_output": [
+        "Regulation",
+        "Legal Protection",
+        "Asset Protection",
+        "Virginia",
+        "Policy"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-15T11:27:45.029Z"
+    },
+    {
+      "sample_id": "theme_extraction_49",
+      "article_id": "69df8568a634582621effaa6",
+      "title": "Morning Minute: The Next Fed Chair Has a Crypto Portfolio",
+      "text_original_length": 138,
+      "text": "Kevin Warsh is holding Solana, Polymarket and more. Goldman Sachs is filing for a BTC ETF. And Circle stock is jumping on news of a token.",
+      "haiku_output": [
+        "Bitcoin",
+        "ETF",
+        "Solana",
+        "Regulation",
+        "Institutional Adoption",
+        "Stablecoins"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-15T12:32:40.357Z"
+    },
+    {
+      "sample_id": "theme_extraction_50",
+      "article_id": "69dfa3dfa634582621effb28",
+      "title": "Anthropic\u2019s secretive Mythos AI can hunt crypto smart contract flaws at machine speed, and billions in DeFi could vanish fast",
+      "text_original_length": 750,
+      "text": "Anthropic's Mythos threat to the crypto industry can trigger hundreds of millions, if not billions, of dollars in sudden, irreversible losses. That is the stark reality facing digital asset markets following Anthropic\u2019s quiet unveiling of Claude Mythos Preview, a vulnerability-seeking AI model the San Francisco startup admits is simply too dangerous to release to the [\u2026]\nThe post Anthropic\u2019s secretive Mythos AI can hunt crypto smart contract flaws at machine speed, and billions in DeFi could vanish fast appeared first on CryptoSlate.",
+      "haiku_output": [
+        "AI Security",
+        "Smart Contracts",
+        "DeFi Risk",
+        "Vulnerability Detection"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-15T14:42:39.424Z"
+    },
+    {
+      "sample_id": "theme_extraction_51",
+      "article_id": "69dfa3e2a634582621effb29",
+      "title": "Pakistan Reverses 2018 Crypto Banking Restrictions as New Law Opens Regulated Access for Digital Asset Firms",
+      "text_original_length": 784,
+      "text": "Pakistan is opening a controlled banking channel for digital asset firms, reversing years of restriction with regulated access. The move allows licensed entities to integrate with banks under strict oversight while maintaining tight risk controls. Key Takeaways: Pakistan enabled licensed crypto firms to access banking, reversing its earlier blanket restriction. Banks must apply strict due [\u2026]",
+      "haiku_output": [
+        "Regulation",
+        "Banking Integration",
+        "Crypto Adoption",
+        "Pakistan"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-15T14:42:42.119Z"
+    },
+    {
+      "sample_id": "theme_extraction_52",
+      "article_id": "69dfad231ad9a9ee53effa4d",
+      "title": "UK FCA seeks feedback on guidance for crypto rules ahead of 2027 rollout",
+      "text_original_length": 537,
+      "text": "The UK financial regulator has launched a consultation on crypto rules covering stablecoins, trading and staking ahead of a broader UK crypto regime expected to take effect in 2027.",
+      "haiku_output": [
+        "Regulation",
+        "UK FCA",
+        "Stablecoins",
+        "Crypto Rules",
+        "Compliance",
+        "Staking",
+        "Trading"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-15T15:22:11.857Z"
+    },
+    {
+      "sample_id": "theme_extraction_53",
+      "article_id": "69dfb314a634582621effb78",
+      "title": "Solv Protocol and Utexo Launch Bitcoin-Native Yield Infrastructure",
+      "text_original_length": 656,
+      "text": "Solv Protocol has integrated with Utexo to launch a bitcoin-native yield infrastructure that uses the RGB protocol and Lightning Network to enable direct, atomic swaps between bitcoin and USDT. Key Takeaways: Solv Protocol and Utexo integrated to launch native BTC yield with atomic swaps for $2 billion in reserves. The move cuts custodial risk, aligning [\u2026]",
+      "haiku_output": [
+        "Bitcoin",
+        "DeFi",
+        "Yield Infrastructure",
+        "Lightning Network",
+        "RGB Protocol",
+        "Atomic Swaps"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-15T15:47:32.158Z"
+    },
+    {
+      "sample_id": "theme_extraction_54",
+      "article_id": "69dfb319a634582621effb79",
+      "title": "Bitcoin Developers Propose Freezing Quantum-Vulnerable Coins in BIP-361",
+      "text_original_length": 169,
+      "text": "Bitcoin developers and researchers have proposed a mechanism to freeze coins vulnerable to quantum computing attacks as an incentive for users to upgrade their security.",
+      "haiku_output": [
+        "Bitcoin",
+        "Security",
+        "Quantum Computing",
+        "BIP-361",
+        "Protocol Development"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-15T15:47:37.379Z"
+    },
+    {
+      "sample_id": "theme_extraction_55",
+      "article_id": "69dfbc731ad9a9ee53effacb",
+      "title": "Pakistan Lifts 8-Year Crypto Banking Ban Following Trump Family, Binance Deals",
+      "text_original_length": 133,
+      "text": "Banks in Pakistan can now provide services to registered crypto firms\u2014but not trade crypto themselves\u2014after a 2018 ban was rescinded.",
+      "haiku_output": [
+        "Regulation",
+        "Banking",
+        "Cryptocurrency Adoption",
+        "Pakistan",
+        "Compliance"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-15T16:27:31.71Z"
+    },
+    {
+      "sample_id": "theme_extraction_56",
+      "article_id": "69dfc43028b9b537e0effa9a",
+      "title": "New Goldman Sachs Bitcoin fund is built for advisers seeking yield, not traders chasing the next rally",
+      "text_original_length": 662,
+      "text": "Goldman Sachs, the $3.5 trillion banking giant, has filed to launch an actively managed exchange-traded fund (ETF) that uses covered calls to generate income from Bitcoin. The April 14\u00a0filing for the Goldman Sachs Bitcoin Premium Income ETF marks a strategic pivot for the investment bank, which previously had a hostile relationship with the flagship digital [\u2026]\nThe post New Goldman Sachs Bitcoin fund is built for advisers seeking yield, not traders chasing the next rally appeared first on CryptoSlate.",
+      "haiku_output": [
+        "Bitcoin",
+        "ETF",
+        "Institutional Adoption",
+        "Goldman Sachs",
+        "Income Strategy"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-15T17:00:32.487Z"
+    },
+    {
+      "sample_id": "theme_extraction_57",
+      "article_id": "69dfd3b928b9b537e0effb80",
+      "title": "Bitcoin Holds at $74K as Bitfinex Flags Limits to STRC-Driven Rally",
+      "text_original_length": 691,
+      "text": "Bitcoin failed to maintain its upward momentum on April 15, retreating from a $76,000 resistance level to trade around $74,000. Key Takeaways: On April 15, bitcoin retreated below $74,000 after failing to hold its $76,000 resistance level. Bitfinex says Strategy\u2019s STRC-funded purchase of 13,927 BTC created a mechanical supply squeeze. A spot-led daily close above [\u2026]",
+      "haiku_output": [
+        "Bitcoin",
+        "Price Action",
+        "Market Resistance",
+        "Exchange Activity",
+        "Supply Dynamics"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-15T18:06:49.373Z"
+    },
+    {
+      "sample_id": "theme_extraction_58",
+      "article_id": "69dfd3be28b9b537e0effb81",
+      "title": "Bitcoin Eyes Q2 Rebound as Institutions Deepen Crypto Commitment: Nexo",
+      "text_original_length": 147,
+      "text": "After crypto's worst Q1 since 2018, ETF inflows have turned positive, and $268 billion in stablecoins sits on the sidelines waiting for a catalyst.",
+      "haiku_output": [
+        "Bitcoin",
+        "Institutional Adoption",
+        "ETF Inflows",
+        "Stablecoins",
+        "Market Recovery",
+        "Q2 Outlook"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-15T18:06:54.473Z"
+    },
+    {
+      "sample_id": "theme_extraction_59",
+      "article_id": "69dfead128b9b537e0effd4e",
+      "title": "Crypto ETFs See Broad Inflows Led by $412 Million Bitcoin Surge",
+      "text_original_length": 648,
+      "text": "Crypto ETFs staged a powerful rebound on Tuesday, with strong inflows across all major assets. Bitcoin led the charge, while ether, XRP, and solana all posted gains in a rare all-green session. Key Takeaways: Bitcoin ETFs drew $411.5 million, led by Blackrock IBIT, signaling a strong market-wide rebound. Ether ETFs added $53.03 million with Fidelity [\u2026]",
+      "haiku_output": [
+        "Bitcoin",
+        "Ethereum",
+        "ETFs",
+        "Inflows",
+        "Market Rally",
+        "Institutional Investment"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-15T19:45:21.388Z"
+    },
+    {
+      "sample_id": "theme_extraction_60",
+      "article_id": "69e058f45f7c01aa5195b197",
+      "title": "Brazil\u2019s Ruling Party Files Bill to Ban Online Gambling Entirely as President Lula Stays Silent",
+      "text_original_length": 794,
+      "text": "The legislative caucus of Brazil\u2019s Workers\u2019 Party has filed a bill proposing an outright federal ban on online gambling, escalating what had been campaign rhetoric into formal legislation that would dismantle the regulatory framework the same government built \u2013 and putting billions in tax revenue at risk ahead of October\u2019s presidential election. Key Takeaways: 68 [\u2026]",
+      "haiku_output": [
+        "Regulation",
+        "Brazil",
+        "Gambling",
+        "Government Policy"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-16T03:35:16.981Z"
+    },
+    {
+      "sample_id": "theme_extraction_61",
+      "article_id": "69e06e7f6805ca4fbe1de4c4",
+      "title": "CFTC probes oil futures trades tied to Trump's moves in Iran: Report",
+      "text_original_length": 523,
+      "text": "The CFTC is investigating trades that took place before the US delayed strikes on Iranian energy infrastructure on March 23 and agreed to a ceasefire with Iran on April 7.",
+      "haiku_output": [
+        "CFTC",
+        "Oil Futures",
+        "Geopolitical Risk",
+        "Market Manipulation",
+        "Iran"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-16T05:07:11.275Z"
+    },
+    {
+      "sample_id": "theme_extraction_62",
+      "article_id": "69e094e0469fd81c181de52f",
+      "title": "Scarcity Pump or Monetary Suicide? The Radical Argument Against BIP-361",
+      "text_original_length": 674,
+      "text": "While proponents argue that the proposal prevents a \u201csilent drain\u201d of assets by quantum-capable actors, critics like Frederic Fosco contend that the solution is more dangerous than the threat. They argue that implementing a mechanism to freeze coins violates bitcoin\u2019s core tenet of absolute property rights. Key Takeaways: BIP-361 aims to protect bitcoin from quantum [\u2026]",
+      "haiku_output": [
+        "Bitcoin",
+        "BIP-361",
+        "Quantum Computing",
+        "Security",
+        "Property Rights",
+        "Cryptocurrency Regulation",
+        "Technical Debate"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-16T07:50:56.553Z"
+    },
+    {
+      "sample_id": "theme_extraction_63",
+      "article_id": "69e0a46a0a57f1a2701de4b3",
+      "title": "Circle CEO Allaire sees \u2018tremendous opportunity\u2019 for yuan stablecoin: report",
+      "text_original_length": 121,
+      "text": "Chinese authorities have said yuan-pegged stablecoins cannot be issued offshore without prior regulatory approval.",
+      "haiku_output": [
+        "Stablecoins",
+        "Yuan",
+        "Circle",
+        "China Regulation",
+        "Offshore"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-16T08:57:14.194Z"
+    },
+    {
+      "sample_id": "theme_extraction_64",
+      "article_id": "69e0c3100a57f1a2701de53e",
+      "title": "French minister says new measures are coming after crypto kidnappings",
+      "text_original_length": 511,
+      "text": "Jean-Didier Berger said at Paris Blockchain Week that France is preparing new steps to protect crypto holders as wrench attacks and kidnappings keep mounting.",
+      "haiku_output": [
+        "Regulation",
+        "Security",
+        "France",
+        "Cryptocurrency Protection",
+        "Crime"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-16T11:08:00.177Z"
+    },
+    {
+      "sample_id": "theme_extraction_65",
+      "article_id": "69e0c3170a57f1a2701de541",
+      "title": "Why the SEC just gave self custody crypto apps 5 years to get traditional broker licenses",
+      "text_original_length": 662,
+      "text": "The SEC moved the crypto market structure forward on Apr. 13 without waiting for Congress to act. The agency's Division of Trading and Markets published a staff statement on Covered User Interfaces, such as websites, browser extensions, wallet-linked apps, and mobile applications that help users in self-custodial setups prepare transactions in crypto asset securities. Staff [\u2026]\nThe post Why the SEC just gave self custody crypto apps 5 years to get traditional broker licenses appeared first on CryptoSlate.",
+      "haiku_output": [
+        "SEC",
+        "Regulation",
+        "Self-Custody",
+        "Broker Licenses",
+        "Crypto Apps",
+        "Market Structure",
+        "Compliance"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-16T11:08:07.332Z"
+    },
+    {
+      "sample_id": "theme_extraction_66",
+      "article_id": "69e0cbe44dd366721b1de4d1",
+      "title": "Circle CEO sees \u2018tremendous opportunity\u2019 for yuan stablecoin despite China curbs",
+      "text_original_length": 537,
+      "text": "Circle\u2019s Jeremy Allaire sees \u201ctremendous\u201d room for a yuan stablecoin, despite China banning most private yuan tokens and pushing its CBDC to challenge US dollar stablecoins.",
+      "haiku_output": [
+        "Stablecoins",
+        "Yuan",
+        "CBDC",
+        "Circle",
+        "China Regulation",
+        "USD Competition"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-16T11:45:40.911Z"
+    },
+    {
+      "sample_id": "theme_extraction_67",
+      "article_id": "69e0d2760a57f1a2701de594",
+      "title": "Morning Minute: Bitcoin Devs Propose New Quantum Solution",
+      "text_original_length": 113,
+      "text": "BIP-361 would freeze the Bitcoin most at risk of seizure from quantum exploits. But will the community go for it?",
+      "haiku_output": [
+        "Bitcoin",
+        "Quantum Computing",
+        "Security",
+        "BIP-361",
+        "Protocol Development"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-16T12:13:42.332Z"
+    },
+    {
+      "sample_id": "theme_extraction_68",
+      "article_id": "69e0d2760a57f1a2701de595",
+      "title": "UK Sets Path to Crypto Regulation With FCA Consultation",
+      "text_original_length": 139,
+      "text": "The regulator is seeking feedback on its interpretation of regulated cryptoasset activities under rules set to take effect in October 2027.",
+      "haiku_output": [
+        "Regulation",
+        "UK",
+        "FCA",
+        "Compliance",
+        "Cryptocurrency"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-16T12:13:42.44Z"
+    },
+    {
+      "sample_id": "theme_extraction_69",
+      "article_id": "69e0d2ee0973f3a3831de4bf",
+      "title": "Europe\u2019s Bitcoin treasury playbook won\u2019t be a copy of Strategy: PBW 2026",
+      "text_original_length": 538,
+      "text": "Executives at Paris Blockchain Week said European firms interested in Bitcoin treasury strategies are working around shallower capital markets and tighter constraints than in the US.",
+      "haiku_output": [
+        "Bitcoin",
+        "Treasury Strategy",
+        "Europe",
+        "Capital Markets",
+        "Institutional Adoption"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-16T12:15:42.812Z"
+    },
+    {
+      "sample_id": "theme_extraction_70",
+      "article_id": "69e0da370a57f1a2701de5bd",
+      "title": "Bitcoin\u2019s quantum migration plan forces the network to choose between frozen and stolen coins",
+      "text_original_length": 733,
+      "text": "Bitcoin's debate about quantum computers produced a published draft with real political consequences on Apr. 14. Bitcoin Improvement Proposal 361 (BIP 361), titled \u201cPost Quantum Migration and Legacy Signature Sunset,\u201d landed in Bitcoin's official proposal repository with a three-phase plan to phase out ECDSA and Schnorr signature spends entirely once a quantum-resistant output type exists [\u2026]\nThe post Bitcoin\u2019s quantum migration plan forces the network to choose between frozen and stolen coins appeared first on CryptoSlate.",
+      "haiku_output": [
+        "Bitcoin",
+        "Quantum Computing",
+        "Protocol Upgrade",
+        "Security",
+        "BIP 361",
+        "ECDSA",
+        "Network Governance"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-16T12:46:47.013Z"
+    },
+    {
+      "sample_id": "theme_extraction_71",
+      "article_id": "69e0da390a57f1a2701de5be",
+      "title": "Bitcoin Tests $75,000 as Whales Accumulate 270,000 BTC",
+      "text_original_length": 717,
+      "text": "Bitcoin\u2019s climb toward $75,000 is meeting rising sell pressure despite steady institutional demand. Whale accumulation and shrinking exchange reserves are tightening supply dynamics. Key Takeaways: Bitcoin tests $75,000 with $200 million to $450 million daily ETF inflows, but rising sell pressure attempts to cap gains. Whales added 270,000 BTC in 30 days, yet 11,000 BTC/hour [\u2026]",
+      "haiku_output": [
+        "Bitcoin",
+        "Price Action",
+        "Whale Activity",
+        "Institutional Demand",
+        "ETF Inflows",
+        "Supply Dynamics",
+        "Market Sentiment"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-16T12:46:49.558Z"
+    },
+    {
+      "sample_id": "theme_extraction_72",
+      "article_id": "69e0e9f40973f3a3831de51b",
+      "title": "Why Australia\u2019s $17B crypto opportunity depends on regulation",
+      "text_original_length": 499,
+      "text": "Australia\u2019s A$24B digital asset opportunity hinges on regulation. Clear rules could drive tokenized markets, faster payments and institutional investment.",
+      "haiku_output": [
+        "Regulation",
+        "Australia",
+        "Institutional Investment",
+        "Tokenization",
+        "Market Opportunity"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-16T13:53:56.532Z"
+    },
+    {
+      "sample_id": "theme_extraction_73",
+      "article_id": "69e0e9f40973f3a3831de51c",
+      "title": "Naver-Dunamu filing sets IPO committee, listing timeline for fintech group",
+      "text_original_length": 485,
+      "text": "The corrected filing details timeline, caveats and conditions tied to a potential Naver Financial IPO after the Dunamu share swap deal.",
+      "haiku_output": [
+        "IPO",
+        "Fintech",
+        "Naver",
+        "Dunamu",
+        "Exchange"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-16T13:53:56.69Z"
+    },
+    {
+      "sample_id": "theme_extraction_74",
+      "article_id": "69e0e9fa0973f3a3831de51e",
+      "title": "Drift secures up to $127 million from Tether for user recovery, pivots from Circle\u2019s USDC to USDT after $280 million exploit",
+      "text_original_length": 126,
+      "text": "Drift Protocol said it has secured up to $127.5 million from Tether to support user recovery after the April 1 exploit.",
+      "haiku_output": [
+        "DeFi",
+        "Security Exploit",
+        "Tether",
+        "USDT",
+        "User Recovery",
+        "Drift Protocol"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-16T13:54:02.774Z"
+    },
+    {
+      "sample_id": "theme_extraction_75",
+      "article_id": "69e0ea9d4dd366721b1de50a",
+      "title": "Tether Commits $127.5M to Drift Protocol Recovery Plan Following $270M+ Exploit",
+      "text_original_length": 149,
+      "text": "Tether is leading a $150M recovery initiative for Drift Protocol; the plan will also shift the perp DEX's primary settlement asset to USDT on Solana.",
+      "haiku_output": [
+        "Tether",
+        "USDT",
+        "Drift Protocol",
+        "DeFi",
+        "Exploit",
+        "Solana",
+        "Recovery",
+        "Security"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-16T13:56:45.526Z"
+    },
+    {
+      "sample_id": "theme_extraction_76",
+      "article_id": "69e0fa0f4dd366721b1de54a",
+      "title": "French Police Rescue Mother and Child After $400K Crypto Ransom Kidnapping",
+      "text_original_length": 130,
+      "text": "Elite French police rescued a mother and child after kidnappers targeted the family's crypto wealth in the latest \u201cwrench attack.\u201d",
+      "haiku_output": [
+        "Security",
+        "Crime",
+        "Cryptocurrency Theft"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-16T15:02:39.537Z"
+    },
+    {
+      "sample_id": "theme_extraction_77",
+      "article_id": "69e0fa174dd366721b1de54c",
+      "title": "Morgan Stanley Bitcoin ETF Tops $100 Million in Six Days",
+      "text_original_length": 713,
+      "text": "Morgan Stanley\u2019s spot bitcoin ETF has attracted over $100 million in inflows within six trading days. The strong debut highlights continued investor demand for low-cost crypto exposure. Key Takeaways: Morgan Stanley\u2019s MSBT drew $103 million in 6 days since Aug. 8, showing strong ETF demand. MSBT\u2019s 0.14% fee undercuts rivals like Wisdomtree, intensifying bitcoin ETF [\u2026]",
+      "haiku_output": [
+        "Bitcoin",
+        "ETF",
+        "Institutional Adoption",
+        "Market Growth"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-16T15:02:47.028Z"
+    },
+    {
+      "sample_id": "theme_extraction_78",
+      "article_id": "69e0fa184dd366721b1de54e",
+      "title": "Paraguay police confiscate coins from $1m teen crypto hacking gang",
+      "text_original_length": 140,
+      "text": "Police in Paraguay arrest 10 teens, aged as young as 18, on suspicion of stealing $1.2 million from hundreds of bank accounts and e-wallets.",
+      "haiku_output": [
+        "Crime",
+        "Hacking",
+        "Law Enforcement",
+        "Cryptocurrency Fraud"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-16T15:02:48.1Z"
+    },
+    {
+      "sample_id": "theme_extraction_79",
+      "article_id": "69e10221b05c1d4ddc1de4c6",
+      "title": "Polkadot-Ethereum Bridge Hack Losses Were 10x Worse Than Reported, Team Admits",
+      "text_original_length": 140,
+      "text": "Polkadot bridge protocol Hyperbridge said losses from this week's hack were 10x worse than originally reported, tallying about $2.5 million.",
+      "haiku_output": [
+        "Polkadot",
+        "Bridge",
+        "Security",
+        "Hack",
+        "Exploit",
+        "Loss"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-16T15:37:05.006Z"
+    },
+    {
+      "sample_id": "theme_extraction_80",
+      "article_id": "69e10224b05c1d4ddc1de4c7",
+      "title": "Polkadot-based Hyperbridge revises exploit losses to $2.5 million, ten times initial estimate",
+      "text_original_length": 143,
+      "text": "Hyperbridge has raised its loss estimate from $237,000 to $2.5 million after a Token Gateway exploit, with some funds traced to Binance.",
+      "haiku_output": [
+        "Polkadot",
+        "Hyperbridge",
+        "Exploit",
+        "Token Gateway",
+        "Security",
+        "Loss"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-16T15:37:08.869Z"
+    },
+    {
+      "sample_id": "theme_extraction_81",
+      "article_id": "69e10228b05c1d4ddc1de4c9",
+      "title": "Tether Steps In With $150M Support Plan After Drift Protocol Loses $285M in Exploit",
+      "text_original_length": 671,
+      "text": "Tether announced a recovery plan of up to $150 million to help Drift Protocol users recoup losses from an April 1 exploit that drained approximately $285 million from the Solana-based trading platform. Key Takeaways: Tether committed up to $127.5 million toward Drift Protocol\u2019s recovery plan following the April 1, 2026 exploit. The $150 million recovery [\u2026]",
+      "haiku_output": [
+        "Tether",
+        "Drift Protocol",
+        "Security Exploit",
+        "Solana",
+        "DeFi",
+        "Recovery Plan",
+        "Market Stability"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-16T15:37:12.625Z"
+    },
+    {
+      "sample_id": "theme_extraction_82",
+      "article_id": "69e109dab05c1d4ddc1de501",
+      "title": "Tether announces $150M recovery program for Drift Protocol",
+      "text_original_length": 472,
+      "text": "The Drift Protocol will use the $150 million to relaunch and restore user funds following a $280 million exploit earlier in April.",
+      "haiku_output": [
+        "Tether",
+        "Drift Protocol",
+        "DeFi",
+        "Exploit",
+        "Recovery",
+        "USDT"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-16T16:10:02.788Z"
+    },
+    {
+      "sample_id": "theme_extraction_83",
+      "article_id": "69e109ddb05c1d4ddc1de502",
+      "title": "Drift Taps Tether for $148 Million Recovery Plan, Ditches Circle's USDC Following DeFi Exploit",
+      "text_original_length": 111,
+      "text": "Circle has faced pushback online for standing pat as actors used its cross-chain protocol to move stolen funds.",
+      "haiku_output": [
+        "Drift Protocol",
+        "Tether",
+        "USDC",
+        "Circle",
+        "DeFi Exploit",
+        "Security",
+        "Stablecoin"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-16T16:10:05.139Z"
+    },
+    {
+      "sample_id": "theme_extraction_84",
+      "article_id": "69e109e1b05c1d4ddc1de503",
+      "title": "Elon Musk\u2019s X Money stands to disrupt payments and pressure PayPal, but crypto plans may hit regulatory hurdles: Mizuho",
+      "text_original_length": 118,
+      "text": "X launched a new feature this week where users can view financial data on stocks and cryptocurrencies directly.",
+      "haiku_output": [
+        "X Money",
+        "Cryptocurrency",
+        "Regulation",
+        "Payments",
+        "PayPal",
+        "Fintech"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-16T16:10:09.014Z"
+    },
+    {
+      "sample_id": "theme_extraction_85",
+      "article_id": "69e109e4b05c1d4ddc1de506",
+      "title": "Elon Musk\u2019s X Money Sparks Elizabeth Warren Warning as Oversight Pressure Intensifies",
+      "text_original_length": 760,
+      "text": "Regulatory scrutiny is increasing around Elon Musk\u2019s X Money as policymakers review digital payments and stablecoin developments. Senator Elizabeth Warren\u2019s warning highlights concerns that Musk\u2019s expansion into finance could pose risks across consumer protection and financial oversight. Key Takeaways: Warren flagged Elon Musk\u2019s X Money launch as posing consumer and security risks. Concerns tie X [\u2026]",
+      "haiku_output": [
+        "X Money",
+        "Regulation",
+        "Stablecoin",
+        "Elizabeth Warren",
+        "Consumer Protection",
+        "Digital Payments",
+        "Cryptocurrency"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-16T16:10:12.907Z"
+    },
+    {
+      "sample_id": "theme_extraction_86",
+      "article_id": "69e111a2b05c1d4ddc1de541",
+      "title": "Bitcoin ETFs Add $186 Million as Broad Market Rally Continues",
+      "text_original_length": 738,
+      "text": "Crypto exchange-traded funds (ETFs) extended their recovery with another day of strong inflows led by bitcoin. Ether, XRP, and solana all posted gains, marking a second consecutive all-green session. Key Takeaways Bitcoin ETFs added $186.03 million, with Blackrock IBIT driving $291.86 million in concentrated inflows. Ether ETFs gained $67.85 million over 5 days, signaling broader [\u2026]",
+      "haiku_output": [
+        "Bitcoin ETFs",
+        "Ethereum",
+        "Market Rally",
+        "Institutional Investment",
+        "Inflows"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-16T16:43:14.052Z"
+    },
+    {
+      "sample_id": "theme_extraction_87",
+      "article_id": "69e1195bb05c1d4ddc1de580",
+      "title": "CFTC Chair Mike Selig Faces Bipartisan Pushback on Prediction Markets, Hyperliquid Perps",
+      "text_original_length": 128,
+      "text": "Sports and war prediction markets and crypto-backed perpetual futures came under fire during a House committee hearing Thursday.",
+      "haiku_output": [
+        "CFTC",
+        "Regulation",
+        "Prediction Markets",
+        "Perpetual Futures",
+        "Hyperliquid",
+        "Government Scrutiny"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-16T17:16:11.935Z"
+    },
+    {
+      "sample_id": "theme_extraction_88",
+      "article_id": "69e124b4cd3cb7bb0f1de49a",
+      "title": "\u2018This is nuts\u2019: CFTC chair Selig grilled by lawmakers on prediction markets,\u00a0 Hyperliquid, and staffing",
+      "text_original_length": 127,
+      "text": "Selig faced heat from lawmakers on how he plans to oversee prediction markets and whether it has the headcount to do it.",
+      "haiku_output": [
+        "Regulation",
+        "CFTC",
+        "Prediction Markets",
+        "Hyperliquid",
+        "Compliance"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-16T18:04:36.426Z"
+    },
+    {
+      "sample_id": "theme_extraction_89",
+      "article_id": "69e124b5cd3cb7bb0f1de49b",
+      "title": "Bitcoin whales just bought the most BTC since 2013 \u2013 so why is the price stuck below $80,000?",
+      "text_original_length": 664,
+      "text": "Bitcoin has spent much of 2026 moving between recovery attempts and macro shocks, yet one part of the market has kept moving in a single direction. Large holders have been buying. On April 16, Bitfinex highlighted CryptoQuant data showing whales accumulated 270,000 BTC over the previous 30 days, the largest buying spree since 2013, while [\u2026]\nThe post Bitcoin whales just bought the most BTC since 2013 \u2013 so why is the price stuck below $80,000? appeared first on CryptoSlate.",
+      "haiku_output": [
+        "Bitcoin",
+        "Whale Activity",
+        "Market Accumulation",
+        "Price Action",
+        "BTC"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-16T18:04:37.733Z"
+    },
+    {
+      "sample_id": "theme_extraction_90",
+      "article_id": "69e128e6b05c1d4ddc1de5ea",
+      "title": "With no bipartisan leadership, CFTC won't \u2018slow down\u2018 on rulemaking",
+      "text_original_length": 514,
+      "text": "Democratic lawmakers called out Michael Selig for unilaterally advancing policies at the regulator that's normally led by a bipartisan group of five commissioners.",
+      "haiku_output": [
+        "Regulation",
+        "CFTC",
+        "Cryptocurrency Policy",
+        "Government Leadership",
+        "Rulemaking"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-16T18:22:30.414Z"
+    },
+    {
+      "sample_id": "theme_extraction_91",
+      "article_id": "69e12c6acd3cb7bb0f1de4b3",
+      "title": "Class Action Lawsuit Filed Against Circle Over Drift Protocol $280 Million Hack: Gibbs Mura Law Group",
+      "text_original_length": 179,
+      "text": "Law firm charges Circle Internet Financial with failing to freeze $230 million in stolen USDC after the April 1 Drift Protocol exploit, allegedly linked to North Korean attackers.",
+      "haiku_output": [
+        "Circle",
+        "USDC",
+        "Drift Protocol",
+        "Hack",
+        "Legal Action",
+        "Stablecoin",
+        "Security",
+        "North Korea"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-16T18:37:30.328Z"
+    },
+    {
+      "sample_id": "theme_extraction_92",
+      "article_id": "69e130a3b05c1d4ddc1de60b",
+      "title": "Bitcoin\u2019s Tug of War at $75K Leaves Traders Bruised; Analyst Eyes $85K by Late April",
+      "text_original_length": 705,
+      "text": "Bitcoin has experienced significant volatility over the last 24 hours, repeatedly testing the $75,000 resistance level before settling near $74,200. Key Takeaways Bitcoin repeatedly tested $75,000 on April 16, resulting in $137 million in total trader liquidations. Coinglass data shows 8,061 traders were liquidated as BTC price volatility exceeded 2.94% in 24 hours. MEXC Research [\u2026]",
+      "haiku_output": [
+        "Bitcoin",
+        "Price Resistance",
+        "Volatility",
+        "Liquidations",
+        "Technical Analysis",
+        "Trading"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-16T18:55:31.15Z"
+    },
+    {
+      "sample_id": "theme_extraction_93",
+      "article_id": "69e1399564912599de1de4f3",
+      "title": "On Schedule and Above Target: JST\u2019s Third Buyback and Burn Breaches $21 Million",
+      "text_original_length": 669,
+      "text": "According to the latest official update, the third large-scale buyback and burn of JST has been completed. In this round, 271,337,579 JST tokens, worth an estimated $21.3 million, were burned, representing 2.74% of the total supply. Every dollar deployed in this round originated directly from the organic revenue of JustLend DAO. This includes approximately $10.34 [\u2026]\nThe post On Schedule and Above Target: JST\u2019s Third Buyback and Burn Breaches $21 Million appeared first on CryptoSlate.",
+      "haiku_output": [
+        "JST",
+        "Token Burn",
+        "DeFi",
+        "JustLend DAO",
+        "Buyback"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-16T19:33:41.603Z"
+    },
+    {
+      "sample_id": "theme_extraction_94",
+      "article_id": "69e1399764912599de1de4f4",
+      "title": "Crossmint\u2019s Lobster.cash Integrates Mastercard Agent Pay for Agentic Commerce",
+      "text_original_length": 728,
+      "text": "Lobster.cash, the artificial intelligence (AI) agent payment platform built by Crossmint, announced this week that it will integrate Mastercard Agent Pay and Verifiable Intent, allowing AI agents to process purchases against cardholders\u2019 existing Mastercard accounts. Key Takeaways: Lobster.cash and Mastercard will let Openclaw\u2019s 1 million-plus AI agents charge purchases to existing Mastercard cards. The Verifiable [\u2026]",
+      "haiku_output": [
+        "AI Agents",
+        "Payment Integration",
+        "Mastercard",
+        "Crossmint",
+        "Blockchain Commerce"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-16T19:33:43.984Z"
+    },
+    {
+      "sample_id": "theme_extraction_95",
+      "article_id": "69e148e7f9c412148a1de4db",
+      "title": "Russian Crypto Exchange Grinex Halts Trading, Alleging $13M Exploit by 'Western Special Services'",
+      "text_original_length": 135,
+      "text": "Russian crypto exchange Grinex paused trading services after a $13 million exploit it says was conducted by \"foreign special services.\"",
+      "haiku_output": [
+        "Security Breach",
+        "Exchange",
+        "Russia",
+        "Exploit",
+        "Cryptocurrency Theft"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-16T20:39:03.818Z"
+    },
+    {
+      "sample_id": "theme_extraction_96",
+      "article_id": "69e148e9f9c412148a1de4dd",
+      "title": "Inside Binance\u2019s plan to become a global financial super app",
+      "text_original_length": 144,
+      "text": "Richard Teng explains why crypto fundamentals remain strong, how regulation is driving global adoption, and where Binance is headed next.",
+      "haiku_output": [
+        "Binance",
+        "Regulation",
+        "Adoption",
+        "Financial Services",
+        "Market Fundamentals"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-16T20:39:05.706Z"
+    },
+    {
+      "sample_id": "theme_extraction_97",
+      "article_id": "69e15024f9c412148a1de509",
+      "title": "Texas man gets 23 years for $20 million crypto scam supposedly backed by Picasso and Van Gogh artwork",
+      "text_original_length": 132,
+      "text": "A Texas man was sentenced to over two decades in prison after prosecutors said he scammed investors of more than $20 million.",
+      "haiku_output": [
+        "Fraud",
+        "Scam",
+        "Legal",
+        "Investor Protection",
+        "Crime"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-16T21:09:56.522Z"
+    },
+    {
+      "sample_id": "theme_extraction_98",
+      "article_id": "69e151d0cd3cb7bb0f1de519",
+      "title": "Russia-linked Grinex exchange suspends operations after $15 million hack, blames \u2018hostile states\u2019",
+      "text_original_length": 123,
+      "text": "Liquidity and users of the sanctioned Garantex exchange have flowed into Grinex over the past year, Elliptic claims.",
+      "haiku_output": [
+        "Exchange Hack",
+        "Security Breach",
+        "Russia",
+        "Sanctions",
+        "Liquidity Crisis",
+        "Cryptocurrency Exchange"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-16T21:17:04.052Z"
+    },
+    {
+      "sample_id": "theme_extraction_99",
+      "article_id": "69e1575cf9c412148a1de527",
+      "title": "CFTC Uses Microsoft AI Tools to Surveil Crypto and Prediction Markets, Chairman Tells Congress",
+      "text_original_length": 826,
+      "text": "CFTC Chairman Michael Selig told the House Agriculture Committee this week that the agency is deploying artificial intelligence (AI) and automated surveillance tools to police digital asset markets, prediction platforms, and traditional commodity derivatives as lawmakers pressed him on suspected insider trading, staffing cuts, and the urgent need for crypto market structure legislation. Key Takeaways: [\u2026]",
+      "haiku_output": [
+        "Regulation",
+        "Cryptocurrency",
+        "Surveillance",
+        "CFTC",
+        "AI",
+        "Market Structure",
+        "Insider Trading",
+        "Prediction Markets"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-16T21:40:44.146Z"
+    },
+    {
+      "sample_id": "theme_extraction_100",
+      "article_id": "69e1681ba65cc298e61de4fa",
+      "title": "UK FCA Opens Crypto Consultation Ahead of October 2027 Regulatory Deadline",
+      "text_original_length": 723,
+      "text": "The UK Financial Conduct Authority released consultation paper CP26/13 on April 15, 2026, asking crypto firms to weigh in on draft perimeter guidance before a full FSMA-based regulatory regime takes effect on Oct. 25, 2027. Key Takeaways: The FCA opened consultation CP26/13 on April 15, 2026, giving firms until June 3 to respond on crypto [\u2026]",
+      "haiku_output": [
+        "Regulation",
+        "UK FCA",
+        "Cryptocurrency",
+        "Compliance",
+        "FSMA"
+      ],
+      "source": "historical",
+      "llm_trace_metadata": null,
+      "created_at": "2026-04-16T22:52:11.551Z"
+    }
+  ],
+  "metadata": {
+    "total_samples": 100,
+    "samples_with_trace_metadata": 0,
+    "samples_missing_metadata": 100
+  }
+}

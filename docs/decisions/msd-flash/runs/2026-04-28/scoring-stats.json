@@ -1,0 +1,83 @@
+[
+  {
+    "operation": "entity_extraction",
+    "model": "flash",
+    "samples_total": 100,
+    "samples_flagged": 52,
+    "flagged_pct": 52.0,
+    "operation_flagged": true,
+    "mean_score": 0.6813484848484849
+  },
+  {
+    "operation": "entity_extraction",
+    "model": "deepseek",
+    "samples_total": 100,
+    "samples_flagged": 63,
+    "flagged_pct": 63.0,
+    "operation_flagged": true,
+    "mean_score": 0.5117489177489177
+  },
+  {
+    "operation": "entity_extraction",
+    "model": "qwen",
+    "samples_total": 100,
+    "samples_flagged": 49,
+    "flagged_pct": 49.0,
+    "operation_flagged": true,
+    "mean_score": 0.7103008658008657
+  },
+  {
+    "operation": "sentiment_analysis",
+    "model": "flash",
+    "samples_total": 100,
+    "samples_flagged": 25,
+    "flagged_pct": 25.0,
+    "operation_flagged": true,
+    "mean_score": 75.0
+  },
+  {
+    "operation": "sentiment_analysis",
+    "model": "deepseek",
+    "samples_total": 100,
+    "samples_flagged": 28,
+    "flagged_pct": 28.000000000000004,
+    "operation_flagged": true,
+    "mean_score": 72.0
+  },
+  {
+    "operation": "sentiment_analysis",
+    "model": "qwen",
+    "samples_total": 100,
+    "samples_flagged": 29,
+    "flagged_pct": 28.999999999999996,
+    "operation_flagged": true,
+    "mean_score": 71.0
+  },
+  {
+    "operation": "theme_extraction",
+    "model": "flash",
+    "samples_total": 100,
+    "samples_flagged": 88,
+    "flagged_pct": 88.0,
+    "operation_flagged": true,
+    "mean_score": 0.5401932511932511
+  },
+  {
+    "operation": "theme_extraction",
+    "model": "deepseek",
+    "samples_total": 100,
+    "samples_flagged": 83,
+    "flagged_pct": 83.0,
+    "operation_flagged": true,
+    "mean_score": 0.5203153464182876
+  },
+  {
+    "operation": "theme_extraction",
+    "model": "qwen",
+    "samples_total": 100,
+    "samples_flagged": 87,
+    "flagged_pct": 87.0,
+    "operation_flagged": true,
+    "mean_score": 0.5694775224775225
+  }
+]
