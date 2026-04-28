@@ -3,8 +3,9 @@ ticket_id: TASK-078
 title: Model Selection Rubric — Write Decision Framework Document
 priority: high
 severity: medium
-status: OPEN
+status: COMPLETE
 date_created: 2026-04-27
+date_completed: 2026-04-27
 effort_estimate: 2-3 hours
 ---
 
@@ -208,3 +209,24 @@ Use this as talking points in interviews:
 
 - TASK-079 (Operation Tier Mapping uses this rubric)
 - FEATURE-053 (Flash evaluations follow Tier 1/2 strategy)
+
+---
+
+## Completion Notes
+
+✅ **COMPLETE** — 2026-04-27
+
+The model selection rubric has been written and is available at:
+**[`docs/decisions/model-selection-rubric.md`](../decisions/model-selection-rubric.md)**
+
+The rubric includes:
+- ✅ All 5 operation classification types with Backdrop examples
+- ✅ All 5 decision dimensions clearly defined
+- ✅ All 4 tiers with entrance criteria, Flash strategies, and examples
+- ✅ Override conditions for exceptional cases
+- ✅ Model selection algorithm for consistent decision-making
+- ✅ Complete tier summary table for all 14 operations
+- ✅ Interview positioning notes
+- ✅ Sprint 16 scope notes for Flash evaluations
+
+Ready as input for TASK-079 (operation tier mapping).
