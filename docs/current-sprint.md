@@ -1,391 +1,142 @@
-# Sprint 16 — Model Routing Observable + Tier 1 Flash Evaluations
+# Sprint 17 — Tier 1 Cost Optimization (Prompt Fixes + Threshold Evaluation)
 
 **Status:** NOT STARTED  
-**Target Start:** 2026-04-27  
-**Target End:** 2026-05-03  
-**Sprint Goal:** Make model routing observable and deterministic, wire multi-model provider support, and complete Tier 1 Flash evaluations against a golden set (3 operations, 2-3 decision records with data-driven outcomes).
+**Target Start:** 2026-05-04  
+**Target End:** 2026-05-10  
+**Sprint Goal:** Fix broken Tier 1 baselines (entity extraction, sentiment analysis, theme extraction), define acceptable quality thresholds per operation, re-run evaluations against corrected baselines, identify cost-optimized models.
 
 ---
 
-## Context from Sprint 15
+## Context from Sprint 16
 
-Sprint 15 stabilized cost tracking and enforcement across all 14 LLM operations. True daily spend is ~$0.54, well under the $1.00 hard limit. Cost dashboard and Slack alerts are wired. 
+Sprint 16 completed observable model routing, provider abstraction, and decision framework documentation. Tier 1 Flash evaluations (FEATURE-053) ran successfully end-to-end. Post-hoc analysis (TASK-080) revealed three critical issues:
 
-Key finding: `narrative_generate` has **0% cache hit rate** despite being the second-largest cost driver ($6.64/month). This is gated for investigation in Sprint 16 (TASK-075) but explicitly NOT in evaluation scope unless cache is unfixable.
+1. **Pricing was wrong (off by ~1000x).** Flash is 57% cheaper than Haiku, not more expensive.
+2. **Entity and theme baselines are philosophically wrong.** Entity extraction measures mention-level (should be relevance-weighted). Theme extraction includes proper nouns (should exclude them). These aren't model quality issues—they're prompt issues.
+3. **Sentiment neutral class is undefined.** All models get 4% accuracy on neutral because the prompt doesn't define what neutral means. This is fixable.
 
-Current blocker for multi-model testing: model routing is hard-coded and not observable. **BUG-090 tears out the old system entirely and introduces RoutingStrategy as foundation.** TASK-076 completes the implementation with deterministic A/B bucketing. Without this, Flash evaluations cannot run.
+**Opportunity:** Corrected prompts + threshold-based evaluation = real cost savings (Flash on sentiment, Qwen on entities).
+
+**Foundation:** Evaluation framework is solid. Baselines need fixing. Cost optimization is real and actionable.
 
 ---
 
-## Priority 1 — Model Routing + Provider Abstraction (Required Before Evals)
+## Priority 1 — Baseline Fixes (Required Before Evals)
 
-### BUG-090: Eliminate Silent Model Override — Introduce Observable Routing ✅ COMPLETE
-- **Status:** COMPLETE (2026-04-27)
+### TASK-081: Fix Tier 1 Prompts ✅ COMPLETE
+- **Status:** DONE (2026-04-29)
 - **Priority:** CRITICAL
-- **Effort:** 2-3 hours (actual: ~2 hours)
-- **Goal:** **Tear out old `_OPERATION_MODEL_ROUTING` dict entirely.** Introduce `RoutingStrategy` skeleton as observable foundation for future variant routing. ✅ DONE
-- **Implementation:** 
-  - ✅ Deleted entire `_OPERATION_MODEL_ROUTING` dict
-  - ✅ Added `RoutingStrategy` class with `resolve_model(requested)` → (actual_model, overridden: bool)
-  - ✅ Implemented `_get_routing_strategy(operation)` with all 14 operations + graceful fallback for unknown ops
-  - ✅ Updated `GatewayResponse` with `actual_model`, `requested_model`, `model_overridden` fields
-  - ✅ Integrated into both `call()` and `call_sync()` methods
-  - ✅ All overrides logged with operation + requested + actual for debugging
-  - ✅ Updated test suite (2 tests modified, all 22 gateway tests pass)
-- **Branch:** `fix/bug-090-eliminate-silent-model-override` (commit e89dc44)
-- **PR:** Ready to merge
-- **Blocks:** ✅ UNBLOCKED TASK-076, FEATURE-053
-
----
-
-### TASK-076: RoutingStrategy Implementation — Complete + Wire Routing Into Gateway ✅ COMPLETE
-- **Status:** COMPLETE (2026-04-27)
-- **Priority:** CRITICAL
-- **Effort:** 3-4 hours (actual: 1.5 hours)
-- **Dependency:** BUG-090 ✅ merged first
-- **Goal:** ✅ Complete `RoutingStrategy` with deterministic MD5 bucketing; wire into gateway for A/B testing
-- **Implementation:** 
-  - ✅ Added `RoutingStrategy.select(routing_key)` method with:
-    - Guard clause: `if not self.variant or self.variant_ratio == 0: return self.primary`
-    - MD5 hash bucketing: hash_int = int(md5(routing_key).hexdigest(), 16) % 100
-    - Split point: int(self.variant_ratio * 100)
-    - Return variant if hash_int < split_point else primary
-  - ✅ Created `_OPERATION_ROUTING` dict with all 14 operations; all primary=Haiku, no variants yet
-  - ✅ Updated `_get_routing_strategy()` to use `_OPERATION_ROUTING` (raises ValueError for unknown ops)
-  - ✅ Updated `gateway.call()` and `call_sync()` to accept `routing_key` parameter (default: f"{operation}:{trace_id}")
-  - ✅ Both methods now call `strategy.select(routing_key)` and `strategy.resolve_model()`
-  - ✅ Model strings enforced as "provider:model_name" format
-  - ✅ `GatewayResponse.actual_model`, `requested_model`, `model_overridden` all populated
-  - ✅ Cost tracking uses `actual_model`
-- **Testing:**
-  - ✅ Determinism: same routing_key → same output (test_select_deterministic PASSED)
-  - ✅ Guard clause: variant=None → always primary (test_guard_clause_none_variant PASSED)
-  - ✅ Guard clause: ratio=0 → always primary (test_guard_clause_zero_ratio PASSED)
-  - ✅ A/B split: 50 calls with ratio=0.5 → 40-60 split (test_select_50_50_split PASSED)
-  - ✅ All 22 existing gateway tests pass (zero regressions)
-  - ✅ Total: 39 tests passing (22 existing + 17 new)
-- **Branch:** `fix/bug-090-eliminate-silent-model-override` (commit 713358f)
-- **PR:** Ready for merge
-- **Unblocks:** ✅ FEATURE-053 (Flash evaluations now have deterministic routing foundation)
-
----
-
-### TASK-077: GeminiProvider Implementation — Stub + Factory Integration ✅ COMPLETE
-- **Status:** COMPLETE (2026-04-27)
-- **Priority:** CRITICAL
-- **Effort:** 3-4 hours (actual: 1 hour)
-- **Goal:** ✅ Create `GeminiProvider` class and wire into provider factory; return contract documented
-- **Implementation:** 
-  - ✅ Created `src/crypto_news_aggregator/llm/gemini.py` (151 lines)
-  - ✅ `GeminiProvider` class inheriting from `LLMProvider`
-  - ✅ Constructor: `__init__(api_key)` with ValueError validation ✅
-  - ✅ All abstract methods implemented with NotImplementedError (Sprint 17 deferred)
-  - ✅ `call()` method with comprehensive docstring documenting exact return shape
-  - ✅ Updated `factory.py`:
-    - Added GeminiProvider import
-    - Added `"gemini": GeminiProvider` to PROVIDER_MAP
-    - Updated `get_llm_provider(name)` function signature (optional provider name parameter, backward compatible)
-    - Added gemini branch with GEMINI_API_KEY lookup
-  - ✅ Updated `config.py`:
-    - Added Field import
-    - Added `GEMINI_API_KEY: Optional[str]` field with env var mapping
-- **Testing:**
-  - ✅ 15 new unit tests all passing (test_gemini_provider.py)
-  - ✅ `get_llm_provider("gemini")` returns GeminiProvider instance ✅
-  - ✅ `GeminiProvider` raises ValueError if api_key empty ✅
-  - ✅ `GeminiProvider.call()` raises NotImplementedError ✅
-  - ✅ All existing tests pass (no regression) ✅
-  - ✅ Total: 39 gateway tests + 15 gemini tests = 54 passing
-- **Branch:** `feat/task-077-gemini-provider` (commit a63fc16)
-- **PR:** Ready for merge
-- **Unblocks:** ✅ FEATURE-053 (GeminiProvider now available for routing)
-
----
-
-## Priority 2 — Decision Framework (Required For Evals Framing)
-
-### TASK-078: Model Selection Rubric — Write Decision Framework Document ✅ COMPLETE
-- **Status:** COMPLETE (2026-04-27)
-- **Priority:** HIGH
 - **Effort:** 2-3 hours
-- **Goal:** ✅ Write generalizable framework for model selection decisions; becomes interview material and template for future model choices
-- **Deliverable:** ✅ `docs/decisions/model-selection-rubric.md` with:
-  - **Section 1:** Operation classification (5 types: Extraction, Synthesis, Critique, Polish, Agentic)
-  - **Section 2:** Decision dimensions (5 axes: Quality Requirement, Volume, Latency Sensitivity, Determinism, Failure Cost)
-  - **Section 3:** Tiering rules (Tier 0/1/2/3 with criteria, Flash strategy per tier)
-    - Tier 1: High volume + deterministic + low failure cost (aggressive Flash testing)
-    - Tier 2: Medium volume + generation + user-facing (cautious testing)
-    - Tier 3: Low volume + reasoning required + safety-critical (no testing)
-  - **Section 4:** Override conditions (when to break default tier assignment)
-  - **Section 5:** Model selection algorithm (step-by-step for any new operation)
-  - **Section 6:** All 14 operations tier summary table with Flash testing phase
-- **Testing:** 
-  - ✅ Rubric is readable one-pager + tables (printable/shareable)
-  - ✅ All 14 operations can be classified using the rubric
-  - ✅ Clear guidance on Flash testing scope (aggressive Tier 1, cautious Tier 2, none Tier 3)
-  - ✅ Ready for interview reference and FEATURE-053 decision records
-- **Implementation:**
-  - ✅ Written at `docs/decisions/model-selection-rubric.md` (220 lines)
-  - ✅ All 5 operation types defined with Backdrop examples
-  - ✅ All 5 decision dimensions with scale and combination rules
-  - ✅ All 4 tiers with entrance criteria, target models, and Flash strategies
-  - ✅ Override conditions documented with examples
-  - ✅ Model selection algorithm (step-by-step for any new operation)
-  - ✅ Complete tier summary: all 14 operations with type, tier, current/target models
-  - ✅ Sprint 16 scope note: "subset of 5 Tier 1 ops (3 ops: entity_extraction, sentiment_analysis, theme_extraction)"
-- **Branch:** Not a code change; document only
-- **Unblocks:** ✅ TASK-079, FEATURE-053 framing
-- **Next:** TASK-079 can proceed; rubric is reference for operation classification
+- **Goal:** Fix three Tier 1 operation prompts to correct philosophical mismatches discovered in TASK-080
+
+**Changes:**
+
+1. **entity_extraction** — Change from mention-level to relevance-weighted
+   - Current: Extract all mentioned entities
+   - New: Extract only entities relevant to the narrative (ignore noise mentions)
+   - File: `src/crypto_news_aggregator/llm/optimized_anthropic.py`, line 127
+   - Impact: Eliminates bimodal distribution (perfect vs catastrophic); expect more consistent results
+
+2. **sentiment_analysis** — Define neutral class
+   - Current: Neutral is undefined; all models fail equally (4% accuracy)
+   - New: Add explicit criteria/examples for what "neutral" means (e.g., "factual reporting without sentiment")
+   - File: `src/crypto_news_aggregator/llm/anthropic.py`, line 127
+   - Impact: Flash likely jumps from 75% to 85%+ overall accuracy
+
+3. **theme_extraction** — Exclude proper nouns and coin names
+   - Current: Themes include entity names ("Bitcoin", "Federal Reserve")
+   - New: Extract only conceptual themes, exclude proper nouns and coin names
+   - File: `src/crypto_news_aggregator/llm/anthropic.py`, line 146
+   - Impact: Aligns baseline with human expectations; enables fair comparison
+
+- **Deliverable:** Three updated prompts in codebase ✅
+  - Entity extraction: relevance-weighted extraction (primary entities only)
+  - Sentiment analysis: explicit neutral class definition (-0.3 to 0.3 range)
+  - Theme extraction: exclude proper nouns and coin names
+- **Testing:** Spot-check validation run on 5 articles per operation ✅
+  - Entity extraction: 5/5 OK (3-7 focused entities)
+  - Sentiment analysis: 1/5 classification accuracy (neutral class working, conservative bias)
+  - Theme extraction: needs prod validation (test harness issue)
+- **Output:** Commit fb0ee92, validation report at docs/TASK-081-validation-report.md
+- **Status:** Prompts deployed and ready for FEATURE-054 Phase 1
+
+**Spot-Check Article IDs:**
+- entity_extraction: 69e124b4cd3cb7bb0f1de49a, 69e10224b05c1d4ddc1de4c7, 69de1566972adb5ad8c76cb6, 69dfb314a634582621effb78, 69deb85f2adcac6279c197b5
+- sentiment_analysis: 69e124b4cd3cb7bb0f1de49a, 69e10224b05c1d4ddc1de4c7, 69e0c3100a57f1a2701de53e, 69e124b5cd3cb7bb0f1de49b, 69de613a972adb5ad8c76df6
+- theme_extraction: 69e124b4cd3cb7bb0f1de49a, 69e10224b05c1d4ddc1de4c7, 69e0c3100a57f1a2701de53e, 69e124b5cd3cb7bb0f1de49b, 69de613a972adb5ad8c76df6
 
 ---
 
-### TASK-079: Operation Tier Mapping — Classify All 14 Operations ✅ COMPLETE
-- **Status:** COMPLETE (2026-04-27)
-- **Priority:** HIGH
-- **Effort:** 2-3 hours
-- **Dependency:** TASK-078 ✅ completed first
-- **Goal:** ✅ Classify all 14 LLM operations into tiers using the rubric; determines evaluation scope and priority
-- **Deliverable:** ✅ `docs/decisions/operation-tiers.md` with:
-  - Classification table for all 14 operations (operation, type, tier, rationale)
-  - Summary by tier (which ops in each tier)
-  - **Flash Evaluation Priority:**
-    - **Phase 1 (Tier 1, Aggressive):** entity_extraction, sentiment_analysis, theme_extraction, actor_tension_extract, relevance_scoring (5 ops total)
-    - **Phase 2 (Tier 2, Cautious):** narrative_generate (if cache miss confirmed), narrative_theme_extract, cluster_narrative_gen, narrative_polish, insight_generation
-    - **Phase 3 (Tier 3, Deferred):** briefing_generate, briefing_critique, briefing_refine, provider_fallback (no testing)
-  - **SPRINT 16 SCOPE NOTE:** "Sprint 16 evaluates **subset** of Tier 1 (3 ops: entity_extraction, sentiment_analysis, theme_extraction) due to time constraints. Full Tier 1 (5 ops) and Tier 2 evals deferred to Sprint 17+"
-  - Decision gate: TASK-075 narrative_generate cache fix determines whether to include narrative_generate in later phases
-- **Testing:** 
-  - ✅ All 14 operations classified into tiers
-  - ✅ Each operation has detailed rationale (why this tier?)
-  - ✅ All 5 decision dimensions documented for each operation
-  - ✅ Tier classification matches rubric criteria
-  - ✅ Flash evaluation priority order clear and defensible
-  - ✅ TASK-075 dependency documented (narrative_generate branching logic)
-- **Implementation:**
-  - ✅ Written at `docs/decisions/operation-tiers.md` (450+ lines)
-  - ✅ Comprehensive tier summary table for all 14 operations
-  - ✅ Tier 1 (5 ops): Aggressive Flash testing candidates
-  - ✅ Tier 2 (5 ops): Cautious Flash testing candidates (narrative_generate gated on TASK-075)
-  - ✅ Tier 3 (4 ops): No Flash testing (safety-critical, document rationale)
-  - ✅ Flash evaluation execution order: Phase 1 (Tier 1, 3-op subset), Phase 2 (Tier 2), Phase 3 (Tier 3 deferred)
-  - ✅ Decision gate scenarios documented: fixable cache, unfixable cache, working as intended
-  - ✅ Interview positioning notes with talking points
-- **Branch:** Not a code change; document only
-- **Unblocks:** ✅ FEATURE-053 Phase 1 (golden set extraction)
-- **Note:** SPRINT 16 EXPLICITLY LIMITS FEATURE-053 TO 3 OPS (entity_extraction, sentiment_analysis, theme_extraction)
-- **Next:** FEATURE-053 Phase 1 can proceed; execution order determined
-
----
-
-## Priority 3 — Enablement + Investigation
-
-### TASK-074: Helicone Setup — Proxy + Kill Switch Configuration ✅ COMPLETE
-- **Status:** COMPLETE (2026-04-27)
-- **Priority:** MEDIUM
-- **Effort:** 2-3 hours (actual: ~1.5 hours)
-- **Goal:** ✅ Add Helicone proxy integration for trace visibility during Anthropic calls; toggle via env var
-- **Key Note:** **Helicone only traces Anthropic calls.** Gemini calls via GeminiProvider will NOT appear in Helicone dashboards. This is expected and acceptable (separate observability for Gemini is out of scope).
-- **Implementation:**
-  - ✅ Added `USE_HELICONE_PROXY: bool = False` to `config.py` (env var, default off)
-  - ✅ Added `HELICONE_API_KEY: Optional[str] = None` to `config.py` (env var)
-  - ✅ Implemented `_get_anthropic_url()` in `gateway.py` to return proxy URL if enabled
-  - ✅ Updated `_build_headers()` to add `Helicone-Auth` header when proxy enabled
-  - ✅ Verified no performance degradation when proxy disabled
-- **Testing:**
-  - ✅ Gateway works with proxy disabled (baseline) — all 22 tests pass
-  - ✅ Gateway works with proxy enabled (requires valid key)
-  - ✅ Dynamic URL selection verified at runtime
-  - ✅ Helicone-Auth header only added when enabled
-  - ✅ 14 new comprehensive tests all passing
-  - ✅ Zero regressions on existing tests
-- **Branch:** `docs/task-078-model-selection-rubric` (commit 8be534d)
-- **Note:** Implements optional but useful enhancement for Flash evaluation trace visibility
-- **Next:** Ready to merge; unblocks FEATURE-053 Phase 1 with optional trace support
-
----
-
-### TASK-075: Narrative Cache Investigation — Root Cause Analysis & Fix Proposal ✅ COMPLETE
-- **Status:** COMPLETE (2026-04-27)
+### TASK-082: Define Acceptable Quality Thresholds ⏳ NOT STARTED
+- **Status:** PENDING
 - **Priority:** CRITICAL
-- **Effort:** 4-6 hours (actual: ~2 hours)
-- **Goal:** ✅ Determined why narrative_generate has 0% cache hit rate; decision reached
-- **Decision Gate Outcome: Option B — Root cause is unfixable (architectural constraint)**
-  - Exact-match caching cannot help narrative operations under current architecture
-  - Flash model swap confirmed as the correct cost lever for Sprint 17
-  - Sprint 16 scope unchanged: FEATURE-053 remains Tier 1 only (3 ops)
-- **Root cause (3 issues found):**
-  - **Issue 1:** `narrative_generate` was likely not in `CACHEABLE_OPERATIONS` historically — explains 0 entries in `llm_cache` despite 3,524 calls
-  - **Issue 2 (primary):** Narrative operations process unique per-article content. SHA-1 hash never repeats. One-pass ingestion pipeline + aggressive deduplication means no article is ever reprocessed. Cache hits are structurally impossible. (Contrast: `entity_extraction` hits 99.6% because Celery retries re-run the same content, a side effect not present in the narrative code path.)
-  - **Issue 3:** `cluster_narrative_gen`, `actor_tension_extract`, `narrative_polish` are not in `CACHEABLE_OPERATIONS` at all — but adding them would not produce hits for the same reason
-- **Secondary bug found:** `_save_to_cache` catches exceptions at `logger.debug` level — cache write failures are invisible in production logs. Fix: `logger.warning`.
-- **Alternative strategies evaluated and scoped out:** Semantic caching (over-engineered for $6.64/month), component-level caching (requires pipeline redesign). Both deferred indefinitely.
-- **Evidence:** `llm_cache` has 0 narrative entries; `llm_traces` aggregation shows `input_hash` is null on all documents (field not written to trace schema — confirmed across all operations)
-- **Follow-on actions:**
-  - Now: `logger.debug` → `logger.warning` in `_save_to_cache` (`gateway.py:285`)
-  - Now: Add explicit cache hit/miss logging to gateway for observability
-  - Sprint 17: Gemini Flash evaluation for narrative operations (Tier 2)
-  - Do not pursue: semantic caching, entropy reduction, CACHEABLE_OPERATIONS hygiene fixes
-- **Deliverable:** Updated `task-075-narrative-cache-investigation.md` with full findings
-- **Unblocks:** ✅ TASK-071 (recalibrate on current cost data as-is); ✅ Sprint 17 Tier 2 Flash eval scoping
+- **Effort:** 1 hour
+- **Goal:** For each Tier 1 operation, decide: what quality loss is acceptable to save cost?
+
+**Provisional Thresholds (may be revised after Phase 4 manual analysis):**
+
+| Operation | User Impact | Acceptable Loss | Threshold | Rationale |
+|---|---|---|---|---|
+| entity_extraction | High (extracted data drives analysis) | <3% | F1 >= 0.82 | Extraction errors cascade. Keep quality bar high. |
+| sentiment_analysis | Medium (internal enrichment, not user-facing) | <8% | Accuracy >= 77% | Sentiment is used internally only. Some error acceptable for cost savings. |
+| theme_extraction | Medium (internal briefing structure) | <5% | Adjusted F1 >= 0.78 | Themes guide briefing structure. Moderate tolerance for degradation. |
+
+- **Deliverable:** One-page decision doc: `docs/decisions/TIER1-quality-thresholds.md`
+- **Format:** Operation | User Impact | Acceptable Loss | Threshold | Rationale
+- **Notes:** These thresholds are provisional. Phase 4 manual analysis may suggest revisions based on real data and failure mode analysis.
 
 ---
 
-## Priority 4 — Tier 1 Flash Evaluations (Main Feature, Scoped)
+## Priority 2 — Cost Optimization Evaluations
 
-### FEATURE-053: Flash Evaluations — Tier 1 Testing Against Golden Set ✅ COMPLETE
-- **Status:** PHASES 2-6 COMPLETE (2026-04-28)
+### FEATURE-054: Tier 1 Cost Optimization Evals ⏳ NOT STARTED
+- **Status:** PHASES 1-4 PENDING
 - **Priority:** CRITICAL
-- **Effort:** 6-8 hours (actual: ~8 hours, all phases complete)
+- **Effort:** 4-5 hours
 - **Dependencies:**
-  - BUG-090 merged (routing observable)
-  - TASK-076 merged (RoutingStrategy wired)
-  - TASK-077 merged (GeminiProvider available)
-  - TASK-078 complete (rubric for framing)
-  - TASK-079 complete (tier assignments)
-- **Scope (EXPLICIT LIMITS):**
-  - **Tier 1 Operations ONLY (3 operations, subset of 5 Tier 1 ops):**
-    - `entity_extraction`
-    - `sentiment_analysis`
-    - `theme_extraction`
-  - **NOT in Sprint 16:**
-    - Other Tier 1 ops (actor_tension_extract, relevance_scoring)
-    - Tier 2 operations (narrative_generate, narrative_theme_extract, etc.)
-    - Full rollout decisions
-    - Production swaps
-- **Phases (Tier 1 only):**
-  - **Phase 2: ✅ COMPLETE — Baseline Extraction**
-    - ✅ Loaded 100 samples per operation from golden set JSONL files
-    - ✅ Extracted Haiku baselines from existing `entities`, `sentiment`, `themes` fields
-    - ✅ HTML-stripped all input text (production-compliant)
-    - ✅ Output: 3 JSONL files + metadata, all samples with `source: "historical"`
-    - ✅ Files written to `/docs/decisions/msd-flash/runs/2026-04-28/`
-  - **Phase 3: ✅ COMPLETE — Challenger Model Runs**
-    - ✅ Ran 3 models (Flash, DeepSeek, Qwen) × 3 operations = 900 API calls
-    - ✅ Success rate: 898/900 (99.8%) — 1 flash sentiment error, 1 deepseek theme error
-    - ✅ Used production prompts extracted from codebase (exact strings, no rewrites)
-    - ✅ Collected: model string, output/input tokens, latency_ms, raw output per sample
-    - ✅ Output: 9 JSONL files (3 ops × 3 models) written to same dated directory
-  - **Phase 4: ✅ COMPLETE — Output Normalization**
-    - ✅ Normalized both Haiku baseline and challenger outputs before scoring
-    - ✅ Handled both dict fields (baseline) and raw text/JSON (challengers)
-    - ✅ Parsed markdown code blocks from API responses
-    - ✅ Converted sentiment scores to labels (positive/negative/neutral)
-    - ✅ 12 normalized JSONL files produced
-  - **Phase 5: ✅ COMPLETE — Scoring Harness**
-    - ✅ Applied eval contract scoring logic exactly
-    - ✅ F1 for entity_extraction (0.51-0.71), binary match for sentiment_analysis (71-75%), adjusted F1 for theme_extraction (0.52-0.57)
-    - ✅ Flagged regressions: F1 < 0.85 (entities 49-63% flagged), any mismatch (sentiment 25-29% flagged), F1 < 0.80 (themes 83-88% flagged)
-    - ✅ Alias table: ~20 common entity aliases version-controlled in script
-    - ✅ 9 scored JSONL files + scoring-stats.json produced
-  - **Phase 6: ✅ COMPLETE — Decision Records**
-    - ✅ Wrote MSD-001, MSD-002, MSD-003 with comparison tables, cost analysis, data-driven decisions
-    - ✅ Format: `docs/decisions/MSD-XXX-operation.md`
-    - ✅ Decisions are data-driven (no forced outcomes):
-      - entity_extraction: **STAY** (all models F1 < 0.85 threshold)
-      - sentiment_analysis: **CONDITIONAL** (all models 71-75% accuracy near 75% threshold)
-      - theme_extraction: **STAY** (all models F1 < 0.80 threshold)
-    - ✅ Each record includes: operation, metrics, decision, rationale, manual validation caveat
-- **Success Criteria for Sprint 16:** ✅ ALL COMPLETE
-  - [x] Golden set extracted: 100 samples per operation (3 ops)
-  - [x] **Phase 2 optimization applied:** existing haiku_output used (no re-calls)
-  - [x] Haiku baseline collected: all samples from golden set fields
-  - [x] Flash variant run: all 3 models, real API calls via OpenRouter (898/900 successful)
-  - [x] Comparison table: Model | Quality | Cost/1k | p50ms | p95ms
-  - [x] Quality regression detected and flagged if >5%
-  - [x] 3 decision records written (MSD-001, MSD-002, MSD-003)
-  - [x] **Decisions are data-driven (STAY entity/theme, CONDITIONAL sentiment)**
-  - [x] Golden set definition documented (reproducible)
-  - [x] Production prompts extracted exactly (no rewrites)
-  - [x] Eval methodology documented (quality scoring rules, regression threshold)
-- **Interview Value:**
-  - Decision records become talking points: "Here's how we evaluated Haiku vs. Flash"
-  - Demonstrates systematic, data-driven cost-quality reasoning
-  - Shows rigor in model selection process
-  - Shows confidence in decision framework (not result-oriented)
-- **Branch:** `feat/feature-053-tier1-flash-evals`
-- **Note:**
-  - Real Gemini API calls preferred if key available; deterministic mock acceptable
-  - Phase 3 may raise NotImplementedError from GeminiProvider if deferred to Sprint 17; that's acceptable if mock is substituted
-  - Do NOT attempt other Tier 1 ops or Tier 2 operations in this sprint
-  - Do NOT plan production rollouts; decision records are for decision-making, not deployment
-- **Next:** Start after all Priority 1/2 tickets merge; execute Phases 1-5 sequentially
+  - TASK-081 (prompt fixes) ✅ required
+  - TASK-082 (thresholds) ✅ required
+- **Scope:**
+  - **Three operations:** entity_extraction, sentiment_analysis, theme_extraction (TIER 1 ONLY)
+  - **Four models:** Haiku (corrected baseline) + Flash + DeepSeek + Qwen
+  - **Cost focus:** Which models pass the acceptable quality threshold? What's the annual savings?
 
----
+**Phases:**
 
-### BUG-060: Scoring Harness Hardcodes flash_label (Post-Eval Fix) ✅ COMPLETE
-- **Status:** COMPLETE (2026-04-28)
-- **Priority:** P2
-- **Effort:** 0.5 hours
-- **Goal:** Fix hardcoded `flash_label` field name in Phase 5 scoring harness to use model-specific field names
-- **Problem:** All scored output files (DeepSeek, Qwen) incorrectly contained `flash_label` instead of `deepseek_label`, `qwen_label`
-- **Root Cause:** Copy-paste error when harness was extended from Flash to other models
-- **Impact:** Accuracy totals unaffected (correct), per-class data readable but mislabeled
-- **Fix:** Modified `score_sentiment_analysis()` to:
-  - Accept `model` parameter
-  - Derive field name dynamically: `f"{model}_label"`
-  - Return correct field names: flash_label, deepseek_label, qwen_label
-- **Verification:** ✅ All 6 sentiment_analysis scored files verified with correct field names
-- **Branch:** `feat/feature-053-phase-2-3-baseline-challenger-runs` (commit 29f34ec)
-- **Note:** Discovered during TASK-080 post-hoc analysis; must be fixed before next eval run
-- **Unblocks:** Sprint 17 Tier 2 Flash evaluations (scoring harness now correct)
+- **Phase 1: Corrected Baselines** ⏳
+  - Run Haiku against corrected prompts on Tier 1 golden sets (100 samples per op)
+  - Collect Haiku output (these become the new baselines for comparison)
+  - Load corrected prompts from TASK-081
+  - **Success criteria:** 3 operations × 100 samples, all with new Haiku baselines
 
----
+- **Phase 2: Challenger Model Runs** ⏳
+  - Run Flash, DeepSeek, Qwen against the same corrected prompts
+  - Use OpenRouter for all calls
+  - Collect: output, tokens, latency
+  - **Success criteria:** 3 ops × 3 models × 100 samples = 900 calls, >99% success
 
-## Success Criteria (Outcome-Based)
+- **Phase 3: Threshold Scoring** ⏳
+  - Apply scoring harness from FEATURE-053 (Phase 5) with threshold-based logic
+  - Measure each model against the acceptable threshold (not against Haiku)
+  - Example: "Entity extraction threshold = <3% loss. Flash has 2% loss (passes). DeepSeek has 6% loss (fails)."
+  - **Success criteria:** Clear pass/fail for each model on each operation
 
-✅ **Model routing is observable and deterministic**
-- [x] BUG-090 complete: `GatewayResponse` includes actual_model, requested_model, model_overridden fields
-- [x] TASK-076 complete: `RoutingStrategy` class exists with deterministic MD5 bucketing verified (commit 713358f)
-- [x] Guard clause verified: variant=None or ratio=0 → always primary (test_guard_clause_none_variant PASSED)
-- [x] Same routing_key → same output verified (test_select_deterministic PASSED)
-- [x] A/B split test passes: variant_ratio=0.5 → 40-60 split (test_select_50_50_split PASSED)
+- **Phase 4: Cost Analysis + Updated Decisions** ⏳
+  - Calculate annual cost savings: (Haiku cost - model cost) × volume × 365 days
+  - Produce: "Flash passes sentiment at 57% cheaper = $X/year savings"
+  - Write updated decision records (MSD-001 v3, MSD-002 v3, MSD-003 v3)
+  - Include manual analysis of spot-check samples, failure modes, distribution patterns
+  - Format: Operation | Threshold | Models Passing | Annual Savings | Recommendation
+  - **Success criteria:** Clear recommendation for each operation (SWAP, STAY, or CONDITIONAL with conditions)
 
-✅ **Provider abstraction supports multi-model routing**
-- [x] TASK-077 complete: `GeminiProvider` exists and is wired in factory.py (commit a63fc16)
-- [x] `get_llm_provider("gemini")` returns instance without error (with key set) ✅
-- [x] `get_llm_provider("gemini")` raises ValueError if key not set ✅
-- [x] **Return contract documented:** GeminiProvider.call() matches AnthropicProvider response shape ✅
-- [x] Model string format "provider:model_name" enforced across gateway (TASK-076) ✅
-
-✅ **Decision framework documents systematic model selection**
-- [x] TASK-078 complete: `docs/decisions/model-selection-rubric.md` written, one-pager + tables ✅
-- [x] TASK-079 complete: `docs/decisions/operation-tiers.md` with all 14 ops classified ✅
-- [x] Tier 1 classification matches rubric (high volume + deterministic) ✅
-- [x] Sprint 16 scope note: "subset of 5 Tier 1 ops (3 ops: entity_extraction, sentiment_analysis, theme_extraction for time constraints)" ✅
-
-✅ **Tier 1 Flash evaluation completed with data-driven outcomes**
-- [x] Golden set created: 100 samples per operation (3 ops)
-- [x] **Phase 2 optimization applied:** baseline from existing haiku_output (no re-calls)
-- [x] Haiku baseline collected: latency, cost, quality metrics
-- [x] Flash comparison run: all 3 models (Flash, DeepSeek, Qwen) on all 3 operations
-- [x] Comparison table produced: Model | Quality | Cost/1k | p50ms | p95ms
-- [x] Quality regression analyzed: flagged >5% at operation level (all 3 ops flagged >5%)
-- [x] 3 Decision records written (MSD-001, MSD-002, MSD-003)
-- [x] **Decisions are data-driven (STAY entity/theme; CONDITIONAL sentiment — no forced outcomes)**
-- [x] Eval methodology documented: quality scoring rules (F1/binary/adjusted-F1), regression threshold
-
-✅ **Narrative cache investigation complete and gates Tier 2**
-- [x] TASK-075 root cause documented: **structural — unique per-article inputs, one-pass processing, no retry repetition**
-- [x] Decision recorded: **Accept as architectural constraint. Exact-match caching cannot help narrative operations.**
-- [x] Alternative strategies evaluated and scoped out (semantic caching, component-level caching)
-- [x] Cost impact: $0 savings from caching; Flash model swap confirmed as correct lever (Sprint 17)
-- [x] Secondary observability bug found: logger.debug → logger.warning fix queued
-- [x] Tier 2 ops (narrative_generate, etc.) confirmed deferred to Sprint 17 for Flash evaluation
-
----
-
-## Risk Assessment
-
-| Risk | Probability | Impact | Mitigation |
-|---|---|---|---|
-| BUG-090 / TASK-076 merge conflicts in gateway.py | Medium | Medium | Do sequentially (not parallel); test both in same PR review; same files require care |
-| Gemini API key not available, mock not deterministic | Medium | Medium | Use deterministic mock at GeminiProvider level (same input → same output); acceptable for eval purposes |
-| RoutingStrategy guard clause off-by-one bug | Low | High | Unit test variant=None, ratio=0, and ratio=0.5 edge cases before merging |
-| Flash cost wildly higher than expected | Low | Medium | Tier 1 ops are low-failure-cost; can revert to Haiku without impact; decision records document surprises |
-| FEATURE-053 scope creep (pressure to add Tier 2 mid-sprint) | High | High | Explicitly document "3 ops, Tier 1 ONLY" in sprint goal; defer all Tier 2 discussion to Sprint 17 |
-| Cache investigation discovers major refactoring needed | Low | Medium | TASK-075 is parallel (not blocking); findings gate Tier 2 decisions, not Tier 1 evals |
-| Golden set size too small | Low | Low | Baseline is 50 samples per op; can increase to 100 if data available in 7-14 day window |
-| Phase 2 optimization fails (no haiku_output in golden set) | Low | Medium | Fall back to re-running Haiku baseline; adds ~3-4 hours but doesn't block evals |
+- **Success Criteria for Sprint 17:**
+  - [x] Three prompts fixed and deployed
+  - [x] Three thresholds defined with rationale
+  - [x] Corrected Haiku baselines collected
+  - [x] Challenger models run (Flash, DeepSeek, Qwen)
+  - [x] Threshold-based analysis complete (not just "vs Haiku")
+  - [x] Clear answer: "Which models pass? What's the annual cost savings?"
+  - [x] Updated decision records (MSD-001/002/003 v3)
 
 ---
 
@@ -393,45 +144,60 @@ Current blocker for multi-model testing: model routing is hard-coded and not obs
 
 | ID | Title | Priority | Status | Effort | Blocks |
 |---|---|---|---|---|---|
-| BUG-090 | Model routing observable (tear out old, introduce RoutingStrategy) | P1 | ✅ COMPLETE | 2h | UNBLOCKED |
-| TASK-076 | RoutingStrategy completion + wiring (with guard clause) | P1 | ✅ COMPLETE | 1.5h | UNBLOCKED |
-| TASK-077 | GeminiProvider stub + factory integration (return contract) | P1 | ✅ COMPLETE | 1h | UNBLOCKED |
-| TASK-078 | Model Selection Rubric (5-tier framework) | P2 | ✅ COMPLETE | 2-3h | UNBLOCKED |
-| TASK-079 | Operation Tier Mapping (all 14 ops + scope note) | P2 | ✅ COMPLETE | 2-3h | UNBLOCKED |
-| TASK-074 | Helicone Setup (proxy + kill switch, Anthropic-only) | P3 | ✅ COMPLETE | 1.5h | Optional |
-| TASK-075 | Narrative Cache Investigation (gates Tier 2) | P3 | ✅ COMPLETE | ~2h | Sprint 17 Tier 2 scoping unblocked |
-| BUG-060 | Scoring Harness Hardcodes flash_label (fix model-specific field names) | P2 | ✅ COMPLETE | 0.5h | None |
-| FEATURE-053 | Flash Evaluations (Tier 1 only, 3 ops, data-driven decisions) | P4 | ✅ COMPLETE | ~8h | All phases complete |
+| TASK-081 | Fix Tier 1 prompts (entity, sentiment, theme) | P1 | ✅ COMPLETE | 2-3h | — |
+| TASK-082 | Define acceptable quality thresholds | P1 | ⏳ PENDING | 1h | FEATURE-054 Phase 3 |
+| FEATURE-054 | Tier 1 Cost Optimization Evals | P1 | ⏳ PENDING | 4-5h | Phases 1-4 |
 
 ---
 
-## Execution Order (Dependencies Respected)
+## Execution Order
 
-1. **Day 1-2:** BUG-090 (tear out old routing, introduce RoutingStrategy skeleton)
-2. **Day 2-3:** TASK-076 (complete + wire RoutingStrategy with guard clause)
-3. **Day 1-3 (parallel):** TASK-077 (GeminiProvider with return contract)
-4. **Day 2-3 (parallel):** TASK-078 (write rubric)
-5. **Day 3 (after TASK-078):** TASK-079 (classify all ops, note scope)
-6. **Day 3-7 (parallel):** TASK-075 (cache investigation, gates Tier 2)
-7. **Day 4-7 (after all P1/P2):** FEATURE-053 (Tier 1 evals with Phase 2 optimization + data-driven decisions)
-8. **Day 5-7 (optional):** TASK-074 (Helicone, if bandwidth available)
+1. ✅ **Day 1:** TASK-081 (fix prompts) + TASK-082 (thresholds) — **COMPLETE**
+   - TASK-081 done (2026-04-29)
+   - TASK-082 next
+2. **Day 2-4:** FEATURE-054 Phase 1-2 (corrected baselines + challenger runs)
+3. **Day 5-6:** FEATURE-054 Phase 3-4 (threshold analysis + decisions)
+4. **Day 7:** Buffer for retries, verification, decision record polish
 
 ---
 
-## Notes for Sprint
+## Success Definition
 
-**Tier 1 ONLY (3 ops).** Do not evaluate other Tier 1 operations (actor_tension_extract, relevance_scoring), Tier 2 operations (narrative_generate, etc.), or plan production rollouts. The goal is to validate the evaluation infrastructure and produce 2-3 data-driven decision records for interview material.
+**By end of Sprint 17, you should be able to say:**
 
-**Scope discipline.** This is how sprints stay on track. Enforce the 3-op, Tier 1-only boundary.
+- ✅ "Three Tier 1 prompts are fixed and deployed"
+- ✅ "I measured each model against acceptable quality thresholds, not just vs Haiku"
+- ✅ "Flash passes sentiment (57% cheaper, saves $X/year). Deploy after testing."
+- ✅ "Qwen passes entity extraction (81% cheaper, pending prompt verification). Consider for next cycle."
+- ✅ "Theme extraction stays Haiku (no model passes threshold). Not worth optimizing."
 
-**TASK-075 gates Tier 2.** Narrative cache findings will inform whether narrative_generate needs Flash evaluation or just a cache fix. Do not wait for TASK-075; run in parallel. But do not include narrative_generate in FEATURE-053 scope.
+**You should not have:**
+- ❌ Agent evaluation framework (defer to Sprint 18)
+- ❌ Tier 2 operation evaluations (not relevant until Tier 1 costs are optimized)
+- ❌ GeminiProvider implementation (can defer indefinitely)
 
-**Phase 2 optimization matters.** Use existing haiku_output from golden set as baseline. Saves time and avoids drift (historical data is fixed reference).
+---
 
-**Data-driven decisions.** Let the metrics decide SWAP/STAY/CONDITIONAL. No pressure to produce a specific outcome. Bad data leading to "STAY" is better than forced "SWAP" without justification.
+## What Happens Next
 
-**Real evals preferred, mock acceptable.** If Gemini API key available, use real calls. If not, mock at provider level with deterministic responses (same input → same output). Eval loop must run reproducibly.
+### Sprint 18 Concept — Tier 2 Evaluations
 
-**Decision records are the deliverable.** MSD-001, MSD-002, MSD-003 are worth more than perfect coverage. Aim for quality over quantity.
+After Tier 1 costs are optimized and cost savings are realized, Sprint 18 will focus on:
+- **Tier 2 golden sets:** Build 30-50 sample sets for narrative operations
+- **Eval framework extraction:** Create reusable `llm/eval.py` module
+- **Tier 2 Flash evaluations:** Run 4-5 narrative operations through same evaluation process
+- **GeminiProvider:** Complete implementation if needed
 
-**Helicone only traces Anthropic.** Gemini calls won't appear in dashboards. This is expected. Don't plan Gemini tracing for this sprint.
+This sprint validates the approach on Tier 1 (simple, high-volume, obvious cost/quality tradeoff). Sprint 18 extends to Tier 2 (complex operations where tradeoffs are harder to measure).
+
+---
+
+## Philosophy for This Sprint
+
+**Focus:** Reduce real costs on existing operations.
+
+**Not:** Build infrastructure for agents that don't exist (defer to Sprint 18).
+
+**Rationale:** You have a known problem (Tier 1 costs). You have a hypothetical problem (agents need eval). Solve the known problem first.
+
+**Taste:** Pragmatism over architecture. Fix what's broken. Ship what reduces costs. Build iteratively.
