@@ -122,7 +122,23 @@ class AnthropicProvider(LLMProvider):
 
     @track_usage
     def analyze_sentiment(self, text: str) -> float:
-        prompt = f"Analyze the sentiment of this crypto text. Return ONLY a single number from -1.0 (very bearish) to 1.0 (very bullish). Do not include any explanation or additional text. Just the number:\n\n{text}"
+        prompt = f"""Analyze the sentiment of this crypto text. Return ONLY a single number from -1.0 (very bearish) to 1.0 (very bullish). Do not include any explanation or additional text. Just the number.
+
+Sentiment Scale:
+- Bullish (0.3 to 1.0): Article emphasizes gains, positive developments, bullish signals, or constructive news
+- Bearish (-1.0 to -0.3): Article emphasizes losses, negative events, regulatory concerns, or destructive developments
+- Neutral (-0.3 to 0.3): Factual reporting without strong directional bias. Includes crime/legal/regulatory articles where the event is negative but the framing is factual (e.g., "CFTC filed lawsuit" without inflammatory language or speculation)
+
+EXAMPLE:
+Text: "Jean-Didier Berger said at Paris Blockchain Week that France is preparing new steps to protect crypto holders as wrench attacks and kidnappings keep mounting."
+
+WRONG (misclassified as negative): -0.4
+CORRECT (neutral): -0.1
+   (Reports negative event [kidnappings] factually without inflammatory language or speculation. Focus is on preparedness/protection, not loss/harm.)
+
+Return ONLY the number, no explanation:
+
+{text}"""
         try:
             response = self._get_completion(prompt, operation="sentiment_analysis")
             # Extract the first number from the response (in case there's extra text)
@@ -141,7 +157,24 @@ class AnthropicProvider(LLMProvider):
     @track_usage
     def extract_themes(self, texts: List[str]) -> List[str]:
         combined_texts = "\n".join(texts)
-        prompt = f"Extract the key crypto themes from the following texts. Respond with ONLY a comma-separated list of keywords (e.g., 'Bitcoin, DeFi, Regulation'). Do not include any preamble.\n\nTexts:\n{combined_texts}"
+        prompt = f"""Extract the key conceptual themes from the following texts. Respond with ONLY a comma-separated list of themes (e.g., 'regulatory pressure, market volatility, institutional adoption'). Do not include any preamble.
+
+Themes should be:
+- Conceptual (not entity names): "regulation" not "SEC", "market volatility" not "Bitcoin"
+- Exclude proper nouns: No company names, person names, coin names, or protocol names
+- Focus on narrative concepts: regulatory, technical, market, adoption, security, legal, etc.
+
+EXAMPLE:
+Text: "Goldman Sachs filed for a Bitcoin Premium Income ETF..."
+
+WRONG (includes entity names): Bitcoin, ETF, Goldman Sachs, Institutional Adoption, Covered Call Strategy
+CORRECT (conceptual only): ETF, Institutional Adoption
+   (Exclude: Bitcoin [cryptocurrency], Goldman Sachs [company], Covered Call Strategy [implementation detail]. Keep: conceptual themes.)
+
+Return ONLY the comma-separated list, no explanation:
+
+Texts:
+{combined_texts}"""
         try:
             response = self._get_completion(prompt, operation="theme_extraction")
             if response:

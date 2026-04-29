@@ -54,6 +54,7 @@ The Crypto News Aggregator is a distributed system for collecting cryptocurrency
             │  - Gather context (LLM)    │
             │  - Self-refine quality     │
             │  - Track costs             │
+            │  - Enforce budget limits   │
             └────────────────┬───────────┘
                              │
                              ▼
@@ -62,7 +63,7 @@ The Crypto News Aggregator is a distributed system for collecting cryptocurrency
             │  (llm/gateway.py)          │
             │  - Single LLM entry point  │
             │  - Model routing/enforce   │
-            │  - Spend cap enforcement   │
+            │  - Daily/monthly spend cap │
             │  - Request/response cache  │
             │  - Tracing to llm_traces   │
             └────────────────┬───────────┘
@@ -76,7 +77,7 @@ The Crypto News Aggregator is a distributed system for collecting cryptocurrency
               │  - narratives             │
               │  - articles               │
               │  - entity_mentions        │
-              │  - llm_traces             │
+              │  - llm_traces (auth)      │
               │  - llm_cache              │
               └──────────────┬────────────┘
                              │
@@ -87,6 +88,7 @@ The Crypto News Aggregator is a distributed system for collecting cryptocurrency
               │  - Narratives timeline   │
               │  - Signals dashboard     │
               │  - Articles archive      │
+              │  - Cost monitor          │
               └──────────────────────────┘
 ```
 
@@ -186,13 +188,15 @@ Access: Public (no auth for briefings), Admin for manual triggers
 
 ## Key Performance Characteristics
 
-| Component | Latency | Throughput | Reliability |
-|-----------|---------|-----------|-------------|
-| RSS Fetch | 30-60s | 100-500 articles/run | 99.5% (no rate limit) |
-| Entity Extraction | 2-5s/article | 200-400 articles/hour | 95% (API retries) |
-| Narrative Detection | 5-10s/article | 100-200 articles/hour | 97% (similarity failures) |
-| Briefing Generation | 30-60s | 3 briefings/day | 99% (LLM fallback models) |
-| Frontend API | <500ms | 1000 req/sec | 99.9% (MongoDB load) |
+| Component | Latency | Throughput | Reliability | Cost |
+|-----------|---------|-----------|-------------|------|
+| RSS Fetch | 30-60s | 100-500 articles/run | 99.5% (no rate limit) | ~$0.15/day |
+| Entity Extraction | 2-5s/article | 200-400 articles/hour | 95% (API retries) | ~$0.15/day |
+| Narrative Detection | 5-10s/article | 100-200 articles/hour | 97% (similarity failures) | ~$0.13/day |
+| Briefing Generation | 30-60s | 3 briefings/day | 99% (LLM fallback models) | ~$0.08/day |
+| Frontend API | <500ms | 1000 req/sec | 99.9% (MongoDB load) | Free |
+| **Daily LLM Total** | | | | **~$0.54/day** |
+| **Monthly LLM Total** | | | | **~$16/month** |
 
 ## Scaling Characteristics
 
@@ -201,7 +205,32 @@ Access: Public (no auth for briefings), Admin for manual triggers
 - **Briefings:** Vertical (LLM token limits ~1000s req/min per key)
 - **UI:** Horizontal (CDN, load balancer)
 
-## Deployment Architecture
+## Known Limitations
+
+### Market Event Detection (Currently Offline)
+
+The market event detector (`detect_market_events()` in `signal_service.py`) is currently disabled and returns an empty list. The original implementation had significant data quality issues:
+- Keyword matching was too loose (OR logic matched unrelated events)
+- Figures were extracted blindly without relevance validation
+- Produced fabricated financial metrics ($50B+ liquidations that didn't occur)
+
+**Status:** Pending rebuild with proper phrase matching and relevance validation (TASK-072 deferred to future sprint). Manual signals and article-sourced events still populate the briefing.
+
+**Impact:** Briefings do not include auto-detected market shock events; they rely on article-sourced signals and narratives instead.
+
+**Reference:** BUG-083 Part 1 (Sprint 15), commit 6850efb
+
+### Slack Alert Non-Functional
+
+A soft spend limit ($22.50/month) was implemented in Sprint 15 (FEATURE-013) with Slack notification support. The alert logic was wired but is currently non-functional.
+
+**Status:** Slack integration configured but alerts are not being sent. Do not rely on Slack notifications for spend awareness.
+
+**Workaround:** Monitor the cost dashboard in the frontend or query `llm_traces` collection directly.
+
+**Hard limits ($1.00/day, $30/month) are enforced and working correctly.**
+
+**Reference:** FEATURE-013 (Sprint 15), Soft Limit Alert section of [60-llm.md](#llm-integration-generation)
 
 ```
 ┌─────────────────────┐

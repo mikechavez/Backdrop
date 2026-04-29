@@ -208,26 +208,160 @@ Two-iteration quality assurance:
 - Critique 2: 1,024 max tokens (Sonnet, ~$0.005)
 - **Total: ~$0.05 per briefing** (before fallbacks)
 
-### Cost Tracking
+### Cost Tracking & Budget Enforcement
 
-**File:** `src/crypto_news_aggregator/llm/gateway.py` (primary), `src/crypto_news_aggregator/services/briefing_agent.py:809-817` (legacy reference)
+**File:** `src/crypto_news_aggregator/llm/gateway.py` (primary), `src/crypto_news_aggregator/services/cost_tracker.py` (aggregation queries)
 
-All LLM calls are traced in the `llm_traces` MongoDB collection by the gateway. This is the single source of truth for cost enforcement and spend visibility:
+#### Single Source of Truth: llm_traces Collection
 
+All LLM calls are traced in the `llm_traces` MongoDB collection by the gateway. This is the **authoritative source** for cost enforcement and spend visibility. Budget enforcement reads **exclusively** from `llm_traces`; `api_costs` and `llm_usage` are legacy and not authoritative as of Sprint 15 (BUG-079).
+
+**Trace document structure:**
 ```python
 # Written by gateway.py after every LLM call
 {
-    "operation": "briefing_generate",
+    "operation": "briefing_generate",      # Caller-supplied operation name (required)
     "model": "claude-haiku-4-5-20251001",
     "input_tokens": 1200,
     "output_tokens": 800,
-    "cost": 0.00031,          # field name is "cost", not "cost_usd"
-    "timestamp": ISODate("..."),
+    "cost": 0.00031,                       # field name is "cost", not "cost_usd"
+    "timestamp": ISODate("..."),           # Query field — NOT "created_at"
     "cached": false
 }
 ```
 
-`llm_usage` is a legacy collection that still exists and receives some writes; treat it as secondary. Budget enforcement (`get_daily_cost()`, `get_monthly_cost()`) reads exclusively from `llm_traces` as of BUG-079.
+**Critical field names:**
+- Always query using `timestamp`, not `created_at` (caught in Sprint 14)
+- Cost field is `cost`, not `cost_usd`; aggregations must use `"$cost"`
+- `operation` is required; zero `provider_fallback` entries post-BUG-078
+
+**TTL and Indexing:**
+- TTL index: 30 days (legacy traces auto-deleted)
+- Indexes: `{operation: 1}`, `{operation: 1, timestamp: -1}`
+
+#### Budget Enforcement Mechanism (FEATURE-013, Sprint 15)
+
+**File:** `src/crypto_news_aggregator/llm/gateway.py:143-178` (spend cap enforcement), `src/crypto_news_aggregator/services/cost_tracker.py:45-120` (cost queries)
+
+Two-tier budget system implemented at the gateway, before any call reaches the Anthropic API:
+
+**Daily Hard Limit:** $1.00/day
+- Checked by `check_llm_budget(operation_name)` before every LLM call
+- If daily spend already ≥ $1.00, call is blocked and raises `BudgetExceededError`
+- Reset at 00:00 UTC each day
+
+**Monthly Hard Limit:** $30/month  
+- Checked by `check_llm_budget()` as part of daily check
+- Monthly window: First of month 00:00 UTC to last day 23:59 UTC
+- If monthly spend ≥ $30.00, all LLM calls blocked regardless of daily status
+- Monthly limit takes precedence over daily limit
+
+**Soft Limit:** $22.50/month (⚠️ **Alert configured but NOT currently working**)
+- Designed to trigger Slack notification when crossed
+- Alert was implemented but is non-functional (known issue as of Sprint 15)
+- Soft limit does not block calls; it's informational only
+- Do not rely on Slack alert for spend awareness; monitor cost dashboard instead
+
+**Implementation:**
+```python
+# gateway.py: called before every LLM API request
+async def check_llm_budget(operation_name: str) -> bool:
+    """Check if LLM call would exceed daily or monthly limits."""
+    daily_cost = await get_daily_cost()      # Sum of "cost" from llm_traces today
+    monthly_cost = await get_monthly_cost()  # Sum of "cost" from llm_traces this month
+    
+    daily_remaining = DAILY_HARD_LIMIT - daily_cost  # $1.00 - current
+    monthly_remaining = MONTHLY_HARD_LIMIT - monthly_cost  # $30.00 - current
+    
+    if daily_remaining <= 0 or monthly_remaining <= 0:
+        raise BudgetExceededError(f"Daily: ${daily_cost:.2f}/${DAILY_HARD_LIMIT}, Monthly: ${monthly_cost:.2f}/${MONTHLY_HARD_LIMIT}")
+    
+    # Soft limit alert (non-functional; logged but doesn't trigger Slack)
+    if monthly_cost >= SOFT_LIMIT and not alerted_today:
+        logger.warning(f"Monthly spend at ${monthly_cost:.2f}/${SOFT_LIMIT} — Slack alert not working")
+    
+    return True
+```
+
+**Cost Query Implementation:**
+```python
+# cost_tracker.py: queries for spend visibility
+async def get_daily_cost() -> float:
+    """Sum all LLM traces from last 24 hours."""
+    now = datetime.utcnow()
+    yesterday = now - timedelta(hours=24)
+    result = await db.llm_traces.aggregate([
+        {"$match": {"timestamp": {"$gte": yesterday}}},
+        {"$group": {"_id": None, "total": {"$sum": "$cost"}}}
+    ]).to_list(1)
+    return result[0]["total"] if result else 0.0
+
+async def get_monthly_cost() -> float:
+    """Sum all LLM traces from first of month to now."""
+    now = datetime.utcnow()
+    first_of_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    result = await db.llm_traces.aggregate([
+        {"$match": {"timestamp": {"$gte": first_of_month}}},
+        {"$group": {"_id": None, "total": {"$sum": "$cost"}}}
+    ]).to_list(1)
+    return result[0]["total"] if result else 0.0
+```
+
+#### Validated Cost Baseline (Post-Sprint 15)
+
+True daily baseline: **~$0.54/day** (monthly: ~$16/month)
+
+The $1.134/day figure from Sprint 14 was incorrect due to:
+- BUG-066: Rolling 24h window calculating wrong cost aggregation
+- BUG-079: entity_extraction costs ($0.177/day) invisible to enforcement layer
+
+Post-Sprint 15 cost breakdown by operation (typical day):
+
+| Operation | Calls/day | Cost/day | Notes |
+|-----------|-----------|----------|-------|
+| entity_extraction | ~174 | $0.152 | Highest volume; Tier 1 articles only |
+| narrative_generate | ~51 | $0.125 | Narrative summary generation |
+| article_enrichment_batch | ~variable | ~$0.150 | RSS enrichment |
+| briefing_refine | ~4 | $0.032 | Critique + refinement (2 briefings) |
+| briefing_critique | ~4 | $0.023 | Quality assurance loop |
+| briefing_generate | ~2 | $0.020 | Primary generation (3 briefings/day × 2) |
+| cluster_narrative_gen | ~6 | $0.006 | Embedding-based clustering |
+| narrative_polish | ~6 | $0.003 | Final polish |
+| **TOTAL** | | **~$0.54** | Well under $1.00 daily hard limit |
+
+Model cost reduction: **89% reduction** from Sprint 12–13 high of $2.50–5.00/day, achieved through:
+- Tier classification before enrichment (only ~70 of 300 articles enriched/day)
+- Haiku as primary model (100% production routing as of BUG-077)
+- Prompt compression (BUG-071: 1,700 → 900 token system prompt)
+- Request/response caching (BUG-072)
+
+#### Model Routing Enforcement (BUG-077, Sprint 15)
+
+**File:** `src/crypto_news_aggregator/llm/gateway.py:88-110`
+
+The gateway enforces model selection **before** the Anthropic API is contacted. `_validate_model_routing()` silently corrects misrouted models:
+
+```python
+# gateway.py: called inside every API request
+def _validate_model_routing(model: str, operation: str) -> str:
+    """Enforce correct model for operation; silently correct misroutes."""
+    expected_model = self._get_expected_model(operation)  # Maps operation → correct model
+    
+    if model != expected_model:
+        logger.warning(f"Model mismatch: {operation} requested {model}, correcting to {expected_model}")
+        # Silently use correct model instead; prevents expensive models reaching API
+        return expected_model
+    
+    return model
+```
+
+**Current production routing (post-BUG-077):**
+- **All operations → Haiku 4.5** (`claude-haiku-4-5-20251001`)
+- 100% Haiku in production (zero Opus/Sonnet except test sessions)
+- Fallback model (Sonnet) used only on 403 errors from Anthropic
+- Prevents accidental Opus ($0.039/call) and Sonnet ($0.002/call) charges
+
+**Validation result:** 682/683 calls on Haiku; 1 Opus trace from Claude Code test session (not production)
 
 ### Response Parsing
 

@@ -235,6 +235,47 @@ async def detect_signals_from_narrative(
 
 **Signal strength:** "high" | "medium" | "low"
 
+### Briefing Quality Guardrails (BUG-081, Sprint 15)
+
+**File:** `src/crypto_news_aggregator/services/briefing_agent.py:435-455` (guardrail rules in generation prompt)
+
+The briefing generation prompt enforces data quality via rules 9-11:
+
+**Rule 9 — Duplicate Consolidation:**
+- Consolidate duplicate events — if the same event appears under different narrative angles, present it once with full context, not as separate stories
+- Prevents briefings from reporting identical events multiple times under different narrative framings
+- Example: An SEC filing mentioned in both "SEC Crackdown" narrative and "Regulatory Pressure" narrative should appear as one event
+
+**Rule 10 — Named Entity Requirement:**
+- No unnamed entities — every referenced platform, exchange, or project must be explicitly named using only names present in the provided narratives
+- Prevents fabricated or implied entities that aren't sourced from articles
+- Example: Cannot refer to "a major exchange" without naming it; must say "Coinbase" if Coinbase is mentioned in source articles
+
+**Rule 11 — Figure Plausibility Validation:**
+- Verify figure plausibility against ~$2-3T crypto market cap baseline — flag or omit figures that are historically unprecedented (e.g., $50B+ liquidations, $10B+ single hacks)
+- Post-generation plausibility check with $50B threshold (BUG-082, Sprint 15)
+- Regex pattern + manual review flag problematic figures for editor attention
+
+**Implementation impact:** Reduces fabricated financial figures and unverifiable claims by requiring grounding in source articles only.
+
+### Narrative Summary Grounding Constraints (BUG-084, Sprint 15)
+
+**File:** `src/crypto_news_aggregator/services/narrative_service.py:180-220` (narrative summary generation)
+
+Narrative summary generation (used in briefings and exports) is constrained to source articles:
+
+**LLM Instruction:**
+- "Verify all claims against the source articles provided. Do not add external knowledge or hypothetical scenarios."
+- "If a claim is not verifiable from the source articles, omit it or flag it as inferred."
+- Prevents narrative summaries from inventing events or fabricating quotes
+
+**Validation check (post-generation):**
+1. Parse summary for numbered claims or assertions
+2. Attempt to match each claim to a source article
+3. If unmatched, flag for manual review or demote confidence score
+
+**Impact:** Reduces risk of unreliable or fabricated narratives appearing in briefings or user-facing exports.
+
 ### Pattern Detection
 
 **File:** `src/crypto_news_aggregator/services/pattern_detector.py:100-250`
