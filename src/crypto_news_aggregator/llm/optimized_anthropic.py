@@ -131,8 +131,8 @@ class OptimizedAnthropicLLM:
         """
         # Truncate text to ~500 tokens (2000 chars)
         text = article.get('text', '')[:2000]
-        
-        return f"""Extract cryptocurrency-related entities from this article.
+
+        return f"""Extract cryptocurrency-related entities relevant to the article's primary narrative.
 
 Title: {article['title']}
 Text: {text}
@@ -150,7 +150,21 @@ Return a JSON object with this structure:
 }}
 
 Entity types: cryptocurrency, protocol, company, person, event, regulation
-Only include entities mentioned in the text. Normalize crypto names (BTC → Bitcoin)."""
+
+CRITICAL: Extract only entities relevant to the article's core narrative. Ignore:
+- Entities mentioned in passing or as background context
+- Tangential references (e.g., "Bitcoin fell, and also interest rates rose")
+- Infrastructure/supporting entities not central to the story
+
+EXAMPLE:
+Article: "Solv Protocol integrated with Utexo to launch bitcoin-native yield with atomic swaps... uses RGB protocol and Lightning Network..."
+
+WRONG (mention-level): [Bitcoin, Solv Protocol, Utexo, USDT, RGB protocol, Lightning Network]
+CORRECT (relevance-weighted): [Bitcoin, Solv Protocol, Utexo]
+   (RGB protocol and Lightning Network are supporting infrastructure, not primary entities in the narrative about the Solv/Utexo partnership)
+
+Only include entities explicitly mentioned in the text. Normalize crypto names (BTC → Bitcoin).
+Include is_primary: true only for entities central to the story."""
     
     def _parse_text_response(self, content: str) -> Dict[str, Any]:
         """Parse text response from Claude into JSON"""
