@@ -312,6 +312,25 @@ Current blocker for multi-model testing: model routing is hard-coded and not obs
 
 ---
 
+### BUG-060: Scoring Harness Hardcodes flash_label (Post-Eval Fix) ✅ COMPLETE
+- **Status:** COMPLETE (2026-04-28)
+- **Priority:** P2
+- **Effort:** 0.5 hours
+- **Goal:** Fix hardcoded `flash_label` field name in Phase 5 scoring harness to use model-specific field names
+- **Problem:** All scored output files (DeepSeek, Qwen) incorrectly contained `flash_label` instead of `deepseek_label`, `qwen_label`
+- **Root Cause:** Copy-paste error when harness was extended from Flash to other models
+- **Impact:** Accuracy totals unaffected (correct), per-class data readable but mislabeled
+- **Fix:** Modified `score_sentiment_analysis()` to:
+  - Accept `model` parameter
+  - Derive field name dynamically: `f"{model}_label"`
+  - Return correct field names: flash_label, deepseek_label, qwen_label
+- **Verification:** ✅ All 6 sentiment_analysis scored files verified with correct field names
+- **Branch:** `feat/feature-053-phase-2-3-baseline-challenger-runs` (commit 29f34ec)
+- **Note:** Discovered during TASK-080 post-hoc analysis; must be fixed before next eval run
+- **Unblocks:** Sprint 17 Tier 2 Flash evaluations (scoring harness now correct)
+
+---
+
 ## Success Criteria (Outcome-Based)
 
 ✅ **Model routing is observable and deterministic**
@@ -381,6 +400,7 @@ Current blocker for multi-model testing: model routing is hard-coded and not obs
 | TASK-079 | Operation Tier Mapping (all 14 ops + scope note) | P2 | ✅ COMPLETE | 2-3h | UNBLOCKED |
 | TASK-074 | Helicone Setup (proxy + kill switch, Anthropic-only) | P3 | ✅ COMPLETE | 1.5h | Optional |
 | TASK-075 | Narrative Cache Investigation (gates Tier 2) | P3 | ✅ COMPLETE | ~2h | Sprint 17 Tier 2 scoping unblocked |
+| BUG-060 | Scoring Harness Hardcodes flash_label (fix model-specific field names) | P2 | ✅ COMPLETE | 0.5h | None |
 | FEATURE-053 | Flash Evaluations (Tier 1 only, 3 ops, data-driven decisions) | P4 | ✅ COMPLETE | ~8h | All phases complete |
 
 ---
