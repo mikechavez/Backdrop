@@ -1,14 +1,29 @@
 ---
 id: FEATURE-054
 type: feature
-status: planning
+status: in-progress
 priority: P1
 complexity: high
 created: 2026-04-28
-updated: 2026-04-28
+updated: 2026-04-29
 ---
 
 # FEATURE-054: Tier 1 Cost Optimization Evaluations
+
+## Status (2026-04-29)
+
+**Phase 1 ✅ COMPLETE:** Corrected Haiku baselines (300 samples, 100% success rate)
+**Phase 2 ✅ COMPLETE:** Challenger model runs (900 API calls, 100% success rate)
+- entity_extraction: Flash, DeepSeek, Qwen = 300/300 ✓
+- sentiment_analysis: Flash, DeepSeek, Qwen = 300/300 ✓
+- theme_extraction: Flash, DeepSeek, Qwen = 300/300 ✓
+- Elapsed: 20.6 minutes total (Phase 1: 10.5m, Phase 2: 12.9m)
+- Outputs: `docs/sprints/sprint-017-tier1-cost-optimization/decisions/phase-1-baselines/` and `phase-2-challenger-runs/`
+
+**Phase 3 ⏳ PENDING:** Output normalization + threshold-based scoring
+**Phase 4 ⏳ PENDING:** Manual analysis + cost review + updated decision records
+
+---
 
 ## Problem/Opportunity
 

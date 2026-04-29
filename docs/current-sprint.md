@@ -67,13 +67,13 @@ Sprint 16 completed observable model routing, provider abstraction, and decision
 
 ---
 
-### TASK-082: Define Acceptable Quality Thresholds ⏳ NOT STARTED
-- **Status:** PENDING
+### TASK-082: Define Acceptable Quality Thresholds ✅ COMPLETE
+- **Status:** DONE (2026-04-29)
 - **Priority:** CRITICAL
 - **Effort:** 1 hour
 - **Goal:** For each Tier 1 operation, decide: what quality loss is acceptable to save cost?
 
-**Provisional Thresholds (may be revised after Phase 4 manual analysis):**
+**Thresholds (finalized):**
 
 | Operation | User Impact | Acceptable Loss | Threshold | Rationale |
 |---|---|---|---|---|
@@ -81,9 +81,9 @@ Sprint 16 completed observable model routing, provider abstraction, and decision
 | sentiment_analysis | Medium (internal enrichment, not user-facing) | <8% | Accuracy >= 77% | Sentiment is used internally only. Some error acceptable for cost savings. |
 | theme_extraction | Medium (internal briefing structure) | <5% | Adjusted F1 >= 0.78 | Themes guide briefing structure. Moderate tolerance for degradation. |
 
-- **Deliverable:** One-page decision doc: `docs/decisions/TIER1-quality-thresholds.md`
-- **Format:** Operation | User Impact | Acceptable Loss | Threshold | Rationale
-- **Notes:** These thresholds are provisional. Phase 4 manual analysis may suggest revisions based on real data and failure mode analysis.
+- **Deliverable:** `docs/sprints/sprint-017-tier1-cost-optimization/task-082-define-threshholds/tier1-quality-thresholds.md` ✅
+- **Status:** All three thresholds defined with user impact, rationale, and provisional nature documented
+- **Notes:** Thresholds are provisional and may be revised after FEATURE-054 Phase 4 manual analysis based on real failure mode distribution and cost impact
 
 ---
 
@@ -145,8 +145,8 @@ Sprint 16 completed observable model routing, provider abstraction, and decision
 | ID | Title | Priority | Status | Effort | Blocks |
 |---|---|---|---|---|---|
 | TASK-081 | Fix Tier 1 prompts (entity, sentiment, theme) | P1 | ✅ COMPLETE | 2-3h | — |
-| TASK-082 | Define acceptable quality thresholds | P1 | ⏳ PENDING | 1h | FEATURE-054 Phase 3 |
-| FEATURE-054 | Tier 1 Cost Optimization Evals | P1 | ⏳ PENDING | 4-5h | Phases 1-4 |
+| TASK-082 | Define acceptable quality thresholds | P1 | ✅ COMPLETE | 1h | — |
+| FEATURE-054 | Tier 1 Cost Optimization Evals | P1 | ⏳ IN PROGRESS | 4-5h | Phases 1-4 |
 
 ---
 
@@ -154,7 +154,7 @@ Sprint 16 completed observable model routing, provider abstraction, and decision
 
 1. ✅ **Day 1:** TASK-081 (fix prompts) + TASK-082 (thresholds) — **COMPLETE**
    - TASK-081 done (2026-04-29)
-   - TASK-082 next
+   - TASK-082 done (2026-04-29)
 2. **Day 2-4:** FEATURE-054 Phase 1-2 (corrected baselines + challenger runs)
 3. **Day 5-6:** FEATURE-054 Phase 3-4 (threshold analysis + decisions)
 4. **Day 7:** Buffer for retries, verification, decision record polish
