@@ -32,12 +32,13 @@ updated: 2026-04-29
     - **Issue Identified:** Reference answers include proper nouns (Bitcoin, Ethereum, etc.) but corrected prompt excludes them → systematic score penalty for all models
 - ✅ Cost metrics CSV generated (token counts, latencies per model)
 
-**Phase 4 ✅ COMPLETE:** Manual analysis + cost review + recommendations
+**Phase 4 ✅ COMPLETE:** Manual analysis + cost review + recommendations (updated 2026-04-30)
 - ✅ Spot-check quality findings (failure modes, fixability assessment)
-- ✅ Cost analysis complete (annual savings calculated per model)
+- ✅ Cost analysis complete (annual savings calculated per model, all 3 operations)
 - ✅ Latency assessment (p50/p95 per model, operational feasibility)
-- ✅ Behavioral consistency analysis (vs Haiku baseline)
-- ✅ Final recommendations by model-operation pair (SWAP/CONDITIONAL/STAY)
+- ✅ Behavioral consistency analysis (Haiku vs Challenger: sentiment 82.4%, entity ~57%, theme 16-37%)
+- ✅ Theme extraction mismatch identified (reference proper nouns vs prompt excludes them)
+- ✅ Final recommendations by model-operation pair: Sentiment SWAP (Flash), Entity CONDITIONAL, Theme BLOCKED pending reannotation
 
 ---
 
@@ -444,21 +445,51 @@ Use these pre-selected diverse articles (from script output):
 
 ---
 
-## Phase 4 Key Recommendations
+## Phase 4 Key Recommendations (Updated 2026-04-30)
 
-**Sentiment Analysis (Flash):** SWAP ✓
-- 85% agreement with Haiku, only 7% quality loss
+### By Operation
+
+**Sentiment Analysis (Flash):** ✅ SWAP
+- 82.4% label agreement with Haiku (highest behavioral consistency)
+- Only 7% quality loss on reference set (44% vs 47% accuracy)
 - 36% cost savings ($0.88/year vs $1.37/year baseline)
-- Fastest latency (0.90s p50)
-- **Recommendation:** Deploy immediately with 3-5 day A/B test
+- Fastest latency (0.90s p50, 2.46s p95)
+- **Recommendation:** Deploy immediately with 3-5 day A/B test for validation
+- **Risk:** LOW - high agreement + fast latency + cost savings = clear win
 
-**Entity Extraction (Flash/Qwen):** CONDITIONAL
-- Flash: 64% agreement, 17% quality loss, balanced cost, fastest latency
-- Qwen: 58% agreement, 5% quality loss, 36% cost savings, acceptable latency
-- **Recommendation:** Hold until Haiku baseline improves above 0.50 F1 (currently 0.43)
-- DeepSeek: DO_NOT_RECOMMEND (too slow, expensive, poor agreement)
+**Entity Extraction:** ⚠️ CONDITIONAL
+- Flash: ~57% agreement with Haiku (extracts all core + some secondary entities), 17% quality loss vs reference, balanced cost ($1.96/year)
+- Qwen: 58% agreement with Haiku, 5% quality loss, cheapest ($1.27/year), higher latency variance
+- **Recommendation:** Hold deployment until Haiku baseline improves above 0.50 F1 (currently 0.43)
+- DeepSeek: DO_NOT_RECOMMEND (lower agreement, slowest, most expensive)
+- **Risk:** MEDIUM - moderate agreement + weak Haiku baseline = needs more investigation
 
-**See:** `FEATURE-054-Phase4-manual-analysis.md` for detailed findings, risk assessment, and deployment strategy
+**Theme Extraction:** 🚫 BLOCKED
+- All models fail threshold (Flash 0.1051, DeepSeek 0.1498, Qwen 0.1232 vs 0.78 threshold)
+- **Root Cause:** Reference answers include proper nouns (Bitcoin, Ethereum) but corrected prompt excludes them → models penalized for following spec
+- Qwen shows highest F1 (37% agreement vs Haiku), suggesting it preserves more traditional entity-based themes
+- **Recommendation:** Re-annotate 10-15 theme references to match corrected prompt, then re-score (1-2 hour effort)
+- **Expected outcome post-reannotation:** Flash/Qwen likely viable (estimated 0.40+ F1)
+- **Cost potential:** $0.81-0.82/year if deployed (60% savings vs Haiku's ~$2.00/year)
+
+### Immediate Actions
+
+1. **Deploy Flash for sentiment_analysis** (week 1)
+   - Low risk: 82% agreement with Haiku
+   - High reward: 36% cost savings immediately
+   - A/B test for 3-5 days to validate
+
+2. **Investigate Haiku entity baseline** (parallel)
+   - Why is F1 only 0.43 vs 0.82 threshold?
+   - Did TASK-081 prompt fixes fully land?
+   - Can additional refinement improve baseline?
+
+3. **Schedule theme extraction reannotation** (post-Phase 4)
+   - 1-2 hours to re-annotate 10-15 samples
+   - Re-run scoring (5 min)
+   - Likely unlocks $0.73/year additional savings
+
+**See:** `FEATURE-054-Phase4-manual-analysis.md` for detailed findings, risk assessment, behavioral consistency data, and full deployment strategy
 
 ---
 
