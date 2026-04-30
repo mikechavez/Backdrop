@@ -153,7 +153,7 @@ Sprint 16 completed observable model routing, provider abstraction, and decision
 | TASK-081 | Fix Tier 1 prompts | P1 | ✅ COMPLETE | 2-3h | — |
 | TASK-082 | Define quality thresholds | P1 | ✅ COMPLETE | 1h | — |
 | FEATURE-054 | Tier 1 Cost Optimization Evals | P1 | ✅ COMPLETE (Phases 1-4) | 8-10h | — |
-| TASK-085 | Build DeepSeek provider integration | P1 | ⏳ IN PROGRESS | 3-4h | — |
+| TASK-085 | Build DeepSeek provider integration | P1 | ✅ COMPLETE | 3h | — |
 | TASK-086 Phase 1 | Deploy sentiment to DeepSeek + monitor | P1 | ⏳ QUEUED | 1 week | TASK-085 |
 | TASK-086 Phase 2 | Deploy entity extraction + validate | P1 | ⏳ CONDITIONAL | 2 weeks | Phase 1 success |
 | TASK-087 | Re-annotate theme extraction samples | P2 | ⏳ OPTIONAL | 1-2h | Theme Phase 3 |
@@ -171,8 +171,11 @@ Sprint 16 completed observable model routing, provider abstraction, and decision
 2. ✅ **Day 3-4:** FEATURE-054 Phases 1-4 — COMPLETE
    - Corrected baselines + challenger runs + threshold scoring + manual analysis (2026-04-30)
 
-3. ⏳ **Day 5-6:** TASK-085 — IN PROGRESS
-   - Build DeepSeek provider (3-4 hours, 2026-04-30 or 2026-05-01)
+3. ✅ **Day 5-6:** TASK-085 — COMPLETE
+   - Build DeepSeek provider (3 hours, 2026-04-30)
+   - Provider-aware gateway routing implemented
+   - 19 unit tests passing
+   - Ready for TASK-086 Phase 1
 
 4. ⏳ **Day 7-13:** TASK-086 Phase 1 — QUEUED
    - Sentiment cutover to DeepSeek + 1 week monitoring (2026-05-02 to 2026-05-09)
@@ -192,8 +195,8 @@ Sprint 16 completed observable model routing, provider abstraction, and decision
 ---
 
 **Sprint 17 completes when:**
-- ✅ TASK-085: DeepSeek provider built and integrated
-- ✅ TASK-086 Phase 1: Sentiment running on DeepSeek in production, 1 week monitored, decision made
+- ✅ TASK-085: DeepSeek provider built and integrated (COMPLETE 2026-04-30)
+- ⏳ TASK-086 Phase 1: Sentiment running on DeepSeek in production, 1 week monitored, decision made (STARTING ~2026-05-02)
 
 **If Phase 1 succeeds (>= 80% agreement, no quality issues):**
 - Sprint 18 begins with TASK-086 Phase 2 (entity extraction deployment)
