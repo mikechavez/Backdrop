@@ -201,32 +201,40 @@ def parse_sentiment_output(raw_output):
 
 def parse_theme_output(raw_output):
     """Parse themes from model output.
-    Handles markdown-wrapped JSON: ```json {...}```
+    Handles: comma-separated strings, markdown-wrapped JSON, or direct JSON.
     """
     try:
         if not isinstance(raw_output, str):
             return []
 
-        # Remove markdown code fences if present
         text = raw_output.strip()
-        if text.startswith("```"):
-            # Find closing ```
-            end_idx = text.rfind("```")
-            if end_idx > 3:
-                text = text[3:end_idx].strip()
-                # Remove 'json' language specifier if present
-                if text.startswith("json"):
-                    text = text[4:].strip()
 
-        parsed = json.loads(text)
-        if isinstance(parsed, list):
-            return parsed
-        elif isinstance(parsed, dict) and "themes" in parsed:
-            themes = parsed["themes"]
-            if isinstance(themes, list):
-                return themes
-            return []
-    except (json.JSONDecodeError, TypeError, ValueError):
+        # Try JSON first (markdown-wrapped or direct)
+        if text.startswith("```") or text.startswith("{") or text.startswith("["):
+            if text.startswith("```"):
+                # Remove markdown code fences
+                end_idx = text.rfind("```")
+                if end_idx > 3:
+                    text = text[3:end_idx].strip()
+                    if text.startswith("json"):
+                        text = text[4:].strip()
+
+            try:
+                parsed = json.loads(text)
+                if isinstance(parsed, list):
+                    return [str(t).strip() for t in parsed]
+                elif isinstance(parsed, dict) and "themes" in parsed:
+                    themes = parsed["themes"]
+                    if isinstance(themes, list):
+                        return [str(t).strip() for t in themes]
+            except (json.JSONDecodeError, ValueError):
+                pass
+
+        # Fall back to comma-separated parsing
+        themes = [t.strip() for t in text.split(",") if t.strip()]
+        if themes:
+            return themes
+    except (TypeError, ValueError):
         pass
     return []
 

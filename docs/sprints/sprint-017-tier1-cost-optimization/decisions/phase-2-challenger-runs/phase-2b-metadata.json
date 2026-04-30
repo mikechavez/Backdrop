@@ -1,0 +1,45 @@
+{
+  "phase": "2b",
+  "operation": "theme_extraction",
+  "timestamp": "2026-04-30T03:34:17.549660Z",
+  "models": {
+    "flash": "google/gemini-2.5-flash",
+    "deepseek": "deepseek/deepseek-chat",
+    "qwen": "qwen/qwen-plus"
+  },
+  "operation_results": {
+    "flash": {
+      "success": 100,
+      "error": 0,
+      "total_input_tokens": 25238,
+      "total_output_tokens": 1252,
+      "total_latency_ms": 103879,
+      "samples": 100,
+      "success_rate": 100.0
+    },
+    "deepseek": {
+      "success": 100,
+      "error": 0,
+      "total_input_tokens": 25443,
+      "total_output_tokens": 1299,
+      "total_latency_ms": 132755,
+      "samples": 100,
+      "success_rate": 100.0
+    },
+    "qwen": {
+      "success": 100,
+      "error": 0,
+      "total_input_tokens": 25286,
+      "total_output_tokens": 1217,
+      "total_latency_ms": 102425,
+      "samples": 100,
+      "success_rate": 100.0
+    }
+  },
+  "summary": {
+    "total_calls": 300,
+    "total_success": 300,
+    "success_rate": 100.0,
+    "elapsed_seconds": 490.4940547943115
+  }
+}

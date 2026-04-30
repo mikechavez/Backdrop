@@ -10,25 +10,26 @@ updated: 2026-04-29
 
 # FEATURE-054: Tier 1 Cost Optimization Evaluations
 
-## Status (2026-04-29, Updated)
+## Status (2026-04-30, Updated)
 
 **Phase 1 ✅ COMPLETE:** Corrected Haiku baselines (300 samples, 100% success rate)
-**Phase 2 🔄 PARTIAL COMPLETE:** Challenger model runs (600/900 API calls completed)
+**Phase 2 ✅ COMPLETE:** Challenger model runs (900/900 API calls completed)
 - entity_extraction: Flash, DeepSeek, Qwen = 300/300 ✓
 - sentiment_analysis: Flash, DeepSeek, Qwen = 300/300 ✓
-- theme_extraction: Flash, DeepSeek, Qwen = 0/300 ⏳ PENDING (next session)
-- Elapsed: Phase 1: 10.5m, Phase 2: 12.9m (entity + sentiment only)
-- Outputs: `docs/sprints/sprint-017-tier1-cost-optimization/decisions/phase-1-baselines/` and `phase-2-challenger-runs/`
-- Note: Haiku theme baseline exists; challengers to follow
+- theme_extraction: Flash, DeepSeek, Qwen = 300/300 ✓ (Phase 2b, 2026-04-30)
+- Elapsed: Phase 1: 10.5m, Phase 2: 12.9m (entity + sentiment), Phase 2b: 8.2m (theme only)
+- Outputs: `phase-1-baselines/`, `phase-2-challenger-runs/` (all 9 challenger outputs complete)
+- Note: Phase 2b used minimal theme-extraction-only script to avoid re-running entity/sentiment
 
 **Phase 3 ✅ COMPLETE:** Golden set analysis + reference answer compilation + scoring harness
 - ✅ Golden set structure analyzed (100 articles per operation)
 - ✅ 25 new annotation templates generated (stratified by complexity)
 - ✅ Reference answers compiled (37 entity + 34 sentiment + 35 theme samples)
-- ✅ Scoring harness built and executed (phase_3_scoring_harness.py)
+- ✅ Scoring harness built and executed (phase_3_scoring_harness.py with theme extraction fix)
   - entity_extraction: 0 PASS, 3 FAIL (Flash 0.36, DeepSeek 0.28, Qwen 0.41 vs. threshold 0.82)
   - sentiment_analysis: 0 PASS, 3 FAIL (Flash 44%, DeepSeek 41%, Qwen 38% vs. threshold 77%)
-  - theme_extraction: FILES NOT FOUND (Phase 2 outputs not yet available)
+  - theme_extraction: 0 PASS, 3 FAIL (Flash 0.11, DeepSeek 0.15, Qwen 0.12 vs. threshold 0.78)
+    - **Issue Identified:** Reference answers include proper nouns (Bitcoin, Ethereum, etc.) but corrected prompt excludes them → systematic score penalty for all models
 - ✅ Cost metrics CSV generated (token counts, latencies per model)
 
 **Phase 4 ✅ COMPLETE:** Manual analysis + cost review + recommendations
@@ -195,11 +196,11 @@ As an infrastructure PM optimizing Backdrop costs, I want to identify which chal
   - [x] Golden set structure documented
   - [x] 25 new annotation templates generated (stratified by complexity)
   - [x] Reference answers compiled (106 ground-truth articles)
-- [ ] Phase 3b: Threshold-based scoring harness implementation + execution
-  - [ ] Scoring harness script built (`phase_3_scoring_harness.py`)
-  - [ ] All 6 challenger outputs parsed
-  - [ ] Pass/fail determined per model per operation
-  - [ ] Results CSV generated (`scoring_results.csv`)
+- [x] Phase 3b: Threshold-based scoring harness implementation + execution
+  - [x] Scoring harness script built (`phase_3_scoring_harness.py`) with theme extraction CSV parsing fix
+  - [x] All 9 challenger outputs parsed (3 ops × 3 models)
+  - [x] Pass/fail determined per model per operation (0 PASS, 9 FAIL)
+  - [x] Results CSV generated (`scoring_results.csv` + `cost_metrics.csv`)
 - [ ] Phase 4: Manual analysis complete with spot-checks and cost analysis
   - [ ] Spot-check 5-10 failed samples per model per operation
   - [ ] Cost analysis per model (monthly/annual savings)
@@ -475,27 +476,35 @@ Use these pre-selected diverse articles (from script output):
 
 ---
 
-## Immediate Next Steps (Next Session)
+## Immediate Next Steps (Phase 4: Manual Analysis)
 
-### Phase 2b: Re-run Theme Extraction for Challengers
-1. Run: `python3 scripts/phase_2_challenger_runs.py` (will only need theme_extraction loop)
-   - 300 API calls (Flash, DeepSeek, Qwen × 100 articles each)
-   - ~5-10 minutes runtime
-   - Outputs: `phase-2-challenger-runs/challenger-theme_extraction-{flash,deepseek,qwen}.jsonl`
+### Phase 4 Implementation Tasks
+1. **Spot-check quality failures** (2-3 hours)
+   - For each failing model/operation:
+     - Examine 5-10 failed samples from Phase 2 outputs
+     - Identify failure pattern (parse error? genuine quality gap? reference mismatch?)
+     - Assess if failure mode is acceptable or blocking
+   - **Theme extraction priority:** Investigate the mismatch between reference answers (include proper nouns) and corrected prompt (exclude proper nouns) → determine if references need re-annotation or prompt needs adjustment
 
-2. After completion:
-   - Re-run Phase 3 scoring harness (will now score theme_extraction)
-   - Generate theme_extraction section for cost_metrics.csv
-   - Update Phase 4 analysis with theme_extraction findings
+2. **Cost analysis** (1 hour)
+   - For each model/operation: Monthly and annual cost at production volume (100 articles/day)
+   - Compare vs. Haiku baseline
+   - Document cost savings per model per operation
 
-### Phase 4b: Complete Theme Extraction Analysis
-After Phase 2b, add to Phase 4 manual analysis:
-- Three-way comparison: Challengers vs Haiku vs Your Annotations (theme)
-- Spot-check findings for theme extraction
-- Cost/latency analysis for theme operation
-- Final recommendations (SWAP/CONDITIONAL/STAY/DO_NOT_RECOMMEND)
+3. **Latency & operational feasibility** (1 hour)
+   - For each failing model: p50/p95 latencies
+   - Assess if latencies acceptable for async briefing generation
+   - Flag if DeepSeek variance too high (p95 34s in entity extraction)
 
-Then Phase 4 will be fully complete with all three operations analyzed.
+4. **Write Phase 4 analysis document** (1-2 hours)
+   - Spot-check findings per operation + model
+   - Cost/latency summary
+   - Final recommendations: SWAP / CONDITIONAL / STAY / DO_NOT_RECOMMEND
+   - Output: `FEATURE-054-Phase4-manual-analysis.md`
+
+5. **Update decision records** (MSD-001/002/003 v3) (1 hour)
+   - Per operation: recommendations with cost savings and deployment constraints
+   - Include theme extraction analysis findings
 
 ---
 
