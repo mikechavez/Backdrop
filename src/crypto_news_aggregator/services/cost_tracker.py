@@ -66,10 +66,6 @@ class CostTracker:
             "input": 0.14,   # $0.14 per 1M input tokens (direct API)
             "output": 0.28,  # $0.28 per 1M output tokens (direct API)
         },
-        "deepseek-chat": {
-            "input": 0.14,   # Alias for v4-flash
-            "output": 0.28,
-        },
     }
 
     def __init__(self, db: AsyncIOMotorDatabase):

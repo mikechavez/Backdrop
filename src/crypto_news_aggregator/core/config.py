@@ -52,7 +52,7 @@ class Settings(BaseSettings):
         env="DEEPSEEK_API_KEY",
         description="DeepSeek API key for direct API access (TASK-085)"
     )
-    DEEPSEEK_DEFAULT_MODEL: str = "deepseek-chat"
+    DEEPSEEK_DEFAULT_MODEL: str = "deepseek-v4-flash"
     ANTHROPIC_DEFAULT_MODEL: str = "claude-haiku-4-5-20251001"
     ANTHROPIC_ENTITY_MODEL: str = "claude-haiku-4-5-20251001"
     # DEPRECATED by BUG-039: Entity extraction no longer falls back to Sonnet.

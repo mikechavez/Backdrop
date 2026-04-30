@@ -33,12 +33,12 @@ class TestModelStringParsing:
         assert provider == "anthropic"
         assert model == "claude-haiku-4-5-20251001"
 
-    def test_parse_deepseek_chat_alias(self):
-        """deepseek-chat is alias for deepseek-v4-flash."""
+    def test_parse_deepseek_v4_flash(self):
+        """deepseek-v4-flash is the canonical DeepSeek model name."""
         gateway = LLMGateway()
-        provider, model = gateway._parse_model_string("deepseek:deepseek-chat")
+        provider, model = gateway._parse_model_string("deepseek:deepseek-v4-flash")
         assert provider == "deepseek"
-        assert model == "deepseek-chat"
+        assert model == "deepseek-v4-flash"
 
 
 class TestProviderUrlResolution:

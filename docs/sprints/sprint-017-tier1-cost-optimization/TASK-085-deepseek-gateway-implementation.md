@@ -58,13 +58,12 @@ No standalone `DeepSeekProvider` class. All calls go through `LLMGateway` for co
 
 Added:
 - `DEEPSEEK_API_KEY`: Environment variable for DeepSeek API authentication
-- `DEEPSEEK_DEFAULT_MODEL`: Defaults to `"deepseek-chat"` (alias for v4-flash)
+- `DEEPSEEK_DEFAULT_MODEL`: Defaults to `"deepseek-v4-flash"`
 
 ### 3. Cost Tracking (`src/crypto_news_aggregator/services/cost_tracker.py`)
 
 Added DeepSeek pricing to `PRICING` dict:
 - `deepseek-v4-flash`: $0.14/M input, $0.28/M output
-- `deepseek-chat`: Alias for v4-flash
 - Also updated Anthropic models to current pricing (Opus 4.7/4.6 now $5/$25)
 
 ### 4. Operation Routing (`src/crypto_news_aggregator/llm/gateway.py`)
@@ -107,19 +106,19 @@ primary="deepseek:deepseek-v4-flash"
 
 ## How to Switch Providers
 
-### To route entity_extraction to DeepSeek:
+### To route article_enrichment_batch to DeepSeek (Phase 1):
 
-**In `gateway.py` line 98-100:**
+**In `gateway.py` line 149-151:**
 ```python
-"entity_extraction": RoutingStrategy(
-    "entity_extraction",
+"article_enrichment_batch": RoutingStrategy(
+    "article_enrichment_batch",
     primary="deepseek:deepseek-v4-flash"  # ← change this line
 ),
 ```
 
-**That's it.** All calls to entity_extraction now go through DeepSeek API.
+**That's it.** All calls to article_enrichment_batch now go through DeepSeek API.
 
-### To rollback:
+### To rollback to Anthropic:
 ```python
 primary="anthropic:claude-haiku-4-5-20251001"
 ```
@@ -130,17 +129,17 @@ primary="anthropic:claude-haiku-4-5-20251001"
 
 ### Request Flow
 
-1. Caller invokes `gateway.call_sync(..., model="deepseek:deepseek-v4-flash", operation="entity_extraction")`
+1. Caller invokes `gateway.call_sync(..., model="deepseek:deepseek-v4-flash", operation="article_enrichment_batch")`
 2. Gateway parses: `provider="deepseek"`, `model_name="deepseek-v4-flash"`
-3. Gateway checks budget via `check_llm_budget("entity_extraction")`
+3. Gateway checks budget via `check_llm_budget("article_enrichment_batch")`
 4. Gateway builds DeepSeek-specific request:
    - URL: `https://api.deepseek.com/chat/completions`
    - Headers: `Authorization: Bearer {DEEPSEEK_API_KEY}`
    - Payload: OpenAI-compatible format with `stream=false`, `thinking={type: disabled}`
 5. Gateway POSTs, receives response
 6. Gateway parses DeepSeek response fields (prompt_tokens, completion_tokens, message.content)
-7. Gateway calls `CostTracker.track_call()` with `model="deepseek-v4-flash"`
-8. CostTracker calculates cost: `(input_tokens * 0.14 + output_tokens * 0.28) / 1_000_000`
+7. Gateway calls `CostTracker.track_call()` with `model="deepseek-v4-flash"` and `operation="article_enrichment_batch"`
+8. CostTracker looks up pricing for "deepseek-v4-flash": calculates cost as `(input_tokens * 0.14 + output_tokens * 0.28) / 1_000_000`
 9. Gateway writes trace to `llm_traces` with cost, operation, model, token counts
 10. Caller receives `GatewayResponse` with all metadata
 
