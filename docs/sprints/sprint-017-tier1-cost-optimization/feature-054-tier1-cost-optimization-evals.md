@@ -13,12 +13,13 @@ updated: 2026-04-29
 ## Status (2026-04-29, Updated)
 
 **Phase 1 ✅ COMPLETE:** Corrected Haiku baselines (300 samples, 100% success rate)
-**Phase 2 ✅ COMPLETE:** Challenger model runs (900 API calls, 100% success rate)
+**Phase 2 🔄 PARTIAL COMPLETE:** Challenger model runs (600/900 API calls completed)
 - entity_extraction: Flash, DeepSeek, Qwen = 300/300 ✓
 - sentiment_analysis: Flash, DeepSeek, Qwen = 300/300 ✓
-- theme_extraction: Flash, DeepSeek, Qwen = 300/300 ✓
-- Elapsed: 20.6 minutes total (Phase 1: 10.5m, Phase 2: 12.9m)
+- theme_extraction: Flash, DeepSeek, Qwen = 0/300 ⏳ PENDING (next session)
+- Elapsed: Phase 1: 10.5m, Phase 2: 12.9m (entity + sentiment only)
 - Outputs: `docs/sprints/sprint-017-tier1-cost-optimization/decisions/phase-1-baselines/` and `phase-2-challenger-runs/`
+- Note: Haiku theme baseline exists; challengers to follow
 
 **Phase 3 ✅ COMPLETE:** Golden set analysis + reference answer compilation + scoring harness
 - ✅ Golden set structure analyzed (100 articles per operation)
@@ -474,7 +475,31 @@ Use these pre-selected diverse articles (from script output):
 
 ---
 
-## Immediate Next Steps
+## Immediate Next Steps (Next Session)
+
+### Phase 2b: Re-run Theme Extraction for Challengers
+1. Run: `python3 scripts/phase_2_challenger_runs.py` (will only need theme_extraction loop)
+   - 300 API calls (Flash, DeepSeek, Qwen × 100 articles each)
+   - ~5-10 minutes runtime
+   - Outputs: `phase-2-challenger-runs/challenger-theme_extraction-{flash,deepseek,qwen}.jsonl`
+
+2. After completion:
+   - Re-run Phase 3 scoring harness (will now score theme_extraction)
+   - Generate theme_extraction section for cost_metrics.csv
+   - Update Phase 4 analysis with theme_extraction findings
+
+### Phase 4b: Complete Theme Extraction Analysis
+After Phase 2b, add to Phase 4 manual analysis:
+- Three-way comparison: Challengers vs Haiku vs Your Annotations (theme)
+- Spot-check findings for theme extraction
+- Cost/latency analysis for theme operation
+- Final recommendations (SWAP/CONDITIONAL/STAY/DO_NOT_RECOMMEND)
+
+Then Phase 4 will be fully complete with all three operations analyzed.
+
+---
+
+## Previous Next Steps
 
 ### Ready to Execute (No Blockers)
 
