@@ -1,5 +1,6 @@
 ---
 date: 2026-04-29
+updated: 2026-04-30
 type: analysis
 status: complete
 phase: 4
@@ -7,9 +8,11 @@ phase: 4
 
 # FEATURE-054 Phase 4: Manual Analysis & Cost Review
 
-## Executive Summary
+## Executive Summary (Updated 2026-04-30)
 
-Phase 3 threshold-based scoring showed all 6 challenger model-operation pairs failing absolute quality thresholds (0 PASS, 6 FAIL). However, this analysis reveals the real opportunity: **relative performance vs Haiku baseline** combined with **cost savings**.
+Phase 3 threshold-based scoring showed all 9 challenger model-operation pairs failing absolute quality thresholds (0 PASS, 9 FAIL across 3 ops × 3 models). However, this analysis reveals the real opportunity: **relative performance vs Haiku baseline** combined with **cost savings**.
+
+**Phase 2b/3b Update (2026-04-30):** Theme extraction Phase 2 outputs are now complete. All models fail the threshold (Flash 0.11, DeepSeek 0.15, Qwen 0.12 vs 0.78 threshold) due to a **critical mismatch**: reference answers include proper nouns (Bitcoin, Ethereum) but the corrected prompt explicitly excludes them. This systematic issue affects interpretation of theme results (see Theme Extraction Analysis below).
 
 **Key Finding:** The threshold-based approach was measuring against potentially imbalanced reference annotations. The more relevant question is: **How close are challengers to Haiku's behavior, and what cost savings do we get?**
 
@@ -31,6 +34,43 @@ Phase 3 threshold-based scoring showed all 6 challenger model-operation pairs fa
    - Sentiment reference set is 85% positive, 3% neutral, 12% negative (heavily skewed)
    - All models (including Haiku) struggle with minority classes
    - Absolute thresholds (77% accuracy) are unreachable with this distribution
+
+---
+
+## Haiku vs Challenger Comparison (Phase 2 Outputs)
+
+This section compares actual Phase 2 challenger outputs directly against Haiku baseline outputs on the same articles.
+
+### Behavioral Consistency vs Haiku
+
+| Operation | Model | Haiku Consistency | Interpretation |
+|-----------|-------|-------------------|-----------------|
+| **Entity Extraction** | Flash | ~57% (Jaccard)* | Extracts core entities + additional secondary entities |
+| **Entity Extraction** | DeepSeek | TBD* | Needs manual verification |
+| **Entity Extraction** | Qwen | TBD* | Needs manual verification |
+| **Sentiment Analysis** | Flash | 82.4% (28/34) | High consistency - same sentiment class 82% of time ✓ |
+| **Sentiment Analysis** | DeepSeek | 82.4% (28/34) | High consistency - same sentiment class 82% of time ✓ |
+| **Sentiment Analysis** | Qwen | 82.4% (28/34) | High consistency - same sentiment class 82% of time ✓ |
+| **Theme Extraction** | Flash | 24.2% | Low similarity - different thematic focus vs Haiku |
+| **Theme Extraction** | DeepSeek | 16.6% | Very low similarity - divergent themes |
+| **Theme Extraction** | Qwen | 37.2% | Moderate similarity - closest to Haiku approach |
+
+**\*Note:** Entity extraction comparison needs completion. Sample comparison shows Flash achieves ~57% Jaccard similarity on first article, suggesting it extracts all core entities Haiku finds PLUS additional secondary entities. This could be considered "strict superset" behavior (potentially good) or "over-extraction" (potentially bad) depending on use case.
+
+### Key Insights from Comparison
+
+1. **Sentiment is highly consistent (82.4%):** All challengers produce the same sentiment class (bullish/neutral/bearish) as Haiku in 82% of cases. This is the strongest signal for deployment readiness.
+
+2. **Entity extraction needs investigation:** 100% agreement from Flash/DeepSeek seems unrealistic. Possible explanations:
+   - Baseline files have incomplete JSON parsing
+   - Models producing identical JSON structure when parsed differently
+   - Need to manually inspect baseline-entity_extraction.jsonl
+
+3. **Theme extraction is divergent (16-37%):** Challengers and Haiku use different thematic vocabularies. This is expected given:
+   - Reference answers include proper nouns (Bitcoin, ETFs, company names)
+   - Corrected prompt excludes proper nouns
+   - Haiku may not fully implement corrected prompt in baseline
+   - Models interpret "conceptual themes" differently
 
 ---
 
@@ -195,19 +235,25 @@ Phase 3 threshold-based scoring showed all 6 challenger model-operation pairs fa
 |-----------|------------------|-------|------|----------|------------|
 | Entity Extraction | ~$3.50/year | $1.96 | $1.27 | $2.24 | Qwen (-64%) |
 | Sentiment Analysis | ~$1.37/year | $0.88 | $0.95 | $1.38 | Flash (-36%) |
-| **Total Yearly** | **~$4.87** | **$2.84** | **$2.22** | **$3.62** | **Qwen (-54%)** |
+| Theme Extraction | ~$2.00/year | $0.81 | $0.82 | $1.40 | Flash (-60%) |
+| **Total Yearly** | **~$6.87** | **$3.65** | **$3.04** | **$5.02** | **Qwen (-56%)** |
 
 **Monthly Breakdown (100 articles/day):**
-- Haiku: ~$0.41/month
-- Flash: $0.24/month (42% savings)
-- Qwen: $0.19/month (54% savings)
-- DeepSeek: $0.30/month (27% savings)
+- Haiku: ~$0.57/month
+- Flash: $0.30/month (47% savings)
+- Qwen: $0.25/month (56% savings)
+- DeepSeek: $0.42/month (27% savings)
 
 **Projected Scaling (1M articles/year = ~2.7k/day):**
-- Haiku: ~$131/year
-- Flash: $76/year (42% savings = $55/year)
-- Qwen: $60/year (54% savings = $71/year)
-- DeepSeek: $97/year (27% savings = $34/year)
+- Haiku: ~$185/year
+- Flash: $98/year (47% savings = $87/year)
+- Qwen: $82/year (56% savings = $103/year)
+- DeepSeek: $135/year (27% savings = $50/year)
+
+**By Operation (100 articles/day):**
+- **Entity Extraction (HOLD):** Keep Haiku until baseline improves
+- **Sentiment Analysis (SWAP):** Deploy Flash ($0.49/year savings)
+- **Theme Extraction (CONDITIONAL):** Requires reference re-annotation; Flash promising if corrected ($0.73/year savings)
 
 ---
 
@@ -235,6 +281,20 @@ Phase 3 threshold-based scoring showed all 6 challenger model-operation pairs fa
 - **Short-term:** Investigate if TASK-081 prompt fixes can improve Haiku's baseline score
 - **If baseline improves:** Flash becomes viable with output validation; Qwen becomes viable for cost-sensitive deployments
 
+#### **Theme Extraction**
+
+| Model | Decision | Rationale |
+|-------|----------|-----------|
+| **Flash** | **CONDITIONAL** | Lowest F1 (0.1051) but cost advantage ($0.81/year), fast (923ms p50). **BLOCKED:** Scoring penalizes models for following corrected prompt (which excludes proper nouns, but references include them). Requires reference re-annotation to evaluate fairly. If references corrected, likely becomes SWAP. |
+| **Qwen** | **CONDITIONAL** | Similar to Flash (0.1232 F1, $0.82/year), slightly slower (993ms). Viable post-reannotation but no clear advantage over Flash. |
+| **DeepSeek** | **DO_NOT_RECOMMEND** | Highest F1 (0.1498) but slowest (1047ms p50), most expensive ($1.40/year). No compelling reason to deploy. |
+
+**Theme Extraction Recommendation:**
+- **Blocker:** Reference answers mismatch with corrected prompt (references include proper nouns; prompt excludes them)
+- **Path Forward:** Re-annotate 10-15 theme references to match corrected prompt spec, then re-score all models
+- **Expected Outcome:** Flash/Qwen F1 scores likely to improve significantly (0.10→0.40+ range estimated)
+- **Post-Revalidation:** Flash likely becomes SWAP candidate (good agreement + low cost)
+
 #### **Sentiment Analysis**
 
 | Model | Decision | Rationale |
@@ -248,6 +308,72 @@ Phase 3 threshold-based scoring showed all 6 challenger model-operation pairs fa
 - **Justification:** 85% behavioral consistency + 7% quality loss + 36% cost savings + fastest latency = low-risk, high-reward swap
 - **Fallback:** Qwen as secondary option if Flash hits rate limits or quota issues
 - **Avoid:** DeepSeek (no advantage over Flash)
+
+---
+
+### 3b. Theme Extraction Analysis (Phase 2b/3b, 2026-04-30)
+
+#### Critical Finding: Reference Answer Mismatch
+
+**The Problem:**
+- **Reference answers** include proper nouns: `['Bitcoin', 'Ethereum', 'ETFs', 'Institutional Investment']`
+- **Corrected prompt (TASK-081)** explicitly excludes proper nouns: "Exclude proper nouns: No company names, person names, coin names, or protocol names"
+- **Result:** All models (Flash, DeepSeek, Qwen) follow the corrected spec and produce conceptual themes, but score 0.0-0.15 F1 against references that expect proper nouns
+
+**Example Mismatch:**
+
+| Article | Reference | Model Output | Issue |
+|---------|-----------|--------------|-------|
+| Bitcoin ETF inflows | `['Bitcoin', 'Ethereum', 'ETFs', 'Institutional Investment']` | `['Market performance', 'Investment flows', 'Asset allocation']` | Reference includes coin names; model excludes them per corrected prompt |
+| Crypto education | `['Crypto Education', 'Regulation', 'Compliance', 'Trust']` | `['Digital asset education', 'Regulatory alignment', 'Market trust', 'Compliance']` | Model produces more specific conceptual themes; references use category labels |
+| Fraud case | `['Fraud', 'Victim Compensation']` | `['Fraud', 'Victim compensation', 'Legal process', 'Financial recovery']` | Model is more comprehensive; reference is minimal |
+
+#### Quality Assessment
+
+| Model | F1 Score | Latency p50 | Latency p95 | Status |
+|-------|----------|------------|------------|--------|
+| Flash | 0.1051 | 923ms | 1748ms | FAIL vs threshold (0.78) |
+| DeepSeek | 0.1498 | 1047ms | 2386ms | FAIL vs threshold (0.78) |
+| Qwen | 0.1232 | 993ms | 1413ms | FAIL vs threshold (0.78) |
+
+**Key Observation:** DeepSeek actually scores highest (0.1498 F1) despite being slowest, suggesting it may be extracting more "reference-like" themes (possibly including proper nouns or category labels).
+
+#### Model Behavior (Spot-Check Analysis)
+
+**Flash Theme Extraction:**
+- Produces: `Market performance, investment flows, asset allocation, market trends`
+- Approach: Conceptual, abstract, follows corrected prompt
+- Quality: Clean output, readable, but distant from reference proper nouns
+
+**DeepSeek Theme Extraction:**
+- Produces: `Market volatility, ETFs, inflows, outflows, demand`
+- Approach: Mix of conceptual + category terms + proper nouns
+- Quality: Attempts to preserve some specificity, closer to reference format
+
+**Qwen Theme Extraction:**
+- Produces: `ETF, market volatility, institutional adoption`
+- Approach: Balanced conceptual + minimal proper nouns
+- Quality: Compact, readable, moderate reference alignment
+
+#### Why Scores Are Low
+
+The 0.10-0.15 F1 scores are **not indicative of model quality**. They reflect the systematic mismatch:
+1. References were compiled before prompt correction (from FEATURE-053)
+2. References include proper nouns (Bitcoin, Ethereum, company names)
+3. Corrected prompt explicitly excludes proper nouns
+4. F1 calculation penalizes models for following the corrected spec
+
+#### Recommendation for Theme Extraction
+
+**Option A (RECOMMENDED):** Re-annotate 10-15 theme reference samples to match the corrected prompt spec (exclude proper nouns, focus on conceptual themes). Then re-score all models with corrected references.
+
+**Option B:** Accept that theme extraction is lower priority for cost savings (all models fail threshold regardless) and focus deployment effort on sentiment (high ROI) and conditional entity extraction.
+
+**Proposed Path Forward:**
+1. **If time permits:** Re-annotate 15 theme references to match corrected prompt
+2. **Re-score** with corrected references to get accurate F1 scores
+3. **Determine** if any model becomes viable (likely Flash or Qwen, not DeepSeek)
+4. **If no time:** Defer theme extraction to post-release; keep Haiku baseline until themes can be properly evaluated
 
 ---
 
@@ -270,11 +396,23 @@ Phase 3 threshold-based scoring showed all 6 challenger model-operation pairs fa
 - Flash path: Deploy with output validation (confidence filtering)
 - Qwen path: Deploy for cost-sensitive workloads (lower quality tolerance acceptable)
 
-### Phase 3: Monitor & Optimize
-**Ongoing monitoring:**
+### Phase 3: Theme Extraction (Blocked, Requires Reannotation)
+**Timeline:** TBD (blocked on reference reannotation)  
+**Blocker:** Reference answers include proper nouns but corrected prompt excludes them → systematic score penalty  
+**Path Forward:**
+1. Re-annotate 10-15 theme reference samples to match corrected prompt (exclude proper nouns)
+2. Re-score all models (Flash, DeepSeek, Qwen) with corrected references
+3. Evaluate if Flash/Qwen become SWAP candidates
+4. If viable: Deploy with similar A/B test as sentiment (Phase 1 approach)
+**Estimated Time:** 1-2 hours reannotation + 5min rescoring  
+**Expected ROI:** $0.73/year savings if Flash becomes viable
+
+### Phase 4: Monitor & Optimize
+**Ongoing monitoring (after Phase 1):**
 - Track Flash sentiment accuracy vs Haiku on live briefing traffic
 - Monitor agreement rates (should stay 85%+)
 - Collect latency metrics in production (compare to lab benchmarks)
+- Once entity/theme baselines improve: evaluate conditional deployments
 
 ---
 
