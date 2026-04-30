@@ -31,6 +31,7 @@ class RateLimiter:
         "entity_extraction": 5000,
         "sentiment_analysis": 5000,
         "theme_extraction": 5000,
+        "article_enrichment_batch": 10000,
         "narrative_detection": 2000,
     }
 

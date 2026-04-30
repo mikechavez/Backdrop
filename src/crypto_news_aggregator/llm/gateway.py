@@ -147,6 +147,10 @@ _OPERATION_ROUTING = {
         "insight_generation",
         primary="anthropic:claude-haiku-4-5-20251001"
     ),
+    "article_enrichment_batch": RoutingStrategy(
+        "article_enrichment_batch",
+        primary="anthropic:claude-haiku-4-5-20251001"
+    ),
     "test_operation": RoutingStrategy(
         "test_operation",
         primary="anthropic:claude-haiku-4-5-20251001"
@@ -379,6 +383,24 @@ class LLMGateway:
                 model="n/a",
             )
 
+    def _parse_model_string(self, model_str: str) -> tuple[str, str]:
+        """
+        Parse provider-aware model string format.
+
+        Supports:
+        - "anthropic:claude-haiku-4-5-20251001" -> ("anthropic", "claude-haiku-4-5-20251001")
+        - "deepseek:deepseek-v4-flash" -> ("deepseek", "deepseek-v4-flash")
+        - Legacy "claude-haiku..." -> ("anthropic", "claude-haiku...")
+
+        Returns:
+            (provider, model_name)
+        """
+        if ":" in model_str:
+            provider, model = model_str.split(":", 1)
+            return provider, model
+        # Legacy format: assume Anthropic
+        return "anthropic", model_str
+
     def _resolve_routing(
         self,
         operation: str,
@@ -409,6 +431,24 @@ class LLMGateway:
 
         return actual_model, overridden
 
+    def _get_provider_url(self, provider: str) -> str:
+        """
+        Get API URL for the given provider.
+
+        Args:
+            provider: "anthropic" or "deepseek"
+
+        Returns:
+            API endpoint URL
+        """
+        if provider == "deepseek":
+            return "https://api.deepseek.com/chat/completions"
+
+        settings = get_settings()
+        if settings.USE_HELICONE_PROXY:
+            return _HELICONE_API_URL
+        return _ANTHROPIC_API_URL
+
     def _get_anthropic_url(self) -> str:
         """
         Determine API URL based on Helicone proxy configuration.
@@ -416,13 +456,31 @@ class LLMGateway:
         Returns:
             Helicone proxy URL if USE_HELICONE_PROXY=True, otherwise direct Anthropic URL.
         """
-        settings = get_settings()
-        if settings.USE_HELICONE_PROXY:
-            return _HELICONE_API_URL
-        return _ANTHROPIC_API_URL
+        return self._get_provider_url("anthropic")
 
-    def _build_headers(self) -> dict:
+    def _build_provider_headers(self, provider: str, model_name: str) -> dict:
+        """
+        Build headers for the given provider.
+
+        Args:
+            provider: "anthropic" or "deepseek"
+            model_name: Full model name (used only for DeepSeek validation)
+
+        Returns:
+            Request headers dict
+        """
         settings = get_settings()
+
+        if provider == "deepseek":
+            api_key = getattr(settings, "DEEPSEEK_API_KEY", None)
+            if not api_key:
+                raise ValueError("DEEPSEEK_API_KEY not configured")
+            return {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            }
+
+        # Anthropic
         headers = {
             "x-api-key": self.api_key,
             "anthropic-version": "2023-06-01",
@@ -432,16 +490,47 @@ class LLMGateway:
             headers["Helicone-Auth"] = f"Bearer {settings.HELICONE_API_KEY}"
         return headers
 
-    def _build_payload(
+    def _build_headers(self, provider: str = "anthropic", model_name: str = "") -> dict:
+        """Legacy method for backward compatibility."""
+        return self._build_provider_headers(provider, model_name)
+
+    def _build_provider_payload(
         self,
         messages: List[Dict[str, str]],
-        model: str,
+        provider: str,
+        model_name: str,
         max_tokens: int,
         temperature: float,
         system: Optional[str],
     ) -> dict:
+        """
+        Build request payload for the given provider.
+
+        Args:
+            messages: Message list
+            provider: "anthropic" or "deepseek"
+            model_name: Model identifier
+            max_tokens: Max response tokens
+            temperature: Sampling temperature
+            system: System prompt (optional)
+
+        Returns:
+            Provider-specific request payload
+        """
+        if provider == "deepseek":
+            payload = {
+                "model": model_name,
+                "messages": messages,
+                "max_tokens": max_tokens,
+                "temperature": temperature,
+                "stream": False,
+                "thinking": {"type": "disabled"},
+            }
+            return payload
+
+        # Anthropic
         payload = {
-            "model": model,
+            "model": model_name,
             "max_tokens": max_tokens,
             "temperature": temperature,
             "messages": messages,
@@ -450,11 +539,41 @@ class LLMGateway:
             payload["system"] = system
         return payload
 
-    def _parse_response(self, data: dict) -> tuple[str, int, int]:
-        """Extract text and token counts from API response."""
+    def _build_payload(
+        self,
+        messages: List[Dict[str, str]],
+        model: str,
+        max_tokens: int,
+        temperature: float,
+        system: Optional[str],
+    ) -> dict:
+        """Legacy method for backward compatibility."""
+        return self._build_provider_payload(messages, "anthropic", model, max_tokens, temperature, system)
+
+    def _parse_provider_response(self, data: dict, provider: str) -> tuple[str, int, int]:
+        """
+        Parse response from the given provider.
+
+        Args:
+            data: Response JSON
+            provider: "anthropic" or "deepseek"
+
+        Returns:
+            (text, input_tokens, output_tokens)
+        """
+        if provider == "deepseek":
+            text = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+            usage = data.get("usage", {})
+            return text, usage.get("prompt_tokens", 0), usage.get("completion_tokens", 0)
+
+        # Anthropic
         text = data.get("content", [{}])[0].get("text", "")
         usage = data.get("usage", {})
         return text, usage.get("input_tokens", 0), usage.get("output_tokens", 0)
+
+    def _parse_response(self, data: dict) -> tuple[str, int, int]:
+        """Extract text and token counts from API response. Legacy method."""
+        return self._parse_provider_response(data, "anthropic")
 
     def _write_trace_sync(
         self,
@@ -638,12 +757,13 @@ class LLMGateway:
                 )
 
         # ═══ CACHE MISS - CALL API ═══
+        provider, model_name = self._parse_model_string(model)
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.post(
-                    self._get_anthropic_url(),
-                    headers=self._build_headers(),
-                    json=self._build_payload(messages, model, max_tokens, temperature, system),
+                    self._get_provider_url(provider),
+                    headers=self._build_provider_headers(provider, model_name),
+                    json=self._build_provider_payload(messages, provider, model_name, max_tokens, temperature, system),
                     timeout=120,
                 )
                 response.raise_for_status()
@@ -668,7 +788,7 @@ class LLMGateway:
             raise LLMError(str(e), error_type="unexpected", model=model)
 
         duration_ms = (time.monotonic() - start) * 1000
-        text, input_tokens, output_tokens = self._parse_response(data)
+        text, input_tokens, output_tokens = self._parse_provider_response(data, provider)
 
         cost = await self._track_cost(operation, model, input_tokens, output_tokens)
         await self._write_trace(trace_id, operation, model, input_tokens, output_tokens, cost, duration_ms)
@@ -775,12 +895,13 @@ class LLMGateway:
                 )
 
         # ═══ CACHE MISS - CALL API ═══
+        provider, model_name = self._parse_model_string(model)
         try:
             with httpx.Client() as client:
                 response = client.post(
-                    self._get_anthropic_url(),
-                    headers=self._build_headers(),
-                    json=self._build_payload(messages, model, max_tokens, temperature, system),
+                    self._get_provider_url(provider),
+                    headers=self._build_provider_headers(provider, model_name),
+                    json=self._build_provider_payload(messages, provider, model_name, max_tokens, temperature, system),
                     timeout=30,
                 )
                 response.raise_for_status()
@@ -805,7 +926,7 @@ class LLMGateway:
             raise LLMError(str(e), error_type="unexpected", model=model)
 
         duration_ms = (time.monotonic() - start) * 1000
-        text, input_tokens, output_tokens = self._parse_response(data)
+        text, input_tokens, output_tokens = self._parse_provider_response(data, provider)
 
         # Sync cost tracking: create tracker inline, write synchronously via pymongo
         cost = 0.0

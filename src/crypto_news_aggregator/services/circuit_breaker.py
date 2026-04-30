@@ -65,6 +65,7 @@ class CircuitBreaker:
             "entity_extraction",
             "sentiment_analysis",
             "theme_extraction",
+            "article_enrichment_batch",
             "narrative_detection",
             "relevance_scoring",
         ]

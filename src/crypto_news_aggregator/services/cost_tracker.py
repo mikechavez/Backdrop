@@ -39,20 +39,36 @@ class CostTracker:
     - Async MongoDB persistence
     """
 
-    # Anthropic pricing as of March 2026
-    # Prices per 1 million tokens
+    # Pricing as of April 2026
+    # Prices per 1 million tokens (base tier, no cache)
     PRICING = {
         "claude-haiku-4-5-20251001": {
             "input": 1.00,   # $1.00 per 1M input tokens
             "output": 5.00,  # $5.00 per 1M output tokens
         },
+        "claude-sonnet-4-6": {
+            "input": 3.00,
+            "output": 15.00,
+        },
         "claude-sonnet-4-5-20250929": {
             "input": 3.00,
             "output": 15.00,
         },
+        "claude-opus-4-7": {
+            "input": 5.00,
+            "output": 25.00,
+        },
         "claude-opus-4-6": {
-            "input": 15.00,
-            "output": 75.00,
+            "input": 5.00,
+            "output": 25.00,
+        },
+        "deepseek-v4-flash": {
+            "input": 0.14,   # $0.14 per 1M input tokens (direct API)
+            "output": 0.28,  # $0.28 per 1M output tokens (direct API)
+        },
+        "deepseek-chat": {
+            "input": 0.14,   # Alias for v4-flash
+            "output": 0.28,
         },
     }
 

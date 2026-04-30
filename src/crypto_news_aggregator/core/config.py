@@ -47,6 +47,12 @@ class Settings(BaseSettings):
         env="GEMINI_API_KEY",
         description="Google Gemini API key (required for Flash evaluations in FEATURE-053)"
     )
+    DEEPSEEK_API_KEY: Optional[str] = Field(
+        default=None,
+        env="DEEPSEEK_API_KEY",
+        description="DeepSeek API key for direct API access (TASK-085)"
+    )
+    DEEPSEEK_DEFAULT_MODEL: str = "deepseek-chat"
     ANTHROPIC_DEFAULT_MODEL: str = "claude-haiku-4-5-20251001"
     ANTHROPIC_ENTITY_MODEL: str = "claude-haiku-4-5-20251001"
     # DEPRECATED by BUG-039: Entity extraction no longer falls back to Sonnet.
