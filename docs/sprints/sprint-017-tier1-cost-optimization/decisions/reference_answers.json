@@ -1,0 +1,524 @@
+{
+  "entity_extraction": {
+    "69ddd19a972adb5ad8c76bbf": [
+      "Bitcoin",
+      "Ether",
+      "XRP",
+      "Solana",
+      "ETFs",
+      "Blackrock",
+      "IBIT",
+      "ETHA",
+      "Grayscale",
+      "GBTC"
+    ],
+    "69ddf73b972adb5ad8c76c56": [
+      "OneCoin"
+    ],
+    "69de0dd8972adb5ad8c76c93": [
+      "OneCoin"
+    ],
+    "69de1566972adb5ad8c76cb6": [
+      "Bitcoin",
+      "ETFs",
+      "FBTC"
+    ],
+    "69de1566972adb5ad8c76cb7": [
+      "Web3",
+      "Hacken"
+    ],
+    "69de2c1c972adb5ad8c76d30": [
+      "SEC",
+      "DeFi",
+      "Bitcoin",
+      "Ethereum"
+    ],
+    "69de2d77fd916384e1c76c97": [
+      "Borse",
+      "Kraken",
+      "Payward"
+    ],
+    "69de3cb3fd916384e1c76ccb": [
+      "XRP",
+      "Boundless"
+    ],
+    "69de4a67972adb5ad8c76da6": [
+      "Ledger",
+      "Crypto Theft",
+      "ZachXBT"
+    ],
+    "69de78033aa1e4bbbbc76bf6": [
+      "XRP"
+    ],
+    "69ddfffbfd916384e1c76c39": [
+      "Relm",
+      "Cannabis",
+      "Insurance**"
+    ],
+    "69de51f7972adb5ad8c76dba": [
+      "Ledger",
+      "Apple",
+      "ZachXBT",
+      "KuCoin**"
+    ],
+    "69de6136972adb5ad8c76df4": [
+      "Goldman Sachs",
+      "Bitcoin",
+      "ETF",
+      "ETP**"
+    ],
+    "69de613a972adb5ad8c76df6": [
+      "Goldman Sachs",
+      "Bitcoin",
+      "ETF**"
+    ],
+    "69de6146972adb5ad8c76df8": [
+      "Goldman Sachs",
+      "Bitcoin ETF**"
+    ],
+    "69de706f3aa1e4bbbbc76bda": [
+      "Goldman Sachs",
+      "Bitcoin",
+      "ETF",
+      "Options**"
+    ],
+    "69deb8582adcac6279c197b4": [
+      "Ethereum",
+      "DeFi",
+      "Cow Swap**"
+    ],
+    "69deb85f2adcac6279c197b5": [
+      "Bitcoin",
+      "ETF",
+      "Outflows",
+      "XRP",
+      "Solana",
+      "Fidelity",
+      "FBTC**"
+    ],
+    "69deebd2443072964173a764": [
+      "Evernorth",
+      "XRP",
+      "Institutional Adoption**"
+    ],
+    "69deebd7443072964173a766": [
+      "21Shares",
+      "Hyperliquid",
+      "ETF",
+      "SEC**"
+    ],
+    "69defa6db9431fdea59dfe80": [
+      "Ripple",
+      "Brad Garlinghouse",
+      "Regulation**"
+    ],
+    "69df39fc6ebd3c6aafeffa35": [
+      "North Korea",
+      "Hackers",
+      "AI**"
+    ],
+    "69dfbc731ad9a9ee53effacb": [
+      "Pakistan",
+      "Trump",
+      "Binance**"
+    ],
+    "69dfd3b928b9b537e0effb80": [
+      "Bitcoin",
+      "Bitfinex",
+      "STRC",
+      "Strategy**"
+    ],
+    "69dfead128b9b537e0effd4e": [
+      "ETF",
+      "Inflows",
+      "Blackrock",
+      "IBIT",
+      "Ethereum",
+      "Fidelity**"
+    ],
+    "69e0cbe44dd366721b1de4d1": [
+      "Circle",
+      "Jeremy Allaire",
+      "Stablecoins",
+      "China",
+      "Yuan",
+      "Dollar**"
+    ],
+    "69e0d2760a57f1a2701de595": [
+      "UK",
+      "Regulation",
+      "FCA**"
+    ],
+    "69e0e9f40973f3a3831de51b": [
+      "Australia",
+      "Regulation",
+      "Tokenization",
+      "Institutional Adoption",
+      "Payments**"
+    ],
+    "69e0e9fa0973f3a3831de51e": [
+      "Drift",
+      "Tether",
+      "Circle",
+      "USDC",
+      "USDT",
+      "Hackers**"
+    ],
+    "69e10224b05c1d4ddc1de4c7": [
+      "Polkadot",
+      "Hyperbridge",
+      "Binance",
+      "Hackers**"
+    ],
+    "69e109ddb05c1d4ddc1de502": [
+      "Drift",
+      "Tether",
+      "Circle",
+      "USDC",
+      "DeFi",
+      "Hackers**"
+    ],
+    "69e111a2b05c1d4ddc1de541": [
+      "Bitcoin",
+      "ETF",
+      "Inflows",
+      "Rally",
+      "Ether",
+      "XRP",
+      "Solana",
+      "Blackrock",
+      "IBIT**"
+    ],
+    "69e12c6acd3cb7bb0f1de4b3": [
+      "Circle",
+      "Drift",
+      "Hackers",
+      "Gibbs Mura Law Group",
+      "North Korea",
+      "USDC**"
+    ],
+    "69e130a3b05c1d4ddc1de60b": [
+      "Traders",
+      "Bitcoin",
+      "Analysts",
+      "Volatility",
+      "Liquidations",
+      "Coinglass",
+      "MEXC**"
+    ],
+    "69e1681ba65cc298e61de4fa": [
+      "UK",
+      "FCA",
+      "Regulation**"
+    ],
+    "69e1ff936cf1011c551de4da": [
+      "Grinex",
+      "Hackers",
+      "Tether",
+      "Stablecoins**"
+    ],
+    "69e217d8bfa4b6d22b1de4e1": [
+      "Circle",
+      "Drift",
+      "Hackers",
+      "Lawyers**"
+    ]
+  },
+  "sentiment_analysis": {
+    "69ddd19a972adb5ad8c76bbf": {
+      "label": "positive",
+      "score": 0.7
+    },
+    "69dde0a0972adb5ad8c76c09": {
+      "label": "positive",
+      "score": 0.6
+    },
+    "69ddf73b972adb5ad8c76c56": {
+      "label": "negative",
+      "score": -0.5
+    },
+    "69ddfffbfd916384e1c76c39": {
+      "label": "negative",
+      "score": -0.1
+    },
+    "69de0dd8972adb5ad8c76c93": {
+      "label": "negative",
+      "score": -0.5
+    },
+    "69de1566972adb5ad8c76cb6": {
+      "label": "neutral",
+      "score": 0.2
+    },
+    "69de1566972adb5ad8c76cb7": {
+      "label": "negative",
+      "score": -0.7
+    },
+    "69de2491972adb5ad8c76d0b": {
+      "label": "positive",
+      "score": 0.8
+    },
+    "69de2c1c972adb5ad8c76d30": {
+      "label": "positive",
+      "score": 0.8
+    },
+    "69de2d77fd916384e1c76c97": {
+      "label": "positive",
+      "score": 0.5
+    },
+    "69de51f7972adb5ad8c76dba": {
+      "label": "positive",
+      "score": 0.5
+    },
+    "69de59a4972adb5ad8c76dd7": {
+      "label": "positive",
+      "score": 0.5
+    },
+    "69de68d1972adb5ad8c76e16": {
+      "label": "positive",
+      "score": 0.5
+    },
+    "69dea1b22adcac6279c19793": {
+      "label": "positive",
+      "score": 0.5
+    },
+    "69deb85f2adcac6279c197b5": {
+      "label": "positive",
+      "score": 0.5
+    },
+    "69deb8642adcac6279c197b6": {
+      "label": "positive",
+      "score": 0.5
+    },
+    "69debfef2adcac6279c197c6": {
+      "label": "positive",
+      "score": 0.5
+    },
+    "69ded7cb1b80de5043c1978c": {
+      "label": "positive",
+      "score": 0.5
+    },
+    "69defa6db9431fdea59dfe80": {
+      "label": "positive",
+      "score": 0.5
+    },
+    "69df1202b8ea0f0ffa9dfeb5": {
+      "label": "positive",
+      "score": 0.5
+    },
+    "69df396bd323a1ae6ceffa31": {
+      "label": "positive",
+      "score": 0.5
+    },
+    "69df762ea634582621effa65": {
+      "label": "positive",
+      "score": 0.5
+    },
+    "69dfa3dfa634582621effb28": {
+      "label": "positive",
+      "score": 0.5
+    },
+    "69dfbc731ad9a9ee53effacb": {
+      "label": "positive",
+      "score": 0.5
+    },
+    "69dfc43028b9b537e0effa9a": {
+      "label": "positive",
+      "score": 0.5
+    },
+    "69e0c3100a57f1a2701de53e": {
+      "label": "positive",
+      "score": 0.5
+    },
+    "69e0d2760a57f1a2701de594": {
+      "label": "positive",
+      "score": 0.5
+    },
+    "69e0d2ee0973f3a3831de4bf": {
+      "label": "positive",
+      "score": 0.5
+    },
+    "69e0e9fa0973f3a3831de51e": {
+      "label": "positive",
+      "score": 0.5
+    },
+    "69e0ea9d4dd366721b1de50a": {
+      "label": "positive",
+      "score": 0.5
+    },
+    "69e0fa184dd366721b1de54e": {
+      "label": "positive",
+      "score": 0.5
+    },
+    "69e109e4b05c1d4ddc1de506": {
+      "label": "positive",
+      "score": 0.5
+    },
+    "69e124b5cd3cb7bb0f1de49b": {
+      "label": "positive",
+      "score": 0.5
+    },
+    "69e128e6b05c1d4ddc1de5ea": {
+      "label": "positive",
+      "score": 0.5
+    }
+  },
+  "theme_extraction": {
+    "69ddd19a972adb5ad8c76bbf": [
+      "Bitcoin",
+      "Ethereum",
+      "ETFs",
+      "Institutional Investment"
+    ],
+    "69dde0a0972adb5ad8c76c09": [
+      "Crypto Education",
+      "Regulation",
+      "Compliance",
+      "Trust"
+    ],
+    "69ddf73b972adb5ad8c76c56": [
+      "Fraud",
+      "Victim Compensation"
+    ],
+    "69de0dd8972adb5ad8c76c93": [
+      "Fraud",
+      "Victim Compensation"
+    ],
+    "69de1566972adb5ad8c76cb6": [
+      "ETF",
+      "Bitcoin",
+      "Market Flows",
+      "Price Movement"
+    ],
+    "69de1566972adb5ad8c76cb7": [
+      "Hacking",
+      "Regulation",
+      "Security"
+    ],
+    "69de2c1c972adb5ad8c76d30": [
+      "SEC",
+      "Market Movement",
+      "Regulation",
+      "DeFi"
+    ],
+    "69de78033aa1e4bbbbc76bf6": [
+      "XRP",
+      "Price Analysis",
+      "Technical Analysis"
+    ],
+    "69dea1b22adcac6279c19793": [
+      "Institutional Adoption"
+    ],
+    "69deb0ca2adcac6279c197a9": [
+      "Hackers**"
+    ],
+    "69de3cb3fd916384e1c76ccb": [
+      "XRP",
+      "Boundless",
+      "Privacy",
+      "Zero-Knowledge**"
+    ],
+    "69de51f7972adb5ad8c76dba": [
+      "Ledger",
+      "Apple",
+      "Hackers**"
+    ],
+    "69de51fd972adb5ad8c76dbd": [
+      "Strategy",
+      "Saylor",
+      "Bitcoin",
+      "STRC**"
+    ],
+    "69de59a4972adb5ad8c76dd7": [
+      "DOJ",
+      "Fraud",
+      "Law Enforcement**"
+    ],
+    "69de6136972adb5ad8c76df4": [
+      "Goldman Sachs",
+      "Institutional Adoption",
+      "ETF**"
+    ],
+    "69dea2e61b80de5043c19775": [
+      "Kraken",
+      "IPO",
+      "SEC",
+      "Regulation",
+      "Institutional Adoption**"
+    ],
+    "69deb8642adcac6279c197b6": [
+      "Regulation",
+      "Institutional Adoption",
+      "Traders",
+      "SEC**"
+    ],
+    "69debfef2adcac6279c197c6": [
+      "Goldman Sachs",
+      "Institutional Adoption",
+      "ETF",
+      "Bitcoin**"
+    ],
+    "69ded7cb1b80de5043c1978c": [
+      "Ethereum**"
+    ],
+    "69df1202b8ea0f0ffa9dfeb5": [
+      "Exchanges",
+      "IPO",
+      "SEC",
+      "Regulation",
+      "Institutional Adoption**"
+    ],
+    "69df396bd323a1ae6ceffa31": [
+      "Regulation**"
+    ],
+    "69df5f6ea634582621effa00": [
+      "XRP",
+      "Retail Adoption**"
+    ],
+    "69df7631a634582621effa67": [
+      "Regulation**"
+    ],
+    "69dfa3dfa634582621effb28": [
+      "Hackers",
+      "AI",
+      "DeFi**"
+    ],
+    "69dfa3e2a634582621effb29": [
+      "Regulation",
+      "Banking**"
+    ],
+    "69dfad231ad9a9ee53effa4d": [
+      "Regulation",
+      "Stablecoins**"
+    ],
+    "69dfb314a634582621effb78": [
+      "Infrastructure**"
+    ],
+    "69e094e0469fd81c181de52f": [
+      "Bitcoin**"
+    ],
+    "69e0cbe44dd366721b1de4d1": [
+      "Stablecoins",
+      "China",
+      "Regulation**"
+    ],
+    "69e0e9fa0973f3a3831de51e": [
+      "Hackers**"
+    ],
+    "69e10224b05c1d4ddc1de4c7": [
+      "Hackers**"
+    ],
+    "69e10228b05c1d4ddc1de4c9": [
+      "Hackers**"
+    ],
+    "69e148e9f9c412148a1de4dd": [
+      "Exchanges",
+      "Binance**"
+    ],
+    "69e1575cf9c412148a1de527": [
+      "CFTC",
+      "Regulation",
+      "AI",
+      "Prediction Markets**"
+    ]
+  }
+}

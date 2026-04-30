@@ -1,0 +1,10 @@
+operation,model,samples,score,threshold,status,notes
+entity_extraction,flash,37,0.35956498897675365,0.82,FAIL,"Mean 0.3596 (σ=0.3163), 37 articles"
+entity_extraction,deepseek,37,0.2817772317772318,0.82,FAIL,"Mean 0.2818 (σ=0.3490), 37 articles"
+entity_extraction,qwen,37,0.4077787871905519,0.82,FAIL,"Mean 0.4078 (σ=0.3393), 37 articles"
+sentiment_analysis,flash,34,0.4411764705882353,0.77,FAIL,"Mean 44.1% (σ=0.5040), 34 articles"
+sentiment_analysis,deepseek,34,0.4117647058823529,0.77,FAIL,"Mean 41.2% (σ=0.4996), 34 articles"
+sentiment_analysis,qwen,34,0.38235294117647056,0.77,FAIL,"Mean 38.2% (σ=0.4933), 34 articles"
+theme_extraction,flash,34,0.10513538748832867,0.78,FAIL,"Mean 0.1051 (σ=0.1875), 34 articles"
+theme_extraction,deepseek,34,0.14983872336813514,0.78,FAIL,"Mean 0.1498 (σ=0.1776), 34 articles"
+theme_extraction,qwen,34,0.12324929971988796,0.78,FAIL,"Mean 0.1232 (σ=0.1905), 34 articles"
