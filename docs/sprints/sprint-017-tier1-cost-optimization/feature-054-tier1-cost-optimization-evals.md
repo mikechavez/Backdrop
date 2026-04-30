@@ -30,7 +30,12 @@ updated: 2026-04-29
   - theme_extraction: FILES NOT FOUND (Phase 2 outputs not yet available)
 - ✅ Cost metrics CSV generated (token counts, latencies per model)
 
-**Phase 4 ⏳ PENDING:** Manual analysis + cost review + updated decision records
+**Phase 4 ✅ COMPLETE:** Manual analysis + cost review + recommendations
+- ✅ Spot-check quality findings (failure modes, fixability assessment)
+- ✅ Cost analysis complete (annual savings calculated per model)
+- ✅ Latency assessment (p50/p95 per model, operational feasibility)
+- ✅ Behavioral consistency analysis (vs Haiku baseline)
+- ✅ Final recommendations by model-operation pair (SWAP/CONDITIONAL/STAY)
 
 ---
 
@@ -437,6 +442,24 @@ Use these pre-selected diverse articles (from script output):
 
 ---
 
+## Phase 4 Key Recommendations
+
+**Sentiment Analysis (Flash):** SWAP ✓
+- 85% agreement with Haiku, only 7% quality loss
+- 36% cost savings ($0.88/year vs $1.37/year baseline)
+- Fastest latency (0.90s p50)
+- **Recommendation:** Deploy immediately with 3-5 day A/B test
+
+**Entity Extraction (Flash/Qwen):** CONDITIONAL
+- Flash: 64% agreement, 17% quality loss, balanced cost, fastest latency
+- Qwen: 58% agreement, 5% quality loss, 36% cost savings, acceptable latency
+- **Recommendation:** Hold until Haiku baseline improves above 0.50 F1 (currently 0.43)
+- DeepSeek: DO_NOT_RECOMMEND (too slow, expensive, poor agreement)
+
+**See:** `FEATURE-054-Phase4-manual-analysis.md` for detailed findings, risk assessment, and deployment strategy
+
+---
+
 ## Success Definition
 
 **By end of FEATURE-054:**
@@ -445,12 +468,13 @@ Use these pre-selected diverse articles (from script output):
 ✅ "900 challenger API calls completed with >99% success rate."  
 ✅ "Threshold-based scoring shows which models pass each operation."  
 ✅ "Manual analysis identifies failure modes and cost impact."  
-✅ "Updated decision records recommend: Flash for sentiment, stay on entity/theme (or conditional after fixes)."  
-✅ "Clear cost projections: $X/year savings if Flash deployed on sentiment."
+✅ "Three-way comparison reveals: Flash sentiment ready for SWAP (85% Haiku agreement, 36% savings)"  
+✅ "Entity extraction requires conditional approach (weak Haiku baseline, good cost savings possible)"  
+✅ "Clear deployment path: Flash sentiment immediate, entity extraction pending baseline improvement"
 
 ---
 
-## Immediate Next Steps (Phase 3b Implementation)
+## Immediate Next Steps
 
 ### Ready to Execute (No Blockers)
 
