@@ -168,10 +168,14 @@ Railway must define these environment variables (do not use local `.env` or Keyc
 | `DEEPSEEK_API_KEY` | DeepSeek API authentication | `sk-...` |
 | `ANTHROPIC_API_KEY` | Anthropic API (for rollback/fallback if keeping) | `sk-ant-...` |
 | `DEEPSEEK_DEFAULT_MODEL` | Explicit model reference | `deepseek-v4-flash` |
-| `MONGODB_URI` | MongoDB connection to crypto_news database | `mongodb+srv://...` |
+| `MONGODB_URI` | **WRITE-CAPABLE** MongoDB connection to crypto_news database | `mongodb+srv://...` |
 | `REDIS_URL` | Redis connection for caching and rate limiting | `redis://...` |
 
-**Critical:** Do not commit `.env` files with production credentials. Use Railway dashboard or environment configuration system.
+**Critical:** 
+- Do not commit `.env` files with production credentials. Use Railway dashboard.
+- `MONGODB_URI` must use a write-capable user to record `llm_traces` (the read-only agent user cannot write traces).
+
+**See:** `TASK-086-PHASE1-PRODUCTION-DEPLOYMENT.md` for detailed deployment steps.
 
 ## Dependencies
 
