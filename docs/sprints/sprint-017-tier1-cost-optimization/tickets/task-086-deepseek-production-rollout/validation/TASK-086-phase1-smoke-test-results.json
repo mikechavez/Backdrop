@@ -36,8 +36,8 @@
           "DeFi",
           "Aave",
           "Security Audit",
-          "Protocol Upgrade",
-          "Community"
+          "Smart Contract",
+          "Protocol Upgrade"
         ]
       }
     ]
@@ -48,15 +48,15 @@
     "operation": "article_enrichment_batch",
     "traces": [
       {
-        "_id": "69f422734f5b79cb190ae59d",
-        "trace_id": "5e04d41f-835c-4d3e-9815-2e63803cad6b",
+        "_id": "69f42542282151fc750ae5a1",
+        "trace_id": "b4ffdfd9-6797-4e76-bd6f-e7c2342ff4c9",
         "operation": "article_enrichment_batch",
-        "timestamp": "2026-05-01 03:48:03.751000",
+        "timestamp": "2026-05-01 04:00:02.168000",
         "model": "anthropic:claude-haiku-4-5-20251001",
-        "input_tokens": 252,
-        "output_tokens": 94,
-        "cost": 0.000722,
-        "duration_ms": 1043.8,
+        "input_tokens": 266,
+        "output_tokens": 89,
+        "cost": 0.000711,
+        "duration_ms": 970.4,
         "error": null,
         "quality": {
           "passed": null,

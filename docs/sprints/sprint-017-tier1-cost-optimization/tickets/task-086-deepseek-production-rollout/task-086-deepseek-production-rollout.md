@@ -34,6 +34,49 @@ updated: 2026-05-01
 
 **Next step:** Begin Phase 1 production validation — deploy to production and monitor 5-7 days of live traffic for sentiment agreement, parse success, latency, and cost.
 
+## Immediate Action Checklist
+
+These are the next actions required to begin TASK-086 Phase 1 production validation.
+
+1. **Deploy Phase 1 to production**
+   - Route `article_enrichment_batch` to `deepseek:deepseek-v4-flash`.
+   - Use the existing `LLMGateway` routing path.
+   - Do not change enrichment call sites.
+
+2. **Confirm Railway production environment variables**
+   - `DEEPSEEK_API_KEY`
+   - `ANTHROPIC_API_KEY`
+   - `DEEPSEEK_DEFAULT_MODEL`
+   - `MONGODB_URI`
+   - `REDIS_URL`
+
+3. **Confirm production MongoDB write access**
+   - The production app must use a write-capable `MONGODB_URI`.
+   - The read-only agent MongoDB user is not sufficient for production because `llm_traces` must be written.
+
+4. **Run one production smoke test**
+   - Confirm the enrichment batch completes successfully.
+   - Confirm the response parses into valid relevance, sentiment, and themes.
+   - Confirm there are no recurring auth, request-format, or provider errors.
+
+5. **Verify `llm_traces` immediately after deploy**
+   - `llm_traces.model` shows `deepseek:deepseek-v4-flash`.
+   - Token counts are present.
+   - Cost uses DeepSeek pricing, not Haiku pricing.
+   - Duration/latency fields are populated.
+
+6. **Start Phase 1 monitoring**
+   - Monitor for 5-7 days, or at least 50 representative production articles if volume is sufficient.
+   - Track sentiment agreement, parse success, relevance score sanity, theme output quality, latency, error rate, and cost.
+
+7. **Keep rollback ready**
+   - Rollback route: `anthropic:claude-haiku-4-5-20251001`.
+   - Rollback must not require call-site changes, schema changes, or removing DeepSeek gateway code.
+
+8. **Create or update the Phase 1 validation report**
+   - Suggested path: `docs/sprints/sprint-017-tier1-cost-optimization/validation/TASK-086-phase1-deepseek-enrichment-rollout.md`.
+   - Record deploy time, sample size, sentiment agreement, parse success, latency, cost, errors, spot-check notes, and final decision.
+
 ## Problem
 
 TASK-085 adds DeepSeek support behind `LLMGateway` using provider-prefixed model routing (`anthropic:*`, `deepseek:*`). The next step is to validate DeepSeek in production with a minimal, reversible rollout.
@@ -470,6 +513,33 @@ Rollback to Anthropic if:
 - [ ] No direct DeepSeek call sites added outside gateway.
 - [ ] TASK-087 remains queued as post-integration reliability refactor.
 - [ ] Phase 2 decision made: proceed to entity rollout, defer, or stop.
+
+
+## TASK-086 Follow-Up Work
+
+These items are directly part of TASK-086, but should happen after the immediate production rollout begins.
+
+1. **Complete Phase 1 validation window**
+   - Run DeepSeek-backed `article_enrichment_batch` in production for 5-7 days, or until there is enough representative traffic to make a decision.
+
+2. **Make the Phase 1 decision**
+   - **KEEP** DeepSeek if sentiment agreement is >= 80%, parse success is >= 98%, cost tracking is correct, and there is no obvious downstream degradation.
+   - **ROLLBACK** to Anthropic if sentiment agreement is < 75% sustained, parse failures break enrichment, provider errors recur, latency is unacceptable, or cost tracking is wrong.
+   - **EXTEND** validation if results are borderline or more spot-checks are needed.
+
+3. **Write the TASK-086 Phase 1 decision record or validation report**
+   - Include sentiment agreement, parse success, latency p50/p95, cost per call, estimated daily cost, error rate, and spot-check notes.
+   - State the final decision clearly: keep, rollback, or extend.
+
+4. **Only if Phase 1 succeeds: start Phase 2 entity extraction rollout**
+   - Route `entity_extraction` to `deepseek:deepseek-v4-flash` through `LLMGateway`.
+   - Validate Jaccard agreement versus Haiku.
+   - Spot-check 10-15 disagreements.
+   - Verify downstream briefing quality is not degraded.
+
+5. **Only if theme quality becomes a problem: create a theme-specific follow-up**
+   - Theme output is monitored during Phase 1 because it is part of `article_enrichment_batch`.
+   - Separate theme reannotation or standalone theme rollout should not block Phase 1.
 
 ## Completion Summary
 
