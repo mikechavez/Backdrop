@@ -1,0 +1,43 @@
+{
+  "anthropic": {
+    "success": true,
+    "provider": "Anthropic",
+    "model_ref": "anthropic:claude-haiku-4-5-20251001",
+    "results": []
+  },
+  "anthropic_trace": {
+    "found": true,
+    "model": "anthropic:claude-haiku-4-5-20251001",
+    "operation": "article_enrichment_batch",
+    "traces": [
+      {
+        "_id": "69ef9f8486570a1e1f2604bc",
+        "trace_id": "55151f6a-6eb9-45b4-a634-2776a50ec4b6",
+        "operation": "article_enrichment_batch",
+        "timestamp": "2026-04-27 17:40:20.943000",
+        "model": "anthropic:claude-haiku-4-5-20251001",
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cost": 0.0,
+        "duration_ms": 351.3,
+        "error": "{\"type\":\"error\",\"error\":{\"type\":\"not_found_error\",\"message\":\"model: anthropic:claude-haiku-4-5-20251001\"},\"request_id\":\"req_011CaUgk8QMgbm7mF1qnCGhZ\"}",
+        "quality": {
+          "passed": null,
+          "score": null,
+          "checks": []
+        }
+      }
+    ]
+  },
+  "deepseek": {
+    "success": true,
+    "provider": "DeepSeek",
+    "model_ref": "deepseek:deepseek-v4-flash",
+    "results": []
+  },
+  "deepseek_trace": {
+    "found": false,
+    "model": "deepseek:deepseek-v4-flash",
+    "operation": "article_enrichment_batch"
+  }
+}

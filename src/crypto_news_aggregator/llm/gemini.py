@@ -1,7 +1,7 @@
 from typing import Optional, Dict, Any, List
 import logging
 
-from src.crypto_news_aggregator.llm.base import LLMProvider
+from .base import LLMProvider
 
 logger = logging.getLogger(__name__)
 

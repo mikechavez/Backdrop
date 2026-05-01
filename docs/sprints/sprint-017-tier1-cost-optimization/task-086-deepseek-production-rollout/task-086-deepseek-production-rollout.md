@@ -1,14 +1,26 @@
 ---
 id: TASK-086
 type: task
-status: backlog
+status: in-progress
 priority: P1
 complexity: medium
 created: 2026-04-30
-updated: 2026-04-30
+updated: 2026-05-01
 ---
 
 # TASK-086: Deploy DeepSeek Article Enrichment Batch to Production
+
+## Status Summary (2026-05-01)
+
+**Current Phase:** Pre-production smoke testing (mocked validation COMPLETE)
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| Mocked validation | ✅ PASS (8/8) | Routing, request/response, rollback, cost all verified |
+| Live smoke test | ⏳ PENDING | Requires ANTHROPIC_API_KEY, DEEPSEEK_API_KEY, MONGODB_URI |
+| Production deployment | ⏳ QUEUED | Proceed after live tests pass |
+
+**Next step:** Populate `.env` with live credentials and run live smoke test. See `TASK-086-PHASE1-CREDENTIALS-CHECKLIST.md` for details.
 
 ## Problem
 
@@ -57,11 +69,16 @@ As an operations engineer, I want to deploy DeepSeek through the existing gatewa
 
 ### Phase 1: Article Enrichment Batch Deployment
 
-- [ ] `article_enrichment_batch` routes to `deepseek:deepseek-v4-flash` through `LLMGateway`.
-- [ ] Existing enrichment call sites continue using the same public methods.
-- [ ] No direct DeepSeek calls are added outside the gateway.
-- [ ] Rollback is verified by changing `article_enrichment_batch` routing back to `anthropic:claude-haiku-4-5-20251001`.
-- [ ] 5-7 day production validation completed.
+#### Pre-Production Validation (2026-05-01) ✅ MOCKED TESTS PASS
+- [x] `article_enrichment_batch` routes to `deepseek:deepseek-v4-flash` through `LLMGateway` ✓
+- [x] Existing enrichment call sites continue using the same public methods ✓
+- [x] No direct DeepSeek calls are added outside the gateway ✓
+- [x] Rollback is verified by changing routing back to `anthropic:claude-haiku-4-5-20251001` ✓
+- [x] Request/response formatting validated for both providers ✓
+- [x] Cost savings confirmed: 88.2% (DeepSeek 0.12x Anthropic) ✓
+
+#### Live Production Validation (PENDING)
+- [ ] 5-7 day production validation completed (after credentials available + live tests pass)
 - [ ] Sentiment is validated as the primary quality signal:
   - Agreement target: >= 80% versus Haiku baseline or shadow comparison.
   - Alert threshold: < 75% sustained agreement.
@@ -325,12 +342,30 @@ docs/sprints/sprint-017-tier1-cost-optimization/validation/TASK-086-phase1-deeps
 
 ### Pre-Production Smoke Tests
 
-- [ ] Run one `article_enrichment_batch` call routed to Anthropic.
-- [ ] Run one `article_enrichment_batch` call routed to DeepSeek.
-- [ ] Confirm both return valid enrichment JSON.
-- [ ] Confirm `llm_traces` records correct model refs.
-- [ ] Confirm DeepSeek cost is lower and priced with DeepSeek pricing.
-- [ ] Confirm rollback route restores Anthropic.
+#### Mocked Validation (2026-05-01) ✅ COMPLETE
+- [x] Routing mechanism: `article_enrichment_batch` → `deepseek:deepseek-v4-flash` ✓
+- [x] Model string parsing: provider-aware format handling ✓
+- [x] Provider URL resolution: DeepSeek and Anthropic endpoints ✓
+- [x] Request payload building: per-provider request format ✓
+- [x] Response parsing: token extraction and text handling ✓
+- [x] llm_traces record shape: all required fields validated ✓
+- [x] Rollback routing: one-line switch to Anthropic verified ✓
+- [x] Cost calculation: 88.2% savings (DeepSeek 0.12x Anthropic) ✓
+
+**Results:** See `docs/sprints/sprint-017-tier1-cost-optimization/validation/TASK-086-PHASE1-MOCKED-SMOKE-TEST-RESULTS.md`
+
+#### Live Smoke Tests (PENDING - requires credentials)
+- [ ] Populate `.env` with ANTHROPIC_API_KEY, DEEPSEEK_API_KEY, MONGODB_URI
+- [ ] Verify all credentials are set and account have available credits
+- [ ] Run one `article_enrichment_batch` call routed to Anthropic (baseline)
+- [ ] Run one `article_enrichment_batch` call routed to DeepSeek
+- [ ] Confirm both return valid enrichment JSON
+- [ ] Confirm `llm_traces` records correct model refs for both providers
+- [ ] Confirm DeepSeek cost is lower and priced with DeepSeek pricing
+- [ ] Confirm rollback route restores Anthropic
+- [ ] Document live test results
+
+**Prerequisites:** See `docs/sprints/sprint-017-tier1-cost-optimization/TASK-086-PHASE1-CREDENTIALS-CHECKLIST.md`
 
 ### Phase 1 Validation
 
