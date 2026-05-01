@@ -143,13 +143,29 @@ As an operations engineer, I want to deploy DeepSeek through the existing gatewa
 - [ ] One-line rollback to Anthropic is preserved for each routed operation.
 - [ ] `llm_traces` remains the source of truth for cost and latency monitoring.
 - [ ] Existing operation-level circuit breaker and rate limiter behavior remains in place.
+  - **Important:** Circuit breaker and rate limiter are per-operation, not per-provider. Both Anthropic and DeepSeek share the same limits for `article_enrichment_batch`.
+  - **Provider-scoped enforcement** (separate limits per provider) is TASK-087, not a blocker for Phase 1.
 - [ ] TASK-087 is documented as a follow-up reliability refactor, not a prerequisite.
+
+## Production Environment Variables
+
+Railway must define these environment variables (do not use local `.env` or Keychain):
+
+| Variable | Purpose | Example |
+|----------|---------|---------|
+| `DEEPSEEK_API_KEY` | DeepSeek API authentication | `sk-...` |
+| `ANTHROPIC_API_KEY` | Anthropic API (for rollback/fallback if keeping) | `sk-ant-...` |
+| `DEEPSEEK_DEFAULT_MODEL` | Explicit model reference | `deepseek-v4-flash` |
+| `MONGODB_URI` | MongoDB connection to crypto_news database | `mongodb+srv://...` |
+| `REDIS_URL` | Redis connection for caching and rate limiting | `redis://...` |
+
+**Critical:** Do not commit `.env` files with production credentials. Use Railway dashboard or environment configuration system.
 
 ## Dependencies
 
-- TASK-085: Add DeepSeek Support to LLMGateway and Route Enrichment Batch — must complete first.
+- TASK-085: Add DeepSeek Support to LLMGateway and Route Enrichment Batch — must complete first. ✅ COMPLETE
 - TASK-087: Refactor Gateway-Owned Reliability Controls — follow-up, not required before Phase 1.
-- FEATURE-054: Tier 1 Cost Optimization Evals — completed; provides rationale and baseline DeepSeek confidence.
+- FEATURE-054: Tier 1 Cost Optimization Evals — completed; provides rationale and baseline DeepSeek confidence. ✅ COMPLETE
 
 ## Implementation Notes
 
@@ -355,17 +371,24 @@ docs/sprints/sprint-017-tier1-cost-optimization/validation/TASK-086-phase1-deeps
 **Results:** See `docs/sprints/sprint-017-tier1-cost-optimization/validation/TASK-086-PHASE1-MOCKED-SMOKE-TEST-RESULTS.md`
 
 #### Live Smoke Tests (PENDING - requires credentials)
-- [ ] Populate `.env` with ANTHROPIC_API_KEY, DEEPSEEK_API_KEY, MONGODB_URI
-- [ ] Verify all credentials are set and account have available credits
-- [ ] Run one `article_enrichment_batch` call routed to Anthropic (baseline)
-- [ ] Run one `article_enrichment_batch` call routed to DeepSeek
-- [ ] Confirm both return valid enrichment JSON
-- [ ] Confirm `llm_traces` records correct model refs for both providers
-- [ ] Confirm DeepSeek cost is lower and priced with DeepSeek pricing
+
+**What this is:** Single or few real API calls to verify credentials work, routes execute, and traces record correctly. Does NOT fulfill Phase 1 validation.
+
+- [ ] Verify environment variables present: ANTHROPIC_API_KEY, DEEPSEEK_API_KEY, MONGODB_URI (status only, never print values)
+- [ ] Run one `article_enrichment_batch` call routed to DeepSeek through `LLMGateway`
+- [ ] Confirm returns valid enrichment JSON
+- [ ] Confirm `llm_traces` records correct model ref (`deepseek:deepseek-v4-flash`)
+- [ ] Confirm cost recorded with DeepSeek pricing
 - [ ] Confirm rollback route restores Anthropic
+- [ ] Run one `article_enrichment_batch` call routed to Anthropic (if account has credits)
+- [ ] If Anthropic unavailable: document that baseline comparison is pending credits; do not advance Phase 1 validation
 - [ ] Document live test results
 
+**Fallback:** If Anthropic has no credits, run DeepSeek-only test + use mocked Anthropic baseline. Phase 1 production validation requires live or validated baseline.
+
 **Prerequisites:** See `docs/sprints/sprint-017-tier1-cost-optimization/TASK-086-PHASE1-CREDENTIALS-CHECKLIST.md`
+
+**Important:** Live smoke test success does NOT mean Phase 1 is complete. Proceed to Phase 1 validation only after live tests pass AND baseline is available (live Haiku or validated mocked baseline).
 
 ### Phase 1 Validation
 
