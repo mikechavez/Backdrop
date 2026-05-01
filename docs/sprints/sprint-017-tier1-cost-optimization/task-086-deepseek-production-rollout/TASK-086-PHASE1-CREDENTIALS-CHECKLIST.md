@@ -91,7 +91,7 @@ The live smoke test requires these environment variables to be set before execut
 
 ### Local Development Setup (macOS)
 
-Use macOS Keychain via `scripts/load_keys.sh`:
+**Preferred:** Use macOS Keychain via `scripts/load_keys.sh`:
 
 ```bash
 # Add credentials to Keychain (one-time setup)
@@ -103,10 +103,16 @@ security add-generic-password -s "MONGODB_URI" -w "your-connection-string"
 source scripts/load_keys.sh
 ```
 
-Alternatively, source `.env` if credentials are stored there:
+**Allowed (with caution):** Source `.env` if credentials are stored there:
 ```bash
 source .env
 ```
+
+**Critical:** If using `.env`:
+- `.env` MUST be in `.gitignore` (never commit)
+- Agents MUST NOT read or print `.env` contents
+- Agents MUST NOT inspect `.env` file to verify credentials
+- Use only environment variable presence checks (e.g., `[ -z "$ANTHROPIC_API_KEY" ]`)
 
 ### Production Setup (Railway)
 
