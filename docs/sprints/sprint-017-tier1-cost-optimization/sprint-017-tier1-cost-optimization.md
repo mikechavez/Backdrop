@@ -7,7 +7,7 @@
 
 **Major Discovery (2026-04-30):** Direct DeepSeek API is 10-12x cheaper than OpenRouter. Recommendation: **DeepSeek on all Tier 1 operations saves $55k/year.** Repo review corrected the implementation path: DeepSeek should be added through `LLMGateway`, not as a standalone provider path. Phase 1 routes the existing `article_enrichment_batch` path to DeepSeek and validates sentiment as the primary quality signal because sentiment, relevance, and themes are currently batched together.
 
-**Current Phase:** FEATURE-054 complete. TASK-085 has been rewritten as a minimal gateway integration. TASK-086 Phase 1 remains the production validation/monitoring step. TASK-087 has been added as the follow-up reliability refactor after the minimal integration works.
+**Current Phase:** FEATURE-054 complete. TASK-085 complete (2026-04-30). TASK-086 Phase 1 pre-production validation complete (2026-05-01). Ready for production deployment and monitoring. TASK-087 queued as follow-up reliability refactor.
 
 ---
 
@@ -168,8 +168,8 @@ Repo review changed the implementation plan for DeepSeek:
 | TASK-081 | Fix Tier 1 prompts | P1 | ✅ COMPLETE | 2-3h | — |
 | TASK-082 | Define quality thresholds | P1 | ✅ COMPLETE | 1h | — |
 | FEATURE-054 | Tier 1 Cost Optimization Evals | P1 | ✅ COMPLETE (Phases 1-4) | 8-10h | — |
-| TASK-085 | Add DeepSeek support to LLMGateway and route enrichment batch | P1 | ⏳ IN PROGRESS | 3-4h | Blocks TASK-086 Phase 1 |
-| TASK-086 Phase 1 | Deploy enrichment batch to DeepSeek + monitor sentiment quality | P1 | ⏳ QUEUED | 1 week | Requires TASK-085 |
+| TASK-085 | Add DeepSeek support to LLMGateway and route enrichment batch | P1 | ✅ COMPLETE | 3-4h | — |
+| TASK-086 Phase 1 | Pre-production validation + production deployment | P1 | ✅ READY | 1 day + 1 week | — |
 | TASK-086 Phase 2 | Deploy entity extraction + validate | P1 | ⏳ CONDITIONAL | 2 weeks | Requires Phase 1 success |
 | TASK-087 | Refactor gateway-owned reliability controls | P2 | ⏳ QUEUED | 4-6h | Do after TASK-085 works and rollback path is validated |
 | Theme reannotation | Re-annotate theme extraction samples | P2 | ⏳ DEFERRED / TBD | 1-2h | Future ticket if pursuing theme rollout |
@@ -187,18 +187,27 @@ Repo review changed the implementation plan for DeepSeek:
 2. ✅ **Day 3-4:** FEATURE-054 Phases 1-4 — COMPLETE
    - Corrected baselines + challenger runs + threshold scoring + manual analysis (2026-04-30)
 
-3. ⏳ **Day 5-6:** TASK-085 — IN PROGRESS
-   - Add DeepSeek support through `LLMGateway`, not a standalone provider path
-   - Add provider-aware routing for `anthropic:*` and `deepseek:*` model refs
-   - Add DeepSeek config, request formatting, response parsing, cost tracking, and trace validation
-   - Route `article_enrichment_batch` to `deepseek:deepseek-v4-flash` for Phase 1
-   - Add `article_enrichment_batch` to existing rate limiter and circuit breaker tracked systems
+3. ✅ **Day 5-6:** TASK-085 — COMPLETE (2026-04-30)
+   - ✅ Added DeepSeek support through `LLMGateway`
+   - ✅ Provider-aware routing for `anthropic:*` and `deepseek:*` model refs
+   - ✅ DeepSeek config, request formatting, response parsing, cost tracking
+   - ✅ Routed `article_enrichment_batch` to `deepseek:deepseek-v4-flash`
+   - ✅ 19 unit tests passing
 
-4. ⏳ **Day 7-13:** TASK-086 Phase 1 — QUEUED
-   - Production validation of DeepSeek-backed `article_enrichment_batch`
-   - Sentiment is the primary validation metric because it has highest confidence from FEATURE-054
-   - Monitor briefing quality, sentiment agreement, enrichment parse failures, trace correctness, costs, and fallback/revert path
-   - Decision: keep DeepSeek route, revert to Anthropic, or extend validation
+4. ✅ **Day 7 morning:** TASK-086 Phase 1 Pre-Production Validation — COMPLETE (2026-05-01)
+   - ✅ Mocked smoke tests: 8/8 pass
+   - ✅ Live smoke tests: Both Anthropic and DeepSeek working
+   - ✅ Routing verified: Both providers route through LLMGateway
+   - ✅ Cost tracking fixed: DeepSeek pricing correctly applied
+   - ✅ Tracing verified: llm_traces collection ready
+   - ✅ Rollback verified: One-line switch to Anthropic confirmed
+   - ✅ Production deployment checklist created
+
+5. ⏳ **Day 7-13:** TASK-086 Phase 1 — DEPLOYING TO PRODUCTION
+   - Deploy to production (Railway, 2026-05-02)
+   - Monitor sentiment agreement, parse success, latency, cost for 5-7 days
+   - Primary validation metric: sentiment agreement ≥ 80% vs Haiku baseline
+   - Record decision: keep DeepSeek route, revert to Anthropic, or extend validation
 
 5. ⏳ **After TASK-085 works / after Phase 1 validation starts:** TASK-087 — QUEUED
    - Refactor circuit breaker and rate limiter ownership into `LLMGateway`
@@ -217,9 +226,14 @@ Repo review changed the implementation plan for DeepSeek:
 
 ---
 
+**Sprint 17 Status (2026-05-01):**
+- ✅ TASK-085: DeepSeek works through `LLMGateway` for `article_enrichment_batch` (COMPLETE 2026-04-30)
+- ✅ TASK-086 Phase 1 Pre-Production: Mocked + live validation complete, production deployment guide created (COMPLETE 2026-05-01)
+- ⏳ TASK-086 Phase 1 Production: Ready to deploy, monitor 5-7 days, record decision (STARTING 2026-05-02)
+
 **Sprint 17 completes when:**
-- ✅ TASK-085: DeepSeek works through `LLMGateway` for `article_enrichment_batch`
-- ✅ TASK-086 Phase 1: DeepSeek-backed enrichment batch has been monitored in production and a keep/revert decision is made
+- ✅ TASK-085: DeepSeek works through `LLMGateway` for `article_enrichment_batch` (COMPLETE)
+- ⏳ TASK-086 Phase 1: DeepSeek-backed enrichment batch has been monitored in production (5-7 days) and a keep/revert decision is made (DUE ~2026-05-10)
 
 **If Phase 1 succeeds (>= 80% sentiment agreement, no material parse/briefing quality issues, and cost tracking is correct):**
 - Keep DeepSeek route for `article_enrichment_batch`
@@ -307,4 +321,4 @@ Repo review changed the implementation plan for DeepSeek:
 
 ---
 
-*Sprint 17 IN PROGRESS (as of 2026-04-30). FEATURE-054 Phases 1-4 complete. TASK-085 rewritten as gateway integration and in progress. TASK-086 Phase 1 queued for ~2026-05-02. TASK-087 added as follow-up reliability refactor. Sprint closes ~2026-05-17 after Phase 1 monitored + decision made.*
+*Sprint 17 IN PROGRESS (as of 2026-05-01). FEATURE-054 Phases 1-4 complete. TASK-085 complete (2026-04-30). TASK-086 Phase 1 pre-production validation complete (2026-05-01), ready for production deployment (2026-05-02). TASK-087 queued as follow-up reliability refactor. Sprint closes ~2026-05-17 after Phase 1 monitored + decision made.*
