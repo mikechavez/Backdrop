@@ -790,7 +790,7 @@ class LLMGateway:
         duration_ms = (time.monotonic() - start) * 1000
         text, input_tokens, output_tokens = self._parse_provider_response(data, provider)
 
-        cost = await self._track_cost(operation, model, input_tokens, output_tokens)
+        cost = await self._track_cost(operation, model_name, input_tokens, output_tokens)
         await self._write_trace(trace_id, operation, model, input_tokens, output_tokens, cost, duration_ms)
 
         # ═══ SAVE TO CACHE ═══
@@ -933,7 +933,7 @@ class LLMGateway:
         try:
             from ..services.cost_tracker import CostTracker as CT
             ct = CT.__new__(CT)
-            cost = ct.calculate_cost(model, input_tokens, output_tokens)
+            cost = ct.calculate_cost(model_name, input_tokens, output_tokens)
         except Exception as e:
             logger.error(f"Sync cost calculation failed: {e}")
 
