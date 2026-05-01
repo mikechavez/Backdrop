@@ -142,12 +142,17 @@ class BriefingAgent:
                 )
                 return None
 
-            # Step 2: Generate initial briefing
-            generated, generate_response = await self._generate_with_llm(briefing_input)
-
-            # Generate briefing_id early so it's shared across all drafts
+            # Generate briefing_id early so it's shared across all drafts and LLM traces
             from bson import ObjectId
             briefing_id = str(ObjectId())
+
+            # Step 2: Generate initial briefing
+            generated, generate_response = await self._generate_with_llm(
+                briefing_input,
+                task_id=task_id,
+                briefing_id=briefing_id,
+                is_smoke=is_smoke,
+            )
 
             # Capture pre-refine draft
             from crypto_news_aggregator.llm.draft_capture import save_draft
@@ -163,7 +168,13 @@ class BriefingAgent:
 
             # Step 3: Self-refine (quality check with multi-pass refinement)
             refined = await self._self_refine(
-                generated, briefing_input, max_iterations=2, briefing_id=briefing_id, db=db
+                generated,
+                briefing_input,
+                max_iterations=2,
+                briefing_id=briefing_id,
+                db=db,
+                task_id=task_id,
+                is_smoke=is_smoke,
             )
 
             # Step 4: Save briefing to database
@@ -349,7 +360,11 @@ class BriefingAgent:
         return fresh_narratives[:limit]
 
     async def _generate_with_llm(
-        self, briefing_input: BriefingInput
+        self,
+        briefing_input: BriefingInput,
+        task_id: str | None = None,
+        briefing_id: str | None = None,
+        is_smoke: bool = False,
     ) -> tuple[GeneratedBriefing, GatewayResponse]:
         """Generate briefing content using LLM.
 
@@ -363,6 +378,13 @@ class BriefingAgent:
             system_prompt=self._get_system_prompt(briefing_input.briefing_type),
             operation="briefing_generate",
             max_tokens=4096,
+            metadata={
+                "task_id": task_id,
+                "briefing_id": briefing_id,
+                "is_smoke": is_smoke,
+                "phase": "generate",
+                "iteration": 0,
+            },
         )
 
         generated = self._parse_briefing_response(gateway_response.text)
@@ -375,6 +397,8 @@ class BriefingAgent:
         max_iterations: int = 2,
         briefing_id: str | None = None,
         db = None,
+        task_id: str | None = None,
+        is_smoke: bool = False,
     ) -> GeneratedBriefing:
         """
         Self-refine the generated briefing for quality with iterative refinement.
@@ -409,6 +433,13 @@ class BriefingAgent:
                 system_prompt="You are a crypto market analyst reviewing a briefing for quality.",
                 operation="briefing_critique",
                 max_tokens=1024,
+                metadata={
+                    "task_id": task_id,
+                    "briefing_id": briefing_id,
+                    "is_smoke": is_smoke,
+                    "phase": "critique",
+                    "iteration": iteration + 1,
+                },
             )
             critique_text = critique_gateway_response.text
 
@@ -434,6 +465,13 @@ class BriefingAgent:
                 system_prompt=self._get_system_prompt(briefing_input.briefing_type),
                 operation="briefing_refine",
                 max_tokens=4096,
+                metadata={
+                    "task_id": task_id,
+                    "briefing_id": briefing_id,
+                    "is_smoke": is_smoke,
+                    "phase": "refine",
+                    "iteration": iteration + 1,
+                },
             )
 
             current = self._parse_briefing_response(refine_gateway_response.text)
@@ -857,6 +895,7 @@ Return ONLY valid JSON in the same format as before."""
         system_prompt: str,
         operation: str,
         max_tokens: int = 2048,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> GatewayResponse:
         """Call the LLM via gateway with model fallback.
 
@@ -865,6 +904,7 @@ Return ONLY valid JSON in the same format as before."""
             system_prompt: System message
             operation: One of briefing_generate, briefing_critique, briefing_refine
             max_tokens: Max response tokens
+            metadata: Optional correlation metadata
 
         Returns:
             GatewayResponse with text, tokens, cost, model, operation, and trace_id
@@ -883,6 +923,7 @@ Return ONLY valid JSON in the same format as before."""
                     operation=operation,
                     max_tokens=max_tokens,
                     system=system_prompt,
+                    metadata=metadata or {},
                 )
                 if model != BRIEFING_PRIMARY_MODEL:
                     logger.info(f"Using fallback model: {model}")
