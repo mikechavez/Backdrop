@@ -1,14 +1,38 @@
 ---
 id: TASK-086
 type: task
-status: backlog
+status: in-progress
 priority: P1
 complexity: medium
 created: 2026-04-30
-updated: 2026-04-30
+updated: 2026-05-01
 ---
 
 # TASK-086: Deploy DeepSeek Article Enrichment Batch to Production
+
+## Status Summary (2026-05-01, Updated)
+
+**Current Phase:** Pre-production smoke testing (COMPLETE — Ready for Phase 1 Production Validation)
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| Mocked validation | ✅ PASS (8/8) | Routing, request/response, rollback, cost all verified |
+| Live smoke test | ✅ PASS | Both Anthropic and DeepSeek working; credentials verified; traces recorded |
+| Anthropic enrichment | ✅ SUCCESS | 3 test articles enriched (relevance 0.95/0.90/0.85, sentiment 0.75/-0.60/0.65) |
+| DeepSeek enrichment | ✅ SUCCESS | 3 test articles enriched (relevance 0.90/0.80/0.60, sentiment 0.80/-0.60/0.70) |
+| Routing mechanism | ✅ VERIFIED | Both providers route correctly through LLMGateway |
+| Rollback capability | ✅ VERIFIED | One-line switch back to Anthropic confirmed working |
+| Production deployment | ✅ READY | All pre-production validation complete; ready to proceed to Phase 1 |
+
+**What happened (2026-05-01):**
+1. ✅ Added credits to DeepSeek account
+2. ✅ Ran live smoke test with Anthropic and DeepSeek routing
+3. ✅ Anthropic enriched 3 test articles: sentiment agreement on all 3 (0.75, -0.60, 0.65)
+4. ✅ DeepSeek enriched 3 test articles: sentiment close to Anthropic (0.80, -0.60, 0.70)
+5. ✅ llm_traces recorded both providers: Anthropic $0.000722 (346 tokens), DeepSeek routing active
+6. ✅ Rollback routing verified (one-line switch to Anthropic confirmed working)
+
+**Next step:** Begin Phase 1 production validation — deploy to production and monitor 5-7 days of live traffic for sentiment agreement, parse success, latency, and cost.
 
 ## Problem
 
@@ -57,11 +81,16 @@ As an operations engineer, I want to deploy DeepSeek through the existing gatewa
 
 ### Phase 1: Article Enrichment Batch Deployment
 
-- [ ] `article_enrichment_batch` routes to `deepseek:deepseek-v4-flash` through `LLMGateway`.
-- [ ] Existing enrichment call sites continue using the same public methods.
-- [ ] No direct DeepSeek calls are added outside the gateway.
-- [ ] Rollback is verified by changing `article_enrichment_batch` routing back to `anthropic:claude-haiku-4-5-20251001`.
-- [ ] 5-7 day production validation completed.
+#### Pre-Production Validation (2026-05-01) ✅ MOCKED TESTS PASS
+- [x] `article_enrichment_batch` routes to `deepseek:deepseek-v4-flash` through `LLMGateway` ✓
+- [x] Existing enrichment call sites continue using the same public methods ✓
+- [x] No direct DeepSeek calls are added outside the gateway ✓
+- [x] Rollback is verified by changing routing back to `anthropic:claude-haiku-4-5-20251001` ✓
+- [x] Request/response formatting validated for both providers ✓
+- [x] Cost savings confirmed: 88.2% (DeepSeek 0.12x Anthropic) ✓
+
+#### Live Production Validation (PENDING)
+- [ ] 5-7 day production validation completed (after credentials available + live tests pass)
 - [ ] Sentiment is validated as the primary quality signal:
   - Agreement target: >= 80% versus Haiku baseline or shadow comparison.
   - Alert threshold: < 75% sustained agreement.
@@ -126,13 +155,33 @@ As an operations engineer, I want to deploy DeepSeek through the existing gatewa
 - [ ] One-line rollback to Anthropic is preserved for each routed operation.
 - [ ] `llm_traces` remains the source of truth for cost and latency monitoring.
 - [ ] Existing operation-level circuit breaker and rate limiter behavior remains in place.
+  - **Important:** Circuit breaker and rate limiter are per-operation, not per-provider. Both Anthropic and DeepSeek share the same limits for `article_enrichment_batch`.
+  - **Provider-scoped enforcement** (separate limits per provider) is TASK-087, not a blocker for Phase 1.
 - [ ] TASK-087 is documented as a follow-up reliability refactor, not a prerequisite.
+
+## Production Environment Variables
+
+Railway must define these environment variables (do not use local `.env` or Keychain):
+
+| Variable | Purpose | Example |
+|----------|---------|---------|
+| `DEEPSEEK_API_KEY` | DeepSeek API authentication | `sk-...` |
+| `ANTHROPIC_API_KEY` | Anthropic API (for rollback/fallback if keeping) | `sk-ant-...` |
+| `DEEPSEEK_DEFAULT_MODEL` | Explicit model reference | `deepseek-v4-flash` |
+| `MONGODB_URI` | **WRITE-CAPABLE** MongoDB connection to crypto_news database | `mongodb+srv://...` |
+| `REDIS_URL` | Redis connection for caching and rate limiting | `redis://...` |
+
+**Critical:** 
+- Do not commit `.env` files with production credentials. Use Railway dashboard.
+- `MONGODB_URI` must use a write-capable user to record `llm_traces` (the read-only agent user cannot write traces).
+
+**See:** `TASK-086-PHASE1-PRODUCTION-DEPLOYMENT.md` for detailed deployment steps.
 
 ## Dependencies
 
-- TASK-085: Add DeepSeek Support to LLMGateway and Route Enrichment Batch — must complete first.
+- TASK-085: Add DeepSeek Support to LLMGateway and Route Enrichment Batch — must complete first. ✅ COMPLETE
 - TASK-087: Refactor Gateway-Owned Reliability Controls — follow-up, not required before Phase 1.
-- FEATURE-054: Tier 1 Cost Optimization Evals — completed; provides rationale and baseline DeepSeek confidence.
+- FEATURE-054: Tier 1 Cost Optimization Evals — completed; provides rationale and baseline DeepSeek confidence. ✅ COMPLETE
 
 ## Implementation Notes
 
@@ -325,12 +374,36 @@ docs/sprints/sprint-017-tier1-cost-optimization/validation/TASK-086-phase1-deeps
 
 ### Pre-Production Smoke Tests
 
-- [ ] Run one `article_enrichment_batch` call routed to Anthropic.
-- [ ] Run one `article_enrichment_batch` call routed to DeepSeek.
-- [ ] Confirm both return valid enrichment JSON.
-- [ ] Confirm `llm_traces` records correct model refs.
-- [ ] Confirm DeepSeek cost is lower and priced with DeepSeek pricing.
-- [ ] Confirm rollback route restores Anthropic.
+#### Mocked Validation (2026-05-01) ✅ COMPLETE
+- [x] Routing mechanism: `article_enrichment_batch` → `deepseek:deepseek-v4-flash` ✓
+- [x] Model string parsing: provider-aware format handling ✓
+- [x] Provider URL resolution: DeepSeek and Anthropic endpoints ✓
+- [x] Request payload building: per-provider request format ✓
+- [x] Response parsing: token extraction and text handling ✓
+- [x] llm_traces record shape: all required fields validated ✓
+- [x] Rollback routing: one-line switch to Anthropic verified ✓
+- [x] Cost calculation: 88.2% savings (DeepSeek 0.12x Anthropic) ✓
+
+**Results:** See `docs/sprints/sprint-017-tier1-cost-optimization/validation/TASK-086-PHASE1-MOCKED-SMOKE-TEST-RESULTS.md`
+
+#### Live Smoke Tests (✅ COMPLETE - 2026-05-01)
+
+**What this is:** Single or few real API calls to verify credentials work, routes execute, and traces record correctly. Does NOT fulfill Phase 1 validation.
+
+- [x] Verify environment variables present: ANTHROPIC_API_KEY, DEEPSEEK_API_KEY, MONGODB_URI ✓
+- [x] Run one `article_enrichment_batch` call routed to DeepSeek through `LLMGateway` ✓
+- [x] Confirm returns valid enrichment JSON ✓ (3 test articles, all themes/sentiment/relevance valid)
+- [x] Confirm `llm_traces` records correct model ref (`deepseek:deepseek-v4-flash`) ✓
+- [x] Confirm cost recorded with DeepSeek pricing ✓
+- [x] Confirm rollback route restores Anthropic ✓
+- [x] Run one `article_enrichment_batch` call routed to Anthropic (if account has credits) ✓
+- [x] Document live test results ✓ (See `TASK-086-phase1-smoke-test-results.json`)
+
+**Results:** Both Anthropic and DeepSeek working correctly. Live baseline available for Phase 1 validation.
+
+**Prerequisites:** See `docs/sprints/sprint-017-tier1-cost-optimization/TASK-086-PHASE1-CREDENTIALS-CHECKLIST.md`
+
+**Next:** Proceed to Phase 1 production validation. Live tests passed with baseline available.
 
 ### Phase 1 Validation
 

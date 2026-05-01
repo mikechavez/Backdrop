@@ -168,7 +168,31 @@ class DeepSeekProvider(LLMProvider):
 
 ## Completion Summary
 
-*Fill in after completion*
+**Status:** ✅ COMPLETE (2026-04-30)
+
+**What Was Implemented:**
+- Provider-aware LLM gateway routing with support for Anthropic and DeepSeek
+- Model string parsing: `anthropic:model` / `deepseek:model` format
+- Provider-specific URL, headers, payload, response parsing helpers
+- DeepSeek cost tracking ($0.14/$0.28 per M tokens, direct API pricing)
+- Configuration support (DEEPSEEK_API_KEY, DEEPSEEK_DEFAULT_MODEL)
+- Rate limiter & circuit breaker support for article_enrichment_batch operation
+- 19 unit tests covering provider routing, all passing
+
+**Key Design:** 
+All calls route through centralized `LLMGateway`. No standalone provider class. Maintains consistency in tracing, budget enforcement, caching, and rate limiting. One-line rollback by changing routing strategy.
+
+**Branch:** `feat/task-085-deepseek-gateway` (2 commits, 810f74d + ec9486f)
+
+**Files Modified:**
+- `src/crypto_news_aggregator/llm/gateway.py` (provider-aware routing)
+- `src/crypto_news_aggregator/core/config.py` (DEEPSEEK_API_KEY, DEEPSEEK_DEFAULT_MODEL)
+- `src/crypto_news_aggregator/services/cost_tracker.py` (DeepSeek pricing)
+- `src/crypto_news_aggregator/services/rate_limiter.py` (article_enrichment_batch)
+- `src/crypto_news_aggregator/services/circuit_breaker.py` (article_enrichment_batch)
+- `tests/llm/test_gateway_provider_routing.py` (NEW, 19 tests)
+
+**Next:** TASK-086 Phase 1 (production validation + monitoring)
 
 ---
 
