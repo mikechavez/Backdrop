@@ -3,7 +3,44 @@
     "success": true,
     "provider": "Anthropic",
     "model_ref": "anthropic:claude-haiku-4-5-20251001",
-    "results": []
+    "results": [
+      {
+        "id": "test_001",
+        "relevance_score": 0.95,
+        "sentiment_score": 0.75,
+        "themes": [
+          "Bitcoin",
+          "Ethereum",
+          "Institutional Adoption",
+          "Market Rally"
+        ]
+      },
+      {
+        "id": "test_002",
+        "relevance_score": 0.9,
+        "sentiment_score": -0.6,
+        "themes": [
+          "Regulation",
+          "Stablecoin",
+          "SEC",
+          "USDC",
+          "USDT",
+          "Compliance"
+        ]
+      },
+      {
+        "id": "test_003",
+        "relevance_score": 0.85,
+        "sentiment_score": 0.65,
+        "themes": [
+          "DeFi",
+          "Aave",
+          "Security Audit",
+          "Protocol Upgrade",
+          "Community"
+        ]
+      }
+    ]
   },
   "anthropic_trace": {
     "found": true,
@@ -11,16 +48,16 @@
     "operation": "article_enrichment_batch",
     "traces": [
       {
-        "_id": "69ef9f8486570a1e1f2604bc",
-        "trace_id": "55151f6a-6eb9-45b4-a634-2776a50ec4b6",
+        "_id": "69f422734f5b79cb190ae59d",
+        "trace_id": "5e04d41f-835c-4d3e-9815-2e63803cad6b",
         "operation": "article_enrichment_batch",
-        "timestamp": "2026-04-27 17:40:20.943000",
+        "timestamp": "2026-05-01 03:48:03.751000",
         "model": "anthropic:claude-haiku-4-5-20251001",
-        "input_tokens": 0,
-        "output_tokens": 0,
-        "cost": 0.0,
-        "duration_ms": 351.3,
-        "error": "{\"type\":\"error\",\"error\":{\"type\":\"not_found_error\",\"message\":\"model: anthropic:claude-haiku-4-5-20251001\"},\"request_id\":\"req_011CaUgk8QMgbm7mF1qnCGhZ\"}",
+        "input_tokens": 252,
+        "output_tokens": 94,
+        "cost": 0.000722,
+        "duration_ms": 1043.8,
+        "error": null,
         "quality": {
           "passed": null,
           "score": null,
@@ -33,11 +70,65 @@
     "success": true,
     "provider": "DeepSeek",
     "model_ref": "deepseek:deepseek-v4-flash",
-    "results": []
+    "results": [
+      {
+        "id": "test_001",
+        "relevance_score": 0.9,
+        "sentiment_score": 0.8,
+        "themes": [
+          "Bitcoin",
+          "Ethereum",
+          "Institutional Adoption",
+          "Pension Funds"
+        ]
+      },
+      {
+        "id": "test_002",
+        "relevance_score": 0.8,
+        "sentiment_score": -0.6,
+        "themes": [
+          "Stablecoin",
+          "Regulation",
+          "SEC",
+          "USDC",
+          "USDT"
+        ]
+      },
+      {
+        "id": "test_003",
+        "relevance_score": 0.6,
+        "sentiment_score": 0.7,
+        "themes": [
+          "DeFi",
+          "Aave",
+          "Security Audit",
+          "Upgrade"
+        ]
+      }
+    ]
   },
   "deepseek_trace": {
-    "found": false,
+    "found": true,
     "model": "deepseek:deepseek-v4-flash",
-    "operation": "article_enrichment_batch"
+    "operation": "article_enrichment_batch",
+    "traces": [
+      {
+        "_id": "69f4106300582011913c9eb0",
+        "trace_id": "e9e13c18-b792-4ebe-923e-b8457fa9ec1b",
+        "operation": "article_enrichment_batch",
+        "timestamp": "2026-05-01 02:30:59.216000",
+        "model": "deepseek:deepseek-v4-flash",
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cost": 0.0,
+        "duration_ms": 2020.0,
+        "error": "{\"error\":{\"message\":\"Insufficient Balance\",\"type\":\"unknown_error\",\"param\":null,\"code\":\"invalid_request_error\"}}",
+        "quality": {
+          "passed": null,
+          "score": null,
+          "checks": []
+        }
+      }
+    ]
   }
 }
