@@ -196,6 +196,8 @@ class GatewayResponse:
     actual_model: Optional[str] = None
     requested_model: Optional[str] = None
     model_overridden: bool = False
+    provider: Optional[str] = None
+    cached: bool = False
 
 
 class LLMGateway:
@@ -579,78 +581,137 @@ class LLMGateway:
         self,
         trace_id: str,
         operation: str,
-        model: str,
+        requested_model: Optional[str],
+        actual_model: str,
         input_tokens: int,
         output_tokens: int,
         cost: float,
-        duration_ms: float,
+        duration_ms: int,
         error: Optional[str] = None,
+        error_type: Optional[str] = None,
+        cached: bool = False,
+        cache_key: Optional[str] = None,
+        model_overridden: bool = False,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """Write trace record to llm_traces collection synchronously (blocking). Fire-and-forget."""
+        """Write structured LLM trace from sync path. Must never break LLM flow."""
+        metadata = metadata or {}
+
         try:
             from pymongo import MongoClient
             import os
-            db_connection_string = os.getenv('MONGODB_URI')
+
+            db_connection_string = os.getenv("MONGODB_URI")
             if not db_connection_string:
-                logger.error("MONGODB_URI not set, cannot write sync trace")
+                logger.debug("MONGODB_URI not set, cannot write trace")
                 return
 
             client = MongoClient(db_connection_string, serverSelectionTimeoutMS=2000)
             db = client.crypto_news
-            db.llm_traces.insert_one({
+
+            provider, parsed_actual_model = self._parse_model_string(actual_model)
+            _, parsed_requested_model = self._parse_model_string(requested_model) if requested_model else (provider, None)
+
+            trace_doc = {
                 "trace_id": trace_id,
-                "operation": operation,
                 "timestamp": datetime.now(timezone.utc),
-                "model": model,
+
+                "operation": operation,
+                "status": "success" if error is None else "error",
+
+                "requested_model": parsed_requested_model,
+                "model": parsed_actual_model,
+                "actual_model": parsed_actual_model,
+                "provider": provider,
+                "routing_overridden": model_overridden,
+                "model_overridden": model_overridden,
+
                 "input_tokens": input_tokens,
                 "output_tokens": output_tokens,
                 "cost": cost,
-                "duration_ms": round(duration_ms, 1),
+                "duration_ms": duration_ms,
+
+                "cached": cached,
+                "cache_key": cache_key,
+
                 "error": error,
-                # Placeholder fields for Sprint 14 eval system
-                "quality": {
-                    "passed": None,
-                    "score": None,
-                    "checks": [],
-                },
-            })
+                "error_type": error_type,
+
+                "task_id": metadata.get("task_id"),
+                "briefing_id": metadata.get("briefing_id"),
+                "is_smoke": metadata.get("is_smoke"),
+                "phase": metadata.get("phase"),
+                "iteration": metadata.get("iteration"),
+            }
+
+            db.llm_traces.insert_one(trace_doc)
             client.close()
+
         except Exception as e:
-            logger.error(f"Failed to write sync trace: {e}")
+            logger.error(f"Failed to write sync LLM trace: {e}")
 
     async def _write_trace(
         self,
         trace_id: str,
         operation: str,
-        model: str,
+        requested_model: Optional[str],
+        actual_model: str,
         input_tokens: int,
         output_tokens: int,
         cost: float,
-        duration_ms: float,
+        duration_ms: int,
         error: Optional[str] = None,
+        error_type: Optional[str] = None,
+        cached: bool = False,
+        cache_key: Optional[str] = None,
+        model_overridden: bool = False,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """Write trace record to llm_traces collection. Fire-and-forget."""
+        """Write structured LLM trace to llm_traces. Must never break LLM flow."""
+        metadata = metadata or {}
+
         try:
             db = await mongo_manager.get_async_database()
-            await db.llm_traces.insert_one({
+
+            provider, parsed_actual_model = self._parse_model_string(actual_model)
+            _, parsed_requested_model = self._parse_model_string(requested_model) if requested_model else (provider, None)
+
+            trace_doc = {
                 "trace_id": trace_id,
-                "operation": operation,
                 "timestamp": datetime.now(timezone.utc),
-                "model": model,
+
+                "operation": operation,
+                "status": "success" if error is None else "error",
+
+                "requested_model": parsed_requested_model,
+                "model": parsed_actual_model,
+                "actual_model": parsed_actual_model,
+                "provider": provider,
+                "routing_overridden": model_overridden,
+                "model_overridden": model_overridden,
+
                 "input_tokens": input_tokens,
                 "output_tokens": output_tokens,
                 "cost": cost,
-                "duration_ms": round(duration_ms, 1),
+                "duration_ms": duration_ms,
+
+                "cached": cached,
+                "cache_key": cache_key,
+
                 "error": error,
-                # Placeholder fields for Sprint 14 eval system
-                "quality": {
-                    "passed": None,
-                    "score": None,
-                    "checks": [],
-                },
-            })
+                "error_type": error_type,
+
+                "task_id": metadata.get("task_id"),
+                "briefing_id": metadata.get("briefing_id"),
+                "is_smoke": metadata.get("is_smoke"),
+                "phase": metadata.get("phase"),
+                "iteration": metadata.get("iteration"),
+            }
+
+            await db.llm_traces.insert_one(trace_doc)
+
         except Exception as e:
-            logger.error(f"Failed to write trace: {e}")
+            logger.error(f"Failed to write LLM trace: {e}")
 
     async def _track_cost(
         self, operation: str, model: str, input_tokens: int, output_tokens: int
@@ -682,6 +743,7 @@ class LLMGateway:
         system: Optional[str] = None,
         requested_model: Optional[str] = None,
         routing_key: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> GatewayResponse:
         """
         Async LLM call with cache support.
@@ -699,10 +761,12 @@ class LLMGateway:
             requested_model: What caller requested (not guaranteed to be used)
             routing_key: Stable identifier for deterministic A/B split.
                          Default: f"{operation}:{trace_id}"
+            metadata: Optional correlation metadata (task_id, briefing_id, is_smoke, phase, iteration)
 
         Raises:
             LLMError: On spend cap breach or API failure.
         """
+        metadata = metadata or {}
         await refresh_budget_if_stale()
         self._check_budget(operation)
 
@@ -738,13 +802,28 @@ class LLMGateway:
             input_hash = hashlib.sha1(input_text.encode()).hexdigest()
 
             # Try cache lookup
-            cached = await self._get_from_cache(operation, input_hash)
-            if cached:
+            cached_response = await self._get_from_cache(operation, input_hash)
+            if cached_response:
                 # Return cached result with zero cost
                 duration_ms = (time.monotonic() - start) * 1000
-                await self._write_trace(trace_id, operation, model, 0, 0, 0.0, duration_ms)
+                await self._write_trace(
+                    trace_id=trace_id,
+                    operation=operation,
+                    requested_model=requested_model,
+                    actual_model=actual_model,
+                    input_tokens=0,
+                    output_tokens=0,
+                    cost=0.0,
+                    duration_ms=duration_ms,
+                    error=None,
+                    error_type=None,
+                    cached=True,
+                    cache_key=input_hash,
+                    model_overridden=model_overridden,
+                    metadata=metadata,
+                )
                 return GatewayResponse(
-                    text=cached,
+                    text=cached_response,
                     input_tokens=0,
                     output_tokens=0,
                     cost=0.0,
@@ -754,6 +833,8 @@ class LLMGateway:
                     actual_model=actual_model,
                     requested_model=requested_model,
                     model_overridden=model_overridden,
+                    provider=provider,
+                    cached=True,
                 )
 
         # ═══ CACHE MISS - CALL API ═══
@@ -771,7 +852,6 @@ class LLMGateway:
         except httpx.HTTPStatusError as e:
             duration_ms = (time.monotonic() - start) * 1000
             error_msg = str(e.response.text[:200])
-            await self._write_trace(trace_id, operation, model, 0, 0, 0.0, duration_ms, error=error_msg)
             status = e.response.status_code
             if status == 403:
                 error_type = "auth_error"
@@ -781,17 +861,63 @@ class LLMGateway:
                 error_type = "server_error"
             else:
                 error_type = "unexpected"
+            await self._write_trace(
+                trace_id=trace_id,
+                operation=operation,
+                requested_model=requested_model,
+                actual_model=actual_model,
+                input_tokens=0,
+                output_tokens=0,
+                cost=0.0,
+                duration_ms=duration_ms,
+                error=error_msg,
+                error_type=error_type,
+                cached=False,
+                cache_key=input_hash if "input_hash" in locals() else None,
+                model_overridden=model_overridden,
+                metadata=metadata,
+            )
             raise LLMError(error_msg, error_type=error_type, model=model, status_code=status)
         except Exception as e:
             duration_ms = (time.monotonic() - start) * 1000
-            await self._write_trace(trace_id, operation, model, 0, 0, 0.0, duration_ms, error=str(e))
+            await self._write_trace(
+                trace_id=trace_id,
+                operation=operation,
+                requested_model=requested_model,
+                actual_model=actual_model,
+                input_tokens=0,
+                output_tokens=0,
+                cost=0.0,
+                duration_ms=duration_ms,
+                error=str(e),
+                error_type=type(e).__name__,
+                cached=False,
+                cache_key=input_hash if "input_hash" in locals() else None,
+                model_overridden=model_overridden,
+                metadata=metadata,
+            )
             raise LLMError(str(e), error_type="unexpected", model=model)
 
         duration_ms = (time.monotonic() - start) * 1000
         text, input_tokens, output_tokens = self._parse_provider_response(data, provider)
 
         cost = await self._track_cost(operation, model_name, input_tokens, output_tokens)
-        await self._write_trace(trace_id, operation, model, input_tokens, output_tokens, cost, duration_ms)
+        await self._write_trace(
+            trace_id=trace_id,
+            operation=operation,
+            requested_model=requested_model,
+            actual_model=actual_model,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            cost=cost,
+            duration_ms=duration_ms,
+            error=None,
+            error_type=None,
+            cached=False,
+            cache_key=input_hash,
+            model_overridden=model_overridden,
+            metadata=metadata,
+        )
 
         # ═══ SAVE TO CACHE ═══
         if input_hash and operation in CACHEABLE_OPERATIONS and operation not in SKIP_CACHE_OPERATIONS:
@@ -808,6 +934,8 @@ class LLMGateway:
             actual_model=actual_model,
             requested_model=requested_model,
             model_overridden=model_overridden,
+            provider=provider,
+            cached=False,
         )
 
     # ── Sync entry point ─────────────────────────────────────
@@ -822,6 +950,7 @@ class LLMGateway:
         system: Optional[str] = None,
         requested_model: Optional[str] = None,
         routing_key: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> GatewayResponse:
         """
         Sync LLM call with cache support.
@@ -839,10 +968,12 @@ class LLMGateway:
             requested_model: What caller requested (not guaranteed to be used)
             routing_key: Stable identifier for deterministic A/B split.
                          Default: f"{operation}:{trace_id}"
+            metadata: Optional correlation metadata (task_id, briefing_id, is_smoke, phase, iteration)
 
         Raises:
             LLMError: On spend cap breach or API failure.
         """
+        metadata = metadata or {}
         self._check_budget(operation)
 
         requested_model = requested_model or model
@@ -876,13 +1007,28 @@ class LLMGateway:
             input_hash = hashlib.sha1(input_text.encode()).hexdigest()
 
             # Try cache lookup
-            cached = self._get_from_cache_sync(operation, input_hash)
-            if cached:
+            cached_response = self._get_from_cache_sync(operation, input_hash)
+            if cached_response:
                 # Return cached result with zero cost
                 duration_ms = (time.monotonic() - start) * 1000
-                self._write_trace_sync(trace_id, operation, model, 0, 0, 0.0, duration_ms)
+                self._write_trace_sync(
+                    trace_id=trace_id,
+                    operation=operation,
+                    requested_model=requested_model,
+                    actual_model=actual_model,
+                    input_tokens=0,
+                    output_tokens=0,
+                    cost=0.0,
+                    duration_ms=duration_ms,
+                    error=None,
+                    error_type=None,
+                    cached=True,
+                    cache_key=input_hash,
+                    model_overridden=model_overridden,
+                    metadata=metadata,
+                )
                 return GatewayResponse(
-                    text=cached,
+                    text=cached_response,
                     input_tokens=0,
                     output_tokens=0,
                     cost=0.0,
@@ -892,6 +1038,8 @@ class LLMGateway:
                     actual_model=actual_model,
                     requested_model=requested_model,
                     model_overridden=model_overridden,
+                    provider=provider,
+                    cached=True,
                 )
 
         # ═══ CACHE MISS - CALL API ═══
@@ -910,7 +1058,6 @@ class LLMGateway:
             duration_ms = (time.monotonic() - start) * 1000
             status = e.response.status_code
             error_msg = str(e.response.text[:200])
-            self._write_trace_sync(trace_id, operation, model, 0, 0, 0.0, duration_ms, error=error_msg)
             if status == 403:
                 error_type = "auth_error"
             elif status == 429:
@@ -919,10 +1066,41 @@ class LLMGateway:
                 error_type = "server_error"
             else:
                 error_type = "unexpected"
+            self._write_trace_sync(
+                trace_id=trace_id,
+                operation=operation,
+                requested_model=requested_model,
+                actual_model=actual_model,
+                input_tokens=0,
+                output_tokens=0,
+                cost=0.0,
+                duration_ms=duration_ms,
+                error=error_msg,
+                error_type=error_type,
+                cached=False,
+                cache_key=input_hash if "input_hash" in locals() else None,
+                model_overridden=model_overridden,
+                metadata=metadata,
+            )
             raise LLMError(error_msg, error_type=error_type, model=model, status_code=status)
         except Exception as e:
             duration_ms = (time.monotonic() - start) * 1000
-            self._write_trace_sync(trace_id, operation, model, 0, 0, 0.0, duration_ms, error=str(e))
+            self._write_trace_sync(
+                trace_id=trace_id,
+                operation=operation,
+                requested_model=requested_model,
+                actual_model=actual_model,
+                input_tokens=0,
+                output_tokens=0,
+                cost=0.0,
+                duration_ms=duration_ms,
+                error=str(e),
+                error_type=type(e).__name__,
+                cached=False,
+                cache_key=input_hash if "input_hash" in locals() else None,
+                model_overridden=model_overridden,
+                metadata=metadata,
+            )
             raise LLMError(str(e), error_type="unexpected", model=model)
 
         duration_ms = (time.monotonic() - start) * 1000
@@ -938,7 +1116,22 @@ class LLMGateway:
             logger.error(f"Sync cost calculation failed: {e}")
 
         # Write trace synchronously (blocking, but fire-and-forget semantics)
-        self._write_trace_sync(trace_id, operation, model, input_tokens, output_tokens, cost, duration_ms)
+        self._write_trace_sync(
+            trace_id=trace_id,
+            operation=operation,
+            requested_model=requested_model,
+            actual_model=actual_model,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            cost=cost,
+            duration_ms=duration_ms,
+            error=None,
+            error_type=None,
+            cached=False,
+            cache_key=input_hash,
+            model_overridden=model_overridden,
+            metadata=metadata,
+        )
 
         # ═══ SAVE TO CACHE ═══
         if input_hash and operation in CACHEABLE_OPERATIONS and operation not in SKIP_CACHE_OPERATIONS:
@@ -955,6 +1148,8 @@ class LLMGateway:
             actual_model=actual_model,
             requested_model=requested_model,
             model_overridden=model_overridden,
+            provider=provider,
+            cached=False,
         )
 
 

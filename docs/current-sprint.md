@@ -7,7 +7,7 @@
 
 **Major Discovery (2026-04-30):** Direct DeepSeek API is 10-12x cheaper than OpenRouter. Recommendation: **DeepSeek on all Tier 1 operations saves $55k/year.** Deploy in phases: sentiment (Phase 1, Week 1), entity (Phase 2, conditional), theme (Sprint 18+, conditional on TASK-087).
 
-**Current Phase:** Phases 1-3 of FEATURE-054 complete. Phase 4 (manual analysis) complete. Now starting TASK-085 (build provider).
+**Current Phase:** Phases 1-3 of FEATURE-054 complete. Phase 4 (manual analysis) complete. TASK-085 (build provider) complete. TASK-086 Phase 1 pre-production validation complete. Ready for production deployment (2026-05-01).
 
 ---
 
@@ -154,7 +154,7 @@ Sprint 16 completed observable model routing, provider abstraction, and decision
 | TASK-082 | Define quality thresholds | P1 | ✅ COMPLETE | 1h | — |
 | FEATURE-054 | Tier 1 Cost Optimization Evals | P1 | ✅ COMPLETE (Phases 1-4) | 8-10h | — |
 | TASK-085 | Build DeepSeek provider integration | P1 | ✅ COMPLETE | 3h | — |
-| TASK-086 Phase 1 | Deploy sentiment to DeepSeek + monitor | P1 | ⏳ QUEUED | 1 week | TASK-085 |
+| TASK-086 Phase 1 | Pre-production validation + production deployment | P1 | ✅ READY | 1 day + 1 week | TASK-085 |
 | TASK-086 Phase 2 | Deploy entity extraction + validate | P1 | ⏳ CONDITIONAL | 2 weeks | Phase 1 success |
 | TASK-087 | Re-annotate theme extraction samples | P2 | ⏳ OPTIONAL | 1-2h | Theme Phase 3 |
 | MSD-001 v3 | Update entity_extraction decision record | P1 | ⏳ PENDING | 0.5h | Sprint closeout |
@@ -177,10 +177,16 @@ Sprint 16 completed observable model routing, provider abstraction, and decision
    - 19 unit tests passing
    - Ready for TASK-086 Phase 1
 
-4. ⏳ **Day 7-13:** TASK-086 Phase 1 — QUEUED
-   - Sentiment cutover to DeepSeek + 1 week monitoring (2026-05-02 to 2026-05-09)
-   - You monitor briefing quality, review agreement metrics
-   - Decision: keep or revert
+4. ⏳ **Day 7-13:** TASK-086 Phase 1 — READY FOR DEPLOYMENT
+   - Pre-production validation: ✅ COMPLETE (2026-05-01)
+     - Mocked smoke tests: 8/8 pass
+     - Live smoke tests: Both Anthropic and DeepSeek working
+     - Routing verified: Both providers route through LLMGateway
+     - Cost tracking fixed: DeepSeek pricing correctly applied
+     - Tracing verified: llm_traces collection ready
+     - Rollback verified: One-line switch to Anthropic confirmed
+   - Production deployment checklist: ✅ Created (`TASK-086-PHASE1-PRODUCTION-DEPLOYMENT.md`)
+   - Next: Deploy to production, monitor 5-7 days, record decision
 
 5. ⏳ **Day 14-27 (conditional):** TASK-086 Phase 2 — CONDITIONAL
    - Entity extraction cutover (only if Phase 1 succeeds)
@@ -194,9 +200,14 @@ Sprint 16 completed observable model routing, provider abstraction, and decision
 
 ---
 
+**Sprint 17 Status (2026-05-01):**
+- ✅ TASK-085: DeepSeek provider built and integrated (COMPLETE 2026-04-30)
+- ✅ TASK-086 Phase 1 Pre-Production: Mocked + live smoke tests passed, cost tracking fixed, production deployment guide created (COMPLETE 2026-05-01)
+- ⏳ TASK-086 Phase 1 Production: Ready to deploy to production, monitor 5-7 days, record decision (STARTING ~2026-05-02)
+
 **Sprint 17 completes when:**
 - ✅ TASK-085: DeepSeek provider built and integrated (COMPLETE 2026-04-30)
-- ⏳ TASK-086 Phase 1: Sentiment running on DeepSeek in production, 1 week monitored, decision made (STARTING ~2026-05-02)
+- ⏳ TASK-086 Phase 1: Sentiment running on DeepSeek in production, 5-7 days monitored, decision made (DEPLOYING 2026-05-02)
 
 **If Phase 1 succeeds (>= 80% agreement, no quality issues):**
 - Sprint 18 begins with TASK-086 Phase 2 (entity extraction deployment)
