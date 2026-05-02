@@ -292,6 +292,7 @@ TASK-088 should be treated as near-term Sprint 17 work because TASK-086 producti
 | TASK-087 | Refactor gateway-owned reliability controls | P2 | ⏳ QUEUED | 4-6h | Do after TASK-085 works and rollback path is validated |
 | TASK-088 | Rebuild LLM trace system with clean collection reset | CRITICAL | ✅ COMPLETE | 4-6h | Complete 2026-05-01; human manually drops only `llm_traces` before deployment |
 | BUG-092 | Trace provider field null for Haiku - TASK-088 regression | HIGH | ✅ COMPLETE | 1-2h | Provider field extracted early; Tier 1 ops routed to DeepSeek V4 Flash (2026-05-01) |
+| TASK-089 | Reduce production log flooding in RSS/entity extraction pipeline | P1 | ✅ COMPLETE | 2h | Aggregated per-item logs into batch-level summaries; estimated 85-95% volume reduction (2026-05-02) |
 | FEATURE-055 | Trace analysis CLI over `llm_traces` | HIGH | ⏳ BACKLOG | Medium | Depends on TASK-088; read-only script, no dashboard |
 | Theme reannotation | Re-annotate theme extraction samples | P2 | ⏳ DEFERRED / TBD | 1-2h | Future ticket if pursuing theme rollout |
 | MSD-001 v3 | Update entity_extraction decision record | P1 | ⏳ PENDING | 0.5h | Sprint closeout |
@@ -345,6 +346,16 @@ TASK-088 should be treated as near-term Sprint 17 work because TASK-086 producti
    - ⏳ Human operator must manually drop only `llm_traces` before or immediately before production deployment
    - This strengthens TASK-086 monitoring
 
+6.5. ✅ **Day 8 morning:** TASK-089 Production Log Reduction — COMPLETE (2026-05-02)
+   - ✅ Removed per-entity normalization logs (2 locations)
+   - ✅ Removed per-article extraction method debug logs (2 locations)
+   - ✅ Aggregated entity mention creation logs with batch-level summary
+   - ✅ Aggregated retry/failure logs with error type and representative sample
+   - ✅ Enhanced extraction failure tracking with first-error context
+   - ✅ Estimated impact: 85-95% reduction in RSS/entity extraction log volume
+   - ✅ Syntax validation passed; behavior verification confirmed (no return value, exception handling, or skipped-article changes)
+   - Implementation summary with verification details in ticket doc
+
 7. ⏳ **After TASK-085 works / after Phase 1 validation starts:** TASK-087 — QUEUED
    - Refactor circuit breaker and rate limiter ownership into `LLMGateway`
    - Add provider-scoped reliability keys such as `deepseek:article_enrichment_batch`
@@ -368,11 +379,12 @@ TASK-088 should be treated as near-term Sprint 17 work because TASK-086 producti
 
 ---
 
-**Sprint 17 Status (2026-05-01):**
+**Sprint 17 Status (2026-05-02):**
 - ✅ TASK-085: DeepSeek works through `LLMGateway` for Tier 1 operations (entity_extraction, sentiment_analysis, theme_extraction) (COMPLETE 2026-04-30)
 - ✅ BUG-092: Provider field null regression fixed; provider extracted early in cached response paths (COMPLETE 2026-05-01)
 - ✅ TASK-086 Phase 1 Pre-Production: Mocked + live validation complete, production deployment guide created (COMPLETE 2026-05-01)
 - ✅ TASK-088: Structured trace rebuild complete with 21-field schema, 9 indexes, metadata propagation, and backward compatibility verified (COMPLETE 2026-05-01)
+- ✅ TASK-089: Production log flooding reduced; per-item logs aggregated into batch-level summaries; estimated 85-95% volume reduction (COMPLETE 2026-05-02)
 - ⏳ TASK-086 Phase 1 Production: Ready to deploy, monitor 5-7 days, record decision (STARTING 2026-05-02)
 - ⏳ FEATURE-055: Backlog/follow-up trace analysis CLI after TASK-088
 
@@ -524,4 +536,4 @@ These items should stay in the sprint doc because they are broader sprint closeo
 
 ---
 
-*Sprint 17 IN PROGRESS (as of 2026-05-01). FEATURE-054 Phases 1-4 complete. TASK-085 complete (2026-04-30). TASK-086 Phase 1 pre-production validation complete (2026-05-01), ready for production deployment (2026-05-02). TASK-087 queued as follow-up reliability refactor. TASK-088 open as critical trace rebuild work. FEATURE-055 backlog after TASK-088 for read-only trace analysis. Sprint closes ~2026-05-17 after Phase 1 monitored + decision made, with TASK-088 either complete or explicitly deferred.*
+*Sprint 17 IN PROGRESS (as of 2026-05-02). FEATURE-054 Phases 1-4 complete. TASK-085 complete (2026-04-30). TASK-086 Phase 1 pre-production validation complete (2026-05-01), ready for production deployment (2026-05-02). TASK-087 queued as follow-up reliability refactor. TASK-088 complete (2026-05-01) with structured trace rebuild. TASK-089 complete (2026-05-02) with 85-95% log reduction. FEATURE-055 backlog after TASK-088 for read-only trace analysis. Sprint closes ~2026-05-17 after Phase 1 monitored + decision made, with all critical path tasks (085, 088, 089) complete before production deployment.*
