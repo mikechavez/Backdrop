@@ -343,6 +343,8 @@ async def _retry_individual_extractions(
         "total_cost": 0.0,
     }
     failed_articles = []
+    first_error = None
+    first_error_type = None
 
     for article in articles_batch:
         article_id = str(article.get("_id"))
@@ -361,25 +363,26 @@ async def _retry_individual_extractions(
                     total_usage[key] += usage.get(key, 0)
             else:
                 failed_articles.append(article_id)
-                logger.warning(
-                    "Individual extraction failed for article %s", article_id
-                )
 
         except Exception as exc:
             failed_articles.append(article_id)
-            logger.error(
-                "Individual extraction failed for article %s: %s", article_id, exc
-            )
+            if not first_error:
+                first_error = str(exc)
+                first_error_type = type(exc).__name__
 
     processing_time = time.time() - start_time
     total_entities = sum(len(r.get("entities", [])) for r in all_results)
 
     if failed_articles:
-        logger.warning(
-            "Failed to extract entities from %d articles: %s",
-            len(failed_articles),
-            ", ".join(failed_articles[:5]),
+        log_msg = (
+            "Individual extraction retry: %d articles failed (out of %d), "
+            "sample_ids=%s"
         )
+        log_args = [len(failed_articles), len(articles_batch), ", ".join(failed_articles[:5])]
+        if first_error_type:
+            log_msg += ", error_type=%s, error_sample=%s"
+            log_args.extend([first_error_type, first_error[:100]])
+        logger.warning(log_msg, *log_args)
 
     return {
         "results": all_results,
@@ -450,6 +453,10 @@ async def process_new_articles_from_mongodb():
     entity_extraction_results = {}
     total_llm_processed = 0
     total_regex_processed = 0
+    total_failed_extraction = 0
+    first_extraction_error = None
+    first_extraction_error_type = None
+    failed_extraction_ids = []
 
     for i in range(0, len(articles_list), batch_size):
         batch = articles_list[i : i + batch_size]
@@ -465,11 +472,10 @@ async def process_new_articles_from_mongodb():
             # Process each article with selective method
             for article in batch:
                 article_id_str = str(article.get("_id"))
-                
+
                 # Decide processing method
                 use_llm = selective_processor.should_use_llm(article)
-                method_emoji = "🤖" if use_llm else "📝"
-                
+
                 if use_llm:
                     # Use optimized LLM (with caching)
                     try:
@@ -478,7 +484,7 @@ async def process_new_articles_from_mongodb():
                             "text": article.get("text") or article.get("content") or article.get("description") or ""
                         }])
                         entities = entity_results[0].get("entities", []) if entity_results else []
-                        
+
                         # Convert to expected format
                         entity_extraction_results[article_id_str] = {
                             "article_id": article_id_str,
@@ -503,59 +509,86 @@ async def process_new_articles_from_mongodb():
                             "method": "llm"
                         }
                         total_llm_processed += 1
-                        logger.debug(f"{method_emoji} Article {article_id_str}: LLM extraction, {len(entities)} entities")
                     except Exception as e:
-                        logger.error(f"LLM extraction failed for {article_id_str}: {e}")
-                        # Fall back to regex
+                        # Fall back to regex after LLM failure
+                        if not first_extraction_error:
+                            first_extraction_error = str(e)
+                            first_extraction_error_type = type(e).__name__
                         use_llm = False
-                
+
                 if not use_llm:
                     # Use regex extraction (free, fast)
-                    regex_entities = await selective_processor.extract_entities_simple(
-                        article.get("_id"),
-                        article
-                    )
-                    
-                    entity_extraction_results[article_id_str] = {
-                        "article_id": article_id_str,
-                        "primary_entities": [
-                            {
-                                "name": e.get("entity"),
-                                "type": e.get("entity_type"),
-                                "confidence": e.get("confidence", 0.7),
-                                "ticker": None
-                            }
-                            for e in regex_entities if e.get("is_primary", False)
-                        ],
-                        "context_entities": [
-                            {
-                                "name": e.get("entity"),
-                                "type": e.get("entity_type"),
-                                "confidence": e.get("confidence", 0.7)
-                            }
-                            for e in regex_entities if not e.get("is_primary", False)
-                        ],
-                        "sentiment": "neutral",
-                        "method": "regex"
-                    }
-                    total_regex_processed += 1
-                    logger.debug(f"{method_emoji} Article {article_id_str}: Regex extraction, {len(regex_entities)} entities")
+                    try:
+                        regex_entities = await selective_processor.extract_entities_simple(
+                            article.get("_id"),
+                            article
+                        )
+
+                        entity_extraction_results[article_id_str] = {
+                            "article_id": article_id_str,
+                            "primary_entities": [
+                                {
+                                    "name": e.get("entity"),
+                                    "type": e.get("entity_type"),
+                                    "confidence": e.get("confidence", 0.7),
+                                    "ticker": None
+                                }
+                                for e in regex_entities if e.get("is_primary", False)
+                            ],
+                            "context_entities": [
+                                {
+                                    "name": e.get("entity"),
+                                    "type": e.get("entity_type"),
+                                    "confidence": e.get("confidence", 0.7)
+                                }
+                                for e in regex_entities if not e.get("is_primary", False)
+                            ],
+                            "sentiment": "neutral",
+                            "method": "regex"
+                        }
+                        total_regex_processed += 1
+                    except Exception as e:
+                        # Both LLM and regex failed
+                        if not first_extraction_error:
+                            first_extraction_error = str(e)
+                            first_extraction_error_type = type(e).__name__
+                        total_failed_extraction += 1
+                        if len(failed_extraction_ids) < 5:
+                            failed_extraction_ids.append(article_id_str)
         else:
             # Fallback to original batch processing
             extraction_result = await _process_entity_extraction_batch(batch, llm_client)
-            
+
             for result in extraction_result.get("results", []):
                 article_id = result.get("article_id")
                 if article_id:
                     entity_extraction_results[article_id] = result
-            
+
             total_llm_processed += len(batch)
 
     # Log processing summary
-    logger.info(
-        f"📊 Entity extraction complete: {total_llm_processed} LLM, {total_regex_processed} regex "
-        f"({total_regex_processed / max(1, total_llm_processed + total_regex_processed) * 100:.1f}% cost savings)"
+    total_extraction_attempts = total_llm_processed + total_regex_processed + total_failed_extraction
+    extraction_log = (
+        "Entity extraction complete: articles=%d, llm=%d, regex=%d, failed=%d, "
+        "cost_savings_percent=%.1f"
     )
+    extraction_log_args = [
+        total_extraction_attempts,
+        total_llm_processed,
+        total_regex_processed,
+        total_failed_extraction,
+        total_regex_processed / max(1, total_llm_processed + total_regex_processed) * 100,
+    ]
+
+    if total_failed_extraction > 0 and first_extraction_error_type:
+        extraction_log += ", error_type=%s, sample_ids=%s, error_sample=%s"
+        extraction_log_args.extend([
+            first_extraction_error_type,
+            ", ".join(failed_extraction_ids[:5]),
+            first_extraction_error[:100],
+        ])
+
+    logger.info(extraction_log, *extraction_log_args)
     
     # Log cache stats if using optimized LLM
     if optimized_llm:
@@ -669,6 +702,11 @@ async def process_new_articles_from_mongodb():
             for a in tier_1_articles
         ]
 
+        # Track mention creation stats for batch-level summary
+        batch_mentions_created = 0
+        batch_articles_with_mentions = 0
+        batch_mention_insert_failures = 0
+
         try:
             enrichment_results = await llm_client.enrich_articles_batch(batch_input)
 
@@ -728,13 +766,7 @@ async def process_new_articles_from_mongodb():
                 context_entities = entity_data.get("context_entities", [])
                 entity_sentiment = entity_data.get("sentiment", sentiment_label)
 
-                # Log entity extraction for this article
-                if primary_entities or context_entities:
-                    logger.info(
-                        f"Article {article_id_str}: {len(primary_entities)} primary, {len(context_entities)} context entities"
-                    )
-                else:
-                    logger.warning(f"Article {article_id_str}: No entities extracted")
+                # Batch-level tracking (no per-article logs)
 
                 # Combine all entities for storage in article document
                 all_entities = []
@@ -776,7 +808,7 @@ async def process_new_articles_from_mongodb():
 
                 if primary_entities or context_entities:
                     mentions_to_create = []
-                    logger.info(f"Preparing to create entity mentions for article {article_id_str}")
+                    batch_articles_with_mentions += 1
 
                     # Process primary entities
                     for entity in primary_entities:
@@ -788,7 +820,6 @@ async def process_new_articles_from_mongodb():
                         if entity_name:
                             normalized_name = normalize_entity_name(entity_name)
                             if normalized_name != entity_name:
-                                logger.info(f"Entity mention normalized: '{entity_name}' → '{normalized_name}'")
                                 entity_name = normalized_name
 
                         # Create mention for the entity name (already normalized by LLM + double-check above)
@@ -820,7 +851,6 @@ async def process_new_articles_from_mongodb():
                         if entity_name:
                             normalized_name = normalize_entity_name(entity_name)
                             if normalized_name != entity_name:
-                                logger.info(f"Context entity normalized: '{entity_name}' → '{normalized_name}'")
                                 entity_name = normalized_name
 
                         if entity_name:
@@ -845,11 +875,21 @@ async def process_new_articles_from_mongodb():
                     if mentions_to_create:
                         try:
                             await db.entity_mentions.insert_many(mentions_to_create)
-                            logger.info(f"Created {len(mentions_to_create)} entity mentions for article {article_id_str}")
+                            batch_mentions_created += len(mentions_to_create)
                         except Exception as e:
+                            batch_mention_insert_failures += 1
                             logger.error(f"Failed to insert entity mentions for {article_id_str}: {e}")
 
                 processed += 1
+
+            # Log batch-level entity mention summary
+            if batch_mentions_created > 0:
+                logger.info(
+                    "Entity mentions batch: created=%d, articles_with_mentions=%d, insert_failures=%d",
+                    batch_mentions_created,
+                    batch_articles_with_mentions,
+                    batch_mention_insert_failures,
+                )
 
         except Exception as e:
             logger.error(f"Error enriching batch {batch_start}-{batch_end}: {e}")
