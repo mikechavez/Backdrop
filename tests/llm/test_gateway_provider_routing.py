@@ -213,20 +213,20 @@ class TestRoutingConfiguration:
         """entity_extraction operation has routing strategy."""
         gateway = LLMGateway()
         strategy = gateway._resolve_routing("entity_extraction", None, "test:key")[0]
-        # Should return a model string (Anthropic by default)
-        assert "anthropic" in strategy or "claude" in strategy
+        # Should return a model string (DeepSeek for Tier 1 cost optimization)
+        assert "deepseek" in strategy
 
     def test_sentiment_analysis_in_routing(self):
         """sentiment_analysis operation has routing strategy."""
         gateway = LLMGateway()
         strategy = gateway._resolve_routing("sentiment_analysis", None, "test:key")[0]
-        assert "anthropic" in strategy or "claude" in strategy
+        assert "deepseek" in strategy
 
     def test_theme_extraction_in_routing(self):
         """theme_extraction operation has routing strategy."""
         gateway = LLMGateway()
         strategy = gateway._resolve_routing("theme_extraction", None, "test:key")[0]
-        assert "anthropic" in strategy or "claude" in strategy
+        assert "deepseek" in strategy
 
     def test_article_enrichment_batch_in_routing(self):
         """article_enrichment_batch operation has routing strategy."""

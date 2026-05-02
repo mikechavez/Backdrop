@@ -291,6 +291,7 @@ TASK-088 should be treated as near-term Sprint 17 work because TASK-086 producti
 | TASK-086 Phase 2 | Deploy entity extraction + validate | P1 | ⏳ CONDITIONAL | 2 weeks | Requires Phase 1 success |
 | TASK-087 | Refactor gateway-owned reliability controls | P2 | ⏳ QUEUED | 4-6h | Do after TASK-085 works and rollback path is validated |
 | TASK-088 | Rebuild LLM trace system with clean collection reset | CRITICAL | ✅ COMPLETE | 4-6h | Complete 2026-05-01; human manually drops only `llm_traces` before deployment |
+| BUG-092 | Trace provider field null for Haiku - TASK-088 regression | HIGH | ⏳ OPEN | 1-2h | 1,093 traces have provider=None but correct Haiku pricing; investigate code path |
 | FEATURE-055 | Trace analysis CLI over `llm_traces` | HIGH | ⏳ BACKLOG | Medium | Depends on TASK-088; read-only script, no dashboard |
 | Theme reannotation | Re-annotate theme extraction samples | P2 | ⏳ DEFERRED / TBD | 1-2h | Future ticket if pursuing theme rollout |
 | MSD-001 v3 | Update entity_extraction decision record | P1 | ⏳ PENDING | 0.5h | Sprint closeout |
