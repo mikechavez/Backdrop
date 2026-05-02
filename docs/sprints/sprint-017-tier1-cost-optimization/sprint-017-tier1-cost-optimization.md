@@ -291,7 +291,7 @@ TASK-088 should be treated as near-term Sprint 17 work because TASK-086 producti
 | TASK-086 Phase 2 | Deploy entity extraction + validate | P1 | ⏳ CONDITIONAL | 2 weeks | Requires Phase 1 success |
 | TASK-087 | Refactor gateway-owned reliability controls | P2 | ⏳ QUEUED | 4-6h | Do after TASK-085 works and rollback path is validated |
 | TASK-088 | Rebuild LLM trace system with clean collection reset | CRITICAL | ✅ COMPLETE | 4-6h | Complete 2026-05-01; human manually drops only `llm_traces` before deployment |
-| BUG-092 | Trace provider field null for Haiku - TASK-088 regression | HIGH | ⏳ OPEN | 1-2h | 1,093 traces have provider=None but correct Haiku pricing; investigate code path |
+| BUG-092 | Trace provider field null for Haiku - TASK-088 regression | HIGH | ✅ COMPLETE | 1-2h | Provider field extracted early; Tier 1 ops routed to DeepSeek V4 Flash (2026-05-01) |
 | FEATURE-055 | Trace analysis CLI over `llm_traces` | HIGH | ⏳ BACKLOG | Medium | Depends on TASK-088; read-only script, no dashboard |
 | Theme reannotation | Re-annotate theme extraction samples | P2 | ⏳ DEFERRED / TBD | 1-2h | Future ticket if pursuing theme rollout |
 | MSD-001 v3 | Update entity_extraction decision record | P1 | ⏳ PENDING | 0.5h | Sprint closeout |
@@ -312,8 +312,14 @@ TASK-088 should be treated as near-term Sprint 17 work because TASK-086 producti
    - ✅ Added DeepSeek support through `LLMGateway`
    - ✅ Provider-aware routing for `anthropic:*` and `deepseek:*` model refs
    - ✅ DeepSeek config, request formatting, response parsing, cost tracking
-   - ✅ Routed `article_enrichment_batch` to `deepseek:deepseek-v4-flash`
+   - ✅ Routed `entity_extraction`, `sentiment_analysis`, `theme_extraction` to `deepseek:deepseek-v4-flash`
    - ✅ 19 unit tests passing
+
+3b. ✅ **Day 7 morning:** BUG-092 — COMPLETE (2026-05-01)
+   - ✅ Fixed provider field null regression in cached responses
+   - ✅ Provider extracted early in both async and sync paths
+   - ✅ All 22 gateway tests passing with provider field validation
+   - ✅ Tier 1 operations now correctly route to DeepSeek and populate provider field
 
 4. ✅ **Day 7 morning:** TASK-086 Phase 1 Pre-Production Validation — COMPLETE (2026-05-01)
    - ✅ Mocked smoke tests: 8/8 pass
@@ -363,7 +369,8 @@ TASK-088 should be treated as near-term Sprint 17 work because TASK-086 producti
 ---
 
 **Sprint 17 Status (2026-05-01):**
-- ✅ TASK-085: DeepSeek works through `LLMGateway` for `article_enrichment_batch` (COMPLETE 2026-04-30)
+- ✅ TASK-085: DeepSeek works through `LLMGateway` for Tier 1 operations (entity_extraction, sentiment_analysis, theme_extraction) (COMPLETE 2026-04-30)
+- ✅ BUG-092: Provider field null regression fixed; provider extracted early in cached response paths (COMPLETE 2026-05-01)
 - ✅ TASK-086 Phase 1 Pre-Production: Mocked + live validation complete, production deployment guide created (COMPLETE 2026-05-01)
 - ✅ TASK-088: Structured trace rebuild complete with 21-field schema, 9 indexes, metadata propagation, and backward compatibility verified (COMPLETE 2026-05-01)
 - ⏳ TASK-086 Phase 1 Production: Ready to deploy, monitor 5-7 days, record decision (STARTING 2026-05-02)

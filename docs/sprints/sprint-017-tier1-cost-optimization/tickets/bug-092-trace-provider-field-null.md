@@ -89,7 +89,7 @@ Cost verification: `(262/1M * 1.00) + (103/1M * 5.00) = 0.000777` ✅ Haiku pric
 **Status:** Fixed  
 **Fixed:** 2026-05-01  
 **Branch:** feat/task-085-deepseek-gateway  
-**Commit:** [pending]
+**Commit:** 6ff255a
 
 ### Root Cause
 
@@ -101,14 +101,24 @@ In `LLMGateway.call()` (line 836) and `LLMGateway.call_sync()` (line 1041), cach
 
 ✅ **gateway.py:992-995** - Apply same fix to `call_sync()` method for consistency
 
-✅ **test_gateway.py:495-496** - Add assertions to validate provider field is "anthropic" for cached responses, preventing future regressions
+✅ **test_gateway.py:495-496** - Add assertions to validate provider field is set for cached responses
+
+✅ **gateway.py:98-100** - Route `entity_extraction` to `deepseek:deepseek-v4-flash`
+
+✅ **gateway.py:134-136** - Route `sentiment_analysis` to `deepseek:deepseek-v4-flash`
+
+✅ **gateway.py:138-140** - Route `theme_extraction` to `deepseek:deepseek-v4-flash`
+
+✅ **test_gateway_provider_routing.py:212-229** - Update routing configuration tests to expect DeepSeek for Tier 1 operations
 
 ### Testing
 
-✅ All 22 gateway tests pass, including cache hit test with new provider field validation
-✅ Sync and async paths both handle provider extraction before cache checks
-✅ Provider correctly set to "anthropic" for cached Haiku responses
+✅ All 22 gateway tests pass
+✅ All 19 routing tests pass
+✅ Provider correctly set for both cached and live responses
+✅ Tier 1 operations now route to DeepSeek V4 Flash
 
 ### Files Changed
-- src/crypto_news_aggregator/llm/gateway.py (fixed)
-- tests/llm/test_gateway.py (test validation added)
+- src/crypto_news_aggregator/llm/gateway.py (provider field fix + DeepSeek routing)
+- tests/llm/test_gateway.py (test validation)
+- tests/llm/test_gateway_provider_routing.py (routing expectations updated)
