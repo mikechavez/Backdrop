@@ -490,6 +490,8 @@ class TestCacheMethods:
             assert response.input_tokens == 0
             assert response.output_tokens == 0
             assert response.cost == 0.0
+            assert response.provider == "anthropic"  # Regression check for BUG-092
+            assert response.cached is True
 
 
 class TestSingleton:

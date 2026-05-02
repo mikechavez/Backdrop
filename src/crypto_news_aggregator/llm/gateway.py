@@ -97,7 +97,7 @@ _OPERATION_ROUTING = {
     ),
     "entity_extraction": RoutingStrategy(
         "entity_extraction",
-        primary="anthropic:claude-haiku-4-5-20251001"
+        primary="deepseek:deepseek-v4-flash"
     ),
     "narrative_theme_extract": RoutingStrategy(
         "narrative_theme_extract",
@@ -133,11 +133,11 @@ _OPERATION_ROUTING = {
     ),
     "sentiment_analysis": RoutingStrategy(
         "sentiment_analysis",
-        primary="anthropic:claude-haiku-4-5-20251001"
+        primary="deepseek:deepseek-v4-flash"
     ),
     "theme_extraction": RoutingStrategy(
         "theme_extraction",
-        primary="anthropic:claude-haiku-4-5-20251001"
+        primary="deepseek:deepseek-v4-flash"
     ),
     "relevance_scoring": RoutingStrategy(
         "relevance_scoring",
@@ -781,6 +781,9 @@ class LLMGateway:
         model = actual_model
         start = time.monotonic()
 
+        # Extract provider early so it's available for both cache hit and miss paths
+        provider, model_name = self._parse_model_string(model)
+
         # ═══ CACHE SUPPORT ═══
         # Check cache for non-critical operations
         CACHEABLE_OPERATIONS = [
@@ -838,7 +841,6 @@ class LLMGateway:
                 )
 
         # ═══ CACHE MISS - CALL API ═══
-        provider, model_name = self._parse_model_string(model)
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.post(
@@ -987,6 +989,9 @@ class LLMGateway:
         model = actual_model
         start = time.monotonic()
 
+        # Extract provider early so it's available for both cache hit and miss paths
+        provider, model_name = self._parse_model_string(model)
+
         # ═══ CACHE SUPPORT ═══
         CACHEABLE_OPERATIONS = [
             "narrative_generate",
@@ -1043,7 +1048,6 @@ class LLMGateway:
                 )
 
         # ═══ CACHE MISS - CALL API ═══
-        provider, model_name = self._parse_model_string(model)
         try:
             with httpx.Client() as client:
                 response = client.post(
