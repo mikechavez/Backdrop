@@ -206,6 +206,14 @@ class Settings(BaseSettings):
     # Database sync settings
     ENABLE_DB_SYNC: bool = False  # Enable/disable database synchronization
 
+    # BugOps settings
+    BUGOPS_ENABLED: bool = False
+    BUGOPS_POLL_INTERVAL_SECONDS: int = 300
+    BUGOPS_COST_5MIN_THRESHOLD_USD: float = 0.25
+    BUGOPS_PROJECTED_HOURLY_THRESHOLD_USD: float = 1.00
+    BUGOPS_SLACK_ENABLED: bool = False
+    BUGOPS_SLACK_WEBHOOK_URL: str = ""
+
     @field_validator("ANTHROPIC_MONTHLY_API_LIMIT")
     @classmethod
     def _require_monthly_limit(cls, v: float) -> float:
