@@ -64,7 +64,7 @@ Also validate the `SignalSource` interface against a real sample of Railway log 
 | 4 | FEATURE-059 | Alert-to-case flow by dedupe_key | ✅ DONE | S | S |
 | 5 | TASK-090 | One-way BugOps Slack webhook notification | ✅ DONE | S | S |
 | 6 | TASK-091 | Minimal deterministic case report | ✅ DONE | S | S |
-| 7 | TASK-093 | Railway log data-shape spike | 🔲 OPEN | S | |
+| 7 | TASK-093 | Railway log data-shape spike | ✅ DONE | S | S |
 | 8 | TASK-092 | Update BugOps docs with Sprint 018 scope | 🔲 OPEN | S | |
 
 ---
@@ -78,7 +78,7 @@ Also validate the `SignalSource` interface against a real sample of Railway log 
 - [x] Repeated alerts in the same hourly `dedupe_key` window do not create duplicate cases.
 - [x] A one-way Slack webhook message is sent when a new BugOps case is created.
 - [x] A minimal deterministic report is written from recorded case/event data.
-- [ ] Real Railway log sample output is captured and mapped to the proposed `bug_alert_events` schema.
+- [x] Real Railway log sample output is captured and mapped to the proposed `bug_alert_events` schema.
 - [x] No BugOps code writes to existing production app collections except reading `llm_traces` and writing new `bug_*` collections.
 
 ---
@@ -250,3 +250,18 @@ _Tickets created mid-sprint for issues found during implementation._
   - Alert event fetching from store
 - All 6 new tests passing + no regressions to existing store/model tests
 - Success criteria met: deterministic report from stored data, no LLM calls, persisted to bug_cases.deterministic_report
+
+### Session 7 (2026-05-08) — TASK-093 ✅
+**Railway log data-shape spike**
+- Branch: `chore/093-railway-log-data-shape-spike` | Commit: `0581175`
+- Ran `railway logs` against production; confirmed single service `crypto-news-aggregator` (no web/worker/beat split)
+- Captured real output: gunicorn startup lines, MongoDB `AutoReconnect` stack trace, Python WARNING logs, Railway platform log-rate-limit warnings
+- Key findings:
+  - Two plain-text formats (Python logging, gunicorn) + JSON mode (`{message, timestamp ISO8601-nanosecond, level}`) — JSON preferred for ingestion
+  - Multiline stack traces arrive line-by-line; no Railway-side grouping
+  - CLI only supports `--lines` fetch; no time-window queries; Railway API token needed for non-interactive use
+  - `SignalSource` interface compatible as-is
+- Three priority patterns: `mongo_autoreconnect` (high), `budget_soft_limit` (warning), `platform_log_rate_limit` (warning)
+- Created `tests/bugops/fixtures/railway_logs_sample.txt` — sanitized (MongoDB hostname → `<MONGO_HOST>`)
+- Created `docs/bugops/railway-log-data-shape.md` — answers all 8 analysis questions + normalized mapping
+- Updated `railway_logs.py` placeholder with compiled regex patterns, `BugAlertEventCreate` field mapping, 4 TODOs grounded in real log shape

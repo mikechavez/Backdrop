@@ -3,9 +3,11 @@ ticket_id: TASK-093
 title: Railway Log Data Shape Spike
 priority: high
 severity: medium
-status: OPEN
+status: COMPLETE
 date_created: 2026-05-08
-branch: feature/bugops-signal-intake
+date_completed: 2026-05-08
+branch: chore/093-railway-log-data-shape-spike
+commit: 0581175
 effort_estimate: small
 ---
 
@@ -93,19 +95,45 @@ dedupe_key = "railway_logs:<pattern_name>:<service>:<YYYY-MM-DD>:<HH>"
 
 ## Verification
 
-- [ ] `tests/bugops/fixtures/railway_logs_sample.txt` contains sanitized sample output.
-- [ ] `docs/bugops/railway-log-data-shape.md` answers the analysis questions.
-- [ ] `RailwayLogSignalSource` placeholder has TODOs informed by real log sample shape.
-- [ ] No production Railway log ingestion is implemented in Sprint 018.
+- [x] `tests/bugops/fixtures/railway_logs_sample.txt` contains sanitized sample output.
+- [x] `docs/bugops/railway-log-data-shape.md` answers the analysis questions.
+- [x] `RailwayLogSignalSource` placeholder has TODOs informed by real log sample shape.
+- [x] No production Railway log ingestion is implemented in Sprint 018.
 
 ---
 
 ## Acceptance Criteria
 
-- [ ] Real Railway log output has been inspected.
-- [ ] Sample log data is captured and sanitized.
-- [ ] SignalSource interface is confirmed compatible or required changes are documented.
-- [ ] A future Railway log ingestion ticket can be written without guessing log shape.
+- [x] Real Railway log output has been inspected.
+- [x] Sample log data is captured and sanitized.
+- [x] SignalSource interface is confirmed compatible or required changes are documented.
+- [x] A future Railway log ingestion ticket can be written without guessing log shape.
+
+---
+
+## Implementation Summary (2026-05-08)
+
+**Commands run:**
+- `railway logs --lines 200` — real production output captured
+- `railway logs --lines 200 --service crypto-news-aggregator` — confirmed single service, no web/worker/beat split
+- `railway logs --lines 200 --filter "@level:error"` — captured startup lines + Railway rate-limit platform warnings
+- `railway logs --lines 200 --json` — confirmed JSON schema: `{message, timestamp (ISO8601-nanosecond), level}`
+- `railway logs --help` — documented actual CLI flags
+
+**Key findings:**
+- Project has one Railway service (`crypto-news-aggregator`); `--service web/worker/beat` all return "Service not found"
+- Two plain-text formats: Python logging (`YYYY-MM-DD HH:MM:SS,mmm - logger - LEVEL - msg`) and gunicorn (`[timestamp] [pid] [LEVEL] msg`); JSON mode is preferred for ingestion
+- Multiline stack traces arrive line-by-line with no Railway-side grouping
+- Only `--lines` fetch supported; no time-window queries via CLI
+- Railway API token (not CLI) required for non-interactive/in-container use
+- Railway platform log-rate-limit warnings carry no timestamp and are bare text
+- Three priority patterns identified: `mongo_autoreconnect`, `budget_soft_limit`, `platform_log_rate_limit`
+- `SignalSource` interface is compatible as-is; no changes needed
+
+**Files created/modified:**
+- `tests/bugops/fixtures/railway_logs_sample.txt` — sanitized real log output (MongoDB hostname redacted to `<MONGO_HOST>`)
+- `docs/bugops/railway-log-data-shape.md` — full analysis answering all 8 questions + normalized mapping proposal
+- `src/crypto_news_aggregator/bugops/signal_sources/railway_logs.py` — updated placeholder with compiled regex patterns, `BugAlertEventCreate` field mapping, 4 TODOs grounded in real log shape
 
 ---
 
