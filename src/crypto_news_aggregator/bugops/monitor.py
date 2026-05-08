@@ -70,8 +70,9 @@ class BugOpsMonitor:
             try:
                 events = await source.collect()
                 for event in events:
-                    case = await self.store.process_alert_event(event)
-                    await send_case_notification(case)
+                    case, is_new = await self.store.process_alert_event(event)
+                    if is_new:
+                        await send_case_notification(case)
             except Exception as e:
                 logger.error(
                     f"Error collecting signals from {source.source_type}: {e}",

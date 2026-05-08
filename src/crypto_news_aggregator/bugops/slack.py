@@ -78,6 +78,11 @@ def _build_slack_message(case: BugCase) -> dict:
             "short": True
         },
         {
+            "title": "Alert Type",
+            "value": case.alert_type,
+            "short": True
+        },
+        {
             "title": "Source Type",
             "value": ", ".join(case.source_types),
             "short": True
@@ -94,6 +99,13 @@ def _build_slack_message(case: BugCase) -> dict:
         fields.append({
             "title": "Metrics",
             "value": metric_str,
+            "short": False
+        })
+
+    if case.suggested_manual_check:
+        fields.append({
+            "title": "Suggested Manual Check",
+            "value": case.suggested_manual_check,
             "short": False
         })
 
