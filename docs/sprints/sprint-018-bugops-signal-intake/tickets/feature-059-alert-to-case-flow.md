@@ -1,11 +1,12 @@
 ---
 id: FEATURE-059
 type: feature
-status: backlog
+status: complete
 priority: high
 complexity: small
 created: 2026-05-08
 updated: 2026-05-08
+completed: 2026-05-08
 branch: feature/bugops-signal-intake
 ---
 
@@ -62,11 +63,11 @@ async def process_alert_event(event: BugAlertEventCreate) -> BugCase:
 
 ## Acceptance Criteria
 
-- [ ] First alert event for a `dedupe_key` creates a new case.
-- [ ] Second alert event with same `dedupe_key` attaches to the existing open case.
-- [ ] Alert event with same `dedupe_key` creates a new case if prior case is `resolved` or `closed`.
-- [ ] No multi-source correlation logic is implemented.
-- [ ] Tests prove this is exact dedupe-key passthrough.
+- [x] First alert event for a `dedupe_key` creates a new case.
+- [x] Second alert event with same `dedupe_key` attaches to the existing open case.
+- [x] Alert event with same `dedupe_key` creates a new case if prior case is `resolved` or `closed`.
+- [x] No multi-source correlation logic is implemented.
+- [x] Tests prove this is exact dedupe-key passthrough.
 
 ## Dependencies
 
@@ -102,8 +103,73 @@ case.alert_ids: contains both alerts
 
 Disable `BUGOPS_ENABLED`. Collections are isolated to `bug_*`.
 
+## Implementation Details
+
+### Files Modified
+
+**src/crypto_news_aggregator/bugops/store.py (lines 83-91)**
+```python
+async def process_alert_event(self, event: BugAlertEventCreate) -> BugCase:
+    """Process alert event: create alert, find or create case by dedupe_key."""
+    alert = await self.create_alert_event(event)
+    case = await self.find_open_case_by_dedupe_key(alert.dedupe_key)
+    if case is None:
+        case = await self.create_case_from_alert(alert)
+    else:
+        case = await self.attach_alert_to_case(case.case_id, alert.alert_id)
+    return case
+```
+- Exact implementation matches pseudocode in ticket requirements
+- Creates alert first, then looks for open case by dedupe_key only
+- Leverages existing store methods (create_alert_event, find_open_case_by_dedupe_key, create_case_from_alert, attach_alert_to_case)
+- Returns BugCase for caller to log or further process
+
+**src/crypto_news_aggregator/bugops/monitor.py (line 72)**
+- Changed `_poll_signals()` to call `await self.store.process_alert_event(event)` instead of `await self.store.create_alert_event(event)`
+- This integrates the alert-to-case flow into the main signal collection loop
+- Every signal now automatically creates or attaches to a case
+
+### Test Coverage: 8 Tests in test_alert_to_case_flow.py
+
+**TestProcessAlertEventNewCase (2 tests)**
+- `test_new_alert_creates_case`: Verifies first alert for a dedupe_key creates an open case
+- `test_correlation_keys_preserved_in_new_case`: Verifies correlation keys from alert are preserved in case record
+
+**TestProcessAlertEventReusesOpenCase (1 test)**
+- `test_same_dedupe_key_attaches_to_existing_case`: Verifies second alert with same dedupe_key attaches to existing open case, resulting in 2 alert_ids in case
+
+**TestProcessAlertEventClosedCaseHandling (2 tests)**
+- `test_creates_new_case_if_prior_case_is_resolved`: Verifies resolved cases are not reused; new case created
+- `test_creates_new_case_if_prior_case_is_closed`: Verifies closed cases are not reused; new case created
+
+**TestProcessAlertEventCorrelationKeys (1 test)**
+- `test_correlation_keys_not_used_for_matching`: Verifies alerts with same dedupe_key but different correlation_keys reuse case (only dedupe_key used for matching)
+
+**TestProcessAlertEventNoFuzzyCorrelation (2 tests)**
+- `test_no_time_window_correlation`: Verifies alerts with same service/model but different hourly dedupe_keys create separate cases
+- `test_no_service_correlation`: Verifies alerts with same service but different dedupe_keys create separate cases
+
+### Test Results
+- All 8 new tests pass ✅
+- All 11 existing store tests still pass ✅
+- All 50 BugOps tests pass (8 new + 42 existing) ✅
+- No regressions introduced
+
 ## Completion Summary
 
-- Actual complexity:
-- Key decisions made:
-- Deviations from plan:
+- **Status:** ✅ COMPLETE
+- **Actual complexity:** Small (exact as planned)
+- **Key decisions made:**
+  - Implemented `process_alert_event()` in BugOpsStore following exact pseudocode from ticket
+  - Updated BugOpsMonitor._poll_signals() to call process_alert_event instead of create_alert_event directly
+  - Created comprehensive test suite covering all acceptance criteria with 6 test classes and 8 test scenarios
+  - Used mocks to isolate process_alert_event logic from database details
+- **Test coverage:** 8 tests in test_alert_to_case_flow.py
+  - New case creation for new dedupe_key
+  - Case reuse for same dedupe_key with open status only
+  - Rejection of resolved/closed cases (new case created instead)
+  - Correlation keys preserved in case record (for future use)
+  - No fuzzy correlation by time window or service (exact dedupe_key passthrough only)
+- **Deviations from plan:** None
+- **Branch:** feature/bugops-signal-intake
+- **Dependencies satisfied:** FEATURE-057 ✅, FEATURE-058 ✅
