@@ -9,7 +9,7 @@ from typing import List
 from .config import get_bugops_settings
 from .store import BugOpsStore
 from .signal_sources.base import SignalSource
-from .signal_sources.llm_traces import LLMTraceSignalSource
+from .signal_sources.llm_traces import LLMTraceCostSignalSource
 from .signal_sources.railway_logs import RailwayLogSignalSource
 from ..db.mongodb import mongo_manager
 
@@ -23,7 +23,7 @@ class BugOpsMonitor:
         self.settings = get_bugops_settings()
         self.store = None
         self.signal_sources: List[SignalSource] = [
-            LLMTraceSignalSource(),
+            LLMTraceCostSignalSource(),
             RailwayLogSignalSource(),
         ]
         self.running = False

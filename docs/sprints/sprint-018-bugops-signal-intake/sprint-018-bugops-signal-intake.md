@@ -60,7 +60,7 @@ Also validate the `SignalSource` interface against a real sample of Railway log 
 |---|--------|-------|--------|-----|--------|
 | 1 | FEATURE-056 | BugOps service skeleton and SignalSource seam | ✅ DONE | M | M |
 | 2 | FEATURE-057 | BugOps normalized alert-event and case store | ✅ DONE | M | M |
-| 3 | FEATURE-058 | Implement llm_traces cost-runaway signal source | 🔲 OPEN | M | |
+| 3 | FEATURE-058 | Implement llm_traces cost-runaway signal source | ✅ DONE | M | M |
 | 4 | FEATURE-059 | Alert-to-case flow by dedupe_key | 🔲 OPEN | S | |
 | 5 | TASK-090 | One-way BugOps Slack webhook notification | 🔲 OPEN | S | |
 | 6 | TASK-091 | Minimal deterministic case report | 🔲 OPEN | S | |
@@ -178,3 +178,15 @@ _Tickets created mid-sprint for issues found during implementation._
 - Store methods: create_alert_event, find_open_case_by_dedupe_key, create_case_from_alert, attach_alert_to_case, get_case
 - All 22 tests passing (11 model tests, 11 store tests)
 - Ready for FEATURE-058 (llm_traces cost-runaway signal source implementation)
+
+### Session 3 (2026-05-08) — FEATURE-058 ✅
+**Implement llm_traces cost-runaway signal source**
+- Branch: `feature/057-bugops-normalized-event-case-store` | Commits: `d49229e`, `e2f1d50`
+- Created LLMTraceCostSignalSource querying llm_traces collection (never api_costs)
+- Compute spend metrics: last_5_min, last_60_min, projected_hourly
+- Alert logic: critical (5-min ≥ 0.25), warning (projected_hourly ≥ 1.00)
+- Rolling hourly dedupe_key: `llm_traces:cost_runaway:YYYY-MM-DD:HH` (no duplicates per hour)
+- Correlation keys include top operations and models by cost
+- Full metric payload with window start/end times and thresholds
+- All 10 cost-source tests passing + 4 base-interface tests updated
+- Monitor automatically integrated into signal source pipeline
