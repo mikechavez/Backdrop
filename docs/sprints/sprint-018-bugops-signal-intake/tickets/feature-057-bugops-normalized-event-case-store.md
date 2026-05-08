@@ -208,3 +208,35 @@ Remove BugOps collection writes and model files. New collections are isolated an
 - bug_cases
 - bug_case_events (stub)
 - bug_tool_calls (stub)
+
+## Post-Implementation Fixes
+
+### Issue: CI/CD Test Failures
+Two test files failed on GitHub CI due to import incompatibilities with FEATURE-057 changes:
+- `tests/bugops/test_bugops_monitor_config.py` — ImportError: cannot import BugAlertStore
+- `tests/bugops/test_signal_source_base.py` — ImportError: cannot import BugAlertSeverity
+
+### Fixes Applied
+1. **monitor.py**: Updated to use BugOpsStore instead of BugAlertStore
+   - Store initialized at runtime with database connection (not at instantiation)
+   - Refactored _poll_signals() to call create_alert_event() instead of store_alerts()
+
+2. **signal_sources/llm_traces.py**: Changed import from BugAlertSeverity to AlertSeverity
+
+3. **tests/bugops/test_bugops_monitor_config.py**: 
+   - Updated test_bugops_monitor_initializes to expect store=None (initialized at runtime)
+
+4. **tests/bugops/test_signal_source_base.py**: 
+   - Changed import from BugAlertSeverity to AlertSeverity
+
+### Verification
+✅ All 32 bugops tests passing:
+- 11 model validation tests
+- 11 store CRUD tests  
+- 10 monitor and signal source tests
+
+Commits:
+- `337ac62` — feat(bugops): Implement normalized alert-event and case store
+- `a06850c` — docs(feature-057): Mark as complete with implementation summary
+- `e53139c` — docs(sprint-018): Update with FEATURE-057 completion and session log
+- `e092f6d` — fix(bugops): Update monitor and signal sources to use new store and model names
