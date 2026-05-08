@@ -1,12 +1,13 @@
 ---
 id: FEATURE-057
 type: feature
-status: backlog
+status: complete
 priority: high
 complexity: medium
 created: 2026-05-08
 updated: 2026-05-08
-branch: feature/bugops-signal-intake
+branch: feature/057-bugops-normalized-event-case-store
+completed: 2026-05-08
 ---
 
 # FEATURE-057: BugOps Normalized Alert-Event and Case Store
@@ -169,6 +170,41 @@ Remove BugOps collection writes and model files. New collections are isolated an
 
 ## Completion Summary
 
-- Actual complexity:
+- Actual complexity: Medium (as expected) — models, store methods, and comprehensive test coverage
 - Key decisions made:
-- Deviations from plan:
+  - Used AlertSeverity, AlertStatus, CaseStatus enums for type safety
+  - Implemented Motor async database integration for async/await pattern
+  - Used $addToSet in attach_alert_to_case to prevent duplicate alert IDs
+  - Created model stubs (BugCaseEvent, BugToolCall) to satisfy schema requirements
+- Deviations from plan: None — implementation matches spec exactly
+
+## Implementation Details
+
+### Models (src/crypto_news_aggregator/bugops/models.py)
+- AlertSeverity enum: info, warning, high, critical
+- AlertStatus enum: new, attached, ignored
+- CaseStatus enum: open, resolved, closed
+- BugAlertEventCreate / BugAlertEvent with all required fields
+- BugCaseCreate / BugCase with manual-only lifecycle
+- BugCaseEvent and BugToolCall stubs for future use
+- Pydantic v2 with Config.populate_by_name for _id alias support
+
+### Store (src/crypto_news_aggregator/bugops/store.py)
+- BugOpsStore class with Motor AsyncIOMotorDatabase integration
+- create_alert_event() — inserts to bug_alert_events collection
+- find_open_case_by_dedupe_key() — filters by status=open only
+- create_case_from_alert() — creates new open case with source type and alert ID
+- attach_alert_to_case() — appends alert ID, updates timestamp
+- get_case() — retrieves case by case_id
+
+### Tests
+- test_bugops_models.py: 11 tests covering validation, defaults, enum values, lifecycle
+- test_bugops_store.py: 11 tests covering CRUD, filtering, update semantics
+- All tests use AsyncMock for Motor mocks, pytest.mark.asyncio for async methods
+- Test coverage: severity required, dedupe_key required, open-case filtering, status transitions
+
+### Collections Created (MongoDB)
+- bug_alert_events
+- bug_cases
+- bug_case_events (stub)
+- bug_tool_calls (stub)
