@@ -65,7 +65,7 @@ Also validate the `SignalSource` interface against a real sample of Railway log 
 | 5 | TASK-090 | One-way BugOps Slack webhook notification | ✅ DONE | S | S |
 | 6 | TASK-091 | Minimal deterministic case report | ✅ DONE | S | S |
 | 7 | TASK-093 | Railway log data-shape spike | ✅ DONE | S | S |
-| 8 | TASK-092 | Update BugOps docs with Sprint 018 scope | 🔲 OPEN | S | |
+| 8 | TASK-092 | Update BugOps docs with Sprint 018 scope | ✅ DONE | S | S |
 
 ---
 
@@ -265,3 +265,27 @@ _Tickets created mid-sprint for issues found during implementation._
 - Created `tests/bugops/fixtures/railway_logs_sample.txt` — sanitized (MongoDB hostname → `<MONGO_HOST>`)
 - Created `docs/bugops/railway-log-data-shape.md` — answers all 8 analysis questions + normalized mapping
 - Updated `railway_logs.py` placeholder with compiled regex patterns, `BugAlertEventCreate` field mapping, 4 TODOs grounded in real log shape
+
+### Session 8 (2026-05-08) — TASK-092 ✅
+**Update BugOps docs with Sprint 018 scope**
+- Branch: `feature/bugops-signal-intake` (squash to main)
+- Created 6 core BugOps documentation files:
+  - `00-bugops-system-overview.md` — System design, scope boundaries, key data models
+  - `10-bugops-runtime-model.md` — Polling loop, alert-to-case flow, configuration
+  - `20-bugops-data-model.md` — BugAlertEvent/BugCase schemas, required fields, indexing
+  - `30-bugops-observability.md` — Logging patterns, error handling, debugging guide
+  - `80-bugops-use-cases.md` — Example workflows, operator responsibilities
+  - `90-bugops-critiques-and-open-questions.md` — Known limitations (9 items), future work, open design questions (10 items)
+- All required content updates present:
+  - ✅ Sprint 018 is not trying to solve BugOps; proves smallest end-to-end path
+  - ✅ BugOps v1 detects and escalates; does not autonomously prevent cost cascades
+  - ✅ LLM synthesis deferred
+  - ✅ Slack is outbound webhook only, not Slack UI
+  - ✅ Case lifecycle is manual-only
+  - ✅ Alert-to-case flow is exact dedupe_key passthrough, not correlation engine
+  - ✅ Cost-runaway dedupe key format: `llm_traces:cost_runaway:{YYYY-MM-DD}:{HH}`
+  - ✅ `severity` required on `bug_alert_events`
+  - ✅ Railway log intake is spike only, not implemented
+  - ✅ BUG-055/056/057 walkthrough is counterfactual, not historical telemetry
+- Stale phrases verified: no Sprint 018 claims for autonomy, correlation, synthesis, Slack UI, LLM analysis
+- All scope boundaries match Sprint 018 tickets; open questions documented for future sprints
