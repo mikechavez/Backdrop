@@ -61,7 +61,7 @@ Also validate the `SignalSource` interface against a real sample of Railway log 
 | 1 | FEATURE-056 | BugOps service skeleton and SignalSource seam | ✅ DONE | M | M |
 | 2 | FEATURE-057 | BugOps normalized alert-event and case store | ✅ DONE | M | M |
 | 3 | FEATURE-058 | Implement llm_traces cost-runaway signal source | ✅ DONE | M | M |
-| 4 | FEATURE-059 | Alert-to-case flow by dedupe_key | 🔲 OPEN | S | |
+| 4 | FEATURE-059 | Alert-to-case flow by dedupe_key | ✅ DONE | S | S |
 | 5 | TASK-090 | One-way BugOps Slack webhook notification | 🔲 OPEN | S | |
 | 6 | TASK-091 | Minimal deterministic case report | 🔲 OPEN | S | |
 | 7 | TASK-093 | Railway log data-shape spike | 🔲 OPEN | S | |
@@ -190,3 +190,18 @@ _Tickets created mid-sprint for issues found during implementation._
 - Full metric payload with window start/end times and thresholds
 - All 10 cost-source tests passing + 4 base-interface tests updated
 - Monitor automatically integrated into signal source pipeline
+
+### Session 4 (2026-05-08) — FEATURE-059 ✅
+**Alert-to-case flow by dedupe_key**
+- Branch: `feature/bugops-signal-intake` | Commit: TBD
+- Implemented `process_alert_event()` method in BugOpsStore (store.py:83-91)
+- Exact dedupe_key passthrough: creates alert → finds or creates open case → attaches alert
+- Updated monitor polling loop to call process_alert_event instead of create_alert_event directly
+- Created comprehensive test suite: 8 tests in test_alert_to_case_flow.py covering:
+  - New case creation for new dedupe_key
+  - Case reuse for same dedupe_key with open status only
+  - New case created if prior case is resolved or closed
+  - Correlation keys preserved but not used for matching (future use only)
+  - No fuzzy correlation by time window or service (exact dedupe_key only)
+- All 50 BugOps tests passing (8 new + 42 existing)
+- Ready for TASK-090 (Slack webhook notification)

@@ -79,3 +79,13 @@ class BugOpsStore:
         if doc:
             return BugCase(**doc)
         return None
+
+    async def process_alert_event(self, event: BugAlertEventCreate) -> BugCase:
+        """Process alert event: create alert, find or create case by dedupe_key."""
+        alert = await self.create_alert_event(event)
+        case = await self.find_open_case_by_dedupe_key(alert.dedupe_key)
+        if case is None:
+            case = await self.create_case_from_alert(alert)
+        else:
+            case = await self.attach_alert_to_case(case.case_id, alert.alert_id)
+        return case
