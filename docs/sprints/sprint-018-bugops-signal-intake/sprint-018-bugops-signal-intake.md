@@ -59,7 +59,7 @@ Also validate the `SignalSource` interface against a real sample of Railway log 
 | # | Ticket | Title | Status | Est | Actual |
 |---|--------|-------|--------|-----|--------|
 | 1 | FEATURE-056 | BugOps service skeleton and SignalSource seam | ✅ DONE | M | M |
-| 2 | FEATURE-057 | BugOps normalized alert-event and case store | 🔲 OPEN | M | |
+| 2 | FEATURE-057 | BugOps normalized alert-event and case store | ✅ DONE | M | M |
 | 3 | FEATURE-058 | Implement llm_traces cost-runaway signal source | 🔲 OPEN | M | |
 | 4 | FEATURE-059 | Alert-to-case flow by dedupe_key | 🔲 OPEN | S | |
 | 5 | TASK-090 | One-way BugOps Slack webhook notification | 🔲 OPEN | S | |
@@ -166,3 +166,15 @@ _Tickets created mid-sprint for issues found during implementation._
 - Created comprehensive tests (10 tests, all passing)
 - Monitor exits cleanly when disabled, no Celery/FastAPI dependencies
 - Placeholder signal sources for LLMTraces and RailwayLogs ready for future implementation
+
+### Session 2 (2026-05-08) — FEATURE-057 ✅
+**BugOps normalized alert-event and case store**
+- Branch: `feature/057-bugops-normalized-event-case-store` | Commits: `337ac62`, `a06850c`
+- Implemented comprehensive BugOps data models: BugAlertEvent, BugCase, BugCaseEvent, BugToolCall
+- AlertSeverity enum: info, warning, high, critical (exact spec)
+- AlertStatus enum: new, attached, ignored
+- CaseStatus enum: open, resolved, closed (manual-only lifecycle)
+- BugOpsStore class with Motor async integration for 4 MongoDB collections
+- Store methods: create_alert_event, find_open_case_by_dedupe_key, create_case_from_alert, attach_alert_to_case, get_case
+- All 22 tests passing (11 model tests, 11 store tests)
+- Ready for FEATURE-058 (llm_traces cost-runaway signal source implementation)

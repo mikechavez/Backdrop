@@ -1,7 +1,7 @@
 """LLM trace signal source for BugOps."""
 
 from typing import List
-from ..models import BugAlertEventCreate, BugAlertSeverity
+from ..models import BugAlertEventCreate, AlertSeverity
 
 
 class LLMTraceSignalSource:

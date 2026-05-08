@@ -3,7 +3,7 @@
 import pytest
 from typing import List
 
-from crypto_news_aggregator.bugops.models import BugAlertEventCreate, BugAlertSeverity
+from crypto_news_aggregator.bugops.models import BugAlertEventCreate, AlertSeverity
 from crypto_news_aggregator.bugops.signal_sources.base import SignalSource
 from crypto_news_aggregator.bugops.signal_sources.llm_traces import LLMTraceSignalSource
 from crypto_news_aggregator.bugops.signal_sources.railway_logs import RailwayLogSignalSource
