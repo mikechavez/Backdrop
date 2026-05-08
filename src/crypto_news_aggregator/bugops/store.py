@@ -53,6 +53,7 @@ class BugOpsStore:
             source_types=[event.source_type],
             alert_ids=[event.alert_id],
             correlation_keys=event.correlation_keys,
+            metric=event.metric,
         )
         case_dict = case_create.model_dump(by_alias=False, exclude_none=False)
         result = await self.cases_collection.insert_one(case_dict)

@@ -70,6 +70,7 @@ class BugCaseCreate(BaseModel):
     source_types: list[str]
     alert_ids: list[str] = Field(default_factory=list)
     correlation_keys: list[str] = Field(default_factory=list)
+    metric: dict = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     resolved_at: Optional[datetime] = None
