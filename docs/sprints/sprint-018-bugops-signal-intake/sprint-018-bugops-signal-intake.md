@@ -63,7 +63,7 @@ Also validate the `SignalSource` interface against a real sample of Railway log 
 | 3 | FEATURE-058 | Implement llm_traces cost-runaway signal source | ✅ DONE | M | M |
 | 4 | FEATURE-059 | Alert-to-case flow by dedupe_key | ✅ DONE | S | S |
 | 5 | TASK-090 | One-way BugOps Slack webhook notification | ✅ DONE | S | S |
-| 6 | TASK-091 | Minimal deterministic case report | 🔲 OPEN | S | |
+| 6 | TASK-091 | Minimal deterministic case report | ✅ DONE | S | S |
 | 7 | TASK-093 | Railway log data-shape spike | 🔲 OPEN | S | |
 | 8 | TASK-092 | Update BugOps docs with Sprint 018 scope | 🔲 OPEN | S | |
 
@@ -77,7 +77,7 @@ Also validate the `SignalSource` interface against a real sample of Railway log 
 - [x] A thin `bug_cases` document is created or reused by exact `dedupe_key`.
 - [x] Repeated alerts in the same hourly `dedupe_key` window do not create duplicate cases.
 - [x] A one-way Slack webhook message is sent when a new BugOps case is created.
-- [ ] A minimal deterministic report is written from recorded case/event data.
+- [x] A minimal deterministic report is written from recorded case/event data.
 - [ ] Real Railway log sample output is captured and mapped to the proposed `bug_alert_events` schema.
 - [x] No BugOps code writes to existing production app collections except reading `llm_traces` and writing new `bug_*` collections.
 
@@ -230,3 +230,23 @@ _Tickets created mid-sprint for issues found during implementation._
   - Notification send (success, disabled, missing webhook, HTTP errors)
   - Monitor behavior (new case vs. existing case attachment)
 - All 68 BugOps tests passing (18 new + 50 existing)
+
+### Session 6 (2026-05-08) — TASK-091 ✅
+**Minimal deterministic case report**
+- Branch: `feature/059-alert-to-case-flow` | Commit: `36e6502`
+- Created new module: `src/crypto_news_aggregator/bugops/reports.py`
+  - `generate_case_report(case, alert_events)` — Markdown report generator from stored data only
+  - Report includes: case ID, title, status, severity, timestamps, source types, dedupe key, summary, alert events with metrics, observed metrics (from case), known facts (from alert metrics), and suggested manual checks
+  - Deterministic: no randomization, no LLM calls, no external dependencies
+- Extended BugOpsStore with two new methods:
+  - `get_alert_events_for_case(case_id)` — fetches all alert events for a case
+  - `save_case_report(case_id, report)` — persists report to bug_cases.deterministic_report field
+- Comprehensive test suite: 6 tests in test_reports.py
+  - Report structure validation (case ID, severity, status)
+  - Alert event metrics included in report
+  - No unsupported root-cause claims detected
+  - Report generation is deterministic
+  - Report persistence to database
+  - Alert event fetching from store
+- All 6 new tests passing + no regressions to existing store/model tests
+- Success criteria met: deterministic report from stored data, no LLM calls, persisted to bug_cases.deterministic_report

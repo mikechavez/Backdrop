@@ -3,9 +3,10 @@ ticket_id: TASK-091
 title: Minimal Deterministic Case Report
 priority: medium
 severity: medium
-status: OPEN
+status: COMPLETE
 date_created: 2026-05-08
-branch: feature/bugops-signal-intake
+date_completed: 2026-05-08
+branch: feature/059-alert-to-case-flow
 effort_estimate: small
 ---
 
@@ -75,10 +76,10 @@ Test cases:
 
 ## Acceptance Criteria
 
-- [ ] Report generator exists.
-- [ ] Report is deterministic and uses only stored events/case data.
-- [ ] No LLM call is made.
-- [ ] Report is persisted to `bug_cases.deterministic_report`.
+- [x] Report generator exists.
+- [x] Report is deterministic and uses only stored events/case data.
+- [x] No LLM call is made.
+- [x] Report is persisted to `bug_cases.deterministic_report`.
 
 ---
 
