@@ -3,8 +3,9 @@ ticket_id: TASK-092
 title: Update BugOps Docs with Sprint 018 Scope
 priority: medium
 severity: low
-status: OPEN
+status: DONE
 date_created: 2026-05-08
+date_completed: 2026-05-08
 branch: feature/bugops-signal-intake
 effort_estimate: small
 ---
@@ -53,18 +54,18 @@ If these docs live elsewhere, update the actual BugOps doc path used in the repo
 
 Manual review:
 
-- [ ] Docs no longer imply full case correlation engine in Sprint 018.
-- [ ] Docs no longer imply Slack UI exists.
-- [ ] Docs no longer imply BugOps autonomously stops pipelines.
-- [ ] Docs describe SignalSource seam and Railway log sample spike.
+- [x] Docs no longer imply full case correlation engine in Sprint 018.
+- [x] Docs no longer imply Slack UI exists.
+- [x] Docs no longer imply BugOps autonomously stops pipelines.
+- [x] Docs describe SignalSource seam and Railway log sample spike.
 
 ---
 
 ## Acceptance Criteria
 
-- [ ] All required content updates are present.
-- [ ] Scope boundaries match Sprint 018 tickets.
-- [ ] Open questions remain documented for future sprints.
+- [x] All required content updates are present.
+- [x] Scope boundaries match Sprint 018 tickets.
+- [x] Open questions remain documented for future sprints.
 
 ---
 
