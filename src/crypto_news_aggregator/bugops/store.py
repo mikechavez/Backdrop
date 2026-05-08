@@ -96,3 +96,24 @@ class BugOpsStore:
         else:
             case = await self.attach_alert_to_case(case.case_id, alert.alert_id)
         return case, is_new
+
+    async def get_alert_events_for_case(self, case_id: str) -> list[BugAlertEvent]:
+        """Get all alert events for a case."""
+        docs = await self.alert_events_collection.find({"case_id": case_id}).to_list(None)
+        return [BugAlertEvent(**doc) for doc in docs]
+
+    async def save_case_report(self, case_id: str, report: str) -> BugCase:
+        """Save a deterministic report to a case."""
+        result = await self.cases_collection.find_one_and_update(
+            {"case_id": case_id},
+            {
+                "$set": {
+                    "deterministic_report": report,
+                    "updated_at": __import__("datetime").datetime.utcnow()
+                }
+            },
+            return_document=True
+        )
+        if result:
+            return BugCase(**result)
+        raise ValueError(f"Case {case_id} not found")
