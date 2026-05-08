@@ -62,7 +62,7 @@ Also validate the `SignalSource` interface against a real sample of Railway log 
 | 2 | FEATURE-057 | BugOps normalized alert-event and case store | ✅ DONE | M | M |
 | 3 | FEATURE-058 | Implement llm_traces cost-runaway signal source | ✅ DONE | M | M |
 | 4 | FEATURE-059 | Alert-to-case flow by dedupe_key | ✅ DONE | S | S |
-| 5 | TASK-090 | One-way BugOps Slack webhook notification | 🔲 OPEN | S | |
+| 5 | TASK-090 | One-way BugOps Slack webhook notification | ✅ DONE | S | S |
 | 6 | TASK-091 | Minimal deterministic case report | 🔲 OPEN | S | |
 | 7 | TASK-093 | Railway log data-shape spike | 🔲 OPEN | S | |
 | 8 | TASK-092 | Update BugOps docs with Sprint 018 scope | 🔲 OPEN | S | |
@@ -71,15 +71,15 @@ Also validate the `SignalSource` interface against a real sample of Railway log 
 
 ## Success Criteria
 
-- [ ] A separate `bugops` process can be started locally without starting FastAPI, Celery worker, or Celery Beat.
-- [ ] `bugops` reads `llm_traces` and detects a simulated or real cost-runaway threshold breach.
-- [ ] A normalized `bug_alert_events` document is created with `severity`, `dedupe_key`, and `correlation_keys`.
-- [ ] A thin `bug_cases` document is created or reused by exact `dedupe_key`.
-- [ ] Repeated alerts in the same hourly `dedupe_key` window do not create duplicate cases.
-- [ ] A one-way Slack webhook message is sent when a new BugOps case is created.
+- [x] A separate `bugops` process can be started locally without starting FastAPI, Celery worker, or Celery Beat.
+- [x] `bugops` reads `llm_traces` and detects a simulated or real cost-runaway threshold breach.
+- [x] A normalized `bug_alert_events` document is created with `severity`, `dedupe_key`, and `correlation_keys`.
+- [x] A thin `bug_cases` document is created or reused by exact `dedupe_key`.
+- [x] Repeated alerts in the same hourly `dedupe_key` window do not create duplicate cases.
+- [x] A one-way Slack webhook message is sent when a new BugOps case is created.
 - [ ] A minimal deterministic report is written from recorded case/event data.
 - [ ] Real Railway log sample output is captured and mapped to the proposed `bug_alert_events` schema.
-- [ ] No BugOps code writes to existing production app collections except reading `llm_traces` and writing new `bug_*` collections.
+- [x] No BugOps code writes to existing production app collections except reading `llm_traces` and writing new `bug_*` collections.
 
 ---
 
@@ -205,3 +205,28 @@ _Tickets created mid-sprint for issues found during implementation._
   - No fuzzy correlation by time window or service (exact dedupe_key only)
 - All 50 BugOps tests passing (8 new + 42 existing)
 - Ready for TASK-090 (Slack webhook notification)
+
+### Session 5 (2026-05-08) — TASK-090 ✅
+**One-way BugOps Slack webhook notification**
+- Branch: `feature/059-alert-to-case-flow` | Commits: `a79c94c`, `85b9e48`
+- Created new module: `src/crypto_news_aggregator/bugops/slack.py`
+  - `send_case_notification(case)` — async POST to BUGOPS_SLACK_WEBHOOK_URL
+  - `_build_slack_message(case)` — formats case into Slack attachment with color-coding by severity
+  - Graceful error handling: logs failures, returns False, doesn't crash monitor
+  - 10-second timeout on HTTP requests, respects BUGOPS_SLACK_ENABLED flag
+- Extended data models with new fields:
+  - Added `alert_type: str` to BugCase (from BugAlertEvent)
+  - Added `suggested_manual_check: Optional[str]` to BugCase for operator guidance
+- Modified alert processing flow:
+  - Changed `process_alert_event()` return type to `tuple[BugCase, bool]` (is_new flag)
+  - Monitor only sends Slack notification when `is_new=True` (new case creation)
+  - Repeated alerts attaching to existing cases skip notification
+- Slack message payload includes all task-required fields:
+  - case_id, severity, alert_type, source_type, metrics, suggested_manual_check, created_at
+  - Color-coded by severity: info (#36a64f), warning (#ffa500), high (#ff6600), critical (#ff0000)
+  - Optional fields (metrics, suggested_manual_check) only included if populated
+- Comprehensive test suite: 18 tests in test_slack_notification.py
+  - Message formatting (color mapping, field inclusion, optional fields)
+  - Notification send (success, disabled, missing webhook, HTTP errors)
+  - Monitor behavior (new case vs. existing case attachment)
+- All 68 BugOps tests passing (18 new + 50 existing)

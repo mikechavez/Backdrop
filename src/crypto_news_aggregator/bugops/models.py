@@ -64,12 +64,15 @@ class BugCaseCreate(BaseModel):
     case_id: str
     status: CaseStatus = CaseStatus.OPEN
     severity: AlertSeverity
+    alert_type: str
     title: str
     summary: str
     dedupe_key: str
     source_types: list[str]
     alert_ids: list[str] = Field(default_factory=list)
     correlation_keys: list[str] = Field(default_factory=list)
+    metric: dict = Field(default_factory=dict)
+    suggested_manual_check: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     resolved_at: Optional[datetime] = None

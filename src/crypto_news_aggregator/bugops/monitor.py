@@ -11,6 +11,7 @@ from .store import BugOpsStore
 from .signal_sources.base import SignalSource
 from .signal_sources.llm_traces import LLMTraceCostSignalSource
 from .signal_sources.railway_logs import RailwayLogSignalSource
+from .slack import send_case_notification
 from ..db.mongodb import mongo_manager
 
 logger = logging.getLogger(__name__)
@@ -69,7 +70,9 @@ class BugOpsMonitor:
             try:
                 events = await source.collect()
                 for event in events:
-                    await self.store.process_alert_event(event)
+                    case, is_new = await self.store.process_alert_event(event)
+                    if is_new:
+                        await send_case_notification(case)
             except Exception as e:
                 logger.error(
                     f"Error collecting signals from {source.source_type}: {e}",

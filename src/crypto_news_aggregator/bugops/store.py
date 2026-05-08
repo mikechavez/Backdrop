@@ -47,12 +47,14 @@ class BugOpsStore:
             case_id=event.case_id or f"case_{event.alert_id}",
             status="open",
             severity=event.severity,
+            alert_type=event.alert_type,
             title=event.title,
             summary=event.summary,
             dedupe_key=event.dedupe_key,
             source_types=[event.source_type],
             alert_ids=[event.alert_id],
             correlation_keys=event.correlation_keys,
+            metric=event.metric,
         )
         case_dict = case_create.model_dump(by_alias=False, exclude_none=False)
         result = await self.cases_collection.insert_one(case_dict)
@@ -80,12 +82,17 @@ class BugOpsStore:
             return BugCase(**doc)
         return None
 
-    async def process_alert_event(self, event: BugAlertEventCreate) -> BugCase:
-        """Process alert event: create alert, find or create case by dedupe_key."""
+    async def process_alert_event(self, event: BugAlertEventCreate) -> tuple[BugCase, bool]:
+        """Process alert event: create alert, find or create case by dedupe_key.
+
+        Returns:
+            Tuple of (case, is_new) where is_new is True only if a new case was created
+        """
         alert = await self.create_alert_event(event)
         case = await self.find_open_case_by_dedupe_key(alert.dedupe_key)
-        if case is None:
+        is_new = case is None
+        if is_new:
             case = await self.create_case_from_alert(alert)
         else:
             case = await self.attach_alert_to_case(case.case_id, alert.alert_id)
-        return case
+        return case, is_new
