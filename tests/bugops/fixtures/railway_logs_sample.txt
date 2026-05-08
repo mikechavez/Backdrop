@@ -1,0 +1,64 @@
+# Railway Log Sample — crypto-news-aggregator (production)
+# Service: crypto-news-aggregator
+# Environment: production
+# Captured: 2026-05-08
+# Note: sanitized — MongoDB hostname in the AutoReconnect line replaced with <MONGO_HOST>.
+
+# --- STARTUP (gunicorn / uvicorn) ---
+[2026-05-08 20:19:22 +0000] [1] [INFO] Starting gunicorn 23.0.0
+[2026-05-08 20:19:22 +0000] [1] [INFO] Listening at: http://0.0.0.0:8000 (1)
+[2026-05-08 20:19:22 +0000] [1] [INFO] Using worker: uvicorn.workers.UvicornWorker
+[2026-05-08 20:19:22 +0000] [78] [INFO] Booting worker with pid: 78
+[2026-05-08 20:19:22 +0000] [79] [INFO] Booting worker with pid: 79
+[2026-05-08 20:19:22 +0000] [78] [INFO] Started server process [78]
+[2026-05-08 20:19:22 +0000] [78] [INFO] Waiting for application startup.
+[2026-05-08 20:19:22 +0000] [79] [INFO] Started server process [79]
+[2026-05-08 20:19:22 +0000] [79] [INFO] Waiting for application startup.
+[2026-05-08 20:19:23 +0000] [79] [INFO] Application startup complete.
+[2026-05-08 20:19:23 +0000] [78] [INFO] Application startup complete.
+[2026-05-08 20:19:24 +0000] [82] [INFO] Application startup complete.
+[2026-05-08 20:19:24 +0000] [92] [INFO] Application startup complete.
+
+# --- MONGODB STACK TRACE (AutoReconnect — multiline, arrives line-by-line) ---
+  File "/app/.venv/lib/python3.13/site-packages/pymongo/synchronous/mongo_client.py", line 2765, in run
+    return self._read() if self._is_read else self._write()
+           ~~~~~~~~~~^^
+  File "/app/.venv/lib/python3.13/site-packages/pymongo/synchronous/mongo_client.py", line 2926, in _read
+    return self._func(self._session, self._server, conn, read_pref)  # type: ignore
+           ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/.venv/lib/python3.13/site-packages/pymongo/synchronous/mongo_client.py", line 1929, in _cmd
+    return server.run_operation(
+           ~~~~~~~~~~~~~~~~~~~~^
+        conn,
+        ^^^^^
+  File "/app/.venv/lib/python3.13/site-packages/pymongo/synchronous/helpers.py", line 47, in inner
+    return func(*args, **kwargs)
+  File "/app/.venv/lib/python3.13/site-packages/pymongo/synchronous/server.py", line 208, in run_operation
+    reply = conn.receive_message(request_id)
+  File "/app/.venv/lib/python3.13/site-packages/pymongo/synchronous/pool.py", line 469, in receive_message
+    self._raise_connection_failure(error)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "/app/.venv/lib/python3.13/site-packages/pymongo/synchronous/pool.py", line 643, in _raise_connection_failure
+    _raise_connection_failure(self.address, error, timeout_details=details)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/.venv/lib/python3.13/site-packages/pymongo/pool_shared.py", line 150, in _raise_connection_failure
+    raise AutoReconnect(msg) from error
+pymongo.errors.AutoReconnect: <MONGO_HOST>:27017: connection closed (configured timeouts: connectTimeoutMS: 20000.0ms)
+
+# --- NORMAL OPERATIONAL LOGS (Python logging format) ---
+2026-05-08 20:25:27,550 - src.crypto_news_aggregator.worker - INFO - Starting alert detection cycle...
+2026-05-08 20:25:27,551 - crypto_news_aggregator.services.entity_alert_service - INFO - Starting alert detection cycle...
+2026-05-08 20:25:26,856 - crypto_news_aggregator.services.entity_alert_service - INFO - Checking 3 trending entities for alerts
+2026-05-08 20:25:26,877 - crypto_news_aggregator.services.entity_alert_service - INFO - Triggered 0 new alerts
+2026-05-08 20:25:26,878 - src.crypto_news_aggregator.worker - INFO - No new alerts triggered in this cycle
+2026-05-08 20:26:00,646 - src.crypto_news_aggregator.worker - INFO - Signal scores updated: 3 entities scored, top entity: Bitcoin (24h: 4.48, 7d: 4.28, 30d: 6.53)
+2026-05-08 20:26:34,371 - src.crypto_news_aggregator.core.monitoring - INFO - API_REQUEST_COMPLETED: GET / 200 0.73ms
+
+# --- WARNING: BUDGET SOFT LIMIT (cost_tracker) ---
+2026-05-08 20:29:56,779 - crypto_news_aggregator.services.cost_tracker - WARNING - Budget cache stale (632s). Treating as degraded for 'narrative_detection'.
+2026-05-08 20:29:56,779 - crypto_news_aggregator.services.cost_tracker - WARNING - Soft limit active (monthly_soft_limit): blocking non-critical 'narrative_detection'
+2026-05-08 20:29:56,779 - crypto_news_aggregator.services.narrative_service - WARNING - Narrative detection cycle skipped: daily spend limit reached (monthly_soft_limit). Will retry in next cycle.
+
+# --- RAILWAY PLATFORM WARNING: LOG RATE LIMIT ---
+Railway rate limit of 500 logs/sec reached for replica, update your application to reduce the logging rate. Messages dropped: 406
+Railway rate limit of 500 logs/sec reached for replica, update your application to reduce the logging rate. Messages dropped: 172
