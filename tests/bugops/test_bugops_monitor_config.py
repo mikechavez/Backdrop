@@ -35,7 +35,7 @@ def test_bugops_monitor_initializes():
     monitor = BugOpsMonitor()
     assert monitor is not None
     assert monitor.settings is not None
-    assert monitor.store is not None
+    assert monitor.store is None  # Initialized at runtime with DB connection
     assert monitor.running is False
 
 

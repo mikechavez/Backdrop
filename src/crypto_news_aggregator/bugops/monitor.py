@@ -7,7 +7,7 @@ import sys
 from typing import List
 
 from .config import get_bugops_settings
-from .store import BugAlertStore
+from .store import BugOpsStore
 from .signal_sources.base import SignalSource
 from .signal_sources.llm_traces import LLMTraceSignalSource
 from .signal_sources.railway_logs import RailwayLogSignalSource
@@ -21,7 +21,7 @@ class BugOpsMonitor:
 
     def __init__(self):
         self.settings = get_bugops_settings()
-        self.store = BugAlertStore()
+        self.store = None
         self.signal_sources: List[SignalSource] = [
             LLMTraceSignalSource(),
             RailwayLogSignalSource(),
@@ -44,6 +44,9 @@ class BugOpsMonitor:
                 return
 
             logger.info("MongoDB connection initialized")
+            db = await mongo_manager.get_database()
+            self.store = BugOpsStore(db)
+
             logger.info(
                 f"BugOps monitor running with poll interval: {self.settings.BUGOPS_POLL_INTERVAL_SECONDS}s"
             )
@@ -65,8 +68,8 @@ class BugOpsMonitor:
         for source in self.signal_sources:
             try:
                 events = await source.collect()
-                if events:
-                    await self.store.store_alerts(events)
+                for event in events:
+                    await self.store.create_alert_event(event)
             except Exception as e:
                 logger.error(
                     f"Error collecting signals from {source.source_type}: {e}",
