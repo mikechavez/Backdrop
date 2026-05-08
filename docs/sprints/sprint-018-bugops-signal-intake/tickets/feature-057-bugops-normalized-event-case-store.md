@@ -1,0 +1,174 @@
+---
+id: FEATURE-057
+type: feature
+status: backlog
+priority: high
+complexity: medium
+created: 2026-05-08
+updated: 2026-05-08
+branch: feature/bugops-signal-intake
+---
+
+# FEATURE-057: BugOps Normalized Alert-Event and Case Store
+
+## Problem/Opportunity
+
+BugOps needs a source-agnostic data model. `llm_traces` is only the first signal source; Railway logs and freshness checks will come later. The schema must not hard-code `llm_traces` assumptions.
+
+## Proposed Solution
+
+Create write helpers and Pydantic models for `bug_alert_events`, `bug_cases`, `bug_case_events`, and `bug_tool_calls`. Sprint 018 only requires `bug_alert_events` and `bug_cases` to be actively used, but the collection names and model stubs should exist.
+
+## User Story
+
+As a BugOps maintainer, I want every signal source to normalize into the same alert-event shape so cases, Slack alerts, and reports can work across traces, logs, freshness checks, and manual input later.
+
+## Implementation Scope
+
+### Files to Create/Modify
+
+```text
+src/crypto_news_aggregator/bugops/models.py
+src/crypto_news_aggregator/bugops/store.py
+tests/bugops/test_bugops_store.py
+tests/bugops/test_bugops_models.py
+```
+
+### Do Not Modify
+
+```text
+src/crypto_news_aggregator/db/mongodb.py
+src/crypto_news_aggregator/llm/gateway.py
+src/crypto_news_aggregator/services/cost_tracker.py
+```
+
+## Exact Implementation Requirements
+
+### `bug_alert_events` required fields
+
+```python
+{
+    "alert_id": str,                       # generated stable ID
+    "case_id": str | None,
+    "source_type": str,                    # e.g. "llm_traces", "railway_logs"
+    "source_id": str,                      # e.g. "llm_traces.cost_runaway"
+    "alert_type": str,                     # e.g. "cost_runaway"
+    "severity": str,                       # "info" | "warning" | "high" | "critical"
+    "status": str,                         # "new" | "attached" | "ignored"
+    "title": str,
+    "summary": str,
+    "domain": list[str],                   # e.g. ["llm", "cost"]
+    "service": str | None,
+    "operation": str | None,
+    "model": str | None,
+    "dedupe_key": str,
+    "correlation_keys": list[str],
+    "metric": dict,
+    "raw_sample_ref": str | None,
+    "created_at": datetime,
+    "updated_at": datetime,
+}
+```
+
+### `severity` enum
+
+Use exactly:
+
+```text
+info
+warning
+high
+critical
+```
+
+Do not omit `severity` just because the first cost source is simple. Railway logs will need this field.
+
+### `bug_cases` required fields
+
+```python
+{
+    "case_id": str,
+    "status": str,                         # "open" | "resolved" | "closed"
+    "severity": str,
+    "title": str,
+    "summary": str,
+    "dedupe_key": str,
+    "source_types": list[str],
+    "alert_ids": list[str],
+    "correlation_keys": list[str],
+    "created_at": datetime,
+    "updated_at": datetime,
+    "resolved_at": datetime | None,
+    "closed_at": datetime | None,
+    "deterministic_report": str | None,
+}
+```
+
+### Case lifecycle for Sprint 018
+
+- New cases are created with `status="open"`.
+- No API/UI/Slack action is implemented to acknowledge, resolve, or close cases.
+- Cases are manual-only lifecycle in Sprint 018.
+- Do not implement auto-close behavior.
+- Only attach new alert events to `open` cases.
+
+### Store helpers
+
+Implement `BugOpsStore` with methods:
+
+```python
+async def create_alert_event(event: BugAlertEventCreate) -> BugAlertEvent
+async def find_open_case_by_dedupe_key(dedupe_key: str) -> BugCase | None
+async def create_case_from_alert(event: BugAlertEvent) -> BugCase
+async def attach_alert_to_case(case_id: str, alert_id: str) -> BugCase
+async def get_case(case_id: str) -> BugCase | None
+```
+
+## Acceptance Criteria
+
+- [ ] `BugAlertEventCreate`, `BugAlertEvent`, `BugCaseCreate`, and `BugCase` models exist.
+- [ ] `severity` is required on alert events.
+- [ ] `dedupe_key` is required on alert events and cases.
+- [ ] Cases use manual-only lifecycle: `open`, `resolved`, `closed`.
+- [ ] Store helpers write only to `bug_*` collections.
+- [ ] Store helpers do not modify `llm_traces`, `api_costs`, or production app collections.
+
+## Dependencies
+
+- FEATURE-056.
+
+## Test Plan
+
+Create tests:
+
+```text
+tests/bugops/test_bugops_models.py
+tests/bugops/test_bugops_store.py
+```
+
+Test cases:
+
+- Model validation requires `severity`.
+- `dedupe_key` is required.
+- `find_open_case_by_dedupe_key()` ignores `resolved` and `closed` cases.
+- `create_case_from_alert()` creates `status="open"`.
+- `attach_alert_to_case()` appends alert ID and updates timestamp.
+
+## Manual Verification
+
+Use a local/test Mongo database or mocked Motor collection to confirm documents are created in:
+
+```text
+bug_alert_events
+bug_cases
+```
+
+## Rollback Plan
+
+Remove BugOps collection writes and model files. New collections are isolated and can be dropped if needed.
+
+## Completion Summary
+
+- Actual complexity:
+- Key decisions made:
+- Deviations from plan:
