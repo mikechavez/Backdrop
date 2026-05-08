@@ -1,12 +1,14 @@
 ---
 id: FEATURE-056
 type: feature
-status: backlog
+status: completed
 priority: high
 complexity: medium
 created: 2026-05-08
 updated: 2026-05-08
-branch: feature/bugops-signal-intake
+completed: 2026-05-08
+branch: feature/056-bugops-signal-intake
+commit: f028537
 ---
 
 # FEATURE-056: BugOps Service Skeleton and SignalSource Seam
@@ -103,12 +105,12 @@ class SignalSource(Protocol):
 
 ## Acceptance Criteria
 
-- [ ] `python -m crypto_news_aggregator.bugops.monitor` starts and exits cleanly when `BUGOPS_ENABLED=false`.
-- [ ] `Procfile` includes `bugops` process.
-- [ ] New BugOps package exists with the expected layout.
-- [ ] `SignalSource` interface exists and is used by the monitor loop.
-- [ ] `RailwayLogSignalSource` placeholder exists but does not ingest logs.
-- [ ] No Celery or Beat dependency is introduced for BugOps monitor execution.
+- [x] `python -m crypto_news_aggregator.bugops.monitor` starts and exits cleanly when `BUGOPS_ENABLED=false`.
+- [x] `Procfile` includes `bugops` process.
+- [x] New BugOps package exists with the expected layout.
+- [x] `SignalSource` interface exists and is used by the monitor loop.
+- [x] `RailwayLogSignalSource` placeholder exists but does not ingest logs.
+- [x] No Celery or Beat dependency is introduced for BugOps monitor execution.
 
 ## Dependencies
 
@@ -146,6 +148,12 @@ Remove the `bugops` Procfile entry and the new `src/crypto_news_aggregator/bugop
 
 ## Completion Summary
 
-- Actual complexity:
-- Key decisions made:
-- Deviations from plan:
+- **Actual complexity:** Medium (as estimated) — straightforward scaffold, proper wiring into monitor loop
+- **Key decisions made:**
+  - Signal sources instantiated in `BugOpsMonitor.__init__()` and iterated in polling loop via `_poll_signals()`
+  - Used Protocol type hint for `SignalSource` to enable future extensibility without inheritance
+  - Placeholder sources return empty lists with TODO comments for future implementation
+  - Monitor exits cleanly when disabled before attempting Mongo initialization
+- **Deviations from plan:** None — spec followed exactly, all requirements met
+- **Test coverage:** 10 tests (4 signal source tests, 6 monitor config tests) all passing
+- **Verification:** Manual test confirms monitor exits cleanly with `BUGOPS_ENABLED=false`

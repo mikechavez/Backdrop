@@ -1,6 +1,6 @@
 # Sprint 018 — BugOps Signal Intake Foundation
 
-**Status:** Planned
+**Status:** In Progress
 **Started:** 2026-05-08
 **Target:** Prove the smallest end-to-end BugOps signal path while preserving the seam for future signal sources.
 
@@ -58,7 +58,7 @@ Also validate the `SignalSource` interface against a real sample of Railway log 
 
 | # | Ticket | Title | Status | Est | Actual |
 |---|--------|-------|--------|-----|--------|
-| 1 | FEATURE-056 | BugOps service skeleton and SignalSource seam | 🔲 OPEN | M | |
+| 1 | FEATURE-056 | BugOps service skeleton and SignalSource seam | ✅ DONE | M | M |
 | 2 | FEATURE-057 | BugOps normalized alert-event and case store | 🔲 OPEN | M | |
 | 3 | FEATURE-058 | Implement llm_traces cost-runaway signal source | 🔲 OPEN | M | |
 | 4 | FEATURE-059 | Alert-to-case flow by dedupe_key | 🔲 OPEN | S | |
@@ -156,6 +156,13 @@ _Tickets created mid-sprint for issues found during implementation._
 
 ## Session Log
 
-### Session 1 (YYYY-MM-DD) — FEATURE-056 🔲
+### Session 1 (2026-05-08) — FEATURE-056 ✅
 **BugOps service skeleton and SignalSource seam**
-- Branch: `feature/bugops-signal-intake` | Commit: `TBD`
+- Branch: `feature/056-bugops-signal-intake` | Commit: `f028537`
+- Created BugOps package with independent monitor entrypoint
+- Implemented SignalSource Protocol interface and wired signal sources into polling loop
+- Added config settings to Settings class (6 BugOps config fields)
+- Updated Procfile with bugops process entry
+- Created comprehensive tests (10 tests, all passing)
+- Monitor exits cleanly when disabled, no Celery/FastAPI dependencies
+- Placeholder signal sources for LLMTraces and RailwayLogs ready for future implementation
