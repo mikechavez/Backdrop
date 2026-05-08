@@ -97,7 +97,7 @@ def test_report_includes_alert_event_metrics():
 
 
 def test_report_does_not_include_unsupported_root_cause_claims():
-    """Test that report does not make root-cause claims."""
+    """Test that report does not make root-cause claims or use causality language."""
     case = BugCase(
         case_id="case_003",
         status=CaseStatus.OPEN,
@@ -114,10 +114,20 @@ def test_report_does_not_include_unsupported_root_cause_claims():
 
     report = generate_case_report(case, alert_events)
 
-    # Verify no root-cause claims like "caused by", "due to", "resulting from"
-    assert "caused by" not in report.lower()
-    assert "due to" not in report.lower()
-    assert "root cause" not in report.lower()
+    # Verify no causality language: "caused by", "due to", "because", "root cause", "results in", "leads to"
+    forbidden_phrases = [
+        "caused by",
+        "due to",
+        "root cause",
+        "because",
+        "results in",
+        "leads to",
+        "is responsible",
+        "was responsible",
+    ]
+    report_lower = report.lower()
+    for phrase in forbidden_phrases:
+        assert phrase not in report_lower, f"Report should not contain causality language: '{phrase}'"
 
 
 def test_report_deterministic():
