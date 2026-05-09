@@ -2,7 +2,7 @@
 
 ## Status
 
-Draft / Ready for implementation
+✅ COMPLETE — 2026-05-09
 
 ## Context
 
@@ -242,21 +242,40 @@ polling can continue
 
 ## Acceptance Criteria
 
-- BugOps monitor no longer raises:
-
+✅ BugOps monitor no longer raises:
 ```text
 NameError: name 'send_case_notification' is not defined
 ```
 
-- With `BUGOPS_SLACK_ENABLED=false`, BugOps creates or attaches cases and sends no Slack notification.
-- With `BUGOPS_SLACK_ENABLED=true`, BugOps sends Slack notification only for new cases.
-- Existing cases do not trigger duplicate Slack messages.
-- Slack notification failure is logged but does not crash the monitor.
-- Monitor-level tests cover the signal → case → Slack branch.
-- Existing BugOps tests pass.
-- No LLM calls are introduced.
-- No Slack UI, acknowledgement, or remediation behavior is introduced.
-- No Railway log ingestion or correlation engine work is introduced.
+✅ With `BUGOPS_SLACK_ENABLED=false`, BugOps creates or attaches cases and sends no Slack notification.
+✅ With `BUGOPS_SLACK_ENABLED=true`, BugOps sends Slack notification only for new cases.
+✅ Existing cases do not trigger duplicate Slack messages.
+✅ Slack notification failure is logged but does not crash the monitor.
+✅ Monitor-level tests cover the signal → case → Slack branch.
+✅ Existing BugOps tests pass (5 new tests, 3 existing tests all pass).
+✅ No LLM calls are introduced.
+✅ No Slack UI, acknowledgement, or remediation behavior is introduced.
+✅ No Railway log ingestion or correlation engine work is introduced.
+
+## Implementation Summary
+
+**Commits:**
+- `fc4b929` - Move send_case_notification import inside Slack-enabled branch
+- `2ebc298` - Fix NameError in monitor._poll_signals for send_case_notification
+
+**Changes:**
+1. `src/crypto_news_aggregator/bugops/monitor.py` - `_poll_signals()`:
+   - Import `send_case_notification` only when Slack is enabled + new case
+   - Gate Slack call behind: `is_new == True AND BUGOPS_SLACK_ENABLED == true`
+   - Defensive error handling: catches exceptions and logs without crashing monitor
+   - Logs warning if send returns False
+
+2. `tests/bugops/test_bugops_monitor.py` - Added 5 tests:
+   - Test 1: Slack disabled, new case → no NameError, no send
+   - Test 2: Slack enabled, new case → send called exactly once
+   - Test 3: Slack enabled, existing case → send not called
+   - Test 4: Slack send raises exception → logged, monitor continues
+   - Test 5: Slack send returns False → logged as warning
 
 ## Production Verification Steps
 

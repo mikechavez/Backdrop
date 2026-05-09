@@ -1093,4 +1093,69 @@ BugOps can now complete production validation for the alert-to-case path with Mo
 
 ---
 
+### BUG-098: BugOps Monitor Crashes on Undefined `send_case_notification` (2026-05-09)
+
+**Issue:**
+After BUG-097 fix, BugOps progressed further through the production alert path but crashed at Slack notification with:
+```
+Error collecting signals from llm_traces: name 'send_case_notification' is not defined
+NameError: name 'send_case_notification' is not defined
+  File "src/crypto_news_aggregator/bugops/monitor.py", line 86, in _poll_signals
+    await send_case_notification(case)
+```
+
+**Root Cause:**
+`monitor.py:_poll_signals()` referenced `send_case_notification()` without importing it, and made no defensive checks for Slack send failures.
+
+**Fix Applied (Commits `2ebc298`, `fc4b929`):**
+1. **Import gating**: Moved `from .slack import send_case_notification` inside the Slack-enabled branch only
+   - When Slack disabled: slack module never imported
+   - When Slack enabled + new case: import and call within try/except
+   - Reduces import overhead and prevents accidental module loading
+
+2. **Call gating**: Wrapped Slack call behind both conditions:
+   - `is_new == True` (new case, not existing case)
+   - `self.settings.BUGOPS_SLACK_ENABLED == true` (Slack actually enabled)
+
+3. **Defensive error handling**: Wrapped Slack send in nested try/except:
+   - If `send_case_notification()` raises exception: caught and logged with `logger.exception()`
+   - If `send_case_notification()` returns `False`: logged as warning with `logger.warning()`
+   - Monitor continues polling; Slack failure does not crash process
+
+4. **Test coverage** (5 new tests):
+   - Test 1: Slack disabled, new case → no NameError, no send ✅
+   - Test 2: Slack enabled, new case → send called exactly once ✅
+   - Test 3: Slack enabled, existing case → send not called ✅
+   - Test 4: Slack send raises exception → logged, monitor continues ✅
+   - Test 5: Slack send returns False → logged as warning ✅
+
+**Code Shape (Final):**
+```python
+case, is_new = await self.store.process_alert_event(event)
+
+if is_new and self.settings.BUGOPS_SLACK_ENABLED:
+    try:
+        from .slack import send_case_notification
+        
+        sent = await send_case_notification(case)
+        if not sent:
+            logger.warning(f"BugOps Slack notification was not sent for case_id={case.case_id}")
+    except Exception:
+        logger.exception(f"BugOps Slack notification failed for case_id={case.case_id}")
+```
+
+**Validation:**
+- ✅ NameError eliminated
+- ✅ Slack disabled path requires no Slack calls or imports
+- ✅ Slack enabled sends only for new cases (no duplicate sends for existing cases)
+- ✅ Slack send failure logged but does not crash monitor
+- ✅ All 5 new tests passing
+- ✅ All 88 existing BugOps tests passing (84 + 4 from BUG-098 + 0 regressions)
+- ✅ No LLM calls, UI, or Railway ingestion work introduced
+
+**Result:**
+BugOps monitor can now complete the full signal → case → Slack notification path in production without NameError. Ready for Railway validation with Slack enabled.
+
+---
+
 **Sprint 018 Closeout Complete. Ready for Merge to Main. 🚀**
