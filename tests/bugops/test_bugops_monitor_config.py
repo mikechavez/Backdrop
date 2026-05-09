@@ -1,10 +1,11 @@
 """Tests for BugOps monitor configuration."""
 
+import os
 import pytest
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 from crypto_news_aggregator.bugops.config import get_bugops_settings
-from crypto_news_aggregator.bugops.monitor import BugOpsMonitor
+from crypto_news_aggregator.bugops.monitor import BugOpsMonitor, _is_bugops_enabled_from_env
 
 
 def test_get_bugops_settings_returns_settings():
@@ -28,6 +29,26 @@ def test_bugops_settings_defaults():
     assert settings.BUGOPS_PROJECTED_HOURLY_THRESHOLD_USD == 1.00
     assert settings.BUGOPS_SLACK_ENABLED is False
     assert settings.BUGOPS_SLACK_WEBHOOK_URL == ""
+
+
+def test_is_bugops_enabled_from_env_disabled_by_default():
+    """Test that _is_bugops_enabled_from_env returns False when BUGOPS_ENABLED is not set."""
+    with patch.dict(os.environ, {}, clear=False):
+        os.environ.pop("BUGOPS_ENABLED", None)
+        assert _is_bugops_enabled_from_env() is False
+
+
+def test_is_bugops_enabled_from_env_respects_false():
+    """Test that _is_bugops_enabled_from_env returns False for 'false'."""
+    with patch.dict(os.environ, {"BUGOPS_ENABLED": "false"}):
+        assert _is_bugops_enabled_from_env() is False
+
+
+def test_is_bugops_enabled_from_env_respects_true_variants():
+    """Test that _is_bugops_enabled_from_env returns True for various true values."""
+    for value in ["1", "true", "yes", "on", "TRUE", "YES", "ON"]:
+        with patch.dict(os.environ, {"BUGOPS_ENABLED": value}):
+            assert _is_bugops_enabled_from_env() is True, f"Failed for value: {value}"
 
 
 def test_bugops_monitor_initializes():
@@ -60,6 +81,28 @@ async def test_bugops_monitor_exits_cleanly_when_disabled():
 
 
 @pytest.mark.asyncio
+async def test_bugops_monitor_does_not_initialize_mongo_when_disabled():
+    """Test that disabled mode does not initialize MongoDB."""
+    monitor = BugOpsMonitor()
+    assert monitor.settings.BUGOPS_ENABLED is False
+
+    # Store should remain uninitialized even after run()
+    await monitor.run()
+    assert monitor.store is None
+
+
+@pytest.mark.asyncio
+async def test_bugops_monitor_does_not_initialize_signal_sources_mongo():
+    """Test that disabled mode does not attempt MongoDB initialization."""
+    # Mock mongo_manager to verify it's not called
+    with patch("crypto_news_aggregator.db.mongodb.mongo_manager") as mock_mongo:
+        monitor = BugOpsMonitor()
+        await monitor.run()
+        # Should exit early, so mongo_manager should not be called
+        mock_mongo.initialize.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_bugops_monitor_polls_signal_sources():
     """Test that monitor polls signal sources in its loop."""
     monitor = BugOpsMonitor()
@@ -68,3 +111,14 @@ async def test_bugops_monitor_polls_signal_sources():
     # Verify they're the expected types
     source_types = {source.source_type for source in monitor.signal_sources}
     assert source_types == {"llm_traces", "railway_logs"}
+
+
+@pytest.mark.asyncio
+async def test_main_exits_early_when_bugops_disabled():
+    """Test that main() exits cleanly when BUGOPS_ENABLED=false."""
+    from crypto_news_aggregator.bugops.monitor import main
+
+    with patch.dict(os.environ, {"BUGOPS_ENABLED": "false"}):
+        # Should return cleanly without error
+        await main()
+        # If we get here, the test passed

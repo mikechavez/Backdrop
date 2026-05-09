@@ -150,7 +150,7 @@ _Tickets created mid-sprint for issues found during implementation._
 
 | Ticket | Title | Reason | Status |
 |---|---|---|---|
-| | | | |
+| BUG-095 | BugOps disabled mode initializes Redis/shared app dependencies | Disabled mode should exit early before importing heavy settings | ✅ COMPLETE |
 
 ---
 
@@ -289,3 +289,20 @@ _Tickets created mid-sprint for issues found during implementation._
   - ✅ BUG-055/056/057 walkthrough is counterfactual, not historical telemetry
 - Stale phrases verified: no Sprint 018 claims for autonomy, correlation, synthesis, Slack UI, LLM analysis
 - All scope boundaries match Sprint 018 tickets; open questions documented for future sprints
+
+### Session 9 (2026-05-08) — BUG-095 ✅
+**BugOps disabled mode initializes Redis / Shared app dependencies**
+- Branch: `fix/bug-095-bugops-disabled-mode-redis` | Commit: `08b16f1`
+- **Issue**: When `BUGOPS_ENABLED=false`, disabled mode was still importing and initializing shared app settings, triggering Redis connection errors and heavy imports (MongoDB, Celery, FastAPI)
+- **Solution**: Added early disabled-mode check in `main()` before `BugOpsMonitor` instantiation
+  - New function: `_is_bugops_enabled_from_env()` reads `BUGOPS_ENABLED` env var via `os.getenv()`
+  - Accepts `"1"`, `"true"`, `"yes"`, `"on"` (case-insensitive) as truthy; defaults to false
+  - Check happens before any heavy imports
+  - Deferred imports: Moved `get_bugops_settings()`, `BugOpsStore`, signal sources into `BugOpsMonitor.__init__()`
+- **Tests**: Added 4 new tests
+  - `test_is_bugops_enabled_from_env_*` — env var parsing (3 tests)
+  - `test_bugops_monitor_does_not_initialize_mongo_when_disabled` — verify store uninitialized
+  - `test_bugops_monitor_does_not_initialize_signal_sources_mongo` — verify mongo_manager.initialize() never called
+  - `test_main_exits_early_when_bugops_disabled` — verify main() exits cleanly
+- **Verification**: All 12 monitor config tests passing; disabled mode logs only disabled message, no Redis errors; exit code 0
+- **Acceptance criteria**: All 10 items checked ✅

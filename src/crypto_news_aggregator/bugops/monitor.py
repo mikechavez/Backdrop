@@ -2,28 +2,35 @@
 
 import asyncio
 import logging
+import os
 import signal
 import sys
-from typing import List
+from typing import TYPE_CHECKING, List
 
-from .config import get_bugops_settings
-from .store import BugOpsStore
-from .signal_sources.base import SignalSource
-from .signal_sources.llm_traces import LLMTraceCostSignalSource
-from .signal_sources.railway_logs import RailwayLogSignalSource
-from .slack import send_case_notification
-from ..db.mongodb import mongo_manager
+if TYPE_CHECKING:
+    from .signal_sources.base import SignalSource
 
 logger = logging.getLogger(__name__)
+
+
+def _is_bugops_enabled_from_env() -> bool:
+    """Check if BugOps is enabled via environment variable."""
+    return os.getenv("BUGOPS_ENABLED", "false").lower() in {"1", "true", "yes", "on"}
 
 
 class BugOpsMonitor:
     """Independent BugOps monitoring service."""
 
     def __init__(self):
+        # Import heavy settings only after enabled check is confirmed at process entry
+        from .config import get_bugops_settings
+        from .store import BugOpsStore
+        from .signal_sources.llm_traces import LLMTraceCostSignalSource
+        from .signal_sources.railway_logs import RailwayLogSignalSource
+
         self.settings = get_bugops_settings()
         self.store = None
-        self.signal_sources: List[SignalSource] = [
+        self.signal_sources: List["SignalSource"] = [
             LLMTraceCostSignalSource(),
             RailwayLogSignalSource(),
         ]
@@ -31,6 +38,9 @@ class BugOpsMonitor:
 
     async def run(self) -> None:
         """Run the BugOps monitor loop."""
+        from .slack import send_case_notification
+        from ..db.mongodb import mongo_manager
+
         logger.info("BugOps monitor starting")
 
         if not self.settings.BUGOPS_ENABLED:
@@ -97,6 +107,11 @@ async def main() -> None:
         level=logging.INFO,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
+
+    # Early disabled-mode check: exit cleanly before any heavy imports
+    if not _is_bugops_enabled_from_env():
+        logger.info("BugOps is disabled (BUGOPS_ENABLED=false)")
+        return
 
     monitor = BugOpsMonitor()
 
