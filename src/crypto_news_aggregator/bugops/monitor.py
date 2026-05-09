@@ -76,8 +76,6 @@ class BugOpsMonitor:
 
     async def _poll_signals(self) -> None:
         """Collect signals from all sources."""
-        from .slack import send_case_notification
-
         for source in self.signal_sources:
             try:
                 events = await source.collect()
@@ -85,6 +83,8 @@ class BugOpsMonitor:
                     case, is_new = await self.store.process_alert_event(event)
                     if is_new and self.settings.BUGOPS_SLACK_ENABLED:
                         try:
+                            from .slack import send_case_notification
+
                             sent = await send_case_notification(case)
                             if not sent:
                                 logger.warning(
