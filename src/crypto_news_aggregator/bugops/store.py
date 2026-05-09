@@ -2,6 +2,7 @@
 
 import logging
 from typing import Optional
+from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from .models import (
     BugAlertEventCreate,
@@ -11,6 +12,22 @@ from .models import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _normalize_mongo_doc(doc: dict | None) -> dict | None:
+    """Normalize Mongo document for Pydantic model hydration.
+
+    Converts ObjectId._id values to strings for safe Pydantic validation.
+    """
+    if doc is None:
+        return None
+
+    normalized = dict(doc)
+
+    if "_id" in normalized and isinstance(normalized["_id"], ObjectId):
+        normalized["_id"] = str(normalized["_id"])
+
+    return normalized
 
 
 class BugOpsStore:
@@ -29,6 +46,7 @@ class BugOpsStore:
         event_dict = event.model_dump(by_alias=False, exclude_none=False)
         result = await self.alert_events_collection.insert_one(event_dict)
         event_dict["_id"] = result.inserted_id
+        event_dict = _normalize_mongo_doc(event_dict)
         return BugAlertEvent(**event_dict)
 
     async def find_open_case_by_dedupe_key(self, dedupe_key: str) -> Optional[BugCase]:
@@ -38,6 +56,7 @@ class BugOpsStore:
             "status": "open"
         })
         if doc:
+            doc = _normalize_mongo_doc(doc)
             return BugCase(**doc)
         return None
 
@@ -59,6 +78,7 @@ class BugOpsStore:
         case_dict = case_create.model_dump(by_alias=False, exclude_none=False)
         result = await self.cases_collection.insert_one(case_dict)
         case_dict["_id"] = result.inserted_id
+        case_dict = _normalize_mongo_doc(case_dict)
         return BugCase(**case_dict)
 
     async def attach_alert_to_case(self, case_id: str, alert_id: str) -> BugCase:
@@ -72,6 +92,7 @@ class BugOpsStore:
             return_document=True
         )
         if result:
+            result = _normalize_mongo_doc(result)
             return BugCase(**result)
         raise ValueError(f"Case {case_id} not found")
 
@@ -79,6 +100,7 @@ class BugOpsStore:
         """Get a case by case_id."""
         doc = await self.cases_collection.find_one({"case_id": case_id})
         if doc:
+            doc = _normalize_mongo_doc(doc)
             return BugCase(**doc)
         return None
 
@@ -100,7 +122,7 @@ class BugOpsStore:
     async def get_alert_events_for_case(self, case_id: str) -> list[BugAlertEvent]:
         """Get all alert events for a case."""
         docs = await self.alert_events_collection.find({"case_id": case_id}).to_list(None)
-        return [BugAlertEvent(**doc) for doc in docs]
+        return [BugAlertEvent(**_normalize_mongo_doc(doc)) for doc in docs]
 
     async def save_case_report(self, case_id: str, report: str) -> BugCase:
         """Save a deterministic report to a case."""
@@ -115,5 +137,6 @@ class BugOpsStore:
             return_document=True
         )
         if result:
+            result = _normalize_mongo_doc(result)
             return BugCase(**result)
         raise ValueError(f"Case {case_id} not found")

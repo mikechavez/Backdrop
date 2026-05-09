@@ -151,6 +151,8 @@ _Tickets created mid-sprint for issues found during implementation._
 | Ticket | Title | Reason | Status |
 |---|---|---|---|
 | BUG-095 | BugOps disabled mode initializes Redis/shared app dependencies | Disabled mode should exit early before importing heavy settings | ✅ COMPLETE |
+| BUG-096 | BugOps enabled mode crashes with async Motor database TypeError | Monitor called sync `get_database()` instead of async `get_async_database()` | ✅ COMPLETE |
+| BUG-097 | BugOps alert event hydration fails on Mongo ObjectId `_id` | Mongo `ObjectId._id` not normalized to string before Pydantic validation | ✅ COMPLETE |
 
 ---
 
@@ -306,3 +308,28 @@ _Tickets created mid-sprint for issues found during implementation._
   - `test_main_exits_early_when_bugops_disabled` — verify main() exits cleanly
 - **Verification**: All 12 monitor config tests passing; disabled mode logs only disabled message, no Redis errors; exit code 0
 - **Acceptance criteria**: All 10 items checked ✅
+
+### Session 10 (2026-05-09) — BUG-097 ✅
+**BugOps alert event hydration fails on Mongo ObjectId `_id`**
+- Branch: `fix/bug-096-bugops-enabled-mode-mongo-getter` | Commit: `24b6271`
+- **Issue**: During controlled production validation with lowered cost thresholds, BugOps crashed on alert hydration with Pydantic validation error:
+  ```
+  Error collecting signals from llm_traces: 1 validation error for BugAlertEvent
+  _id
+  Input should be a valid string [type=string_type, input_value=ObjectId(...), input_type=ObjectId]
+  ```
+  Root cause: Mongo's raw `ObjectId._id` values were passed directly to Pydantic models expecting strings
+- **Solution**: Added `_normalize_mongo_doc()` helper in `store.py` that converts `ObjectId._id` to strings before model hydration
+  - Helper checks `isinstance(_id, ObjectId)` and converts to `str()` safely
+  - Applied to all 7 store methods that hydrate Pydantic models from Mongo documents
+  - Mongo `_id` remains separate from application-level `alert_id` / `case_id` (database implementation detail vs. domain model)
+- **Test Coverage**: Added 10 new tests
+  - Unit tests for `_normalize_mongo_doc()` with ObjectId, None, string ID, and missing ID cases (4 tests)
+  - Integration tests for each affected method verifying ObjectId normalization (6 tests)
+  - All 21 store tests passing (11 existing + 10 new)
+- **Verification**: 
+  - ✅ Controlled alerts no longer raise validation errors
+  - ✅ Mongo _id remains separate from alert_id/case_id (ID architecture intact)
+  - ✅ All existing tests continue to pass
+  - ✅ No LLM calls introduced
+  - ✅ No non-BugOps collections modified

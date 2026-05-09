@@ -1022,9 +1022,11 @@ All other changes are new files in `src/crypto_news_aggregator/bugops/` and `tes
 
 ---
 
-## Post-Sprint 018 Bugfix: BUG-096 (2026-05-08)
+## Post-Sprint 018 Bugfixes
 
-### Issue
+### BUG-096: BugOps Enabled Mode Crashes with Async Motor Database TypeError (2026-05-08)
+
+**Issue:**
 BugOps enabled mode crashed on startup with:
 ```
 TypeError: object Database can't be used in 'await' expression
@@ -1032,20 +1034,62 @@ TypeError: object Database can't be used in 'await' expression
 
 **Root Cause:** `monitor.py:58` called `await mongo_manager.get_database()` which returns a synchronous PyMongo `Database` (not awaitable), instead of using `get_async_database()` which returns an async Motor `AsyncIOMotorDatabase`.
 
-### Fix Applied
-**Commit `9175d52`:**
+**Fix Applied (Commit `9175d52`):**
 - Changed `monitor.py:58`: `await mongo_manager.get_database()` → `await mongo_manager.get_async_database()`
 - Added test `tests/bugops/test_bugops_monitor.py` to verify async database usage and prevent regression
 - Aligned with pattern already used in `llm_traces.py:23`
 
-### Validation
+**Validation:**
 - ✅ Disabled mode still exits cleanly
 - ✅ New tests pass (async database verified)
 - ✅ All existing BugOps tests still pass
 - ✅ No syntax errors
 
-### Result
+**Result:**
 BugOps enabled mode now starts correctly on Railway when `BUGOPS_ENABLED=true`.
+
+---
+
+### BUG-097: BugOps Alert Event Hydration Fails on Mongo ObjectId `_id` (2026-05-09)
+
+**Issue:**
+During controlled production validation with lowered cost thresholds, BugOps crashed on alert hydration with Pydantic validation error:
+```
+Error collecting signals from llm_traces: 1 validation error for BugAlertEvent
+_id
+Input should be a valid string [type=string_type, input_value=ObjectId(...), input_type=ObjectId]
+```
+
+**Root Cause:**
+Mongo's raw `ObjectId._id` values were passed directly to Pydantic models expecting strings. The store methods hydrated models without normalizing the Mongo-native `ObjectId` type first.
+
+**Fix Applied (Commit `24b6271`):**
+- Added `_normalize_mongo_doc()` helper in `store.py` that safely converts `ObjectId._id` to strings
+- Helper: checks `isinstance(_id, ObjectId)` and converts via `str()` before model hydration
+- Applied normalization to all 7 store methods that retrieve and hydrate Pydantic models:
+  - `create_alert_event()`
+  - `find_open_case_by_dedupe_key()`
+  - `create_case_from_alert()`
+  - `attach_alert_to_case()`
+  - `get_case()`
+  - `get_alert_events_for_case()`
+  - `save_case_report()`
+- Maintains strict separation: Mongo `_id` (database detail) vs. `alert_id`/`case_id` (application-level identifiers)
+
+**Test Coverage (10 new tests):**
+- Unit tests for `_normalize_mongo_doc()` with ObjectId, None, string ID, and missing ID cases (4 tests)
+- Integration tests for each affected method verifying ObjectId normalization (6 tests)
+- All 21 store tests passing (11 existing + 10 new)
+
+**Validation:**
+- ✅ Controlled alerts no longer raise validation errors
+- ✅ Mongo _id remains separate from alert_id/case_id (ID architecture intact)
+- ✅ All existing tests continue to pass
+- ✅ No LLM calls introduced
+- ✅ No non-BugOps collections modified
+
+**Result:**
+BugOps can now complete production validation for the alert-to-case path with Mongo ObjectId handling working correctly.
 
 ---
 
