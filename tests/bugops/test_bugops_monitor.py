@@ -85,3 +85,217 @@ async def test_bugops_monitor_initialization_sequence():
                     # This should NOT raise TypeError about awaiting sync Database
                     await monitor.run()
                     assert True
+
+
+@pytest.mark.asyncio
+async def test_poll_signals_slack_disabled_no_nameerror():
+    """Test that _poll_signals works with BUGOPS_SLACK_ENABLED=false without NameError."""
+    from crypto_news_aggregator.bugops.monitor import BugOpsMonitor
+    from crypto_news_aggregator.bugops.models import BugCase, AlertSeverity, CaseStatus
+    from datetime import datetime
+
+    monitor = BugOpsMonitor()
+    monitor.settings.BUGOPS_SLACK_ENABLED = False
+    monitor.settings.BUGOPS_ENABLED = True
+
+    # Create a fake signal source
+    mock_source = AsyncMock()
+    fake_event = {"type": "cost_anomaly", "data": {}}
+    mock_source.collect.return_value = [fake_event]
+    monitor.signal_sources = [mock_source]
+
+    # Create a fake case
+    fake_case = BugCase(
+        case_id="TEST-001",
+        title="Test case",
+        summary="Test summary",
+        severity=AlertSeverity.WARNING,
+        status=CaseStatus.OPEN,
+        source_types=["test"],
+        alert_type="test_alert",
+        dedupe_key="test-dedupe-001",
+        created_at=datetime.utcnow(),
+    )
+
+    # Mock the store
+    monitor.store = AsyncMock()
+    monitor.store.process_alert_event.return_value = (fake_case, True)
+
+    # This should NOT raise NameError even though Slack is disabled
+    with patch('crypto_news_aggregator.bugops.slack.send_case_notification') as mock_slack:
+        await monitor._poll_signals()
+        # Slack should NOT be called when disabled
+        mock_slack.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_poll_signals_slack_enabled_calls_notification():
+    """Test that _poll_signals calls send_case_notification when BUGOPS_SLACK_ENABLED=true."""
+    from crypto_news_aggregator.bugops.monitor import BugOpsMonitor
+    from crypto_news_aggregator.bugops.models import BugCase, AlertSeverity, CaseStatus
+    from datetime import datetime
+
+    monitor = BugOpsMonitor()
+    monitor.settings.BUGOPS_SLACK_ENABLED = True
+    monitor.settings.BUGOPS_ENABLED = True
+
+    # Create a fake signal source
+    mock_source = AsyncMock()
+    fake_event = {"type": "cost_anomaly", "data": {}}
+    mock_source.collect.return_value = [fake_event]
+    monitor.signal_sources = [mock_source]
+
+    # Create a fake case
+    fake_case = BugCase(
+        case_id="TEST-002",
+        title="Test case",
+        summary="Test summary",
+        severity=AlertSeverity.HIGH,
+        status=CaseStatus.OPEN,
+        source_types=["test"],
+        alert_type="test_alert",
+        dedupe_key="test-dedupe-002",
+        created_at=datetime.utcnow(),
+    )
+
+    # Mock the store
+    monitor.store = AsyncMock()
+    monitor.store.process_alert_event.return_value = (fake_case, True)
+
+    # Mock send_case_notification
+    mock_send_notification = AsyncMock()
+
+    with patch('crypto_news_aggregator.bugops.slack.send_case_notification', mock_send_notification):
+        await monitor._poll_signals()
+        # Slack should be called exactly once for the new case
+        mock_send_notification.assert_called_once_with(fake_case)
+
+
+@pytest.mark.asyncio
+async def test_poll_signals_slack_not_called_for_existing_cases():
+    """Test that _poll_signals does not call Slack for existing cases (is_new=False)."""
+    from crypto_news_aggregator.bugops.monitor import BugOpsMonitor
+    from crypto_news_aggregator.bugops.models import BugCase, AlertSeverity, CaseStatus
+    from datetime import datetime
+
+    monitor = BugOpsMonitor()
+    monitor.settings.BUGOPS_SLACK_ENABLED = True
+    monitor.settings.BUGOPS_ENABLED = True
+
+    # Create a fake signal source
+    mock_source = AsyncMock()
+    fake_event = {"type": "cost_anomaly", "data": {}}
+    mock_source.collect.return_value = [fake_event]
+    monitor.signal_sources = [mock_source]
+
+    # Create a fake case
+    fake_case = BugCase(
+        case_id="TEST-003",
+        title="Existing case",
+        summary="Test summary",
+        severity=AlertSeverity.INFO,
+        status=CaseStatus.OPEN,
+        source_types=["test"],
+        alert_type="test_alert",
+        dedupe_key="test-dedupe-003",
+        created_at=datetime.utcnow(),
+    )
+
+    # Mock the store with is_new=False
+    monitor.store = AsyncMock()
+    monitor.store.process_alert_event.return_value = (fake_case, False)
+
+    mock_send_notification = AsyncMock()
+
+    with patch('crypto_news_aggregator.bugops.slack.send_case_notification', mock_send_notification):
+        await monitor._poll_signals()
+        # Slack should NOT be called for existing cases
+        mock_send_notification.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_poll_signals_slack_failure_does_not_crash():
+    """Test that Slack notification failure does not crash the monitor."""
+    from crypto_news_aggregator.bugops.monitor import BugOpsMonitor
+    from crypto_news_aggregator.bugops.models import BugCase, AlertSeverity, CaseStatus
+    from datetime import datetime
+
+    monitor = BugOpsMonitor()
+    monitor.settings.BUGOPS_SLACK_ENABLED = True
+    monitor.settings.BUGOPS_ENABLED = True
+
+    # Create a fake signal source
+    mock_source = AsyncMock()
+    fake_event = {"type": "cost_anomaly", "data": {}}
+    mock_source.collect.return_value = [fake_event]
+    monitor.signal_sources = [mock_source]
+
+    # Create a fake case
+    fake_case = BugCase(
+        case_id="TEST-004",
+        title="Test case",
+        summary="Test summary",
+        severity=AlertSeverity.CRITICAL,
+        status=CaseStatus.OPEN,
+        source_types=["test"],
+        alert_type="test_alert",
+        dedupe_key="test-dedupe-004",
+        created_at=datetime.utcnow(),
+    )
+
+    # Mock the store
+    monitor.store = AsyncMock()
+    monitor.store.process_alert_event.return_value = (fake_case, True)
+
+    # Mock send_case_notification to raise an exception
+    mock_send_notification = AsyncMock(side_effect=Exception("Slack API error"))
+
+    with patch('crypto_news_aggregator.bugops.slack.send_case_notification', mock_send_notification):
+        # This should NOT raise - monitor should catch and log the error
+        await monitor._poll_signals()
+        # Verify Slack was attempted
+        mock_send_notification.assert_called_once_with(fake_case)
+
+
+@pytest.mark.asyncio
+async def test_poll_signals_slack_returns_false_is_logged():
+    """Test that Slack notification returning False is logged as a warning."""
+    from crypto_news_aggregator.bugops.monitor import BugOpsMonitor
+    from crypto_news_aggregator.bugops.models import BugCase, AlertSeverity, CaseStatus
+    from datetime import datetime
+
+    monitor = BugOpsMonitor()
+    monitor.settings.BUGOPS_SLACK_ENABLED = True
+    monitor.settings.BUGOPS_ENABLED = True
+
+    # Create a fake signal source
+    mock_source = AsyncMock()
+    fake_event = {"type": "cost_anomaly", "data": {}}
+    mock_source.collect.return_value = [fake_event]
+    monitor.signal_sources = [mock_source]
+
+    # Create a fake case
+    fake_case = BugCase(
+        case_id="TEST-005",
+        title="Test case",
+        summary="Test summary",
+        severity=AlertSeverity.INFO,
+        status=CaseStatus.OPEN,
+        source_types=["test"],
+        alert_type="test_alert",
+        dedupe_key="test-dedupe-005",
+        created_at=datetime.utcnow(),
+    )
+
+    # Mock the store
+    monitor.store = AsyncMock()
+    monitor.store.process_alert_event.return_value = (fake_case, True)
+
+    # Mock send_case_notification to return False
+    mock_send_notification = AsyncMock(return_value=False)
+
+    with patch('crypto_news_aggregator.bugops.slack.send_case_notification', mock_send_notification):
+        # This should NOT raise
+        await monitor._poll_signals()
+        # Verify Slack was attempted
+        mock_send_notification.assert_called_once_with(fake_case)
