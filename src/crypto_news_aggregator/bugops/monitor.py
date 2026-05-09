@@ -55,7 +55,7 @@ class BugOpsMonitor:
                 return
 
             logger.info("MongoDB connection initialized")
-            db = await mongo_manager.get_database()
+            db = await mongo_manager.get_async_database()
             self.store = BugOpsStore(db)
 
             logger.info(
