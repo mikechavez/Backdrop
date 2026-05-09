@@ -1020,4 +1020,33 @@ All other changes are new files in `src/crypto_news_aggregator/bugops/` and `tes
 
 ---
 
+---
+
+## Post-Sprint 018 Bugfix: BUG-096 (2026-05-08)
+
+### Issue
+BugOps enabled mode crashed on startup with:
+```
+TypeError: object Database can't be used in 'await' expression
+```
+
+**Root Cause:** `monitor.py:58` called `await mongo_manager.get_database()` which returns a synchronous PyMongo `Database` (not awaitable), instead of using `get_async_database()` which returns an async Motor `AsyncIOMotorDatabase`.
+
+### Fix Applied
+**Commit `9175d52`:**
+- Changed `monitor.py:58`: `await mongo_manager.get_database()` → `await mongo_manager.get_async_database()`
+- Added test `tests/bugops/test_bugops_monitor.py` to verify async database usage and prevent regression
+- Aligned with pattern already used in `llm_traces.py:23`
+
+### Validation
+- ✅ Disabled mode still exits cleanly
+- ✅ New tests pass (async database verified)
+- ✅ All existing BugOps tests still pass
+- ✅ No syntax errors
+
+### Result
+BugOps enabled mode now starts correctly on Railway when `BUGOPS_ENABLED=true`.
+
+---
+
 **Sprint 018 Closeout Complete. Ready for Merge to Main. 🚀**
