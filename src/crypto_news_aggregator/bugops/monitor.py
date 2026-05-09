@@ -39,6 +39,7 @@ class BugOpsMonitor:
     async def run(self) -> None:
         """Run the BugOps monitor loop."""
         from .slack import send_case_notification
+        from .store import BugOpsStore
         from ..db.mongodb import mongo_manager
 
         logger.info("BugOps monitor starting")

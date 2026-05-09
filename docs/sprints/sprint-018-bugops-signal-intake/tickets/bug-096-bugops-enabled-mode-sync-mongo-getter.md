@@ -20,8 +20,9 @@ High
 
 ## Resolution
 
-**Fix Applied:** Commit `9175d52`
+**Fixes Applied:**
 
+### Fix 1: Async Database (Commit `9175d52`)
 Changed `monitor.py:58` from:
 ```python
 db = await mongo_manager.get_database()  # ❌ sync PyMongo Database
@@ -32,11 +33,15 @@ To:
 db = await mongo_manager.get_async_database()  # ✅ async Motor Database
 ```
 
-**Why This Works:**
-- `get_database()` returns a synchronous `Database` object (from PyMongo)
-- `get_async_database()` returns an `AsyncIOMotorDatabase` (async Motor wrapper)
-- BugOpsStore and signal sources expect async Motor database
-- Matches pattern already used in llm_traces.py:23
+**Why:** `get_database()` returns a synchronous `Database` object (PyMongo), not awaitable. `get_async_database()` returns an `AsyncIOMotorDatabase` compatible with async/await and the async signal sources/store.
+
+### Fix 2: Missing Import (Commit `9820eb4`)
+Added `BugOpsStore` import to `run()` method:
+```python
+from .store import BugOpsStore
+```
+
+**Why:** `BugOpsStore` was imported in `__init__()` but not in `run()` where it's instantiated at line 59, causing `NameError: name 'BugOpsStore' is not defined` on Railway deployment.
 
 **Test Added:** `tests/bugops/test_bugops_monitor.py`
 - Verifies async database is used (not sync)
