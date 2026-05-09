@@ -38,7 +38,6 @@ class BugOpsMonitor:
 
     async def run(self) -> None:
         """Run the BugOps monitor loop."""
-        from .slack import send_case_notification
         from .store import BugOpsStore
         from ..db.mongodb import mongo_manager
 
@@ -82,8 +81,19 @@ class BugOpsMonitor:
                 events = await source.collect()
                 for event in events:
                     case, is_new = await self.store.process_alert_event(event)
-                    if is_new:
-                        await send_case_notification(case)
+                    if is_new and self.settings.BUGOPS_SLACK_ENABLED:
+                        try:
+                            from .slack import send_case_notification
+
+                            sent = await send_case_notification(case)
+                            if not sent:
+                                logger.warning(
+                                    f"BugOps Slack notification was not sent for case_id={case.case_id}"
+                                )
+                        except Exception:
+                            logger.exception(
+                                f"BugOps Slack notification failed for case_id={case.case_id}"
+                            )
             except Exception as e:
                 logger.error(
                     f"Error collecting signals from {source.source_type}: {e}",
