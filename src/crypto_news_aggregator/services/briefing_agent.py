@@ -798,22 +798,74 @@ Respond with:
         critique: str,
         briefing_input: BriefingInput,
     ) -> str:
-        """Build prompt for refinement pass."""
-        return f"""Refine this crypto briefing based on the critique feedback:
+        """Build prompt for refinement pass with full source context.
 
-ORIGINAL BRIEFING:
-{generated.narrative}
+        Provides the refinement model with actual narrative details, entity data,
+        and signal context to correct issues without requesting additional data.
+        """
+        parts = []
 
-CRITIQUE FEEDBACK:
-{critique}
+        parts.append("Refine this crypto briefing based on the critique feedback:\n")
+        parts.append(f"ORIGINAL BRIEFING:\n{generated.narrative}\n\n")
+        parts.append(f"CRITIQUE FEEDBACK:\n{critique}\n\n")
 
-AVAILABLE DATA:
-- Signals: {len(briefing_input.signals)} trending entities
-- Narratives: {len(briefing_input.narratives)} active narratives
-- Patterns: {len(briefing_input.patterns.all_patterns())} detected patterns
+        # Build detailed source context section
+        parts.append("AVAILABLE SOURCE CONTEXT:\n\n")
 
-Address the issues identified in the critique and generate an improved briefing.
-Return ONLY valid JSON in the same format as before."""
+        # Narratives (top 8, matching generation prompt limit)
+        if briefing_input.narratives:
+            parts.append("Narratives (facts you may reference):\n")
+            for i, narrative in enumerate(briefing_input.narratives[:8], 1):
+                title = narrative.get("title", "Untitled")
+                summary = narrative.get("summary", "")
+                entities = narrative.get("entities", [])
+                article_count = narrative.get("article_count", 0)
+
+                parts.append(f"\n{i}. {title}\n")
+                parts.append(f"   Articles: {article_count}\n")
+
+                if summary:
+                    parts.append(f"   Summary: {summary}\n")
+
+                if entities:
+                    entities_str = ", ".join(entities[:5])
+                    parts.append(f"   Entities: {entities_str}\n")
+
+        # Signals (bounded, top 10)
+        if briefing_input.signals:
+            parts.append("\nTrending Signals (entities with momentum):\n")
+            for signal in briefing_input.signals[:10]:
+                entity = signal.get("entity", "Unknown")
+                score = signal.get("metrics", {}).get("score_24h", 0)
+                velocity = signal.get("metrics", {}).get("velocity_24h", 0)
+                parts.append(f"- {entity}: score={score:.1f}, velocity={velocity:.0f}%\n")
+
+        # Patterns (bounded)
+        patterns = briefing_input.patterns.all_patterns() if briefing_input.patterns else []
+        if patterns:
+            parts.append(f"\nDetected Patterns ({len(patterns[:5])} shown):\n")
+            for pattern in patterns[:5]:
+                if isinstance(pattern, dict):
+                    pattern_name = pattern.get("name", "Unknown pattern")
+                    pattern_desc = pattern.get("description", "")
+                    if pattern_desc:
+                        parts.append(f"- {pattern_name}: {pattern_desc}\n")
+                    else:
+                        parts.append(f"- {pattern_name}\n")
+                else:
+                    parts.append(f"- {pattern}\n")
+
+        # Explicit refinement instructions
+        parts.append("\n---\n")
+        parts.append("REFINEMENT INSTRUCTIONS:\n")
+        parts.append("- Return ONLY valid JSON in the same format as the original briefing\n")
+        parts.append("- Do NOT ask for additional data or context\n")
+        parts.append("- Use ONLY the source context provided above\n")
+        parts.append("- If a claim is not supported by the source context, REMOVE it\n")
+        parts.append("- If source context is sparse, produce a conservative briefing\n")
+        parts.append("- Do NOT include any text outside the JSON object\n")
+
+        return "".join(parts)
 
     def _match_recommendations_to_narratives(
         self,
