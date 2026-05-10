@@ -337,9 +337,10 @@ async def test_refresh_handles_missing_articles(mongo_db, mocker):
     assert result["refreshed_count"] == 0
     assert result["skipped_error_count"] == 1
 
-    # Verify flag was cleared
+    # Flag must remain set — hydration failure should not clear it
     updated = await mongo_db.narratives.find_one({"_id": narrative["_id"]})
-    assert updated["needs_summary_update"] is False
+    assert updated["needs_summary_update"] is True
+    assert updated.get("last_summary_generated_at") is None
 
 
 @pytest.mark.asyncio
@@ -395,3 +396,168 @@ async def test_refresh_skips_dormant_narratives(mongo_db, mocker):
     # Verify flag is still set
     updated = await mongo_db.narratives.find_one({"_id": narrative["_id"]})
     assert updated["needs_summary_update"] is True
+
+
+# ---------------------------------------------------------------------------
+# BUG-102: failure paths must NOT clear needs_summary_update
+# ---------------------------------------------------------------------------
+
+def _common_mocks(mocker, mongo_db):
+    mocker.patch(
+        "src.crypto_news_aggregator.tasks.narrative_refresh.check_llm_budget",
+        return_value=(True, "OK"),
+    )
+    mocker.patch(
+        "src.crypto_news_aggregator.tasks.narrative_refresh.refresh_budget_if_stale",
+        new_callable=AsyncMock,
+    )
+    mocker.patch(
+        "src.crypto_news_aggregator.tasks.narrative_refresh.mongo_manager.get_async_database",
+        new_callable=AsyncMock,
+        return_value=mongo_db,
+    )
+
+
+@pytest.mark.asyncio
+async def test_no_article_ids_does_not_clear_flag(mongo_db, mocker):
+    """Narrative with no article_ids must stay flagged after refresh run."""
+    narrative = {
+        "_id": ObjectId(),
+        "title": "No Articles Narrative",
+        "nucleus_entity": "Bitcoin",
+        "narrative_focus": "test",
+        "lifecycle_state": "hot",
+        "article_ids": [],
+        "needs_summary_update": True,
+        "last_updated": datetime.now(timezone.utc),
+    }
+    await mongo_db.narratives.insert_one(narrative)
+    _common_mocks(mocker, mongo_db)
+
+    result = await _refresh_flagged_narratives_async()
+
+    assert result["refreshed_count"] == 0
+    assert result["skipped_error_count"] == 1
+
+    updated = await mongo_db.narratives.find_one({"_id": narrative["_id"]})
+    assert updated["needs_summary_update"] is True
+    assert updated.get("last_summary_generated_at") is None
+
+
+@pytest.mark.asyncio
+async def test_empty_hydration_does_not_clear_flag(mongo_db, mocker):
+    """Narrative whose article_ids resolve to zero articles must stay flagged."""
+    narrative = {
+        "_id": ObjectId(),
+        "title": "Unresolvable Articles Narrative",
+        "nucleus_entity": "Ethereum",
+        "narrative_focus": "test",
+        "lifecycle_state": "emerging",
+        "article_ids": [str(ObjectId()), str(ObjectId())],  # IDs that don't exist
+        "needs_summary_update": True,
+        "last_updated": datetime.now(timezone.utc),
+    }
+    await mongo_db.narratives.insert_one(narrative)
+    _common_mocks(mocker, mongo_db)
+
+    result = await _refresh_flagged_narratives_async()
+
+    assert result["refreshed_count"] == 0
+    assert result["skipped_error_count"] == 1
+
+    updated = await mongo_db.narratives.find_one({"_id": narrative["_id"]})
+    assert updated["needs_summary_update"] is True
+    assert updated.get("last_summary_generated_at") is None
+
+
+@pytest.mark.asyncio
+async def test_llm_returns_none_does_not_clear_flag(mongo_db, mocker):
+    """When generate_narrative_from_cluster returns None the flag must stay set."""
+    article = {
+        "_id": ObjectId(),
+        "title": "Test Article",
+        "text": "Test content",
+        "url": "https://test.com/1",
+        "actors": ["Bitcoin"],
+        "tensions": [],
+        "nucleus_entity": "Bitcoin",
+        "narrative_focus": "test",
+    }
+    await mongo_db.articles.insert_one(article)
+
+    narrative = {
+        "_id": ObjectId(),
+        "title": "LLM None Narrative",
+        "nucleus_entity": "Bitcoin",
+        "narrative_focus": "test",
+        "lifecycle_state": "hot",
+        "article_ids": [str(article["_id"])],
+        "needs_summary_update": True,
+        "last_updated": datetime.now(timezone.utc),
+    }
+    await mongo_db.narratives.insert_one(narrative)
+
+    _common_mocks(mocker, mongo_db)
+    mocker.patch(
+        "src.crypto_news_aggregator.tasks.narrative_refresh.generate_narrative_from_cluster",
+        new_callable=AsyncMock,
+        return_value=None,
+    )
+
+    result = await _refresh_flagged_narratives_async()
+
+    assert result["refreshed_count"] == 0
+    assert result["skipped_error_count"] == 1
+
+    updated = await mongo_db.narratives.find_one({"_id": narrative["_id"]})
+    assert updated["needs_summary_update"] is True
+    assert updated.get("last_summary_generated_at") is None
+
+
+@pytest.mark.asyncio
+async def test_successful_refresh_clears_flag_and_sets_timestamp(mongo_db, mocker):
+    """Success path must clear flag and stamp last_summary_generated_at."""
+    article = {
+        "_id": ObjectId(),
+        "title": "Real Article",
+        "text": "Real content",
+        "url": "https://test.com/real",
+        "actors": ["Solana"],
+        "tensions": [],
+        "nucleus_entity": "Solana",
+        "narrative_focus": "growth",
+    }
+    await mongo_db.articles.insert_one(article)
+
+    narrative = {
+        "_id": ObjectId(),
+        "title": "Old Title",
+        "summary": "Old summary",
+        "nucleus_entity": "Solana",
+        "narrative_focus": "growth",
+        "lifecycle_state": "hot",
+        "article_ids": [str(article["_id"])],
+        "needs_summary_update": True,
+        "last_updated": datetime.now(timezone.utc),
+    }
+    await mongo_db.narratives.insert_one(narrative)
+
+    _common_mocks(mocker, mongo_db)
+    mocker.patch(
+        "src.crypto_news_aggregator.tasks.narrative_refresh.generate_narrative_from_cluster",
+        new_callable=AsyncMock,
+        return_value={"summary": "Fresh summary", "title": "Fresh Title"},
+    )
+
+    before = datetime.utcnow()  # naive UTC to match what MongoDB returns
+    result = await _refresh_flagged_narratives_async()
+
+    assert result["refreshed_count"] == 1
+    assert result["skipped_error_count"] == 0
+
+    updated = await mongo_db.narratives.find_one({"_id": narrative["_id"]})
+    assert updated["needs_summary_update"] is False
+    assert updated["summary"] == "Fresh summary"
+    assert updated["title"] == "Fresh Title"
+    assert updated["last_summary_generated_at"] is not None
+    assert updated["last_summary_generated_at"] >= before

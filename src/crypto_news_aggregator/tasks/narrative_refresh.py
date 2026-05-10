@@ -77,13 +77,15 @@ async def _refresh_flagged_narratives_async() -> dict:
             break
 
         narrative_id = narrative["_id"]
+        narrative_title = narrative.get("title", "")
         article_ids = narrative.get("article_ids", [])
 
         if not article_ids:
-            logger.warning(f"Narrative {narrative_id} has no article_ids, clearing flag")
-            await db.narratives.update_one(
-                {"_id": narrative_id},
-                {"$set": {"needs_summary_update": False}}
+            logger.warning(
+                "refresh_flagged_narratives skip: no article_ids "
+                f"narrative_id={narrative_id} title={narrative_title!r} "
+                f"article_ids_count=0 reason=no_article_ids "
+                "needs_summary_update remains true"
             )
             skipped_error_count += 1
             continue
@@ -95,11 +97,10 @@ async def _refresh_flagged_narratives_async() -> dict:
 
         if not articles:
             logger.warning(
-                f"Narrative {narrative_id} article fetch returned empty, clearing flag"
-            )
-            await db.narratives.update_one(
-                {"_id": narrative_id},
-                {"$set": {"needs_summary_update": False}}
+                "refresh_flagged_narratives skip: article hydration empty "
+                f"narrative_id={narrative_id} title={narrative_title!r} "
+                f"article_ids_count={len(article_ids)} hydrated_article_count=0 "
+                "reason=no_articles_found needs_summary_update remains true"
             )
             skipped_error_count += 1
             continue
@@ -107,18 +108,21 @@ async def _refresh_flagged_narratives_async() -> dict:
         try:
             new_narrative = await generate_narrative_from_cluster(articles)
         except Exception as e:
-            logger.exception(f"generate_narrative_from_cluster failed for {narrative_id}: {e}")
+            logger.exception(
+                "refresh_flagged_narratives skip: generate_narrative_from_cluster raised "
+                f"narrative_id={narrative_id} title={narrative_title!r} "
+                f"article_ids_count={len(article_ids)} hydrated_article_count={len(articles)} "
+                f"reason=llm_exception needs_summary_update remains true error={e}"
+            )
             skipped_error_count += 1
             continue
 
         if not new_narrative:
             logger.warning(
-                f"generate_narrative_from_cluster returned None for {narrative_id}; "
-                f"clearing flag to prevent retry loop"
-            )
-            await db.narratives.update_one(
-                {"_id": narrative_id},
-                {"$set": {"needs_summary_update": False}}
+                "refresh_flagged_narratives skip: generate_narrative_from_cluster returned None "
+                f"narrative_id={narrative_id} title={narrative_title!r} "
+                f"article_ids_count={len(article_ids)} hydrated_article_count={len(articles)} "
+                "reason=llm_returned_none needs_summary_update remains true"
             )
             skipped_error_count += 1
             continue
