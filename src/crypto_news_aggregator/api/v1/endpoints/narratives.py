@@ -199,30 +199,58 @@ def _get_narrative_display_mode(
     display_mode = "article_cluster"
 
     # Use primary entity (first in entities list) as deterministic title
+    # Fallback chain: primary entity → theme → "Untitled"
     entities = narrative.get("entities", [])
-    display_title = entities[0] if entities else narrative.get("theme", "Untitled")
+    display_title = next(
+        (e for e in entities if e and isinstance(e, str)),  # First non-empty entity
+        narrative.get("theme") or "Untitled"
+    )
+    # Ensure display_title is never empty string
+    if not display_title or not isinstance(display_title, str):
+        display_title = "Untitled"
 
     # Build deterministic summary from recent articles
     display_summary = None
     if recent_articles:
-        # Extract titles from recent articles
+        # Extract clean titles from recent articles (up to 3 valid titles, deduped, non-empty)
         article_titles = []
-        for article in recent_articles[:3]:  # Use top 3 articles
+        forbidden_words = {"stale", "missing", "untrusted", "needs refresh"}
+
+        # Scan through articles to find up to 3 clean titles
+        for article in recent_articles:
+            # Stop once we have 3 valid titles
+            if len(article_titles) >= 3:
+                break
+
             title = article.get("title", "")
-            if title and title not in article_titles:
+            # Skip empty, None, non-string, or titles containing forbidden words
+            if not title or not isinstance(title, str):
+                continue
+            if any(word in title.lower() for word in forbidden_words):
+                continue
+            # Skip duplicates
+            if title not in article_titles:
                 article_titles.append(title)
 
         if article_titles:
-            # Build sentence from article titles
-            summary_parts = ["Latest coverage includes"]
-            summary_parts.extend(article_titles)
-            display_summary = ", ".join(summary_parts) + "."
+            # Build sentence from article titles with proper formatting
+            # Format: "Latest coverage includes Title 1, Title 2, and Title 3."
+            if len(article_titles) == 1:
+                display_summary = f"Latest coverage includes {article_titles[0]}."
+            elif len(article_titles) == 2:
+                display_summary = f"Latest coverage includes {article_titles[0]} and {article_titles[1]}."
+            else:
+                # 3 titles: use Oxford comma
+                display_summary = (
+                    f"Latest coverage includes {', '.join(article_titles[:-1])}, "
+                    f"and {article_titles[-1]}."
+                )
         else:
-            # Fallback: use article count
+            # All articles filtered out; use article count
             count = len(recent_articles)
             display_summary = f"Latest {count} article{'s' if count != 1 else ''} in this narrative."
     else:
-        # No recent articles: fallback sentence
+        # No recent articles: use total article count
         article_count = narrative.get("article_count", 0)
         display_summary = f"Recent coverage with {article_count} article{'s' if article_count != 1 else ''}."
 

@@ -208,7 +208,7 @@ class TestNarrativeDisplayMode:
             assert word.lower() not in summary.lower()
 
     def test_article_cluster_builds_from_recent_articles(self, fresh_start_cutoff):
-        """Article cluster summary should build from recent articles."""
+        """Article cluster summary should build from recent articles with proper formatting."""
         narrative = {
             "theme": "regulatory",
             "title": "Old",
@@ -227,9 +227,8 @@ class TestNarrativeDisplayMode:
         mode, title, summary = _get_narrative_display_mode(
             narrative, fresh_start_cutoff, articles
         )
-        assert "Bitcoin Price Surge" in summary
-        assert "Fed Rate Decision Looms" in summary
-        assert "ETF Approval Rumors" in summary
+        # 3 articles: should use Oxford comma format
+        assert "Bitcoin Price Surge, Fed Rate Decision Looms, and ETF Approval Rumors" in summary
 
     def test_article_cluster_deduplicates_articles(self, fresh_start_cutoff):
         """Article cluster should not duplicate article titles."""
@@ -253,6 +252,148 @@ class TestNarrativeDisplayMode:
         )
         # Should include Bitcoin News only once
         assert summary.count("Bitcoin News") == 1
+
+    def test_article_cluster_single_article_formatting(self, fresh_start_cutoff):
+        """Article cluster with 1 article should format cleanly."""
+        narrative = {
+            "theme": "regulatory",
+            "title": "Old",
+            "summary": "Old.",
+            "entities": ["SEC"],
+            "article_count": 1,
+            "first_seen": fresh_start_cutoff - timedelta(days=30),
+            "last_summary_generated_at": None,
+            "_fresh_start_validated_at": None,
+        }
+        articles = [{"title": "SEC Files New Lawsuit"}]
+        mode, title, summary = _get_narrative_display_mode(
+            narrative, fresh_start_cutoff, articles
+        )
+        # Single article: no comma, no "and"
+        assert summary == "Latest coverage includes SEC Files New Lawsuit."
+
+    def test_article_cluster_two_article_formatting(self, fresh_start_cutoff):
+        """Article cluster with 2 articles should use 'and' without Oxford comma."""
+        narrative = {
+            "theme": "regulatory",
+            "title": "Old",
+            "summary": "Old.",
+            "entities": ["SEC"],
+            "article_count": 2,
+            "first_seen": fresh_start_cutoff - timedelta(days=30),
+            "last_summary_generated_at": None,
+            "_fresh_start_validated_at": None,
+        }
+        articles = [
+            {"title": "SEC Action"},
+            {"title": "Binance Response"},
+        ]
+        mode, title, summary = _get_narrative_display_mode(
+            narrative, fresh_start_cutoff, articles
+        )
+        # Two articles: use "and" without Oxford comma
+        assert summary == "Latest coverage includes SEC Action and Binance Response."
+
+    def test_article_cluster_filters_forbidden_titles(self, fresh_start_cutoff):
+        """Article cluster should filter out articles with forbidden words in title."""
+        narrative = {
+            "theme": "regulatory",
+            "title": "Old",
+            "summary": "Old.",
+            "entities": ["SEC"],
+            "article_count": 5,
+            "first_seen": fresh_start_cutoff - timedelta(days=30),
+            "last_summary_generated_at": None,
+            "_fresh_start_validated_at": None,
+        }
+        articles = [
+            {"title": "This summary is stale"},  # Contains forbidden word
+            {"title": "Data missing from report"},  # Contains forbidden word
+            {"title": "SEC Filing"},  # Clean
+            {"title": "Status: untrusted data"},  # Contains forbidden word
+            {"title": "Binance News"},  # Clean
+        ]
+        mode, title, summary = _get_narrative_display_mode(
+            narrative, fresh_start_cutoff, articles
+        )
+        # Should only include SEC Filing and Binance News
+        assert "SEC Filing" in summary
+        assert "Binance News" in summary
+        # Should not include forbidden titles
+        assert "stale" not in summary.lower()
+        assert "missing" not in summary.lower()
+        assert "untrusted" not in summary.lower()
+
+    def test_article_cluster_empty_title_skipped(self, fresh_start_cutoff):
+        """Article cluster should skip articles with empty/null titles."""
+        narrative = {
+            "theme": "regulatory",
+            "title": "Old",
+            "summary": "Old.",
+            "entities": ["SEC"],
+            "article_count": 3,
+            "first_seen": fresh_start_cutoff - timedelta(days=30),
+            "last_summary_generated_at": None,
+            "_fresh_start_validated_at": None,
+        }
+        articles = [
+            {"title": ""},  # Empty
+            {"title": None},  # None
+            {"title": "SEC Action"},  # Valid
+            {},  # Missing title key
+        ]
+        mode, title, summary = _get_narrative_display_mode(
+            narrative, fresh_start_cutoff, articles
+        )
+        # Should only include SEC Action
+        assert summary == "Latest coverage includes SEC Action."
+
+    def test_article_cluster_title_fallback_chain(self, fresh_start_cutoff):
+        """Display title should follow fallback chain: entity → theme → Untitled."""
+        # Test 1: Primary entity
+        narrative = {
+            "entities": ["Bitcoin"],
+            "theme": "crypto_prices",
+            "first_seen": fresh_start_cutoff - timedelta(days=30),
+        }
+        articles = []
+        mode, title, summary = _get_narrative_display_mode(
+            narrative, fresh_start_cutoff, articles
+        )
+        assert title == "Bitcoin"
+
+        # Test 2: No entity, use theme
+        narrative = {
+            "entities": [],
+            "theme": "crypto_prices",
+            "first_seen": fresh_start_cutoff - timedelta(days=30),
+        }
+        mode, title, summary = _get_narrative_display_mode(
+            narrative, fresh_start_cutoff, articles
+        )
+        assert title == "crypto_prices"
+
+        # Test 3: No entity, no theme, use Untitled
+        narrative = {
+            "entities": [],
+            "theme": "",
+            "first_seen": fresh_start_cutoff - timedelta(days=30),
+        }
+        mode, title, summary = _get_narrative_display_mode(
+            narrative, fresh_start_cutoff, articles
+        )
+        assert title == "Untitled"
+
+        # Test 4: Entity is empty string, fall through to theme
+        narrative = {
+            "entities": [""],
+            "theme": "fallback_theme",
+            "first_seen": fresh_start_cutoff - timedelta(days=30),
+        }
+        mode, title, summary = _get_narrative_display_mode(
+            narrative, fresh_start_cutoff, articles
+        )
+        assert title == "fallback_theme"
 
 
 class TestNarrativeResponseModel:
