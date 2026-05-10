@@ -240,10 +240,91 @@ Expected display_summary: article-activity sentence based on latest article titl
 
 ## Completion Summary
 
-- Actual complexity:
-- Branch:
-- Commit:
-- Key decisions made:
-- Deviations from plan:
-- Tests run:
-- Manual verification:
+- **Status:** ✅ COMPLETE
+- **Actual complexity:** Medium (shared trust helper refactor + 4 endpoint updates + deterministic copy logic)
+- **Branch:** `feature/061-narrative-display-mode-api`
+- **Commits:**
+  - `206c725` feat(narratives): Add display_mode API fields for trusted/untrusted summaries (FEATURE-061)
+  - `e424039` refactor(narratives): Improve display mode quality and robustness (FEATURE-061)
+  - `d194e74` refactor(narratives): Clean up public-facing copy for article-cluster mode (FEATURE-061)
+
+### Key Decisions Made
+
+1. **Shared Trust Helper Module:** Extracted `is_narrative_summary_trusted()` and `get_fresh_start_cutoff()` to `src/crypto_news_aggregator/services/narrative_trust.py` to eliminate coupling between briefing_agent and narratives API. FEATURE-060 refactored to delegate to shared helpers (behavior unchanged, 12/12 regression tests pass).
+
+2. **Display Mode Computation:** Single `_get_narrative_display_mode()` helper used by all 4 endpoints (active, archived, resurrections, detail) to eliminate duplication. Helper is pure computation—no LLM calls, no data mutations.
+
+3. **Deterministic Article-Cluster Copy:** 
+   - Scans all articles to find up to 3 clean titles (skips forbidden words: stale, missing, untrusted, needs refresh)
+   - Proper English formatting with Oxford comma for 3+ titles
+   - Never produces degenerate output like "Latest 0 articles"
+   - Fallback messages for no-articles case
+
+4. **Title Fallback Chain:** Primary entity → theme → "Recent Coverage" (not "Untitled" for better UX when metadata is sparse)
+
+5. **Public Copy Quality:** All user-facing copy reviewed for forbidden words, grammatical correctness, and non-degenerate behavior
+
+### Deviations from Plan
+
+None. Ticket requirements met exactly. Additional quality audits performed post-implementation per user request.
+
+### Tests Run
+
+- ✅ 29/29 display mode API tests (6 trust helpers + 13 display mode + 3 model validation + 1 LLM safety + 6 public copy cleanup)
+- ✅ 12/12 briefing narrative eligibility regression tests (FEATURE-060 behavior unchanged)
+- Command: `poetry run pytest tests/api/test_narrative_display_mode_api.py tests/services/test_briefing_narrative_eligibility.py -v`
+
+### Manual Verification
+
+1. **Trusted narrative rendering:** Generates display_mode="summary" with existing generated title/summary
+2. **Old narrative with recent activity:** Generates display_mode="article_cluster" with primary entity title and article-based fallback summary
+3. **No forbidden words:** Scanned all public display fields—none contain stale/missing/untrusted/needs refresh
+4. **Title robustness:** Handles missing entities/theme gracefully (falls back to "Recent Coverage")
+5. **Article filtering:** Skips empty/null/non-string titles; deduplicates; filters forbidden words while scanning for clean titles
+6. **No LLM calls:** Display mode computation is pure text operation
+7. **No data mutations:** API responses only; no narrative records modified
+8. **Old narratives eligible:** Narratives with last_updated recent remain visible as article_cluster cards even if first_seen is very old
+
+### Implementation Details
+
+**Files Modified:**
+- `src/crypto_news_aggregator/services/narrative_trust.py` (new) — shared trust logic
+- `src/crypto_news_aggregator/services/briefing_agent.py` — refactored to use shared helpers
+- `src/crypto_news_aggregator/api/v1/endpoints/narratives.py` — added display mode fields + computation
+- `tests/api/test_narrative_display_mode_api.py` (new) — comprehensive test coverage
+
+**API Response Schema Additions:**
+```python
+display_mode: Literal["summary", "article_cluster"]
+display_title: str
+display_summary: Optional[str]
+recent_article_count: int
+```
+
+**Endpoints Updated:**
+- `GET /narratives/active` (paginated list)
+- `GET /narratives/archived` (dormant narratives)
+- `GET /narratives/resurrections` (reactivated narratives)
+- `GET /narratives/{narrative_id}` (detail view)
+
+**Trust Cutoff Logic (reused from FEATURE-060):**
+Narrative summary is trusted if ANY of:
+- `first_seen >= cutoff`
+- `last_summary_generated_at >= cutoff`
+- `_fresh_start_validated_at >= cutoff`
+
+**Display Mode Rules:**
+- **summary mode** (trusted): uses generated title + generated summary
+- **article_cluster mode** (untrusted): uses primary entity title + deterministic article-based summary
+
+**Article-Cluster Summary Fallback Rules:**
+1. If 1+ clean article titles available: "Latest coverage includes {titles}."
+2. If 0 valid titles but recent_articles passed: "Recent coverage includes {count} article(s) in this narrative."
+3. If 0 valid titles and no recent_articles but article_count > 0: "Recent coverage includes {article_count} article(s) in this narrative."
+4. If article_count == 0: "Recent coverage is being tracked for this narrative."
+
+**Forbidden Words Filtered from Display Copy:**
+- stale
+- missing
+- untrusted
+- needs refresh

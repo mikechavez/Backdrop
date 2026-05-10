@@ -1,6 +1,6 @@
 # Sprint 019 — Fresh-Start Narrative Trust Layer
 
-**Status:** Planned  
+**Status:** In Progress (3/7 complete)  
 **Started:** 2026-05-10  
 **Target:** Protect user-facing briefings from untrusted narrative summaries while keeping the narratives page useful through deterministic article-activity fallbacks.
 
@@ -18,8 +18,8 @@ The sprint also prevents malformed LLM refinement output from publishing and rep
 
 ### In Scope
 - [ ] Prevent invalid, low-confidence, non-JSON, or model-meta briefing output from publishing.
-- [ ] Add trusted-summary eligibility for briefing narrative inputs.
-- [ ] Add backend narrative display-mode fields for public narrative cards.
+- [x] Add trusted-summary eligibility for briefing narrative inputs.
+- [x] Add backend narrative display-mode fields for public narrative cards.
 - [ ] Add deterministic, zero-LLM article-cluster fallback display for untrusted summaries.
 - [ ] Ground briefing refinement prompts with source context so refinement can repair rather than ask for missing data.
 - [ ] Add Sprint 019 verification queries and runbook notes.
@@ -42,7 +42,7 @@ The sprint also prevents malformed LLM refinement output from publishing and rep
 | 0 | TASK-095 | Briefing and Narrative Refresh Investigation | ✅ COMPLETE | medium | |
 | 1 | BUG-099 | Prevent Invalid Briefings From Publishing | ✅ COMPLETE | medium | |
 | 2 | FEATURE-060 | Add Trusted Summary Eligibility for Briefings | ✅ COMPLETE | medium | |
-| 3 | FEATURE-061 | Add Narrative Display Mode API Fields | 🔲 OPEN | medium | |
+| 3 | FEATURE-061 | Add Narrative Display Mode API Fields | ✅ COMPLETE | medium | |
 | 4 | FEATURE-062 | Add Deterministic Article Cluster Fallback | 🔲 OPEN | medium | |
 | 5 | BUG-100 | Ground Briefing Refinement With Source Context | 🔲 OPEN | medium | |
 | 6 | TASK-096 | Add Sprint 019 Verification Queries | 🔲 OPEN | small | |
@@ -178,3 +178,63 @@ _Tickets created mid-sprint for issues found during implementation._
   - No changes to narrative_refresh.py, beat_schedule.py, or public narrative display
 
 - Branch: `feature/060-trusted-summary-briefing-eligibility` | Commit: 3297f88
+
+### Session 3 (2026-05-10) — FEATURE-061 ✅
+**Add Narrative Display Mode API Fields**
+
+- **Shared trust helper module:** Created `services/narrative_trust.py` with:
+  - `get_fresh_start_cutoff()` — parses config with fallback
+  - `is_narrative_summary_trusted(narrative, cutoff) → bool` — reused from FEATURE-060
+  - Eliminated coupling; FEATURE-060 refactored to delegate (12/12 existing tests pass)
+
+- **Display mode computation:** Single `_get_narrative_display_mode(narrative, cutoff, articles) → (mode, title, summary)` helper
+  - **Trusted (summary mode):** Uses existing generated title and summary
+  - **Untrusted (article_cluster mode):** 
+    - Title: primary entity → theme → "Recent Coverage" (not "Untitled")
+    - Summary: scans articles for up to 3 clean titles (filters stale/missing/untrusted/needs refresh)
+    - Fallbacks: "Recent coverage includes {count} article(s)..." or "Recent coverage is being tracked..."
+    - Never produces degenerate copy like "Latest 0 articles"
+
+- **Endpoint updates:** Added display fields to all 4 narrative endpoints:
+  - `GET /narratives/active` (paginated)
+  - `GET /narratives/archived`
+  - `GET /narratives/resurrections`
+  - `GET /narratives/{narrative_id}`
+
+- **Response schema additions:**
+  ```python
+  display_mode: Literal["summary", "article_cluster"]
+  display_title: str
+  display_summary: Optional[str]
+  recent_article_count: int
+  ```
+
+- **Quality assurance:**
+  - Filters forbidden words from article titles (stale, missing, untrusted, needs refresh)
+  - Scans all articles (not just first 3) to find 3 clean titles
+  - Proper English formatting (Oxford comma for 3+ items)
+  - Handles empty/null/non-string titles gracefully
+  - Deduplicates article titles
+  - Never exposes internal system-state language to public API
+
+- **Testing:** 29 comprehensive tests covering:
+  - 6 trust helper tests
+  - 7 core display mode tests (trusted/untrusted/fallbacks)
+  - 5 formatting tests (1/2/3 articles, forbidden word filtering, empty titles)
+  - 6 public copy cleanup tests (missing entities, zero articles, count handling)
+  - 3 model validation tests
+  - 1 LLM safety test (no calls made)
+  - 1 old narrative eligibility test
+  - All passing
+
+- **Scope boundaries observed:**
+  - No narrative records mutated (API-only fields)
+  - No LLM calls added
+  - Trust logic reused from FEATURE-060 (no changes)
+  - Briefing behavior unchanged
+  - Old narratives with recent activity remain eligible for display
+
+- **Branch:** `feature/061-narrative-display-mode-api`
+  - Commit 206c725: feat(narratives) — initial implementation
+  - Commit e424039: refactor(narratives) — quality/robustness improvements
+  - Commit d194e74: refactor(narratives) — public copy cleanup (accepted after audit)

@@ -7,7 +7,7 @@ Provides access to detected narrative clusters from co-occurring entities.
 import json
 import logging
 from datetime import datetime, timedelta
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Literal
 from fastapi import APIRouter, Query, HTTPException
 from pydantic import BaseModel, Field
 from bson import ObjectId
@@ -15,6 +15,7 @@ from bson import ObjectId
 from ....db.operations.narratives import get_active_narratives, get_narrative_timeline, get_resurrected_narratives, get_archived_narratives
 from ....core.redis_rest_client import redis_client
 from ....db.mongodb import mongo_manager
+from ....services.narrative_trust import get_fresh_start_cutoff, is_narrative_summary_trusted
 
 logger = logging.getLogger(__name__)
 
@@ -172,6 +173,111 @@ async def get_articles_paginated(
     }
 
 
+def _get_narrative_display_mode(
+    narrative: Dict[str, Any],
+    cutoff: datetime,
+    recent_articles: List[Dict[str, Any]]
+) -> tuple[Literal["summary", "article_cluster"], str, Optional[str]]:
+    """
+    Compute display mode, title, and summary for a narrative.
+
+    Returns:
+        Tuple of (display_mode, display_title, display_summary)
+        - display_mode: "summary" if trusted, "article_cluster" if untrusted but active
+        - display_title: generated title if trusted, primary entity if article_cluster
+        - display_summary: generated summary if trusted, deterministic fallback if article_cluster
+    """
+    trusted = is_narrative_summary_trusted(narrative, cutoff)
+
+    if trusted:
+        display_mode = "summary"
+        display_title = narrative.get("title", narrative.get("theme", "Untitled"))
+        display_summary = narrative.get("summary") or narrative.get("story", "")
+        return (display_mode, display_title, display_summary)
+
+    # Untrusted: use article_cluster mode with deterministic fallback
+    display_mode = "article_cluster"
+
+    # Use primary entity (first in entities list) as deterministic title
+    # Fallback chain: primary entity → theme → "Recent Coverage"
+    entities = narrative.get("entities", [])
+    display_title = next(
+        (e for e in entities if e and isinstance(e, str)),  # First non-empty entity
+        narrative.get("theme") or "Recent Coverage"
+    )
+    # Ensure display_title is never empty string
+    if not display_title or not isinstance(display_title, str):
+        display_title = "Recent Coverage"
+
+    # Build deterministic summary from recent articles
+    display_summary = None
+    if recent_articles:
+        # Extract clean titles from recent articles (up to 3 valid titles, deduped, non-empty)
+        article_titles = []
+        forbidden_words = {"stale", "missing", "untrusted", "needs refresh"}
+
+        # Scan through articles to find up to 3 clean titles
+        for article in recent_articles:
+            # Stop once we have 3 valid titles
+            if len(article_titles) >= 3:
+                break
+
+            title = article.get("title", "")
+            # Skip empty, None, non-string, or titles containing forbidden words
+            if not title or not isinstance(title, str):
+                continue
+            if any(word in title.lower() for word in forbidden_words):
+                continue
+            # Skip duplicates
+            if title not in article_titles:
+                article_titles.append(title)
+
+        if article_titles:
+            # Build sentence from article titles with proper formatting
+            # Format: "Latest coverage includes Title 1, Title 2, and Title 3."
+            if len(article_titles) == 1:
+                display_summary = f"Latest coverage includes {article_titles[0]}."
+            elif len(article_titles) == 2:
+                display_summary = f"Latest coverage includes {article_titles[0]} and {article_titles[1]}."
+            else:
+                # 3 titles: use Oxford comma
+                display_summary = (
+                    f"Latest coverage includes {', '.join(article_titles[:-1])}, "
+                    f"and {article_titles[-1]}."
+                )
+        else:
+            # All articles filtered out; use article count from recent_articles or narrative
+            count = len(recent_articles)
+            if count > 0:
+                display_summary = (
+                    f"Recent coverage includes {count} article{'s' if count != 1 else ''} "
+                    f"in this narrative."
+                )
+            else:
+                # No articles at all
+                article_count = narrative.get("article_count", 0)
+                if article_count > 0:
+                    display_summary = (
+                        f"Recent coverage includes {article_count} article{'s' if article_count != 1 else ''} "
+                        f"in this narrative."
+                    )
+                else:
+                    # No articles whatsoever
+                    display_summary = "Recent coverage is being tracked for this narrative."
+    else:
+        # No recent articles passed in; use total article count
+        article_count = narrative.get("article_count", 0)
+        if article_count > 0:
+            display_summary = (
+                f"Recent coverage includes {article_count} article{'s' if article_count != 1 else ''} "
+                f"in this narrative."
+            )
+        else:
+            display_summary = "Recent coverage is being tracked for this narrative."
+
+    return (display_mode, display_title, display_summary)
+
+
 class TimelineSnapshot(BaseModel):
     """Timeline snapshot for a single day."""
     date: str = Field(..., description="Date in ISO format (YYYY-MM-DD)")
@@ -220,6 +326,10 @@ class NarrativeResponse(BaseModel):
     reawakening_count: Optional[int] = Field(default=None, description="Number of times narrative has been reactivated from dormant state")
     reawakened_from: Optional[str] = Field(default=None, description="ISO timestamp when narrative went dormant before most recent reactivation")
     resurrection_velocity: Optional[float] = Field(default=None, description="Articles per day in last 48 hours during reactivation")
+    display_mode: Literal["summary", "article_cluster"] = Field(..., description="Display mode: 'summary' for trusted generated summary, 'article_cluster' for untrusted with recent activity")
+    display_title: str = Field(..., description="Display title (generated for summary mode, deterministic entity for article_cluster mode)")
+    display_summary: Optional[str] = Field(default=None, description="Display summary (generated for summary mode, deterministic fallback for article_cluster)")
+    recent_article_count: int = Field(default=0, description="Number of articles in this narrative")
 
     class Config:
         populate_by_name = True  # Allow both 'id' and '_id' as field names
@@ -393,21 +503,28 @@ async def get_active_narratives_endpoint(
             # Don't fetch articles for list view - only fetch when user requests details
             # This prevents N+1 query problem and speeds up initial page load from 2 minutes to <1 second
             articles = []
-            
+
             # Lifecycle fields (heavy fields excluded in projection)
             lifecycle_state = narrative.get("lifecycle_state")
-            
+
             # Handle reawakened_from timestamp
             reawakened_from = narrative.get("reawakened_from")
             reawakened_from_str = None
             if reawakened_from:
                 reawakened_from_str = reawakened_from.isoformat() if hasattr(reawakened_from, 'isoformat') else str(reawakened_from)
-            
+
             # Note: last_article_at computation removed (was O(narratives × articles) via $lookup)
             # Use last_updated as proxy for activity timestamp
             last_article_at_str = last_updated_str
-            
+
+            # Compute display mode and fields for API response
+            trust_cutoff = get_fresh_start_cutoff()
+            display_mode, display_title, display_summary = _get_narrative_display_mode(
+                narrative, trust_cutoff, articles
+            )
+
             narrative_id = str(narrative.get("_id", ""))
+            article_count = narrative.get("article_count", 0)
             response_data.append({
                 "id": narrative_id,  # Include as 'id' for Pydantic model
                 "_id": narrative_id,  # Also include as '_id' for frontend compatibility
@@ -415,7 +532,7 @@ async def get_active_narratives_endpoint(
                 "title": narrative.get("title", narrative.get("theme", "")),  # Fallback to theme if no title
                 "summary": summary,
                 "entities": narrative.get("entities", []),
-                "article_count": narrative.get("article_count", 0),
+                "article_count": article_count,
                 "mention_velocity": narrative.get("mention_velocity", 0.0),
                 "lifecycle": narrative.get("lifecycle", "emerging"),
                 "lifecycle_state": lifecycle_state,
@@ -433,6 +550,10 @@ async def get_active_narratives_endpoint(
                 "reawakening_count": narrative.get("reawakening_count"),
                 "reawakened_from": reawakened_from_str,
                 "resurrection_velocity": narrative.get("resurrection_velocity"),
+                "display_mode": display_mode,
+                "display_title": display_title,
+                "display_summary": display_summary,
+                "recent_article_count": article_count,
                 # Add backward compatibility fields for old UI
                 "updated_at": last_updated_str,
                 "story": summary
@@ -580,14 +701,21 @@ async def get_archived_narratives_endpoint(
             reawakened_from_str = None
             if reawakened_from:
                 reawakened_from_str = reawakened_from.isoformat() if hasattr(reawakened_from, 'isoformat') else str(reawakened_from)
-            
+
+            # Compute display mode and fields for API response
+            trust_cutoff = get_fresh_start_cutoff()
+            display_mode, display_title, display_summary = _get_narrative_display_mode(
+                narrative, trust_cutoff, articles
+            )
+
+            article_count = narrative.get("article_count", 0)
             response_data.append({
                 "_id": str(narrative.get("_id", "")),  # Include MongoDB ObjectId as string
                 "theme": narrative.get("theme", narrative.get("nucleus_entity", "")),
                 "title": title,
                 "summary": summary,
                 "entities": entities,
-                "article_count": narrative.get("article_count", 0),
+                "article_count": article_count,
                 "mention_velocity": narrative.get("mention_velocity", 0.0),
                 "lifecycle": narrative.get("lifecycle", "emerging"),
                 "lifecycle_state": lifecycle_state,
@@ -603,7 +731,11 @@ async def get_archived_narratives_endpoint(
                 "articles": articles,
                 "reawakening_count": narrative.get("reawakening_count"),
                 "reawakened_from": reawakened_from_str,
-                "resurrection_velocity": narrative.get("resurrection_velocity")
+                "resurrection_velocity": narrative.get("resurrection_velocity"),
+                "display_mode": display_mode,
+                "display_title": display_title,
+                "display_summary": display_summary,
+                "recent_article_count": article_count
             })
         
         return [NarrativeResponse(**n) for n in response_data]
@@ -710,13 +842,20 @@ async def get_resurrected_narratives_endpoint(
                 elif isinstance(fingerprint_raw, list):
                     fingerprint = fingerprint_raw
             
+            # Compute display mode and fields for API response
+            trust_cutoff = get_fresh_start_cutoff()
+            display_mode, display_title, display_summary = _get_narrative_display_mode(
+                narrative, trust_cutoff, articles
+            )
+
+            article_count = narrative.get("article_count", 0)
             response_data.append({
                 "_id": str(narrative.get("_id", "")),  # Include MongoDB ObjectId as string
                 "theme": narrative.get("theme", ""),
                 "title": narrative.get("title", narrative.get("theme", "")),
                 "summary": summary,
                 "entities": narrative.get("entities", []),
-                "article_count": narrative.get("article_count", 0),
+                "article_count": article_count,
                 "mention_velocity": narrative.get("mention_velocity", 0.0),
                 "lifecycle": narrative.get("lifecycle", "emerging"),
                 "lifecycle_state": lifecycle_state,
@@ -732,7 +871,11 @@ async def get_resurrected_narratives_endpoint(
                 "articles": articles,
                 "reawakening_count": narrative.get("reawakening_count"),
                 "reawakened_from": reawakened_from_str,
-                "resurrection_velocity": narrative.get("resurrection_velocity")
+                "resurrection_velocity": narrative.get("resurrection_velocity"),
+                "display_mode": display_mode,
+                "display_title": display_title,
+                "display_summary": display_summary,
+                "recent_article_count": article_count
             })
         
         return [NarrativeResponse(**n) for n in response_data]
@@ -881,8 +1024,15 @@ async def get_narrative_by_id_endpoint(narrative_id: str):
         reawakened_from_str = None
         if reawakened_from:
             reawakened_from_str = reawakened_from.isoformat() if hasattr(reawakened_from, 'isoformat') else str(reawakened_from)
-        
+
+        # Compute display mode and fields for API response
+        trust_cutoff = get_fresh_start_cutoff()
+        display_mode, display_title, display_summary = _get_narrative_display_mode(
+            narrative, trust_cutoff, articles
+        )
+
         narrative_id = str(narrative.get("_id", ""))
+        article_count = narrative.get("article_count", 0)
         response_data = {
             "id": narrative_id,  # Include as 'id' for Pydantic model
             "_id": narrative_id,  # Also include as '_id' for frontend compatibility
@@ -890,7 +1040,7 @@ async def get_narrative_by_id_endpoint(narrative_id: str):
             "title": narrative.get("title", narrative.get("theme", "")),
             "summary": summary,
             "entities": narrative.get("entities", []),
-            "article_count": narrative.get("article_count", 0),
+            "article_count": article_count,
             "mention_velocity": narrative.get("mention_velocity", 0.0),
             "lifecycle": narrative.get("lifecycle", "emerging"),
             "lifecycle_state": lifecycle_state,
@@ -906,9 +1056,13 @@ async def get_narrative_by_id_endpoint(narrative_id: str):
             "articles": articles,
             "reawakening_count": narrative.get("reawakening_count"),
             "reawakened_from": reawakened_from_str,
-            "resurrection_velocity": narrative.get("resurrection_velocity")
+            "resurrection_velocity": narrative.get("resurrection_velocity"),
+            "display_mode": display_mode,
+            "display_title": display_title,
+            "display_summary": display_summary,
+            "recent_article_count": article_count
         }
-        
+
         return NarrativeResponse(**response_data)
     
     except HTTPException:
