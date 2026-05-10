@@ -41,7 +41,7 @@ The sprint also prevents malformed LLM refinement output from publishing and rep
 |---|--------|-------|--------|-----|--------|
 | 0 | TASK-095 | Briefing and Narrative Refresh Investigation | ✅ COMPLETE | medium | |
 | 1 | BUG-099 | Prevent Invalid Briefings From Publishing | ✅ COMPLETE | medium | |
-| 2 | FEATURE-060 | Add Trusted Summary Eligibility for Briefings | 🔲 OPEN | medium | |
+| 2 | FEATURE-060 | Add Trusted Summary Eligibility for Briefings | ✅ COMPLETE | medium | |
 | 3 | FEATURE-061 | Add Narrative Display Mode API Fields | 🔲 OPEN | medium | |
 | 4 | FEATURE-062 | Add Deterministic Article Cluster Fallback | 🔲 OPEN | medium | |
 | 5 | BUG-100 | Ground Briefing Refinement With Source Context | 🔲 OPEN | medium | |
@@ -149,3 +149,32 @@ _Tickets created mid-sprint for issues found during implementation._
 - Added task_id to rejection logging for debugging/correlation.
 - 28 comprehensive tests added, all passing (17 validation + 2 parse + 5 save + 3 available_data + 1 filter).
 - Branch: `fix/bug-099-prevent-invalid-briefings-publishing` | Commits: 270d800, 5184d21
+
+### Session 2 (2026-05-10) — FEATURE-060 ✅
+**Add Trusted Summary Eligibility for Briefings**
+
+- **Config:** Added `FRESH_START_CUTOFF: str = "2026-05-10T00:00:00Z"` (configurable via env var)
+  - Malformed config logs error and falls back to explicit default (not epoch)
+
+- **Trust eligibility helper:** `_is_narrative_summary_trusted(narrative, cutoff) → bool`
+  - Returns True if ANY: `first_seen >= cutoff` OR `last_summary_generated_at >= cutoff` OR `_fresh_start_validated_at >= cutoff`
+  - Handles datetime objects, ISO strings, and timezone-naive timestamps
+  - Fail-closed: missing/malformed timestamps excluded
+
+- **Filter applied in `_get_active_narratives()`:**
+  - Order: Fetch (limit×3) → filter recency → **apply trust filter** → sort by ranking → return top N
+  - Critical: Filter applied BEFORE final `:limit` slice (prevents loss of trusted narratives ranked 16+)
+  - No backfill: briefings generate with <15 trusted narratives if needed
+
+- **Logging:** active_narratives_considered, trusted_narratives_selected, untrusted_narratives_excluded, cutoff (ISO format)
+
+- **Testing:** 12 unit tests covering all trust conditions, fail-closed behavior, config parsing, timezone handling, boundary conditions
+  - All tests passing
+  - Manual verification: filter timing, config error handling, sparse narrative handling, read-only filter
+
+- **Scope boundaries observed:**
+  - No narrative records mutated (read-only filter)
+  - No LLM calls added
+  - No changes to narrative_refresh.py, beat_schedule.py, or public narrative display
+
+- Branch: `feature/060-trusted-summary-briefing-eligibility` | Commit: 3297f88
