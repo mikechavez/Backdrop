@@ -1,11 +1,12 @@
 ---
 id: BUG-102
 type: bug
-status: backlog
+status: complete
 priority: high
 severity: high
 created: 2026-05-10
-branch: bug/refresh-task-flag-clearing-investigation
+branch: fix/bug-102-preserve-refresh-flag-on-failure
+commit: c1af536
 ---
 
 # BUG-102: Investigate Narrative Refresh Flag Clearing Without Summary Timestamp
