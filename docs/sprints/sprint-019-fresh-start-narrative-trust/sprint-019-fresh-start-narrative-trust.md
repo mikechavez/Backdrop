@@ -40,7 +40,7 @@ The sprint also prevents malformed LLM refinement output from publishing and rep
 | # | Ticket | Title | Status | Est | Actual |
 |---|--------|-------|--------|-----|--------|
 | 0 | TASK-095 | Briefing and Narrative Refresh Investigation | ✅ COMPLETE | medium | |
-| 1 | BUG-099 | Prevent Invalid Briefings From Publishing | 🔲 OPEN | medium | |
+| 1 | BUG-099 | Prevent Invalid Briefings From Publishing | ✅ COMPLETE | medium | |
 | 2 | FEATURE-060 | Add Trusted Summary Eligibility for Briefings | 🔲 OPEN | medium | |
 | 3 | FEATURE-061 | Add Narrative Display Mode API Fields | 🔲 OPEN | medium | |
 | 4 | FEATURE-062 | Add Deterministic Article Cluster Fallback | 🔲 OPEN | medium | |
@@ -130,11 +130,22 @@ _Tickets created mid-sprint for issues found during implementation._
 
 ## Session Log
 
-### Session 1 (2026-05-10) — TASK-095 ✅
-**Briefing and Narrative Refresh Investigation**
+### Session 1 (2026-05-10) — TASK-095 & BUG-099 ✅
+**Briefing and Narrative Refresh Investigation + Invalid Briefing Prevention**
+
+**TASK-095:**
 - Confirmed invalid briefing output was published because raw non-JSON LLM text can become `content.narrative` with `confidence_score=0.3`.
 - Confirmed `_save_briefing()` publishes non-smoke briefings without confidence, empty-insight, parse-failure, or meta-output validation.
 - Confirmed refinement prompt references `AVAILABLE DATA` but only includes counts, not the actual narrative context.
 - Confirmed 341 active narratives are missing `last_summary_generated_at`, while only 4 were flagged for refresh.
 - Confirmed narrative refresh task exists, is batched, and converts string article IDs to ObjectId correctly.
-- Branch: `task/briefing-narrative-refresh-investigation` | Commit: `[fill in]`
+
+**BUG-099:**
+- Implemented `_validate_briefing_publishable()` with 7 rejection criteria (parse_failed, low confidence, empty narrative/insights, model-meta phrases).
+- Added `parse_failed` field to `GeneratedBriefing` to explicitly track JSON parse failures.
+- Modified `_save_briefing()` to validate before publishing and save rejected briefings unpublished with rejection metadata.
+- Hardened `_get_production_briefings_filter()` to exclude invalid briefings at query level.
+- Implemented context-aware "available data" detection to avoid false positives on valid briefings.
+- Added task_id to rejection logging for debugging/correlation.
+- 28 comprehensive tests added, all passing (17 validation + 2 parse + 5 save + 3 available_data + 1 filter).
+- Branch: `fix/bug-099-prevent-invalid-briefings-publishing` | Commits: 270d800, 5184d21

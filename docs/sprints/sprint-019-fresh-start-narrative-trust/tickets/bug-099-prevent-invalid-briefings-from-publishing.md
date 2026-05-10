@@ -248,23 +248,60 @@ Mitigation:
 
 ## Resolution
 
-**Status:** Open  
-**Fixed:** YYYY-MM-DD  
-**Branch:**  
-**Commit:**
+**Status:** ✅ COMPLETE  
+**Fixed:** 2026-05-10  
+**Branch:** `fix/bug-099-prevent-invalid-briefings-publishing`  
+**Commits:** 
+- 270d800: fix(bug-099): Prevent invalid briefings from publishing
+- 5184d21: fix(bug-099): Refine available_data detection and add task_id logging
 
 ### Root Cause
 
-<!-- Fill after fixing. -->
+`_parse_briefing_response()` silently converted JSON parse failures to raw LLM text with confidence_score=0.3, and `_save_briefing()` published non-smoke briefings without validating confidence, insights, or content quality. Public briefing API returned published briefings without filtering invalid ones.
 
 ### Changes Made
 
-<!-- Fill after fixing. -->
+1. **Added `parse_failed` field to `GeneratedBriefing`** to explicitly track JSON parse failures
+2. **Implemented `_validate_briefing_publishable()`** function that rejects:
+   - Parse failures (parse_failed=True)
+   - Low confidence (score < 0.5)
+   - Empty/whitespace narrative
+   - Empty key_insights
+   - Model-meta phrases (context-aware detection for "available data")
+3. **Modified `_save_briefing()`** to call validation before setting published=true
+4. **Invalid briefings saved unpublished** with rejection metadata for debugging:
+   - metadata.invalid_output: true
+   - metadata.invalid_reason: specific reason code
+   - metadata.invalidated_at: timestamp
+5. **Hardened `_get_production_briefings_filter()`** to exclude invalid briefings at query level
+6. **Added task_id to rejection logging** for debugging/correlation
 
 ### Testing
 
-<!-- Fill after fixing. -->
+✅ 28 comprehensive tests added in `test_bug_099_invalid_briefing_publication.py`:
+- 17 validation function tests (confidence, narrative, insights, parse_failed, meta-phrases)
+- 2 parse-failure marking tests
+- 5 save-behavior tests  
+- 3 available_data edge-case tests
+- 1 database filter test
+
+✅ All existing tests pass (test_bug_081_briefing_quality.py: 7/7)
+
+**Run tests:**
+```bash
+poetry run pytest tests/services/test_bug_099_invalid_briefing_publication.py -v
+```
 
 ### Files Changed
 
-<!-- Fill after fixing. -->
+- `src/crypto_news_aggregator/services/briefing_agent.py` (93 lines added/modified)
+  - GeneratedBriefing: added parse_failed field
+  - _parse_briefing_response(): mark JSON failures
+  - _validate_briefing_publishable(): new validation function
+  - _save_briefing(): call validator before publishing, add rejection metadata, include task_id in logging
+
+- `src/crypto_news_aggregator/db/operations/briefing.py` (4 lines added)
+  - _get_production_briefings_filter(): add metadata.invalid_output exclusion
+
+- `tests/services/test_bug_099_invalid_briefing_publication.py` (434 lines added - NEW)
+  - Comprehensive test suite with 28 tests
