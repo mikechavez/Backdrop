@@ -199,15 +199,15 @@ def _get_narrative_display_mode(
     display_mode = "article_cluster"
 
     # Use primary entity (first in entities list) as deterministic title
-    # Fallback chain: primary entity → theme → "Untitled"
+    # Fallback chain: primary entity → theme → "Recent Coverage"
     entities = narrative.get("entities", [])
     display_title = next(
         (e for e in entities if e and isinstance(e, str)),  # First non-empty entity
-        narrative.get("theme") or "Untitled"
+        narrative.get("theme") or "Recent Coverage"
     )
     # Ensure display_title is never empty string
     if not display_title or not isinstance(display_title, str):
-        display_title = "Untitled"
+        display_title = "Recent Coverage"
 
     # Build deterministic summary from recent articles
     display_summary = None
@@ -246,13 +246,34 @@ def _get_narrative_display_mode(
                     f"and {article_titles[-1]}."
                 )
         else:
-            # All articles filtered out; use article count
+            # All articles filtered out; use article count from recent_articles or narrative
             count = len(recent_articles)
-            display_summary = f"Latest {count} article{'s' if count != 1 else ''} in this narrative."
+            if count > 0:
+                display_summary = (
+                    f"Recent coverage includes {count} article{'s' if count != 1 else ''} "
+                    f"in this narrative."
+                )
+            else:
+                # No articles at all
+                article_count = narrative.get("article_count", 0)
+                if article_count > 0:
+                    display_summary = (
+                        f"Recent coverage includes {article_count} article{'s' if article_count != 1 else ''} "
+                        f"in this narrative."
+                    )
+                else:
+                    # No articles whatsoever
+                    display_summary = "Recent coverage is being tracked for this narrative."
     else:
-        # No recent articles: use total article count
+        # No recent articles passed in; use total article count
         article_count = narrative.get("article_count", 0)
-        display_summary = f"Recent coverage with {article_count} article{'s' if article_count != 1 else ''}."
+        if article_count > 0:
+            display_summary = (
+                f"Recent coverage includes {article_count} article{'s' if article_count != 1 else ''} "
+                f"in this narrative."
+            )
+        else:
+            display_summary = "Recent coverage is being tracked for this narrative."
 
     return (display_mode, display_title, display_summary)
 

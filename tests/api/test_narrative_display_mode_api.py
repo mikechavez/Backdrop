@@ -147,8 +147,8 @@ class TestNarrativeDisplayMode:
         assert "stale" not in summary.lower()
         assert "untrusted" not in summary.lower()
 
-    def test_article_cluster_fallback_no_articles(self, fresh_start_cutoff):
-        """Article cluster with no articles should use article count fallback."""
+    def test_article_cluster_fallback_no_articles_with_count(self, fresh_start_cutoff):
+        """Article cluster with no articles but article_count > 0 should use count fallback."""
         narrative = {
             "theme": "regulatory",
             "title": "Old Title",
@@ -165,8 +165,28 @@ class TestNarrativeDisplayMode:
         )
         assert mode == "article_cluster"
         assert title == "SEC"
-        assert "5 articles" in summary
+        assert summary == "Recent coverage includes 5 articles in this narrative."
         assert "stale" not in summary.lower()
+
+    def test_article_cluster_fallback_zero_articles(self, fresh_start_cutoff):
+        """Article cluster with zero articles should use tracking message."""
+        narrative = {
+            "theme": "regulatory",
+            "title": "Old Title",
+            "summary": "Stale.",
+            "entities": ["SEC"],
+            "article_count": 0,
+            "first_seen": fresh_start_cutoff - timedelta(days=30),
+            "last_summary_generated_at": None,
+            "_fresh_start_validated_at": None,
+        }
+        articles = []
+        mode, title, summary = _get_narrative_display_mode(
+            narrative, fresh_start_cutoff, articles
+        )
+        assert mode == "article_cluster"
+        assert title == "SEC"
+        assert summary == "Recent coverage is being tracked for this narrative."
 
     def test_article_cluster_uses_primary_entity(self, fresh_start_cutoff):
         """Article cluster mode should use primary entity as title."""
@@ -349,11 +369,12 @@ class TestNarrativeDisplayMode:
         assert summary == "Latest coverage includes SEC Action."
 
     def test_article_cluster_title_fallback_chain(self, fresh_start_cutoff):
-        """Display title should follow fallback chain: entity → theme → Untitled."""
+        """Display title should follow fallback chain: entity → theme → Recent Coverage."""
         # Test 1: Primary entity
         narrative = {
             "entities": ["Bitcoin"],
             "theme": "crypto_prices",
+            "article_count": 0,
             "first_seen": fresh_start_cutoff - timedelta(days=30),
         }
         articles = []
@@ -366,6 +387,7 @@ class TestNarrativeDisplayMode:
         narrative = {
             "entities": [],
             "theme": "crypto_prices",
+            "article_count": 0,
             "first_seen": fresh_start_cutoff - timedelta(days=30),
         }
         mode, title, summary = _get_narrative_display_mode(
@@ -373,21 +395,23 @@ class TestNarrativeDisplayMode:
         )
         assert title == "crypto_prices"
 
-        # Test 3: No entity, no theme, use Untitled
+        # Test 3: No entity, no theme, use Recent Coverage
         narrative = {
             "entities": [],
             "theme": "",
+            "article_count": 0,
             "first_seen": fresh_start_cutoff - timedelta(days=30),
         }
         mode, title, summary = _get_narrative_display_mode(
             narrative, fresh_start_cutoff, articles
         )
-        assert title == "Untitled"
+        assert title == "Recent Coverage"
 
         # Test 4: Entity is empty string, fall through to theme
         narrative = {
             "entities": [""],
             "theme": "fallback_theme",
+            "article_count": 0,
             "first_seen": fresh_start_cutoff - timedelta(days=30),
         }
         mode, title, summary = _get_narrative_display_mode(
@@ -505,6 +529,106 @@ class TestNoLLMCalls:
             assert summary is not None
             # LLM gateway should not have been called
             mock_gateway.assert_not_called()
+
+
+class TestPublicCopyCleanup:
+    """Test public-facing copy cleanup requirements."""
+
+    def test_missing_entities_theme_returns_recent_coverage(self, fresh_start_cutoff):
+        """Missing entities/theme returns display_title='Recent Coverage', not generic fallback."""
+        narrative = {
+            "entities": [],
+            "theme": "",
+            "article_count": 3,
+            "first_seen": fresh_start_cutoff - timedelta(days=30),
+            "last_summary_generated_at": None,
+            "_fresh_start_validated_at": None,
+        }
+        articles = []
+        mode, title, summary = _get_narrative_display_mode(
+            narrative, fresh_start_cutoff, articles
+        )
+        assert title == "Recent Coverage"
+        assert title != "Untitled"
+        assert title != ""
+
+    def test_zero_articles_zero_count_tracking_message(self, fresh_start_cutoff):
+        """Zero articles and zero count produces tracking message, not 'Latest 0 articles'."""
+        narrative = {
+            "theme": "test",
+            "entities": ["Entity"],
+            "article_count": 0,
+            "first_seen": fresh_start_cutoff - timedelta(days=30),
+            "last_summary_generated_at": None,
+            "_fresh_start_validated_at": None,
+        }
+        articles = []
+        mode, title, summary = _get_narrative_display_mode(
+            narrative, fresh_start_cutoff, articles
+        )
+        # Should NOT have "Latest 0 articles" or "Recent 0 articles"
+        assert summary == "Recent coverage is being tracked for this narrative."
+        assert "Latest 0" not in summary
+        assert "Recent 0" not in summary
+
+    def test_zero_valid_titles_but_positive_count_uses_count_message(self, fresh_start_cutoff):
+        """Zero valid titles but article_count > 0 produces proper count message."""
+        narrative = {
+            "theme": "test",
+            "entities": ["Entity"],
+            "article_count": 7,
+            "first_seen": fresh_start_cutoff - timedelta(days=30),
+            "last_summary_generated_at": None,
+            "_fresh_start_validated_at": None,
+        }
+        # All articles filtered (forbidden words) - 3 articles passed
+        articles = [
+            {"title": "Data missing from system"},
+            {"title": "Summary is stale"},
+            {"title": "Status: untrusted"},
+        ]
+        mode, title, summary = _get_narrative_display_mode(
+            narrative, fresh_start_cutoff, articles
+        )
+        # Uses count from recent_articles (3) since articles were passed
+        assert summary == "Recent coverage includes 3 articles in this narrative."
+        assert "Latest" not in summary  # Should not be "Latest"
+        assert "stale" not in summary.lower()
+        assert "missing" not in summary.lower()
+
+    def test_zero_valid_titles_uses_narrative_count_fallback(self, fresh_start_cutoff):
+        """When all articles filtered but no articles passed, uses narrative article_count."""
+        narrative = {
+            "theme": "test",
+            "entities": ["Entity"],
+            "article_count": 7,
+            "first_seen": fresh_start_cutoff - timedelta(days=30),
+            "last_summary_generated_at": None,
+            "_fresh_start_validated_at": None,
+        }
+        # No articles passed at all
+        articles = []
+        mode, title, summary = _get_narrative_display_mode(
+            narrative, fresh_start_cutoff, articles
+        )
+        # Uses narrative article_count (7) since no articles provided
+        assert summary == "Recent coverage includes 7 articles in this narrative."
+
+    def test_single_article_uses_latest_coverage(self, fresh_start_cutoff):
+        """Single article should produce 'Latest coverage includes...'."""
+        narrative = {
+            "theme": "test",
+            "entities": ["Bitcoin"],
+            "article_count": 1,
+            "first_seen": fresh_start_cutoff - timedelta(days=30),
+            "last_summary_generated_at": None,
+            "_fresh_start_validated_at": None,
+        }
+        articles = [{"title": "Bitcoin at $80K"}]
+        mode, title, summary = _get_narrative_display_mode(
+            narrative, fresh_start_cutoff, articles
+        )
+        assert summary == "Latest coverage includes Bitcoin at $80K."
 
 
 class TestOldNarrativesStayActive:
