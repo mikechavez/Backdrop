@@ -1,6 +1,6 @@
 # Sprint 019 — Fresh-Start Narrative Trust Layer
 
-**Status:** In Progress (3/7 complete)  
+**Status:** In Progress (4/7 complete)  
 **Started:** 2026-05-10  
 **Target:** Protect user-facing briefings from untrusted narrative summaries while keeping the narratives page useful through deterministic article-activity fallbacks.
 
@@ -17,10 +17,10 @@ The sprint also prevents malformed LLM refinement output from publishing and rep
 ## Scope Boundary
 
 ### In Scope
-- [ ] Prevent invalid, low-confidence, non-JSON, or model-meta briefing output from publishing.
+- [x] Prevent invalid, low-confidence, non-JSON, or model-meta briefing output from publishing.
 - [x] Add trusted-summary eligibility for briefing narrative inputs.
 - [x] Add backend narrative display-mode fields for public narrative cards.
-- [ ] Add deterministic, zero-LLM article-cluster fallback display for untrusted summaries.
+- [x] Add deterministic, zero-LLM article-cluster fallback display for untrusted summaries.
 - [ ] Ground briefing refinement prompts with source context so refinement can repair rather than ask for missing data.
 - [ ] Add Sprint 019 verification queries and runbook notes.
 
@@ -43,7 +43,7 @@ The sprint also prevents malformed LLM refinement output from publishing and rep
 | 1 | BUG-099 | Prevent Invalid Briefings From Publishing | ✅ COMPLETE | medium | |
 | 2 | FEATURE-060 | Add Trusted Summary Eligibility for Briefings | ✅ COMPLETE | medium | |
 | 3 | FEATURE-061 | Add Narrative Display Mode API Fields | ✅ COMPLETE | medium | |
-| 4 | FEATURE-062 | Add Deterministic Article Cluster Fallback | 🔲 OPEN | medium | |
+| 4 | FEATURE-062 | Add Deterministic Article Cluster Fallback | ✅ COMPLETE | medium | |
 | 5 | BUG-100 | Ground Briefing Refinement With Source Context | 🔲 OPEN | medium | |
 | 6 | TASK-096 | Add Sprint 019 Verification Queries | 🔲 OPEN | small | |
 
@@ -238,3 +238,52 @@ _Tickets created mid-sprint for issues found during implementation._
   - Commit 206c725: feat(narratives) — initial implementation
   - Commit e424039: refactor(narratives) — quality/robustness improvements
   - Commit d194e74: refactor(narratives) — public copy cleanup (accepted after audit)
+
+### Session 4 (2026-05-10) — FEATURE-062 ✅
+**Add Deterministic Article Cluster Fallback (Frontend)**
+
+- **Frontend type extension:** Extended `Narrative` interface in `context-owl-ui/src/types/index.ts`
+  - `display_mode?: "summary" | "article_cluster"`
+  - `display_title?: string`
+  - `display_summary?: string | null`
+  - `recent_article_count?: number`
+
+- **Rendering logic update:** Modified `Narratives.tsx` (lines 134-151, 343-373, 380)
+  - **Display computation:**
+    - `cardTitle`: prefers display_title → title → theme (never computes trust from timestamps)
+    - `cardSummary`: uses display_summary if defined, else summary/story
+    - `displayMode`: defaults to "summary" (backward compatible)
+    - `displayArticleCount`: uses recent_article_count in article_cluster mode
+  - **Conditional rendering:**
+    - **article_cluster mode:** Renders {cardTitle} → {displayArticleCount} recent article(s) → {cardSummary}
+    - **summary mode:** Renders {cardTitle} → {cardSummary} → entity tags (preserved)
+    - **Both modes:** Article list section (lines 375+) renders unchanged; expandable/paginated in both modes
+  - **No legacy field exposure:** Article-cluster mode does not render title/summary/story/theme when display fields present
+
+- **Backward compatibility:** Frontend gracefully falls back to legacy title/summary if display fields absent
+
+- **UI safety:**
+  - No internal status language (stale, missing, untrusted, needs refresh, summary status)
+  - No frontend trust computation from timestamps
+  - No entity tags shown in article-cluster mode (no internal metadata)
+
+- **Build verification:**
+  - TypeScript: 0 errors
+  - Production build: 2148 modules, 145KB gzipped
+  - All changes frontend-only; no backend files modified
+
+- **Test audit:**
+  - Code audit: Verified article-cluster mode does not render legacy fields when display fields present
+  - Trace through Bitcoin stale-case: Correctly hides "Bitcoin Holds $75K..." and "Old stale generated summary"
+  - Backward compatibility: Summary mode works with/without display fields
+  - No automated test framework exists (no jest/vitest); ready for manual verification on dev/staging
+
+- **Scope boundaries observed:**
+  - No backend files modified
+  - No data mutations
+  - No LLM calls added
+  - No page redesign (layout preserved, mode-based rendering only)
+  - Article list not hidden in article-cluster mode
+
+- **Branch:** `feature/062-deterministic-article-cluster-fallback`
+  - Commit 61724d5: feat(narratives) — display mode fields and article-cluster rendering
