@@ -235,10 +235,103 @@ Expected: this count represents narratives eligible for briefing synthesis.
 
 ## Completion Summary
 
-- Actual complexity:
-- Branch:
-- Commit:
-- Key decisions made:
-- Deviations from plan:
-- Tests run:
-- Manual verification:
+**Status:** ✅ COMPLETE  
+**Branch:** `feature/060-trusted-summary-briefing-eligibility`  
+**Commit:** `3297f88` — feat(briefing-narratives): Add trusted summary eligibility filter for briefing synthesis  
+**Actual complexity:** Medium (as estimated)
+
+### Implementation Details
+
+#### 1. Configuration
+**File:** `src/crypto_news_aggregator/core/config.py`
+- Added `FRESH_START_CUTOFF: str = "2026-05-10T00:00:00Z"` (configurable via env var)
+- Default: `2026-05-10T00:00:00Z` (as specified in ticket)
+
+#### 2. Briefing Agent Changes
+**File:** `src/crypto_news_aggregator/services/briefing_agent.py`
+
+**Helper function: `get_fresh_start_cutoff() → datetime`** (lines 65-81)
+- Parses config value from ISO string to datetime
+- Cached at module load for performance (global `_fresh_start_cutoff`)
+- Error handling: Logs error message and falls back to explicit default `2026-05-10T00:00:00Z` (NOT epoch)
+- Malformed config message: `"Invalid FRESH_START_CUTOFF config: {value} — {error}. Falling back to explicit default 2026-05-10T00:00:00Z. Please check environment configuration."`
+
+**Helper function: `_is_narrative_summary_trusted(narrative, cutoff) → bool`** (lines 86-142)
+- Returns True if ANY condition is met:
+  - `first_seen >= cutoff`
+  - `last_summary_generated_at >= cutoff`
+  - `_fresh_start_validated_at >= cutoff`
+- Handles multiple timestamp formats:
+  - datetime objects (direct comparison)
+  - ISO strings (parsed with `fromisoformat()`)
+  - Timezone-naive datetimes (converted to UTC)
+- Fail-closed behavior: missing or malformed timestamps → False (narrative excluded)
+- No database mutations (pure function)
+
+**Modified: `_get_active_narratives(limit=15, max_age_days=7)` async method** (lines 381-468)
+- **Order of operations (critical):**
+  1. Fetch `limit * 3` active narratives from DB (line 400-404)
+  2. Filter by recency (articles within 7 days) → `fresh_narratives` list (line 411-448)
+  3. **Apply trust filter BEFORE limiting** (line 452-463):
+     - `trusted_narratives = [n for n in fresh_narratives if _is_narrative_summary_trusted(n, trust_cutoff)]`
+  4. Sort by fresh recency score (preserves ranking among trusted narratives) (line 465-466)
+  5. Return top N: `trusted_narratives[:limit]` (line 468)
+
+- **Logging (line 458-463):**
+  ```
+  Narrative trust filter: active_narratives_considered={N}, 
+  trusted_narratives_selected={M}, 
+  untrusted_narratives_excluded={N-M}, 
+  cutoff={ISO datetime}
+  ```
+
+- **Behavior with sparse trusted narratives:**
+  - If only 8 trusted narratives exist, returns 8 (no backfill with untrusted)
+  - If zero trusted narratives exist, returns empty list (graceful degradation; briefing skips with "insufficient data")
+
+#### 3. Tests
+**File:** `tests/services/test_briefing_narrative_eligibility.py` (new)
+- 12 unit tests covering all acceptance criteria:
+  1. ✅ New narrative (first_seen >= cutoff) → TRUSTED
+  2. ✅ Old narrative (fresh summary) → TRUSTED
+  3. ✅ Old narrative (manual validation) → TRUSTED
+  4. ✅ Old narrative (missing all timestamps) → UNTRUSTED (fail-closed)
+  5. ✅ Malformed timestamp → UNTRUSTED (fail-closed)
+  6. ✅ Missing first_seen (checks other fields) → TRUSTED
+  7. ✅ Timezone-naive timestamp → safe comparison
+  8. ✅ ISO string timestamp → parsed correctly
+  9. ✅ Timestamp exactly at cutoff → TRUSTED (>= comparison)
+  10. ✅ Timestamp before cutoff → UNTRUSTED
+  11. ✅ Multiple conditions (logical OR) → TRUSTED if any met
+  12. ✅ Config parsing → returns datetime with timezone
+
+- **Test result:** 12 passed, 0 failed
+
+### Key Decisions
+
+1. **Parse cutoff once at module load (cached)** → Performance: avoid reparsing on every narrative check
+2. **Fail-closed behavior** → Missing/malformed timestamps exclude narratives (conservative, safe)
+3. **Malformed config logs + explicit default** → Operators see error; filter remains active with known default (not epoch)
+4. **Filter before limit** → Applied to `fresh_narratives` before `[:limit]` slice prevents losing trusted narratives ranked 16+
+5. **No backfill** → Briefings generate with <15 narratives if trust count is low (no silent untrusted injection)
+6. **Read-only implementation** → Zero database writes; pure filtering logic
+
+### Deviations from Plan
+None. Implementation matches ticket requirements exactly.
+
+### Manual Verification
+
+- ✅ Config parsing: valid ISO string → datetime with UTC timezone
+- ✅ Config error handling: malformed config → logs error + uses explicit 2026-05-10T00:00:00Z default
+- ✅ Trust eligibility: all three conditions (first_seen, last_summary_generated_at, _fresh_start_validated_at) tested
+- ✅ Fail-closed: missing timestamps → excluded; malformed → excluded
+- ✅ Filter timing: applied at line 455 before limit at line 468
+- ✅ Ranking preserved: sort by fresh_recency after filter maintains order
+- ✅ Sparse narratives: briefings can generate with <15 trusted narratives (no crash, no backfill)
+- ✅ No mutations: only `.find()` calls to narratives collection (read-only)
+- ✅ Logging: active_narratives_considered, trusted_narratives_selected, untrusted_narratives_excluded, cutoff all logged
+
+### Files Modified
+1. `src/crypto_news_aggregator/core/config.py` — Added FRESH_START_CUTOFF config
+2. `src/crypto_news_aggregator/services/briefing_agent.py` — Added helpers + filter logic
+3. `tests/services/test_briefing_narrative_eligibility.py` — New test file (12 tests)
