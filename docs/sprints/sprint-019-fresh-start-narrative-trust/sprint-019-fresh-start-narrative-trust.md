@@ -1,6 +1,6 @@
 # Sprint 019 — Fresh-Start Narrative Trust Layer
 
-**Status:** In Progress (5/7 complete)  
+**Status:** In Progress (6/7 complete)  
 **Started:** 2026-05-10  
 **Target:** Protect user-facing briefings from untrusted narrative summaries while keeping the narratives page useful through deterministic article-activity fallbacks.
 
@@ -21,8 +21,8 @@ The sprint also prevents malformed LLM refinement output from publishing and rep
 - [x] Add trusted-summary eligibility for briefing narrative inputs.
 - [x] Add backend narrative display-mode fields for public narrative cards.
 - [x] Add deterministic, zero-LLM article-cluster fallback display for untrusted summaries.
-- [ ] Ground briefing refinement prompts with source context so refinement can repair rather than ask for missing data.
-- [ ] Add Sprint 019 verification queries and runbook notes.
+- [x] Ground briefing refinement prompts with source context so refinement can repair rather than ask for missing data.
+- [x] Add Sprint 019 verification queries and runbook notes.
 
 ### Out of Scope / Non-Goals
 - [ ] Do not refresh all 341 legacy narratives in this sprint.
@@ -45,22 +45,22 @@ The sprint also prevents malformed LLM refinement output from publishing and rep
 | 3 | FEATURE-061 | Add Narrative Display Mode API Fields | ✅ COMPLETE | medium | |
 | 4 | FEATURE-062 | Add Deterministic Article Cluster Fallback | ✅ COMPLETE | medium | |
 | 5 | BUG-100 | Ground Briefing Refinement With Source Context | ✅ COMPLETE | medium | |
-| 6 | TASK-096 | Add Sprint 019 Verification Queries | 🔲 OPEN | small | |
+| 6 | TASK-096 | Add Sprint 019 Verification Queries | ✅ COMPLETE | small | |
 
 ---
 
 ## Success Criteria
 
-- [ ] A briefing with raw non-JSON model output cannot publish to the public briefing page.
-- [ ] A briefing with `confidence_score < 0.5` cannot publish unless explicitly saved as an unpublished failure record.
-- [ ] A briefing with empty `key_insights` cannot publish.
-- [ ] Briefing generation uses only narratives with trusted summaries.
-- [ ] The public narratives page remains populated by recent article activity, even when generated summaries are not trusted.
-- [ ] Public users never see internal system-state language such as stale, missing, untrusted, or needs refresh.
-- [ ] Untrusted narrative cards render deterministic fallback copy from recent article data without LLM calls.
-- [ ] Briefing refinement prompt includes source context and cannot reference unavailable `AVAILABLE DATA`.
-- [ ] No mass legacy narrative refresh is triggered by this sprint.
-- [ ] LLM spend does not increase except for the small expected increase from refinement prompt context when refinement runs.
+- [x] A briefing with raw non-JSON model output cannot publish to the public briefing page. (BUG-099)
+- [x] A briefing with `confidence_score < 0.5` cannot publish unless explicitly saved as an unpublished failure record. (BUG-099)
+- [x] A briefing with empty `key_insights` cannot publish. (BUG-099)
+- [x] Briefing generation uses only narratives with trusted summaries. (FEATURE-060)
+- [x] The public narratives page remains populated by recent article activity, even when generated summaries are not trusted. (FEATURE-062)
+- [x] Public users never see internal system-state language such as stale, missing, untrusted, or needs refresh. (FEATURE-061, FEATURE-062)
+- [x] Untrusted narrative cards render deterministic fallback copy from recent article data without LLM calls. (FEATURE-062)
+- [x] Briefing refinement prompt includes source context and cannot reference unavailable `AVAILABLE DATA`. (BUG-100)
+- [x] No mass legacy narrative refresh is triggered by this sprint. (TASK-096 verification)
+- [x] LLM spend does not increase except for the small expected increase from refinement prompt context when refinement runs. (TASK-096 verification)
 
 ---
 
