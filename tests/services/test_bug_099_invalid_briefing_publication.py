@@ -152,7 +152,6 @@ class TestValidateBriefingPublishable:
             ("missing data", "The narrative contains missing data"),
             ("before i can generate", "Before I can generate, you must provide"),
             ("could you provide", "Could you provide the missing narratives"),
-            ("available data", "The available data is insufficient"),
         ],
     )
     def test_model_meta_phrases_rejected(self, briefing_agent, phrase, narrative):
@@ -184,6 +183,47 @@ class TestValidateBriefingPublishable:
         )
 
         is_publishable, reason = briefing_agent._validate_briefing_publishable(generated)
+        assert is_publishable is False
+        assert "model_meta_output" in reason
+
+    def test_available_data_in_valid_context_accepted(self, briefing_agent):
+        """Test that 'available data' in valid analytical context is accepted."""
+        generated = GeneratedBriefing(
+            narrative="Based on available data, Bitcoin ETF outflows increased significantly. Available data shows a correlation with regulatory announcements.",
+            key_insights=["ETF outflows increased", "Regulatory impact confirmed"],
+            entities_mentioned=["Bitcoin", "ETF"],
+            detected_patterns=[],
+            recommendations=[],
+            confidence_score=0.85,
+            parse_failed=False,
+        )
+
+        is_publishable, reason = briefing_agent._validate_briefing_publishable(generated)
+        assert is_publishable is True
+        assert reason is None
+
+    @pytest.mark.parametrize(
+        "narrative",
+        [
+            "I need the available data to generate a proper briefing",
+            "Please provide the available data before I can continue",
+            "Available data is missing, cannot proceed",
+        ],
+    )
+    def test_available_data_in_request_context_rejected(self, briefing_agent, narrative):
+        """Test that 'available data' in request/missing context is rejected."""
+        generated = GeneratedBriefing(
+            narrative=narrative,
+            key_insights=["Need data"],
+            entities_mentioned=["Bitcoin"],
+            detected_patterns=[],
+            recommendations=[],
+            confidence_score=0.8,
+            parse_failed=False,
+        )
+
+        is_publishable, reason = briefing_agent._validate_briefing_publishable(generated)
+        # Should be rejected - either by available_data_request or other meta-phrases
         assert is_publishable is False
         assert "model_meta_output" in reason
 

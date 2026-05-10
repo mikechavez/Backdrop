@@ -963,7 +963,8 @@ Return ONLY valid JSON in the same format as before."""
             return False, "empty_key_insights"
 
         # Check for model-meta phrases that indicate invalid/incomplete output
-        model_meta_phrases = [
+        # These phrases indicate the LLM is asking for missing data or is incomplete
+        clear_meta_phrases = [
             "please provide",
             "i don't have access",
             "i need the actual narrative data",
@@ -974,13 +975,27 @@ Return ONLY valid JSON in the same format as before."""
             "i'm ready to execute",
             "before i can generate",
             "could you provide",
-            "available data",
         ]
 
         narrative_lower = narrative.lower()
-        for phrase in model_meta_phrases:
+
+        # Check clear meta-phrases
+        for phrase in clear_meta_phrases:
             if phrase in narrative_lower:
                 return False, f"model_meta_output:{phrase}"
+
+        # For "available data", only reject if it appears in a missing-data context
+        # Reject: "I need the available data", "please provide the available data", "available data is missing"
+        # Accept: "Based on available data...", "available data shows..."
+        if "available data" in narrative_lower:
+            # Reject if preceded by request patterns
+            if any(pattern in narrative_lower for pattern in [
+                "i need the available data",
+                "please provide the available data",
+                "available data is missing",
+                "without the available data",
+            ]):
+                return False, "model_meta_output:available_data_request"
 
         return True, None
 
@@ -1023,10 +1038,11 @@ Return ONLY valid JSON in the same format as before."""
 
         # Log rejected briefings
         if not is_publishable:
+            task_info = f", task_id={task_id}" if task_id else ""
             logger.warning(
                 f"Rejecting briefing publication: {rejection_reason} "
                 f"(type={briefing_type}, confidence={generated.confidence_score:.2f}, "
-                f"insights={len(generated.key_insights)})"
+                f"insights={len(generated.key_insights)}{task_info})"
             )
 
         briefing_doc = {
