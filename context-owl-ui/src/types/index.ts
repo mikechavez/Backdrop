@@ -96,6 +96,11 @@ export interface Narrative {
   reawakening_count?: number; // Number of times narrative has been reactivated from dormant state
   reawakened_from?: string;   // ISO timestamp when narrative went dormant before most recent reactivation
   resurrection_velocity?: number; // Articles per day in last 48 hours during reactivation
+  // Display mode fields (FEATURE-061/FEATURE-062)
+  display_mode?: "summary" | "article_cluster"; // How to render this narrative card
+  display_title?: string;     // Title to display (primary entity for article_cluster, generated title for summary)
+  display_summary?: string | null; // Summary to display (generated for summary mode, article-based fallback for article_cluster)
+  recent_article_count?: number; // Number of recent articles in the cluster
   // Backward compatibility fields
   updated_at?: string;        // Alias for last_updated
   story?: string;             // Alias for summary
