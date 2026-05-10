@@ -1,6 +1,6 @@
 # Sprint 019 — Fresh-Start Narrative Trust Layer
 
-**Status:** In Progress (4/7 complete)  
+**Status:** In Progress (5/7 complete)  
 **Started:** 2026-05-10  
 **Target:** Protect user-facing briefings from untrusted narrative summaries while keeping the narratives page useful through deterministic article-activity fallbacks.
 
@@ -44,7 +44,7 @@ The sprint also prevents malformed LLM refinement output from publishing and rep
 | 2 | FEATURE-060 | Add Trusted Summary Eligibility for Briefings | ✅ COMPLETE | medium | |
 | 3 | FEATURE-061 | Add Narrative Display Mode API Fields | ✅ COMPLETE | medium | |
 | 4 | FEATURE-062 | Add Deterministic Article Cluster Fallback | ✅ COMPLETE | medium | |
-| 5 | BUG-100 | Ground Briefing Refinement With Source Context | 🔲 OPEN | medium | |
+| 5 | BUG-100 | Ground Briefing Refinement With Source Context | ✅ COMPLETE | medium | |
 | 6 | TASK-096 | Add Sprint 019 Verification Queries | 🔲 OPEN | small | |
 
 ---
@@ -287,3 +287,58 @@ _Tickets created mid-sprint for issues found during implementation._
 
 - **Branch:** `feature/062-deterministic-article-cluster-fallback`
   - Commit 61724d5: feat(narratives) — display mode fields and article-cluster rendering
+
+### Session 5 (2026-05-10) — BUG-100 ✅
+**Ground Briefing Refinement With Source Context**
+
+- **Problem:** `_build_refinement_prompt()` included only counts (e.g., "5 narratives") instead of actual source context. When critique identified hallucinations/missing sources, the refinement LLM asked for additional data instead of correcting with available information.
+
+- **Root cause:** Refinement prompt referenced `AVAILABLE DATA` but only included counts of signals, narratives, and patterns—not the actual narrative details, summaries, entities, or signal metrics needed to repair the briefing.
+
+- **Solution:** Replaced counts-only `AVAILABLE DATA` section with full `AVAILABLE SOURCE CONTEXT` including:
+  - **Top 8 narratives** with titles, summaries, entities (up to 5 per narrative), and article counts (matches generation prompt limit)
+  - **Top 10 trending signals** with score_24h and velocity_24h metrics (bounded to prevent token explosion)
+  - **Top 5 detected patterns** with descriptions
+  - **Explicit refinement instructions:**
+    - Return ONLY valid JSON
+    - Do NOT ask for additional data or context
+    - Use ONLY the source context provided
+    - If a claim is unsupported, REMOVE it
+    - If context is sparse, produce a conservative briefing
+    - Do NOT include any text outside JSON
+
+- **Implementation:**
+  - Updated `_build_refinement_prompt()` in `src/crypto_news_aggregator/services/briefing_agent.py` (lines 795-868)
+  - All context sourced from already-available `briefing_input` (no new DB calls, no new LLM calls)
+  - Context bounds verified: <8KB prompt for 15 narratives
+  - Graceful handling of missing optional fields (summaries, entities, etc.)
+
+- **Article titles/sources blocker:**
+  - Investigated whether to include article titles/sources in refinement prompt
+  - Finding: Article details not pre-loaded in `briefing_input.narratives` (only `article_ids` and `article_count` available)
+  - Fetching article titles would require DB queries to articles collection (violates no-new-DB-calls requirement)
+  - Documented as known limitation; recommended future work: pre-load article details in `_gather_inputs()` if needed
+
+- **Testing:** 12 comprehensive tests added in `tests/services/test_bug_100_refinement_prompt.py`:
+  - Narrative titles, summaries, entities included ✅
+  - Signal and pattern details included ✅
+  - JSON-only and no-data-request instructions present ✅
+  - Bounded prompt size for 15+ narratives ✅
+  - Handles missing optional fields gracefully ✅
+  - Handles empty briefing input gracefully ✅
+  - All tests passing (12/12)
+
+- **Regression testing:**
+  - Refinement-related tests: 5/5 passed
+  - Briefing prompt tests: 5/5 passed
+  - No regressions detected
+
+- **Scope boundaries observed:**
+  - No DB calls added (sourced from briefing_input)
+  - No LLM calls added
+  - No narrative_service.py, narrative_refresh.py, beat_schedule.py, or context-owl-ui/ files modified
+  - No production data mutation
+
+- **Branch:** `fix/bug-100-refinement-prompt-source-context`
+  - Commit 5d70903: fix(narratives) — ground refinement prompt with source context
+  - Commit 16c0372: docs(sprint-019) — mark BUG-100 complete
