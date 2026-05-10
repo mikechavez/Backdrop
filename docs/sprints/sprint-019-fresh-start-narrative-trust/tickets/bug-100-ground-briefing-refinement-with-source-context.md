@@ -204,23 +204,73 @@ Mitigation:
 
 ## Resolution
 
-**Status:** Open  
-**Fixed:** YYYY-MM-DD  
-**Branch:**  
-**Commit:**
+**Status:** Fixed  
+**Fixed:** 2026-05-10  
+**Branch:** fix/bug-100-refinement-prompt-source-context  
+**Commit:** 5d70903
 
 ### Root Cause
 
-<!-- Fill after fixing. -->
+The `_build_refinement_prompt()` method included only counts of signals, narratives, and patterns under an `AVAILABLE DATA` section. Without actual narrative details, summaries, entities, and signal metrics, the refinement LLM had no source material to ground corrections and resorted to asking for additional data instead of refining with what was available.
 
 ### Changes Made
 
-<!-- Fill after fixing. -->
+**Primary Change:**
+- Updated `_build_refinement_prompt()` in `src/crypto_news_aggregator/services/briefing_agent.py` to include full `AVAILABLE SOURCE CONTEXT` section with:
+  - Top 8 narratives (matching generation prompt limit) with titles, summaries, entities (up to 5 per narrative), and article counts
+  - Top 10 trending signals with score and velocity metrics
+  - Top 5 detected patterns with descriptions
+  - Explicit refinement instructions forbidding data requests and mandating JSON-only output
+
+**Implementation Details:**
+- No new DB calls added (all data sourced from `briefing_input`)
+- No new LLM calls added
+- Context bounded to prevent token explosion
+- Article titles/sources not included (documented blocker: would require hydrating article details from DB; deferred per requirements)
+- Graceful handling of missing optional fields (summary, entities, etc.)
 
 ### Testing
 
-<!-- Fill after fixing. -->
+**New Tests Added:**
+- `tests/services/test_bug_100_refinement_prompt.py` with 12 comprehensive test cases:
+  - ✅ Refinement prompt includes narrative titles
+  - ✅ Refinement prompt includes narrative summaries/facts
+  - ✅ Refinement prompt includes narrative entities (up to 5 per narrative)
+  - ✅ Refinement prompt includes signal details (score, velocity)
+  - ✅ Refinement prompt includes pattern details
+  - ✅ Refinement prompt includes "Return ONLY valid JSON" instruction
+  - ✅ Refinement prompt includes "Do NOT ask for additional data" instruction
+  - ✅ Refinement prompt includes "Remove unsupported claims" instruction
+  - ✅ Refinement prompt no longer includes counts-only AVAILABLE DATA
+  - ✅ Refinement prompt remains bounded for 15+ narratives
+  - ✅ Handles missing optional fields gracefully
+  - ✅ Handles empty briefing input gracefully
+
+**Test Results:**
+```bash
+poetry run pytest tests/services/test_bug_100_refinement_prompt.py -v
+# Result: 12 passed
+```
+
+**Regression Testing:**
+```bash
+poetry run pytest tests -k "briefing and refine" -v
+# Result: 5 passed (no regressions)
+
+poetry run pytest tests/services/test_briefing_prompts.py -v
+# Result: 5 passed
+```
 
 ### Files Changed
 
-<!-- Fill after fixing. -->
+- `src/crypto_news_aggregator/services/briefing_agent.py` — Updated `_build_refinement_prompt()` method (lines 795-868)
+- `tests/services/test_bug_100_refinement_prompt.py` — New test file with 12 test cases
+
+### Known Limitations
+
+**Article Titles/Sources Not Included:**
+- Investigation revealed article details (titles, sources, URLs) are not pre-loaded in `briefing_input.narratives`
+- Only `article_ids` and `article_count` are available; fetching actual article titles would require:
+  - Additional DB queries to the articles collection
+  - Violation of "no new DB calls" requirement in this fix
+- **Recommendation for Future Work:** If article titles/sources are needed for refinement, consider pre-loading them in the `_gather_inputs()` method when building `briefing_input`, not in the prompt builder.
