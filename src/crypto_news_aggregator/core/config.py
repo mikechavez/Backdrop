@@ -214,6 +214,9 @@ class Settings(BaseSettings):
     BUGOPS_SLACK_ENABLED: bool = False
     BUGOPS_SLACK_WEBHOOK_URL: str = ""
 
+    # Fresh-start narrative trust boundary (FEATURE-060)
+    FRESH_START_CUTOFF: str = "2026-05-10T00:00:00Z"
+
     @field_validator("ANTHROPIC_MONTHLY_API_LIMIT")
     @classmethod
     def _require_monthly_limit(cls, v: float) -> float:
