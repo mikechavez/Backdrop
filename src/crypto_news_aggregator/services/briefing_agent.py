@@ -81,6 +81,7 @@ class GeneratedBriefing:
     detected_patterns: List[str]
     recommendations: List[Dict[str, str]]
     confidence_score: float
+    parse_failed: bool = False
 
 
 class BriefingAgent:
@@ -879,7 +880,7 @@ Return ONLY valid JSON in the same format as before."""
             logger.error(f"Failed to parse LLM response: {e}")
             logger.debug(f"Raw response: {response_text[:500]}")
 
-            # Return minimal briefing
+            # Return minimal briefing marked as parse-failed
             return GeneratedBriefing(
                 narrative=response_text[:2000] if response_text else "Failed to generate briefing.",
                 key_insights=[],
@@ -887,6 +888,7 @@ Return ONLY valid JSON in the same format as before."""
                 detected_patterns=[],
                 recommendations=[],
                 confidence_score=0.3,
+                parse_failed=True,
             )
 
     async def _call_llm(
@@ -937,6 +939,51 @@ Return ONLY valid JSON in the same format as before."""
                 raise
         raise RuntimeError("All LLM models failed")
 
+    def _validate_briefing_publishable(self, generated: GeneratedBriefing) -> tuple[bool, Optional[str]]:
+        """Validate whether a generated briefing is safe to publish.
+
+        Returns:
+            Tuple of (is_publishable, rejection_reason)
+        """
+        # Check parse failure flag
+        if generated.parse_failed:
+            return False, "parse_failed"
+
+        # Check confidence score
+        if generated.confidence_score < 0.5:
+            return False, f"low_confidence:{generated.confidence_score:.2f}"
+
+        # Check narrative
+        narrative = (generated.narrative or "").strip()
+        if not narrative:
+            return False, "empty_narrative"
+
+        # Check key_insights
+        if not generated.key_insights or len(generated.key_insights) == 0:
+            return False, "empty_key_insights"
+
+        # Check for model-meta phrases that indicate invalid/incomplete output
+        model_meta_phrases = [
+            "please provide",
+            "i don't have access",
+            "i need the actual narrative data",
+            "i need to pause",
+            "i cannot generate",
+            "as an ai",
+            "missing data",
+            "i'm ready to execute",
+            "before i can generate",
+            "could you provide",
+            "available data",
+        ]
+
+        narrative_lower = narrative.lower()
+        for phrase in model_meta_phrases:
+            if phrase in narrative_lower:
+                return False, f"model_meta_output:{phrase}"
+
+        return True, None
+
     async def _save_briefing(
         self,
         briefing_type: str,
@@ -971,6 +1018,17 @@ Return ONLY valid JSON in the same format as before."""
             briefing_input.narratives,
         )
 
+        # Validate briefing publishability
+        is_publishable, rejection_reason = self._validate_briefing_publishable(generated)
+
+        # Log rejected briefings
+        if not is_publishable:
+            logger.warning(
+                f"Rejecting briefing publication: {rejection_reason} "
+                f"(type={briefing_type}, confidence={generated.confidence_score:.2f}, "
+                f"insights={len(generated.key_insights)})"
+            )
+
         briefing_doc = {
             "type": briefing_type,
             "title": f"🔬 SMOKE TEST - {briefing_type.title()} Briefing" if is_smoke else None,
@@ -990,12 +1048,18 @@ Return ONLY valid JSON in the same format as before."""
                 "pattern_count": len(briefing_input.patterns.all_patterns()),
                 "manual_input_count": len(briefing_input.memory.manual_inputs),
                 "model": BRIEFING_PRIMARY_MODEL,
-                "refinement_iterations": iteration_count,  # NEW: Track iterations
+                "refinement_iterations": iteration_count,
             },
             "is_smoke": is_smoke,
-            "published": not is_smoke,  # Don't publish smoke tests
-            "task_id": task_id,  # For correlation: Beat → Worker → DB (None if called outside Celery)
+            "published": (not is_smoke) and is_publishable,
+            "task_id": task_id,
         }
+
+        # If briefing is rejected but not smoke, add rejection metadata
+        if not is_publishable and not is_smoke:
+            briefing_doc["metadata"]["invalid_output"] = True
+            briefing_doc["metadata"]["invalid_reason"] = rejection_reason
+            briefing_doc["metadata"]["invalidated_at"] = datetime.now(timezone.utc)
 
         # Set the briefing ID in the document (for consistency with drafts)
         if briefing_id:

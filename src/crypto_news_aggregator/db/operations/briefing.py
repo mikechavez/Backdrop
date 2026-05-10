@@ -18,19 +18,21 @@ from crypto_news_aggregator.db.mongodb import mongo_manager
 # ============================================================================
 
 def _get_production_briefings_filter() -> dict:
-    """Standard filter for production briefings (excludes smoke tests, includes historical).
+    """Standard filter for production briefings (excludes smoke tests, invalid, includes historical).
 
     Uses $or with $exists to safely handle the transition:
     - New smoke tests have `published=False, is_smoke=True`
     - New production briefings have `published=True, is_smoke=False`
     - Historical briefings may lack the `published` field entirely
+    - Invalid briefings have `published=False, metadata.invalid_output=True`
     """
     return {
         "$or": [
             {"published": True},
             {"published": {"$exists": False}}  # Include historical briefings
         ],
-        "is_smoke": {"$ne": True}
+        "is_smoke": {"$ne": True},
+        "metadata.invalid_output": {"$ne": True}  # Exclude invalid briefings
     }
 
 
