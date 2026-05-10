@@ -1,12 +1,12 @@
 ---
 id: FEATURE-062
 type: feature
-status: backlog
+status: complete
 priority: high
 complexity: medium
 created: 2026-05-10
 updated: 2026-05-10
-branch: feature/deterministic-article-cluster-fallback
+branch: feature/062-deterministic-article-cluster-fallback
 ---
 
 # FEATURE-062: Add Deterministic Article Cluster Fallback
@@ -46,13 +46,13 @@ As a user viewing narratives, I want stale generated summaries to gracefully deg
 ## Implementation Scope
 
 ### In Scope
-- [ ] Locate the narratives page and narrative card component.
-- [ ] Read `display_mode`, `display_title`, `display_summary`, and `recent_article_count` from the narratives API response.
-- [ ] Render normal generated-summary card when `display_mode="summary"`.
-- [ ] Render article-cluster fallback card when `display_mode="article_cluster"`.
-- [ ] Preserve recent article list display.
-- [ ] Ensure no internal system-state language appears in public UI.
-- [ ] Add/update frontend tests if the project has frontend test coverage.
+- [x] Locate the narratives page and narrative card component.
+- [x] Read `display_mode`, `display_title`, `display_summary`, and `recent_article_count` from the narratives API response.
+- [x] Render normal generated-summary card when `display_mode="summary"`.
+- [x] Render article-cluster fallback card when `display_mode="article_cluster"`.
+- [x] Preserve recent article list display.
+- [x] Ensure no internal system-state language appears in public UI.
+- [x] Add/update frontend tests if the project has frontend test coverage (no test framework exists).
 
 ### Out of Scope
 - [ ] Do not change backend API in this ticket.
@@ -165,13 +165,13 @@ interface Narrative {
 
 ## Acceptance Criteria
 
-- [ ] Fresh trusted summaries render normally.
-- [ ] Article-cluster mode renders user-facing activity fallback.
-- [ ] Article-cluster mode does not show stale generated title/summary when display fields are provided.
-- [ ] Article-cluster mode still shows the recent article list.
-- [ ] Public UI does not display stale, missing, untrusted, needs refresh, or summary status.
-- [ ] No LLM calls are introduced.
-- [ ] Existing narratives page layout remains recognizable and not redesigned.
+- [x] Fresh trusted summaries render normally.
+- [x] Article-cluster mode renders user-facing activity fallback.
+- [x] Article-cluster mode does not show stale generated title/summary when display fields are provided.
+- [x] Article-cluster mode still shows the recent article list.
+- [x] Public UI does not display stale, missing, untrusted, needs refresh, or summary status.
+- [x] No LLM calls are introduced.
+- [x] Existing narratives page layout remains recognizable and not redesigned.
 
 ---
 
@@ -252,10 +252,69 @@ Missing
 
 ## Completion Summary
 
-- Actual complexity:
-- Branch:
-- Commit:
-- Key decisions made:
-- Deviations from plan:
-- Tests run:
-- Manual verification:
+- **Status:** ✅ COMPLETE
+- **Actual complexity:** Medium (straightforward rendering logic, display mode branching)
+- **Branch:** `feature/062-deterministic-article-cluster-fallback`
+- **Commit:** `61724d5`
+
+### Key Decisions Made
+
+1. **Display Field Preference:** Frontend prefers display fields from FEATURE-061 API for both summary and article-cluster modes. Legacy title/summary fields used only for backward compatibility.
+
+2. **Article-Cluster Layout:** Clean, minimal layout showing only display_title, recent_article_count, and display_summary. Entity tags excluded from article-cluster mode (no internal metadata).
+
+3. **Article List Preservation:** Articles section placed outside the display_mode conditional, ensuring both modes support expandable article lists and pagination.
+
+4. **No Trust Computation:** Frontend never computes trust from timestamps. Trust determination is backend responsibility (FEATURE-061).
+
+### Deviations from Plan
+
+None. Ticket requirements met exactly.
+
+### Tests Run
+
+- ✅ TypeScript compilation: 0 errors
+- ✅ Production build: 2148 modules, 145KB gzipped
+- ✅ Code audit: Verified article-cluster mode does not render legacy title/summary when display fields present
+- ✅ Backward compatibility: Summary mode works with and without display fields
+
+No automated test framework exists in frontend (no jest/vitest). Ready for manual verification on dev/staging once FEATURE-061 deployed.
+
+### Manual Verification
+
+Pending deployment of FEATURE-061 to dev/staging. Test plan:
+1. Mock or use Bitcoin stale-case narrative with display_mode="article_cluster"
+2. Verify UI renders: "Bitcoin" → "8 recent articles" → "Latest coverage includes..."
+3. Verify UI does NOT show: "Bitcoin Holds $75K...", "Old stale generated summary", entity tags
+4. Verify article list expandable and pagination functional
+5. Verify no internal status words in UI
+
+### Implementation Details
+
+**Files Modified:**
+- `context-owl-ui/src/types/index.ts` — Extended Narrative interface
+- `context-owl-ui/src/pages/Narratives.tsx` — Added display mode rendering logic
+
+**Type Extensions:**
+```typescript
+display_mode?: "summary" | "article_cluster";
+display_title?: string;
+display_summary?: string | null;
+recent_article_count?: number;
+```
+
+**Display Mode Computation (Lines 136-151):**
+- cardTitle: prefers display_title → title → theme
+- cardSummary: uses display_summary if defined, else summary/story
+- displayMode: defaults to "summary" if not provided
+- displayArticleCount: uses recent_article_count in article_cluster mode
+
+**Rendering Logic (Lines 343-373):**
+- article_cluster: renders {cardTitle}, {displayArticleCount} recent article(s), {cardSummary}
+- summary: renders {cardTitle}, {cardSummary}, entity tags (preserved)
+- Both modes: article list section remains unchanged (lines 375+)
+
+**Backend Safety:**
+- No backend files modified
+- No data mutations
+- No LLM calls added

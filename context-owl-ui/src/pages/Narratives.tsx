@@ -131,36 +131,27 @@ export function Narratives() {
 
       <div className="space-y-6">
         {narratives.map((narrative, index) => {
-          // Handle both old and new field names for backward compatibility
-          // Use title if it exists and is distinct from theme (not just entity name)
-          // Otherwise fall back to a better display value
-          const displayTitle = (() => {
-            // Use title if it exists, isn't empty, and isn't just the theme/entity
-            if (narrative.title && narrative.title.trim() && narrative.title !== narrative.theme) {
-              return narrative.title;
-            }
-            // Fallback: Use first sentence of summary if available and concise
-            if (narrative.summary) {
-              const firstSentence = narrative.summary.split('.')[0] + '.';
-              if (firstSentence.length > 0 && firstSentence.length < 100) {
-                return firstSentence;
-              }
-            }
-            // Last resort: use theme or entity name
-            return narrative.title || narrative.theme || 'Untitled Narrative';
-          })();
-          const displaySummary = narrative.summary || narrative.story;
+          // FEATURE-062: Use display contract from FEATURE-061 API
+          // Prefer display_title/display_summary when present, fall back to legacy fields
+          const cardTitle = narrative.display_title || narrative.title || narrative.theme || 'Untitled Narrative';
+          const cardSummary = narrative.display_summary !== undefined ? narrative.display_summary : (narrative.summary || narrative.story);
+          const displayMode = narrative.display_mode || 'summary';
           const isExpanded = expandedArticles.has(index);
           const narrativeId = narrative._id || '';
           const articles = narrativeArticles.get(narrativeId) || narrative.articles || [];
           const isLoadingArticles = loadingArticles.has(narrativeId);
-          
+
           const paginationInfo = paginationState.get(narrativeId);
           const totalArticles = paginationInfo?.totalCount || narrative.article_count || articles.length;
           const hasMore = articles.length < totalArticles;
 
+          // For article_cluster mode, use recent_article_count from API if available
+          const displayArticleCount = displayMode === 'article_cluster' && narrative.recent_article_count !== undefined
+            ? narrative.recent_article_count
+            : narrative.article_count;
+
           const toggleExpanded = async () => {
-            console.log('[DEBUG] Card clicked - Narrative ID:', narrativeId, 'Title:', displayTitle);
+            console.log('[DEBUG] Card clicked - Narrative ID:', narrativeId, 'Title:', cardTitle);
             const newExpanded = new Set(expandedArticles);
             if (newExpanded.has(index)) {
               console.log('[DEBUG] Collapsing card at index:', index);
@@ -314,7 +305,7 @@ export function Narratives() {
             <CardHeader>
               {/* Title and Lifecycle badge in same row */}
               <div className="flex items-start justify-between gap-3">
-                <CardTitle>{displayTitle}</CardTitle>
+                <CardTitle>{cardTitle}</CardTitle>
                 
                 {/* Lifecycle badge */}
                 {(() => {
@@ -349,21 +340,36 @@ export function Narratives() {
               </div>
             </CardHeader>
             <CardContent>
-              {displaySummary && (
-                <p className="text-gray-700 dark:text-gray-300 mb-4">{displaySummary}</p>
-              )}
-              
-              {narrative.entities && narrative.entities.length > 0 && (
-                <div className="flex flex-wrap gap-2 mb-4">
-                  {narrative.entities.map((entity, idx) => (
-                    <span
-                      key={idx}
-                      className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 px-2 py-1 rounded text-sm"
-                    >
-                      {entity}
-                    </span>
-                  ))}
+              {displayMode === 'article_cluster' ? (
+                // Article-cluster fallback card layout
+                <div className="space-y-2 mb-4">
+                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                    {displayArticleCount} recent article{displayArticleCount !== 1 ? 's' : ''}
+                  </div>
+                  {cardSummary && (
+                    <p className="text-gray-700 dark:text-gray-300">{cardSummary}</p>
+                  )}
                 </div>
+              ) : (
+                // Summary mode card layout (preserve existing structure)
+                <>
+                  {cardSummary && (
+                    <p className="text-gray-700 dark:text-gray-300 mb-4">{cardSummary}</p>
+                  )}
+
+                  {narrative.entities && narrative.entities.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mb-4">
+                      {narrative.entities.map((entity, idx) => (
+                        <span
+                          key={idx}
+                          className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 px-2 py-1 rounded text-sm"
+                        >
+                          {entity}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </>
               )}
 
               {/* Articles section */}
@@ -371,7 +377,7 @@ export function Narratives() {
                 <div className="pt-4 border-t border-gray-200 dark:border-dark-border">
                   <div className="flex items-center justify-between">
                     <div className="text-sm text-blue-600 dark:text-blue-400 font-medium flex items-center gap-1">
-                      {isExpanded ? '▼' : '▶'} {formatNumber(narrative.article_count)} Articles
+                      {isExpanded ? '▼' : '▶'} {formatNumber(totalArticles)} Articles
                     </div>
 
                     {/* Showing X of Y Articles badge */}
