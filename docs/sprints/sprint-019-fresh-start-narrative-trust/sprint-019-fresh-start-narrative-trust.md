@@ -1,6 +1,6 @@
 # Sprint 019 — Fresh-Start Narrative Trust Layer
 
-**Status:** In Progress (6/7 complete)  
+**Status:** Complete (7/7 + 2 discovered)  
 **Started:** 2026-05-10  
 **Target:** Protect user-facing briefings from untrusted narrative summaries while keeping the narratives page useful through deterministic article-activity fallbacks.
 
@@ -46,6 +46,7 @@ The sprint also prevents malformed LLM refinement output from publishing and rep
 | 4 | FEATURE-062 | Add Deterministic Article Cluster Fallback | ✅ COMPLETE | medium | |
 | 5 | BUG-100 | Ground Briefing Refinement With Source Context | ✅ COMPLETE | medium | |
 | 6 | TASK-096 | Add Sprint 019 Verification Queries | ✅ COMPLETE | small | |
+| 7 | TASK-097 | Create Lightweight MongoDB Query Skill | ✅ COMPLETE | 1 hour | |
 
 ---
 
@@ -124,7 +125,8 @@ _Tickets created mid-sprint for issues found during implementation._
 
 | Ticket | Title | Reason Created | Status |
 |--------|-------|----------------|--------|
-| | | | |
+| BUG-101 | Zero Trusted Narratives at Deployment | Post-deploy verification found 0 trusted narratives; investigation confirmed expected behavior, not a regression | ✅ COMPLETE |
+| TASK-097 | Create Lightweight MongoDB Query Skill | During BUG-101 verification, connection boilerplate for MongoDB queries was repetitive; created reusable skill to eliminate friction for future queries | ✅ COMPLETE |
 
 ---
 
@@ -342,3 +344,150 @@ _Tickets created mid-sprint for issues found during implementation._
 - **Branch:** `fix/bug-100-refinement-prompt-source-context`
   - Commit 5d70903: fix(narratives) — ground refinement prompt with source context
   - Commit 16c0372: docs(sprint-019) — mark BUG-100 complete
+
+### Session 6 (2026-05-10) — TASK-096 Post-Deploy Investigation ✅
+**Sprint 019 Verification & BUG-101 Documentation**
+
+- **Verification executed:** Read-only queries run to validate post-deployment state immediately after Sprint 019 deployment
+- **Finding:** Trusted narratives count = 0 (appeared to be regression but confirmed as expected)
+- **Root cause analysis:** FRESH_START_CUTOFF (`2026-05-10T00:00:00Z`) is the deployment boundary itself, not a historical cutoff
+  - Production had 355 active narratives, none created/refreshed on 2026-05-10 00:00:00 exactly
+  - Most recent narrative activity: `last_summary_generated_at = 2026-05-08 23:30:12`
+  - Most recent first_seen: `first_seen = 2026-05-07 22:31:02`
+  - Zero narratives met ANY of the three trust conditions immediately post-deploy
+  - This is correct fail-safe behavior (narratives with uncertain freshness excluded)
+
+- **Critical findings:**
+  - ✅ **BUG-099 containment verified working:** 4 pre-deploy invalid briefings (all blocked), 0 post-deploy invalid briefings published
+  - ✅ **Narrative refresh normal:** 42 calls post-deploy, distributed, low cost ($0.07), all successful
+  - ✅ **Code deployment verified:** All Sprint 019 commits present, all code paths executing
+  - ✅ **Public API ready:** 5 untrusted narratives with recent activity, ready for article-cluster fallback display
+  - ✅ **System fail-safe:** Zero trusted narratives triggered graceful article-cluster fallback, not a crash
+
+- **Timeline & recommendations:**
+  - Immediate: BUG-099 containment confirmed working; no invalid briefings published
+  - Short term: Wait for first scheduled narrative refresh (~07:30 AM or PM UTC 2026-05-10) 
+  - Expected: After refresh, some narratives will have `last_summary_generated_at >= 2026-05-10` and become trusted
+  - Then safe to run: Scheduled briefing generation with meaningful trusted narrative content
+
+- **Discovered work:** Created BUG-101 ticket to document investigation, confirm expected behavior, and establish timeline
+- **Branch:** None (read-only investigation, no code changes)
+- **Commits:** 66bf549 (docs: mark TASK-096 complete), d234066 (docs: add verification queries)
+
+### Session 7 (2026-05-10) — TASK-097 ✅
+**Create Lightweight MongoDB Query Skill**
+
+- **Motivation:** During BUG-101 verification, discovering MongoDB connection boilerplate took several attempts (load_keys.sh, poetry run, .env parsing, pymongo import, credential handling). Identical setup needed for any future verification queries.
+
+- **Skill creation:** Built `db-query` skill with three commands:
+  - `count <collection> <query>` — Count documents matching query
+  - `find <collection> <query> [projection] [limit] [sort]` — Find with optional parameters
+  - `aggregate <collection> <pipeline>` — Run aggregation pipeline
+
+- **Implementation:**
+  - **Script:** `scripts/db_query.py` (100+ lines)
+    - Auto-loads MONGODB_URI from .env using python-dotenv
+    - Supports all MongoDB query types
+    - Returns JSON output (compatible with jq, Python json.loads)
+    - Errors to stderr, structured JSON
+    - Read-only guard (no write operations)
+    - Exit code 0 success, 1 failure
+  - **Reference:** `references/query_patterns.md` (2.6 KB)
+    - Date range queries (ISO 8601 format)
+    - Complex aggregations with statistics
+    - Common filters (active, dormant, trusted narratives)
+    - JSON escaping in Bash (single quotes)
+    - Field projections and sorting
+  - **SKILL.md:** Quick start, three-command reference, usage notes
+
+- **Testing:** 
+  - ✅ Count query: `count narratives '{"lifecycle_state": "hot"}'` → `{"count": 9}`
+  - ✅ Aggregate query: Group narratives by lifecycle_state → Correct results
+  - ✅ Skill packaging: `package_skill.py` validates and creates `.skill` file
+  - ✅ Skill installation: File present at `~/.claude/skills/db-query.skill` (3.8 KB)
+
+- **Documentation:**
+  - Created `db_query_skill.md` in project memory
+  - Updated `MEMORY.md` index to reference the skill
+  - Documented when to use (verification, statistics, data inspection)
+
+- **Impact:** Future MongoDB verification queries no longer require connection discovery. Skill handles credential loading, connection, and result formatting automatically.
+
+- **Branch:** N/A (skill creation, not code changes)
+- **Artifacts:** `~/.claude/skills/db-query.skill` (packaged skill, 3 files)
+
+### Session 8 (2026-05-10) — TASK-098 🔴 IN PROGRESS
+**Bounded UI Narrative Refresh Bootstrap**
+
+**Phase 0: Display-Mode Verification** ✅
+- Inspected top 10 active narratives from production
+- Finding: `display_mode`, `display_title`, `display_summary` fields all NULL in database
+- Root cause: FEATURE-061/062 display fields are computed at API call time (not stored), so DB queries see nulls
+- Documented for future investigation: may need to populate/cache display fields in db if performance becomes issue
+
+**Phase 1: Select Top 5 Narratives** ✅
+- Approved 5 narratives for first bootstrap refresh:
+  1. Senate Banking Committee Advances Crypto Regulation Efforts (695eb4b3ce758d67abd6e8f4)
+  2. LayerZero Admits Mistakes in $292M Kelp DAO Exploit (698baa105278ec9e19bf2a19)
+  3. Bitcoin Holds $75K Amid Geopolitical Tensions and Strong ETF Inflows (68f32d197082f49df56956c6)
+  4. SEC Signals New Regulatory Framework for Onchain Markets (68f03343bc9ab7390ca7af71)
+  5. Coinbase Navigates Infrastructure Crisis Amid Market Recovery (68f03350bc9ab7390ca7af78)
+- All 5: untrusted, active, have articles available, eligible for refresh_flagged_narratives
+
+**Phase 2: Dry-Run Analysis** ✅
+- Simulated refresh selection: confirmed all 5 would be processed (within MAX_REFRESH_PER_RUN=20 limit)
+- Estimated cost: ~$0.01 (negligible)
+- No other narratives flagged
+- Guardrails verified: safe to execute
+
+**Phase 4A: Flag Narratives** ✅
+- Manually executed mongosh updateMany command
+- Set `needs_summary_update=true` for all 5 narratives
+- Verified via read-only query: all 5 flagged
+
+**Phase 4B: Refresh Execution** 🔴 PARTIAL FAILURE → BUG-102 RAISED
+- **Celery task triggered:** `celery -A crypto_news_aggregator.tasks call refresh_flagged_narratives`
+- **Task ID returned:** `9e93ad11-a4ff-4145-af78-e5567f5b8181`
+- **Task DID execute** (Celery worker running in Railway)
+- **Root cause (BUG-102):** `refresh_flagged_narratives` hit the "article hydration empty" failure path for 3 narratives. That path cleared `needs_summary_update=False` without setting `last_summary_generated_at`, silently hiding them from future runs. No LLM was called.
+- **Evidence:**
+  - 35 `narrative_generate` LLM traces on May 10, none for the 5 approved narratives
+  - 3 narratives updated at 21:38:46-47 UTC with flag cleared but null timestamp (failure path)
+  - 2 narratives still flagged (never reached, possibly hit budget cap or run limit)
+- **Current state:**
+  - Trusted narratives: still 0
+  - 3 flags incorrectly cleared (need re-flagging after fix deployed)
+  - 2 still flagged (ready to process)
+
+**Deviations from plan:**
+- Celery did run; root cause was a task code bug, not infrastructure failure
+- BUG-102 raised and fixed before retrying TASK-098
+
+---
+
+### Session 9 (2026-05-10) — BUG-102 ✅ COMPLETE
+**Investigate and Fix Refresh Flag Clearing Without Summary Timestamp**
+
+**Investigation findings:**
+- Queried all 5 approved narratives; 3 cleared (Senate Banking, LayerZero, Bitcoin), 2 still flagged (SEC, Coinbase)
+- All 5 narratives have article_ids that hydrate to real articles now
+- 35 `narrative_generate` LLM traces on May 10, none reference the 5 narratives → confirms failure path, not LLM path
+- Root cause pinpointed: `narrative_refresh.py` lines 96-105 cleared `needs_summary_update=False` when article hydration returned empty, without setting `last_summary_generated_at`
+
+**Fix (`fix/bug-102-preserve-refresh-flag-on-failure`, commit `c1af536`):**
+- Removed `update_one` calls from all three failure paths (no article_ids, empty hydration, LLM returns None)
+- Each failure path now logs structured skip details and `continue`s — flag stays `True`
+- Only the success path (title/summary written + timestamp stamped) clears the flag
+- Added structured logging per skip: `narrative_id`, `title`, `article_ids_count`, `hydrated_article_count`, `reason`
+
+**Tests:** 9/9 pass
+- Updated `test_refresh_handles_missing_articles`: now asserts flag stays `True`
+- Added `test_no_article_ids_does_not_clear_flag`
+- Added `test_empty_hydration_does_not_clear_flag`
+- Added `test_llm_returns_none_does_not_clear_flag`
+- Added `test_successful_refresh_clears_flag_and_sets_timestamp`
+
+**Next steps for TASK-098 retry:**
+1. Deploy `fix/bug-102-preserve-refresh-flag-on-failure` to Railway
+2. Re-flag the 3 incorrectly cleared narratives (Senate Banking, LayerZero, Bitcoin)
+3. Retry refresh and verify all 5 receive `last_summary_generated_at` + trusted status
