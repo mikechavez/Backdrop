@@ -196,8 +196,63 @@ Still exists and receives some writes, but is **not** the source of truth for bu
 - **Reference:** `src/crypto_news_aggregator/services/briefing_agent.py:859-862` (matching recommendations to narrative IDs)
 
 **articles** collection (sources for briefings):
-- Each article has `title`, `content`, `source`, `published_at`, sentiment, entities
+
+Schema:
+```javascript
+{
+  "_id": ObjectId("..."),
+  "title": "string",                     // Article headline
+  "content": "string",                   // Article body
+  "source": "string",                    // Feed source (CoinDesk, Decrypt, etc.)
+  "source_url": "string",                // Feed URL
+  "url": "string",                       // Direct article link
+  "published_at": ISODate("..."),        // Article publication date
+  "fetched_at": ISODate("..."),          // When article was fetched from RSS
+  
+  // Tier classification (rule-based, runs before enrichment)
+  "relevance_tier": 1 | 2 | 3,           // 1=high signal, 2=medium, 3=low (excluded from narratives)
+  "relevance_reason": "string",          // Reason for tier ("high_signal_title", "default", "low_signal", etc.)
+  
+  // Enrichment fields (Tier 1 only)
+  "entities": [                          // Extracted entities (Tier 1 only)
+    {
+      "name": "string",                  // Entity name (e.g., "Bitcoin", "SEC")
+      "type": "string",                  // Type: ticker, project, person, company, concept
+      "confidence": 0.95,                // Extraction confidence (0-1)
+      "is_primary": true | false         // Primary vs. contextual mention
+    }
+  ],
+  "sentiment_score": -1.0 to 1.0,        // Sentiment score (Tier 1 only)
+  "sentiment_label": "positive" | "negative" | "neutral",  // Derived from score (Tier 1 only)
+  "sentiment": {                         // Detailed sentiment metadata (Tier 1 only)
+    "score": number,
+    "magnitude": number,
+    "label": "string",
+    "provider": "string",
+    "updated_at": ISODate("...")
+  },
+  "themes": ["string", ...],             // Extracted themes (Tier 1 only)
+  "keywords": ["string", ...],           // Top keywords (Tier 1 only)
+  
+  "fingerprint": "string",               // MD5 hash for deduplication
+  "updated_at": ISODate("..."),          // Last update time
+}
+```
+
+**Tier filtering impact:**
+- **Tier 1 (high signal):** Full enrichment with entities, sentiment, themes, keywords
+- **Tier 2 (medium):** No enrichment — saved with tier info only
+- **Tier 3 (low signal):** Saved with tier info, excluded from narrative detection
+
+**Enrichment status:**
+- Tier 1: Enriched via batch LLM processing (selective extraction: ~50% LLM, ~50% regex)
+- Tier 2/3: No enrichment fields populated
+- Entity/sentiment fields only populated for Tier 1 articles
+
+**Briefing usage:**
 - Briefings cite articles indirectly through narratives and patterns
+- Narratives include only Tier 1 and Tier 2 articles (Tier 3 excluded)
+- Patterns may reference articles from source detection
 
 ### Query Performance Trade-offs
 

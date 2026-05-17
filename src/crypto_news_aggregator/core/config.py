@@ -182,6 +182,11 @@ class Settings(BaseSettings):
     # CoinGecko API settings
     COINGECKO_API_URL: str = "https://api.coingecko.com/api/v3"
     coingecko_api_key: str = ""  # Optional API key for higher rate limits
+    COINGECKO_API_DISABLED: bool = Field(
+        default=False,
+        env="COINGECKO_API_DISABLED",
+        description="Kill switch to disable all CoinGecko API requests"
+    )
 
     # News source settings
     ENABLED_NEWS_SOURCES: list[str] = []  # Disabled: coindesk (JSON API dead), bloomberg (403). RSS covers ingestion.
