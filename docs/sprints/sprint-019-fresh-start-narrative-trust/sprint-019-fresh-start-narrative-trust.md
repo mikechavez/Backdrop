@@ -491,3 +491,25 @@ _Tickets created mid-sprint for issues found during implementation._
 1. Deploy `fix/bug-102-preserve-refresh-flag-on-failure` to Railway
 2. Re-flag the 3 incorrectly cleared narratives (Senate Banking, LayerZero, Bitcoin)
 3. Retry refresh and verify all 5 receive `last_summary_generated_at` + trusted status
+
+### Session 10 (2026-05-17) — CHORE-001 ✅
+**Disable CoinGecko API Requests**
+
+**Rationale:** CoinGecko API requests were consuming quota without providing value to the current briefing pipeline. Price monitoring/alerts are not part of Sprint 019 or the production roadmap.
+
+**Implementation:**
+- **Background task disabled:** Commented out `price_monitor.start()` in `main.py` lifespan (lines 127-132)
+- **Config kill switch added:** New `COINGECKO_API_DISABLED` boolean flag in `Settings` with environment variable support
+- **Service methods hardened:** Updated 4 price service methods to check flag and return mock data:
+  - `get_bitcoin_price()`
+  - `get_prices()`
+  - `get_markets_data()`
+  - `get_historical_prices()`
+- **Documentation committed:** All updated docs included in commit
+
+**Re-enabling path:** Two options (no refactoring needed):
+- Option 1: Set `COINGECKO_API_DISABLED=false` via environment variable
+- Option 2: Uncomment lines 127-132 in `main.py`
+
+**Branch:** `chore/disable-coingecko-api` | Commit: `7ad628a`
+**Ticket:** `chore-disable-coingecko-api.md` in `/tickets/`
