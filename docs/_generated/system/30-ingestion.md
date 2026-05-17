@@ -150,56 +150,130 @@ async def check_duplicate(fingerprint: str) -> bool:
 - Catches >95% of duplicate articles
 - False positive rate: <1% (legitimate articles with similar titles)
 
-### Entity & Sentiment Enrichment
+### Relevance Tier Classification
 
-**Tier classification runs before enrichment (TASK-062, Sprint 13).** Articles are classified into relevance tiers immediately after normalization. Only Tier 1 articles proceed to full enrichment — this change reduced enrichment LLM costs by ~98% (from ~333 enriched/day to ~70).
+**Tier classification runs before enrichment (TASK-062, Sprint 13).** Articles are classified into relevance tiers immediately after normalization using rule-based patterns. Only Tier 1 articles proceed to full LLM enrichment — this change reduced enrichment LLM costs by ~98% (from ~333 enriched/day to ~70).
+
+**File:** `src/crypto_news_aggregator/services/relevance_classifier.py:1-265`
+
+Tier assignment is rule-based (no LLM cost):
+
+```python
+def classify_article(title: str, text: str, source: str) -> dict:
+    """
+    Classify article relevance tier using regex patterns.
+    
+    Returns:
+        - tier: 1 (high signal), 2 (medium), or 3 (low)
+        - reason: Classification reason
+        - matched_pattern: Regex pattern that matched (if applicable)
+    """
+    # Tier 3: Low signal (excluded from narratives & enrichment)
+    # Patterns: price predictions, speculation, gaming, non-crypto stocks
+    if matches(TIER3_PATTERNS):
+        return tier=3, reason="low_signal"
+    
+    # Tier 1: High signal (full enrichment)
+    # Patterns: regulatory (SEC, CFTC), security (hack, breach), 
+    #          market data ($X liquidations, ETF flows), institutional moves
+    if matches(TIER1_PATTERNS):
+        return tier=1, reason="high_signal_title"  # or "high_signal_body"
+    
+    # Tier 2: Default (standard crypto news, no enrichment)
+    return tier=2, reason="default"
+```
+
+**Tier 1 patterns (high signal):**
+- Regulatory: SEC, CFTC, DOJ, bills, executive orders, tax rulings
+- Security: hacks, exploits, breaches, rug pulls, significant scams
+- Market data: liquidations, ETF flows, all-time highs, record volumes
+- Institutional: large Bitcoin/Ethereum purchases, IPOs, acquisitions, partnerships
+- Adoption: government adoption, legal tender, CBDCs
+
+**Tier 3 patterns (excluded):**
+- Gaming content (games releasing, Nintendo Switch, Xbox)
+- Price predictions ("BTC to hit $100k", "price targets to watch")
+- Speculation ("could launch 50% rally", "crystal ball", "to the moon")
+- Retrospective listicles ("best of 2025", "WTF moments of the year")
+- Non-crypto stocks (AAPL, TSLA earnings) without crypto context
+
+**Tier 2:** Default classification for unmatched articles (most crypto news)
+
+**Performance:** Classification runs in <5ms per article (regex-only, no LLM)
+
+### Entity & Sentiment Enrichment (Tier 1 Only)
 
 **Tier 2/3 handling:** Saved to MongoDB with `relevance_tier` and `relevance_reason` populated, but no entity extraction or sentiment analysis. They remain available for search/archive but are excluded from narrative detection and briefing context.
 
-**File:** `src/crypto_news_aggregator/tasks/process_article.py:1-150`
+**File:** `src/crypto_news_aggregator/background/rss_fetcher.py:642-850`
 
-Async enrichment tasks (Tier 1 only):
+Tier 1 enrichment flow (selective processing for cost reduction):
 
 ```python
-@shared_task(name="extract_article_entities")
-def extract_entities_task(article_id: str):
-    """Extract entities from article content."""
-    async def run():
-        article = await get_article(article_id)
-        entities = await extract_entities(article.content)  # LLM call
-        await update_article(article_id, {"entities": entities})
-
-    asyncio.run(run())
-
-@shared_task(name="analyze_article_sentiment")
-def analyze_sentiment_task(article_id: str):
-    """Analyze article sentiment."""
-    async def run():
-        article = await get_article(article_id)
-        sentiment = await analyze_sentiment(article.content)  # LLM call
-        await update_article(article_id, {"sentiment": sentiment})
-
-    asyncio.run(run())
+async def process_new_articles_from_mongodb():
+    """
+    Process articles with tiered enrichment strategy.
+    - All articles: Classify into tiers (rule-based, no LLM cost)
+    - Tier 1 only: Entity extraction + sentiment analysis (LLM calls)
+    - Tier 2/3: Save with tier info only (no enrichment)
+    """
+    # 1. Batch-classify all articles into tiers
+    tier_classifications = {}
+    for article in articles:
+        classification = classify_article(title, text, source)  # Regex, <5ms
+        tier_classifications[article_id] = classification
+    
+    # 2. Separate Tier 1 from Tier 2/3
+    tier_1_articles = [a for a in articles if tier_classifications[a]["tier"] == 1]
+    
+    # 3. Tier 2/3: Save tier info, skip enrichment (line 669-680)
+    for article in tier_2_3_articles:
+        await db.articles.update_one(
+            {"_id": article_id},
+            {"$set": {
+                "relevance_tier": tier_2_3_info["tier"],
+                "relevance_reason": tier_2_3_info["reason"],
+            }}
+        )
+    
+    # 4. Tier 1 only: Selective processing (LLM or regex) (line 471-567)
+    for article in tier_1_articles:
+        if selective_processor.should_use_llm(article):
+            # ~50% of Tier 1: Full LLM extraction (optimized Claude Haiku)
+            entities = await optimized_llm.extract_entities([article])
+        else:
+            # ~50% of Tier 1: Fast regex extraction
+            entities = await selective_processor.extract_entities_simple(article)
+    
+    # 5. Tier 1 only: Enrich with sentiment & themes (line 711)
+    enrichment_results = await llm_client.enrich_articles_batch(tier_1_articles)
+    # Updates: sentiment_score, sentiment_label, themes, keywords
 ```
 
-**Entity extraction:**
-- **File:** `src/crypto_news_aggregator/services/entity_service.py:50-150`
-- **LLM Model:** Claude 3.5 Haiku (fast, cost-effective)
-- **Extraction types:** Companies (Coinbase, Binance), Cryptos (Bitcoin, Ethereum), Concepts
-- **Output format:** List of entity names with confidence scores
-- **Latency:** 2-5 seconds per article
+**Entity extraction (Tier 1 only):**
+- **File:** `src/crypto_news_aggregator/background/rss_fetcher.py:471-567`
+- **Strategy:** Selective processing — ~50% LLM (full extraction), ~50% regex (fast)
+- **LLM Model:** Claude 3.5 Haiku with prompt caching (cost-effective)
+- **Extraction types:** Primary entities (main focus) and context entities (mentions)
+- **Output format:** List of entity dicts with {name, type, confidence, is_primary}
+- **Latency:** 1-3 seconds per article (LLM) or <100ms (regex)
 
-**Sentiment analysis:**
-- **File:** `src/crypto_news_aggregator/core/sentiment_analyzer.py:30-80`
-- **Classification:** "bullish" (positive), "bearish" (negative), "neutral"
-- **Confidence score:** 0-1 indicating certainty
-- **Latency:** 1-2 seconds per article
+**Sentiment analysis (Tier 1 only):**
+- **File:** `src/crypto_news_aggregator/background/rss_fetcher.py:711`
+- **Classification:** Derived from sentiment_score (-1.0 to +1.0)
+  - score >= 0.4: "positive" (bullish)
+  - score <= -0.4: "negative" (bearish)
+  - else: "neutral"
+- **Latency:** Included in batch enrichment call
 
-**Queuing strategy:**
-1. Insert article with `relevance_tier` set (Tier 1/2/3) and `enriched: false`
-2. **If Tier 1:** Queue entity extraction task and sentiment analysis task
-3. **If Tier 2/3:** Save with `relevance_tier` and `relevance_reason` only — no enrichment tasks queued
-4. When both Tier 1 enrichment tasks complete, set `enriched: true`
+**Batch enrichment (Tier 1 only):**
+- **File:** `src/crypto_news_aggregator/background/rss_fetcher.py:636-850`
+- **Batch size:** 10 articles per batch
+- **Processing:** For each batch:
+  1. Classify all articles into tiers (rule-based)
+  2. Tier 2/3: Update MongoDB with tier info only
+  3. Tier 1: Send to LLM for entity extraction + sentiment + themes
+  4. Update MongoDB with full enrichment results
 
 **Retry logic:**
 - **Retries:** Up to 3 on API timeout

@@ -19,94 +19,234 @@ Once articles are ingested and enriched, the system analyzes them to detect narr
 ### Data Flow
 
 ```
-1. Enriched Article (entities, sentiment)
+1. Tier 1/2 Articles (with entities, sentiment, narrative elements)
                 │
                 ▼
-    ┌───────────────────────────┐
-    │  Semantic Embedding        │  Convert text to vector
-    │  (OpenAI/Anthropic)        │
-    └────────────┬────────────────┘
+    ┌─────────────────────────────────┐
+    │  Stage 1: Extract Narrative     │  LLM: identify actors,
+    │  Elements (Per-Article)         │  tensions, nucleus entity,
+    │  discover_narrative_from_article│  focus (2-3 sec/article)
+    └────────────┬────────────────────┘
                  │
                  ▼
-    ┌───────────────────────────┐
-    │  Similarity Matching       │  Compare to existing narratives
-    │  (cosine similarity)       │  Find threshold match (>0.75)
-    └────────────┬────────────────┘
-                 │
-          ┌──────┴──────┐
-          │             │
-          ▼             ▼
-   New Narrative   Existing Narrative
-   (create)        (append article)
-          │             │
-          └──────┬──────┘
+    ┌─────────────────────────────────┐
+    │  Stage 2: Cluster by Salience   │  Weighted link strength:
+    │  cluster_by_narrative_salience  │  - Same nucleus: +1.0
+    │  (No LLM, pure algorithm)       │  - 2+ core actors: +0.7
+    │  Output: 3+ article clusters    │  - Threshold: >= 0.8 (<1 sec)
+    └────────────┬────────────────────┘
                  │
                  ▼
-    ┌───────────────────────────┐
-    │  Update Entity Index       │  Link entities to narrative
-    │                           │
-    └────────────┬────────────────┘
+    ┌─────────────────────────────────┐
+    │  Stage 3: Generate Narrative    │  LLM call 1: Title + summary
+    │  generate_narrative_from_cluster│  LLM call 2: Polish summary
+    │  Aggregate + LLM summary        │  (4-6 sec/cluster)
+    └────────────┬────────────────────┘
                  │
                  ▼
-    ┌───────────────────────────┐
-    │  Detect Signals           │  Market events, price anomalies
-    │                           │
-    └────────────┬────────────────┘
+    ┌─────────────────────────────────┐
+    │  Stage 4: Determine Lifecycle   │  Emerging / Rising / Hot /
+    │  & Detect Signals               │  Cooling / Dormant / Reactivated
+    │  determine_lifecycle_state      │  Signal detection: regulatory,
+    │  detect_signals_from_narrative  │  price movement, momentum, etc.
+    └────────────┬────────────────────┘
                  │
                  ▼
-    ┌───────────────────────────┐
-    │  Store Narrative +        │
-    │  Signals in MongoDB       │
-    └───────────────────────────┘
+    ┌─────────────────────────────────┐
+    │  Store Narrative + Signals      │
+    │  in MongoDB                     │
+    │  (narratives, signals, patterns)│
+    └─────────────────────────────────┘
 ```
+
+**Processing summary:**
+- **Input:** Tier 1/2 articles enriched with entities, sentiment, narrative elements
+- **Stage 1:** 2-3 sec per article (LLM extraction)
+- **Stage 2:** <1 sec total (clustering algorithm, no LLM)
+- **Stage 3:** 4-6 sec per cluster (2 LLM calls: generate + polish)
+- **Stage 4:** <1 sec per cluster (lifecycle determination + signal detection)
+- **Tier 3 exclusion:** Low-signal articles skip all stages, not included in narratives
 
 ## Implementation Details
 
-### Narrative Detection & Clustering
+### Narrative Construction Pipeline
 
-**File:** `src/crypto_news_aggregator/services/narrative_service.py:100-250`
+**Tier filtering:** Only Tier 1 and Tier 2 articles are included in narrative clustering. Tier 3 (low-signal) articles are excluded to prevent noise from polluting narratives. This is enforced at line 15-17 and 1207-1230 via `MAX_RELEVANCE_TIER = 2`.
 
-Narrative grouping via semantic similarity:
+The pipeline consists of four stages:
+
+#### Stage 1: Narrative Element Extraction (Per-Article)
+
+**File:** `src/crypto_news_aggregator/services/narrative_themes.py:discover_narrative_from_article()`
+
+Extract narrative elements from each Tier 1/2 article:
 
 ```python
-async def detect_or_match_narrative(
-    article: Article,
-    entities: List[str]
-) -> str | None:
-    """Find or create narrative for article."""
-
-    # 1. Generate embedding for article content
-    embedding = await self._get_embedding(article.content)  # Line 110
-
-    # 2. Query existing narratives (by entity mention)
-    candidate_narratives = await self._find_candidates(entities)  # Line 115
-
-    # 3. Calculate similarity to each candidate
-    matches = []
-    for narrative in candidate_narratives:
-        similarity = self._cosine_similarity(          # Line 120
-            embedding,
-            narrative.embedding
-        )
-        if similarity > 0.75:  # Threshold
-            matches.append((narrative, similarity))
-
-    # 4. Return best match or create new
-    if matches:
-        best = max(matches, key=lambda x: x[1])
-        narrative_id = best[0]._id
-        await self._append_article_to_narrative(narrative_id, article)  # Line 130
-        return narrative_id
-    else:
-        narrative_id = await self._create_narrative(article, entities)  # Line 135
-        return narrative_id
+async def discover_narrative_from_article(article: Dict) -> Dict:
+    """
+    Extract narrative elements: actors, tensions, nucleus_entity, narrative_focus.
+    
+    Returns:
+        {
+            'actors': ['SEC', 'Binance', 'Coinbase'],  # Key players
+            'actor_salience': {'SEC': 8.5, 'Binance': 7.2, 'Coinbase': 6.1},  # Importance (0-10)
+            'tensions': ['Regulatory crackdown', 'Market impact'],  # Core conflicts
+            'nucleus_entity': 'SEC',  # Primary focus
+            'narrative_focus': 'regulation',  # Story category
+            'narrative_summary': '...'  # Article-level summary
+        }
+    """
+    # Use LLM to analyze article structure and identify:
+    # - Who are the key actors? (weight by mention frequency & emphasis)
+    # - What are the underlying tensions? (conflicts, regulations, innovations)
+    # - What entity is this story fundamentally about?
+    # - What narrative category does this fit? (regulation, security, adoption, etc.)
 ```
 
+**Processing:** LLM call per article (Tier 1/2 only)
+**Latency:** 2-3 seconds per article
+
+#### Stage 2: Article Clustering by Narrative Salience
+
+**File:** `src/crypto_news_aggregator/services/narrative_themes.py:1054-1172` (`cluster_by_narrative_salience`)
+
+Group articles into cohesive narrative clusters using weighted link strength:
+
+```python
+async def cluster_by_narrative_salience(articles: List[Dict], min_cluster_size: int = 3):
+    """
+    Cluster articles by nucleus entity and weighted actor/tension overlap.
+    
+    Weighted link strength calculation:
+    - Same nucleus entity: +1.0 (strongest — both about same core subject)
+    - 2+ shared high-salience actors (≥4.5): +0.7 (key players appear together)
+    - 1 shared high-salience actor: +0.4 (some player overlap)
+    - 1+ shared tensions: +0.3 (thematic overlap)
+    
+    Clustering threshold: link_strength >= 0.8
+    
+    Example:
+        Article A: nucleus='SEC', core_actors=['SEC', 'Binance'], tensions=['Regulation']
+        Article B: nucleus='SEC', core_actors=['SEC', 'Coinbase'], tensions=['Regulation']
+        
+        Link strength = 1.0 (same nucleus) + 0.4 (1 core actor: SEC) + 0.3 (shared tension)
+                      = 1.7 >= 0.8 ✓ Cluster together
+    
+    Returns:
+        List of article clusters (each cluster is a list of 3+ articles)
+    """
+    for article in articles:
+        best_match = None
+        best_strength = 0.0
+        
+        # Compare to each existing cluster
+        for cluster in clusters:
+            strength = calculate_link_strength(article, cluster)
+            if strength >= 0.8:  # Strong match
+                best_match = cluster
+                break
+        
+        # Add to best cluster or create new
+        if best_match and best_strength >= 0.8:
+            best_match.append(article)  # Join existing cluster
+        else:
+            clusters.append([article])  # Start new cluster
+    
+    # Filter out small clusters (< 3 articles)
+    return [c for c in clusters if len(c) >= min_cluster_size]
+```
+
+**Output:** Clusters of 3+ articles grouped by narrative similarity
+**Latency:** <1 second (no LLM calls, pure algorithm)
+
+#### Stage 3: Narrative Title & Summary Generation
+
+**File:** `src/crypto_news_aggregator/services/narrative_themes.py:1317-1500` (`generate_narrative_from_cluster`)
+
+Generate cohesive narrative for each cluster:
+
+```python
+async def generate_narrative_from_cluster(cluster: List[Dict]) -> Dict:
+    """
+    Generate narrative title and summary from article cluster.
+    
+    Process:
+    1. Aggregate actors, tensions, and entity relationships from cluster
+    2. Determine primary nucleus entity (most common across articles)
+    3. Call LLM to generate title (max 60 chars) and summary (2-3 sentences)
+    4. Polish summary for readability (active voice, punchy phrasing)
+    
+    Critical rules enforced in LLM prompt:
+    - ONLY use information from the articles (no external knowledge)
+    - Do NOT add titles or roles not explicitly mentioned
+    - Do NOT assume current positions (people change roles)
+    - Focus on WHAT happened, not WHO holds positions
+    
+    Returns:
+        {
+            'title': 'SEC Regulatory Crackdown on Crypto Exchanges',
+            'summary': 'The SEC intensified enforcement against major exchanges...',
+            'actors': ['SEC', 'Binance', 'Coinbase', ...],
+            'nucleus_entity': 'SEC',
+            'article_ids': [ObjectId(...), ...],
+            'article_count': 5,
+            'entity_relationships': [
+                {'a': 'SEC', 'b': 'Binance', 'weight': 3},
+                {'a': 'SEC', 'b': 'Coinbase', 'weight': 2}
+            ]
+        }
+    """
+    # 1. Aggregate data: actors, tensions, entity links (co-occurrence)
+    # 2. LLM call 1: Generate narrative title + summary from article snippets
+    # 3. LLM call 2: Polish summary for readability (active voice, punchy)
+    # 4. Store complete narrative document
+```
+
+**Processing:** 2 LLM calls per cluster (one for generation, one for polish)
+**Latency:** 4-6 seconds per cluster
+
+#### Stage 4: Narrative Lifecycle & Storage
+
+**File:** `src/crypto_news_aggregator/services/narrative_service.py:147-214`
+
+Track narrative lifecycle and persistence:
+
+```python
+def determine_lifecycle_state(article_count: int, mention_velocity: float) -> str:
+    """
+    Determine narrative state based on activity metrics.
+    
+    States:
+    - 'emerging': 1-3 articles, low velocity (<1.5 articles/day)
+    - 'rising': 4-6 articles, moderate velocity (1.5-3.0 articles/day)
+    - 'hot': 7+ articles OR velocity >= 3.0 articles/day
+    - 'cooling': Transitioning from hot (detected via momentum)
+    - 'dormant': No new articles for >14 days
+    - 'echo': Resurfaces after dormancy without new articles
+    - 'reactivated': Dormant narrative receives new articles
+    
+    Example lifecycle: emerging → rising → hot → cooling → dormant → reactivated
+    """
+    if article_count >= 7 or mention_velocity >= 3.0:
+        return 'hot'
+    elif mention_velocity >= 1.5 and article_count < 7:
+        return 'rising'
+    else:
+        return 'emerging'
+```
+
+**Lifecycle tracking:**
+- `first_seen`: When narrative was created
+- `last_updated`: When last article was added
+- `lifecycle_state`: Current state (emerging, rising, hot, cooling, dormant, etc.)
+- `lifecycle_history`: Array of state transitions with timestamps and metrics
+- `needs_summary_update`: Flag set when narrative merges or reaches milestones (3+ new articles, >24h age)
+
 **Configuration:**
-- **Similarity threshold:** 0.75 (cosine similarity)
-- **Embedding model:** `text-embedding-3-small` (OpenAI) or Claude embeddings
-- **Embedding dimension:** 1536 (or 4096 for larger models)
-- **Cache:** Narratives cached in memory with embedding (re-fetched hourly)
+- **Clustering threshold:** link_strength >= 0.8 (weighted actor/tension overlap)
+- **Minimum cluster size:** 3 articles (small clusters not promoted to narratives)
+- **Narrative grace period:** 7-30 days adaptive (fast-burning: 7d, slow-burn: 30d)
+- **Salience threshold:** actor_salience >= 4.5 (out of 10) for "core actor" status
 
 **Narrative document schema:**
 ```javascript
@@ -134,6 +274,77 @@ async def detect_or_match_narrative(
   "_disabled_by": "TASK-073-auto-cleanup"          // Audit label; null on active narratives
 }
 ```
+
+### Narrative Matching & Merging
+
+**File:** `src/crypto_news_aggregator/services/narrative_service.py:428-550` (`find_matching_narrative`)
+
+After generating narratives from clusters, the system attempts to match new narratives against existing ones to prevent duplication:
+
+```python
+async def find_matching_narrative(
+    fingerprint: Dict,  # {nucleus_entity, top_actors, key_actions}
+    within_days: int = 14,
+    cluster_velocity: Optional[float] = None
+) -> Optional[Dict]:
+    """
+    Find existing narrative that matches fingerprint.
+    
+    Fingerprint: SHA1 hash of nucleus_entity + top_actors + key_actions
+    Similarity: Compares fingerprints across actors and actions
+    
+    Adaptive thresholds (based on narrative recency):
+    - Recent narratives (updated <48h): 0.5 similarity threshold
+      Allows near-term continuations to merge more easily
+    - Older narratives (>48h): 0.6 similarity threshold
+      Strict matching to prevent unrelated stories from merging
+    
+    Adaptive grace period (based on velocity):
+    - High velocity (>2 articles/day): 7 day window
+    - Medium velocity (~1 article/day): 14 day window
+    - Low velocity (<0.5 articles/day): 30 day window
+    
+    Returns:
+        Best matching narrative dict if similarity >= threshold, else None
+    """
+    # Query narratives within time window (adaptive based on velocity)
+    candidates = await narratives_collection.find({
+        'last_updated': {'$gte': cutoff_time},
+        'lifecycle_state': {'$in': ['emerging', 'rising', 'hot', 'cooling']}
+    }).to_list(length=None)
+    
+    # Calculate fingerprint similarity for each candidate
+    best_match = None
+    best_similarity = 0.0
+    
+    for candidate in candidates:
+        similarity = calculate_fingerprint_similarity(
+            fingerprint,
+            candidate['fingerprint']
+        )
+        
+        # Check against adaptive threshold based on recency
+        if candidate['last_updated'] > (now - 48h):
+            threshold = 0.5  # Recent: easier merge
+        else:
+            threshold = 0.6  # Older: strict matching
+        
+        if similarity >= threshold and similarity > best_similarity:
+            best_match = candidate
+            best_similarity = similarity
+    
+    return best_match
+```
+
+**Merging logic (when match found):**
+1. Append new cluster articles to existing narrative
+2. Combine actors and tensions (deduplicated)
+3. Recalculate nucleus entity and actor salience
+4. Set `needs_summary_update: true` if >3 new articles
+5. Update `last_updated` timestamp
+6. Preserve lifecycle_history with state transitions
+
+**Reference:** `src/crypto_news_aggregator/services/narrative_service.py:40-50` (merge_shallow_narratives)
 
 ### Entity Linking & Index
 

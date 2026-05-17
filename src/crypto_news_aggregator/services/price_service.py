@@ -168,8 +168,8 @@ class CoinGeckoPriceService:
         Returns:
             Dict containing 'price' (float), 'change_24h' (float), and 'timestamp' (datetime)
         """
-        if self.settings.TESTING_MODE:
-            logger.info("TESTING_MODE enabled. Returning mock Bitcoin price.")
+        if self.settings.TESTING_MODE or self.settings.COINGECKO_API_DISABLED:
+            logger.info("TESTING_MODE or COINGECKO_API_DISABLED enabled. Returning mock Bitcoin price.")
             return _generate_mock_price("bitcoin")
 
         increment_api_call_counter()
@@ -213,8 +213,8 @@ class CoinGeckoPriceService:
         if not coin_ids:
             return {}
 
-        if self.settings.TESTING_MODE:
-            logger.info(f"TESTING_MODE enabled. Returning mock prices for: {coin_ids}")
+        if self.settings.TESTING_MODE or self.settings.COINGECKO_API_DISABLED:
+            logger.info(f"TESTING_MODE or COINGECKO_API_DISABLED enabled. Returning mock prices for: {coin_ids}")
             return {coin_id: _generate_mock_price(coin_id) for coin_id in coin_ids}
 
         increment_api_call_counter()
@@ -264,9 +264,9 @@ class CoinGeckoPriceService:
         if not coin_ids:
             return {}
 
-        if self.settings.TESTING_MODE:
+        if self.settings.TESTING_MODE or self.settings.COINGECKO_API_DISABLED:
             logger.info(
-                f"TESTING_MODE enabled. Returning mock market data for: {coin_ids}"
+                f"TESTING_MODE or COINGECKO_API_DISABLED enabled. Returning mock market data for: {coin_ids}"
             )
             return {
                 coin_id: _generate_mock_market_data(coin_id) for coin_id in coin_ids
@@ -308,9 +308,9 @@ class CoinGeckoPriceService:
         Returns:
             A dictionary with 'prices' and 'volumes', each a list of (timestamp, value) tuples, or None if an error occurs.
         """
-        if self.settings.TESTING_MODE:
+        if self.settings.TESTING_MODE or self.settings.COINGECKO_API_DISABLED:
             logger.info(
-                f"TESTING_MODE enabled. Returning mock historical prices for: {coin_id}"
+                f"TESTING_MODE or COINGECKO_API_DISABLED enabled. Returning mock historical prices for: {coin_id}"
             )
             mock_prices = []
             for i in range(days):

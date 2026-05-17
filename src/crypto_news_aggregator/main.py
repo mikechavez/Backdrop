@@ -124,12 +124,13 @@ async def lifespan(app: FastAPI):
             schedule_alert_checks
         )
         # Lazy import to avoid triggering tasks/__init__.py which imports celery
-        from .tasks.price_monitor import get_price_monitor
-        
+        # from .tasks.price_monitor import get_price_monitor
+
         # Create background tasks with immediate execution for data availability
-        price_monitor = get_price_monitor()
+        # NOTE: price_monitor disabled to stop CoinGecko API requests
+        # price_monitor = get_price_monitor()
         background_tasks.extend([
-            asyncio.create_task(price_monitor.start(), name="price_monitor"),
+            # asyncio.create_task(price_monitor.start(), name="price_monitor"),
             asyncio.create_task(schedule_rss_fetch(1800, run_immediately=True), name="rss_fetcher"),
             asyncio.create_task(update_signal_scores(run_immediately=True), name="signal_scores"),
             asyncio.create_task(schedule_narrative_updates(600, run_immediately=True), name="narratives"),
