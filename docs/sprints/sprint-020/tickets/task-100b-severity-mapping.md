@@ -3,7 +3,7 @@ ticket_id: TASK-100B
 title: Add deterministic severity mapping for Sprint 020 detectors
 priority: high
 severity: medium
-status: OPEN
+status: COMPLETE
 date_created: 2025-01-01
 branch: task/bugops-100b-severity-mapping
 effort_estimate: small
@@ -98,21 +98,21 @@ DETECTOR_SEVERITY: dict[str, AlertSeverity] = {
 }
 ```
 
-- [ ] Dict keys match the detector name strings used in dedupe keys
+- [x] Dict keys match the detector name strings used in dedupe keys
   (e.g. `"article_freshness"` matches the first segment of
   `"article_freshness:articles"`)
-- [ ] All four values are `AlertSeverity.HIGH`
-- [ ] Module-level docstring explains this is Sprint 020 only and escalation
+- [x] All four values are `AlertSeverity.HIGH`
+- [x] Module-level docstring explains this is Sprint 020 only and escalation
   is not implemented
 
 ### Test cases in `test_severity_mapping.py`
 
-- [ ] `DETECTOR_SEVERITY["article_freshness"] == AlertSeverity.HIGH`
-- [ ] `DETECTOR_SEVERITY["signal_freshness"] == AlertSeverity.HIGH`
-- [ ] `DETECTOR_SEVERITY["narrative_freshness"] == AlertSeverity.HIGH`
-- [ ] `DETECTOR_SEVERITY["briefing_freshness"] == AlertSeverity.HIGH`
-- [ ] Mapping has exactly 4 keys
-- [ ] All values are `AlertSeverity.HIGH` (no dynamic computation)
+- [x] `DETECTOR_SEVERITY["article_freshness"] == AlertSeverity.HIGH`
+- [x] `DETECTOR_SEVERITY["signal_freshness"] == AlertSeverity.HIGH`
+- [x] `DETECTOR_SEVERITY["narrative_freshness"] == AlertSeverity.HIGH`
+- [x] `DETECTOR_SEVERITY["briefing_freshness"] == AlertSeverity.HIGH`
+- [x] Mapping has exactly 4 keys
+- [x] All values are `AlertSeverity.HIGH` (no dynamic computation)
 
 ### Configuration
 
@@ -131,23 +131,23 @@ pytest src/tests/bugops/ -v
 
 ### Automated Verification
 
-- [ ] All 6 test cases pass
-- [ ] All existing bugops tests pass without modification
+- [x] All 6 test cases pass
+- [x] All existing bugops tests pass without modification
 
 ### Manual Verification
 
-- [ ] Import `DETECTOR_SEVERITY` in a Python REPL and confirm all four values
+- [x] Import `DETECTOR_SEVERITY` in a Python REPL and confirm all four values
   are `AlertSeverity.HIGH`
 
 ---
 
 ## Acceptance Criteria
 
-- [ ] `severity.py` exists with the `DETECTOR_SEVERITY` dict
-- [ ] All four freshness detectors map to `AlertSeverity.HIGH`
-- [ ] No dynamic severity computation
-- [ ] All test cases pass
-- [ ] Existing tests unaffected
+- [x] `severity.py` exists with the `DETECTOR_SEVERITY` dict
+- [x] All four freshness detectors map to `AlertSeverity.HIGH`
+- [x] No dynamic severity computation
+- [x] All test cases pass
+- [x] Existing tests unaffected
 
 ---
 
@@ -169,9 +169,17 @@ mapping definition only.
 
 ## Completion Summary
 
-- Branch:
-- Commit:
+- Branch: `task/bugops-100b-severity-mapping`
+- Commits: 7f607e2 (implementation), e7d8e14 (docs), 9f1018c (PR link)
 - Changes made:
+  - Created `src/crypto_news_aggregator/bugops/signal_sources/severity.py` with `DETECTOR_SEVERITY` dict
+  - Created `tests/bugops/test_severity_mapping.py` with 6 test cases
+  - Updated Sprint 020 session log and ticket status
 - Tests run:
+  - `poetry run pytest tests/bugops/test_severity_mapping.py -v` → 6 passed
+  - All 27 existing bugops model tests still pass
 - Manual verification:
-- Deviations from plan:
+  - Confirmed DETECTOR_SEVERITY imports correctly and all 4 detectors map to AlertSeverity.HIGH
+  - Verified no dynamic computation, deterministic at detection time
+- Deviations from plan: None
+- PR: https://github.com/mikechavez/Backdrop/pull/358
