@@ -60,7 +60,7 @@ This sprint does not implement Evidence Packs, Investigations, Tickets, Railway 
 |----|-----------|--------------------------------------------------------------------|----------|-----|--------|
 | 1  | TASK-100  | Extend BugCase model with Sprint 020 fields                        | ✅ DONE  | S   | S      |
 | 2  | TASK-100A | Add canonical BugOps subsystem enum                                | ✅ DONE  | S   | S      |
-| 3  | TASK-100B | Add deterministic severity mapping for Sprint 020 detectors        | 🔲 OPEN  | S   |        |
+| 3  | TASK-100B | Add deterministic severity mapping for Sprint 020 detectors        | ✅ DONE  | S   | S      |
 | 4  | TASK-101  | Add MongoDB indexes for BugOps collections                         | 🔲 OPEN  | S   |        |
 | 5  | TASK-102  | Add `create_case_direct()` and `attach_observation_to_case()`      | 🔲 OPEN  | S   |        |
 | 6  | TASK-103  | Implement DependencyGraph v1                                       | 🔲 OPEN  | S   |        |
@@ -934,3 +934,18 @@ Neither sprint begins until Sprint 020 success criteria are fully met.
 **Next:**
 - TASK-100B: Deterministic severity mapping
 - TASK-101: MongoDB indexes
+
+### Session 2 (2026-06-12)
+
+**Completed:**
+- TASK-100B: Added deterministic severity mapping for Sprint 020 detectors
+  - Created `DETECTOR_SEVERITY` dict in signal_sources/severity.py with 4 freshness detectors → High severity
+  - Keys: article_freshness, signal_freshness, narrative_freshness, briefing_freshness (raw detector strings)
+  - Severity assigned deterministically at detection time, not computed dynamically
+  - Test coverage: 6 tests verifying all detectors present and all assigned High severity
+  - All 33 tests pass (6 new + 27 existing model tests)
+  - Branch: `task/bugops-100b-severity-mapping`, commit: 7f607e2
+
+**Next:**
+- TASK-101: MongoDB indexes for BugOps collections
+- TASK-102: create_case_direct() and attach_observation_to_case() store methods
