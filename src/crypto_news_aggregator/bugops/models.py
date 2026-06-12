@@ -1,9 +1,21 @@
 """BugOps data models."""
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from datetime import datetime
 from enum import Enum
 from typing import Optional
+
+
+class BugOpsSubsystem(str, Enum):
+    """Canonical BugOps subsystem enum."""
+    SCHEDULER = "scheduler"
+    INGESTION = "ingestion"
+    ARTICLES = "articles"
+    SIGNALS = "signals"
+    NARRATIVES = "narratives"
+    BRIEFINGS = "briefings"
+    WORKER = "worker"
+    DATABASE = "database"
 
 
 class AlertSeverity(str, Enum):
@@ -92,6 +104,31 @@ class BugCaseCreate(BaseModel):
     snoozed_until: Optional[datetime] = None
     last_notified_at: Optional[datetime] = None
     notification_count: int = 0
+
+    @field_validator("root_subsystem")
+    @classmethod
+    def validate_root_subsystem(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in [s.value for s in BugOpsSubsystem]:
+            raise ValueError(f"root_subsystem must be a valid BugOpsSubsystem value, got: {v}")
+        return v
+
+    @field_validator("affected_subsystems")
+    @classmethod
+    def validate_affected_subsystems(cls, v: list[str]) -> list[str]:
+        valid_values = {s.value for s in BugOpsSubsystem}
+        for subsystem in v:
+            if subsystem not in valid_values:
+                raise ValueError(f"affected_subsystems contains invalid value: {subsystem}. Must be one of: {valid_values}")
+        return v
+
+    @field_validator("blast_radius")
+    @classmethod
+    def validate_blast_radius(cls, v: list[str]) -> list[str]:
+        valid_values = {s.value for s in BugOpsSubsystem}
+        for subsystem in v:
+            if subsystem not in valid_values:
+                raise ValueError(f"blast_radius contains invalid value: {subsystem}. Must be one of: {valid_values}")
+        return v
 
 
 class BugCase(BugCaseCreate):

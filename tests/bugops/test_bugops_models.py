@@ -10,6 +10,7 @@ from crypto_news_aggregator.bugops.models import (
     AlertSeverity,
     AlertStatus,
     CaseStatus,
+    BugOpsSubsystem,
 )
 
 
@@ -304,3 +305,192 @@ def test_bug_case_read_model_inherits_sprint020_fields():
     assert case.last_seen_at == now
     assert case.detection_type == "startup"
     assert case.reopen_count == 1
+
+
+# BugOpsSubsystem enum tests
+def test_bugops_subsystem_enum_has_all_values():
+    """Test that canonical subsystem enum has all expected values."""
+    assert BugOpsSubsystem.SCHEDULER.value == "scheduler"
+    assert BugOpsSubsystem.INGESTION.value == "ingestion"
+    assert BugOpsSubsystem.ARTICLES.value == "articles"
+    assert BugOpsSubsystem.SIGNALS.value == "signals"
+    assert BugOpsSubsystem.NARRATIVES.value == "narratives"
+    assert BugOpsSubsystem.BRIEFINGS.value == "briefings"
+    assert BugOpsSubsystem.WORKER.value == "worker"
+    assert BugOpsSubsystem.DATABASE.value == "database"
+
+
+def test_bugops_subsystem_enum_count():
+    """Test that there are exactly 8 canonical subsystems."""
+    assert len(BugOpsSubsystem) == 8
+
+
+def test_bugops_subsystem_is_string_enum():
+    """Test that BugOpsSubsystem is a string enum."""
+    assert isinstance(BugOpsSubsystem.ARTICLES, str)
+    assert BugOpsSubsystem.ARTICLES == "articles"
+
+
+def test_root_subsystem_accepts_valid_value():
+    """Test that root_subsystem accepts valid canonical value."""
+    case = BugCaseCreate(
+        case_id="case_1",
+        severity=AlertSeverity.HIGH,
+        alert_type="freshness",
+        title="Article Freshness",
+        summary="No articles",
+        dedupe_key="article_freshness:articles",
+        source_types=["detector"],
+        root_subsystem="articles",
+    )
+    assert case.root_subsystem == "articles"
+
+
+def test_root_subsystem_rejects_invalid_value():
+    """Test that root_subsystem rejects non-canonical value."""
+    with pytest.raises(ValueError, match="root_subsystem must be a valid BugOpsSubsystem value"):
+        BugCaseCreate(
+            case_id="case_1",
+            severity=AlertSeverity.HIGH,
+            alert_type="freshness",
+            title="Test",
+            summary="Test",
+            dedupe_key="test",
+            source_types=["detector"],
+            root_subsystem="invalid_subsystem",
+        )
+
+
+def test_affected_subsystems_accepts_valid_values():
+    """Test that affected_subsystems accepts valid canonical values."""
+    case = BugCaseCreate(
+        case_id="case_1",
+        severity=AlertSeverity.HIGH,
+        alert_type="freshness",
+        title="Test",
+        summary="Test",
+        dedupe_key="test",
+        source_types=["detector"],
+        affected_subsystems=["signals", "narratives", "briefings"],
+    )
+    assert case.affected_subsystems == ["signals", "narratives", "briefings"]
+
+
+def test_affected_subsystems_rejects_invalid_value():
+    """Test that affected_subsystems rejects non-canonical value."""
+    with pytest.raises(ValueError, match="affected_subsystems contains invalid value"):
+        BugCaseCreate(
+            case_id="case_1",
+            severity=AlertSeverity.HIGH,
+            alert_type="freshness",
+            title="Test",
+            summary="Test",
+            dedupe_key="test",
+            source_types=["detector"],
+            affected_subsystems=["signals", "invalid_subsystem"],
+        )
+
+
+def test_blast_radius_accepts_valid_values():
+    """Test that blast_radius accepts valid canonical values."""
+    case = BugCaseCreate(
+        case_id="case_1",
+        severity=AlertSeverity.HIGH,
+        alert_type="freshness",
+        title="Test",
+        summary="Test",
+        dedupe_key="test",
+        source_types=["detector"],
+        blast_radius=["signals", "narratives", "briefings"],
+    )
+    assert case.blast_radius == ["signals", "narratives", "briefings"]
+
+
+def test_blast_radius_rejects_invalid_value():
+    """Test that blast_radius rejects non-canonical value."""
+    with pytest.raises(ValueError, match="blast_radius contains invalid value"):
+        BugCaseCreate(
+            case_id="case_1",
+            severity=AlertSeverity.HIGH,
+            alert_type="freshness",
+            title="Test",
+            summary="Test",
+            dedupe_key="test",
+            source_types=["detector"],
+            blast_radius=["signals", "bad_subsystem"],
+        )
+
+
+def test_all_subsystems_valid_in_case_fields():
+    """Test that all canonical subsystems are valid in case fields."""
+    for subsystem in BugOpsSubsystem:
+        # Test root_subsystem
+        case1 = BugCaseCreate(
+            case_id="case_1",
+            severity=AlertSeverity.HIGH,
+            alert_type="test",
+            title="Test",
+            summary="Test",
+            dedupe_key="test",
+            source_types=["detector"],
+            root_subsystem=subsystem.value,
+        )
+        assert case1.root_subsystem == subsystem.value
+
+        # Test affected_subsystems
+        case2 = BugCaseCreate(
+            case_id="case_1",
+            severity=AlertSeverity.HIGH,
+            alert_type="test",
+            title="Test",
+            summary="Test",
+            dedupe_key="test",
+            source_types=["detector"],
+            affected_subsystems=[subsystem.value],
+        )
+        assert case2.affected_subsystems == [subsystem.value]
+
+        # Test blast_radius
+        case3 = BugCaseCreate(
+            case_id="case_1",
+            severity=AlertSeverity.HIGH,
+            alert_type="test",
+            title="Test",
+            summary="Test",
+            dedupe_key="test",
+            source_types=["detector"],
+            blast_radius=[subsystem.value],
+        )
+        assert case3.blast_radius == [subsystem.value]
+
+
+def test_empty_subsystem_lists_valid():
+    """Test that empty subsystem lists are valid."""
+    case = BugCaseCreate(
+        case_id="case_1",
+        severity=AlertSeverity.HIGH,
+        alert_type="test",
+        title="Test",
+        summary="Test",
+        dedupe_key="test",
+        source_types=["detector"],
+        affected_subsystems=[],
+        blast_radius=[],
+    )
+    assert case.affected_subsystems == []
+    assert case.blast_radius == []
+
+
+def test_none_root_subsystem_valid():
+    """Test that None is valid for optional root_subsystem."""
+    case = BugCaseCreate(
+        case_id="case_1",
+        severity=AlertSeverity.HIGH,
+        alert_type="test",
+        title="Test",
+        summary="Test",
+        dedupe_key="test",
+        source_types=["detector"],
+        root_subsystem=None,
+    )
+    assert case.root_subsystem is None
