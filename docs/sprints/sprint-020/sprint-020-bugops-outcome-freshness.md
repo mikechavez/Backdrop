@@ -944,7 +944,8 @@ Neither sprint begins until Sprint 020 success criteria are fully met.
   - Severity assigned deterministically at detection time, not computed dynamically
   - Test coverage: 6 tests verifying all detectors present and all assigned High severity
   - All 33 tests pass (6 new + 27 existing model tests)
-  - Branch: `task/bugops-100b-severity-mapping`, commit: 7f607e2
+  - Branch: `task/bugops-100b-severity-mapping`, commits: 7f607e2, e7d8e14
+  - PR: https://github.com/mikechavez/Backdrop/pull/358
 
 **Next:**
 - TASK-101: MongoDB indexes for BugOps collections
