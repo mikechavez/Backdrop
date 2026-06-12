@@ -58,7 +58,7 @@ This sprint does not implement Evidence Packs, Investigations, Tickets, Railway 
 
 | #  | Ticket    | Title                                                              | Status   | Est | Actual |
 |----|-----------|--------------------------------------------------------------------|----------|-----|--------|
-| 1  | TASK-100  | Extend BugCase model with Sprint 020 fields                        | 🔲 OPEN  | S   |        |
+| 1  | TASK-100  | Extend BugCase model with Sprint 020 fields                        | ✅ DONE  | S   | S      |
 | 2  | TASK-100A | Add canonical BugOps subsystem enum                                | 🔲 OPEN  | S   |        |
 | 3  | TASK-100B | Add deterministic severity mapping for Sprint 020 detectors        | 🔲 OPEN  | S   |        |
 | 4  | TASK-101  | Add MongoDB indexes for BugOps collections                         | 🔲 OPEN  | S   |        |
@@ -912,5 +912,15 @@ Neither sprint begins until Sprint 020 success criteria are fully met.
 
 ## Session Log
 
-### Session 1 (TBD)
-_To be filled in during implementation._
+### Session 1 (2026-06-11)
+
+**Completed:**
+- TASK-100: Extended BugCase model with 14 Sprint 020 fields
+  - Added subsystem tracking, observation tracking, recovery tracking, detection metadata
+  - All fields optional/have defaults for backward compatibility
+  - Verified BugCase inheritance, test coverage: 25 tests pass (15 model + 10 cost-runaway)
+  - Branch: `task/bugops-100-bugcase-model-sprint020`, commits: 4b1880a, 6abdcc9, b115f70
+
+**Next:**
+- TASK-100A: Canonical subsystem enum
+- TASK-100B: Deterministic severity mapping
