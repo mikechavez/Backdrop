@@ -119,6 +119,7 @@ def test_bug_case_create_valid():
     case = BugCaseCreate(
         case_id="case_1",
         severity=AlertSeverity.HIGH,
+        alert_type="cost_runaway",
         title="Cost Runaway Case",
         summary="Multiple cost runaway alerts",
         dedupe_key="cost_runaway_1",
@@ -136,6 +137,7 @@ def test_bug_case_create_default_status():
     case = BugCaseCreate(
         case_id="case_1",
         severity=AlertSeverity.WARNING,
+        alert_type="test",
         title="Test",
         summary="Test",
         dedupe_key="test_1",
@@ -149,6 +151,7 @@ def test_bug_case_create_default_alert_ids():
     case = BugCaseCreate(
         case_id="case_1",
         severity=AlertSeverity.WARNING,
+        alert_type="test",
         title="Test",
         summary="Test",
         dedupe_key="test_1",
@@ -164,6 +167,7 @@ def test_bug_case_manual_only_lifecycle():
         case_id="case_1",
         status=CaseStatus.OPEN,
         severity=AlertSeverity.HIGH,
+        alert_type="test",
         title="Test",
         summary="Test",
         dedupe_key="test_1",
@@ -176,6 +180,7 @@ def test_bug_case_manual_only_lifecycle():
         case_id="case_1",
         status=CaseStatus.RESOLVED,
         severity=AlertSeverity.HIGH,
+        alert_type="test",
         title="Test",
         summary="Test",
         dedupe_key="test_1",
@@ -188,9 +193,114 @@ def test_bug_case_manual_only_lifecycle():
         case_id="case_1",
         status=CaseStatus.CLOSED,
         severity=AlertSeverity.HIGH,
+        alert_type="test",
         title="Test",
         summary="Test",
         dedupe_key="test_1",
         source_types=["llm_traces"],
     )
     assert case_closed.status == CaseStatus.CLOSED
+
+
+def test_bug_case_sprint020_fields_with_defaults():
+    """Test that Sprint 020 fields are present with correct defaults."""
+    case = BugCaseCreate(
+        case_id="case_1",
+        severity=AlertSeverity.HIGH,
+        alert_type="freshness",
+        title="Article Freshness Failure",
+        summary="No articles inserted",
+        dedupe_key="article_freshness:articles",
+        source_types=["freshness_detector"],
+    )
+    assert case.observation_count == 1
+    assert case.reopen_count == 0
+    assert case.root_subsystem is None
+    assert case.affected_subsystems == []
+    assert case.blast_radius == []
+    assert case.first_seen_at is None
+    assert case.last_seen_at is None
+    assert case.recovery_candidate_at is None
+    assert case.resolution_type is None
+    assert case.detection_type is None
+    assert case.muted_until is None
+    assert case.snoozed_until is None
+    assert case.last_notified_at is None
+    assert case.notification_count == 0
+
+
+def test_bug_case_sprint020_fields_with_values():
+    """Test that Sprint 020 fields can be set with values."""
+    now = datetime.utcnow()
+    case = BugCaseCreate(
+        case_id="case_1",
+        severity=AlertSeverity.HIGH,
+        alert_type="freshness",
+        title="Article Freshness Failure",
+        summary="No articles inserted",
+        dedupe_key="article_freshness:articles",
+        source_types=["freshness_detector"],
+        root_subsystem="articles",
+        affected_subsystems=["signals", "narratives"],
+        blast_radius=["signals", "narratives", "briefings"],
+        observation_count=3,
+        first_seen_at=now,
+        last_seen_at=now,
+        detection_type="startup",
+        reopen_count=1,
+    )
+    assert case.root_subsystem == "articles"
+    assert case.affected_subsystems == ["signals", "narratives"]
+    assert case.blast_radius == ["signals", "narratives", "briefings"]
+    assert case.observation_count == 3
+    assert case.first_seen_at == now
+    assert case.last_seen_at == now
+    assert case.detection_type == "startup"
+    assert case.reopen_count == 1
+
+
+def test_bug_case_detection_type_values():
+    """Test detection_type enum values."""
+    for detection_type in ["startup", "runtime", "reopen"]:
+        case = BugCaseCreate(
+            case_id="case_1",
+            severity=AlertSeverity.HIGH,
+            alert_type="freshness",
+            title="Test",
+            summary="Test",
+            dedupe_key="test",
+            source_types=["detector"],
+            detection_type=detection_type,
+        )
+        assert case.detection_type == detection_type
+
+
+def test_bug_case_read_model_inherits_sprint020_fields():
+    """Test that BugCase (read model) inherits all Sprint 020 fields from BugCaseCreate."""
+    now = datetime.utcnow()
+    case_data = {
+        "case_id": "case_1",
+        "severity": AlertSeverity.HIGH,
+        "alert_type": "freshness",
+        "title": "Article Freshness",
+        "summary": "No articles",
+        "dedupe_key": "article_freshness:articles",
+        "source_types": ["detector"],
+        "root_subsystem": "articles",
+        "affected_subsystems": ["signals"],
+        "blast_radius": ["signals", "narratives"],
+        "observation_count": 2,
+        "first_seen_at": now,
+        "last_seen_at": now,
+        "detection_type": "startup",
+        "reopen_count": 1,
+    }
+    case = BugCase(**case_data)
+    assert case.root_subsystem == "articles"
+    assert case.affected_subsystems == ["signals"]
+    assert case.blast_radius == ["signals", "narratives"]
+    assert case.observation_count == 2
+    assert case.first_seen_at == now
+    assert case.last_seen_at == now
+    assert case.detection_type == "startup"
+    assert case.reopen_count == 1

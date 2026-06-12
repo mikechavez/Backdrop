@@ -78,6 +78,20 @@ class BugCaseCreate(BaseModel):
     resolved_at: Optional[datetime] = None
     closed_at: Optional[datetime] = None
     deterministic_report: Optional[str] = None
+    root_subsystem: Optional[str] = None
+    affected_subsystems: list[str] = Field(default_factory=list)
+    blast_radius: list[str] = Field(default_factory=list)
+    observation_count: int = 1
+    first_seen_at: Optional[datetime] = None
+    last_seen_at: Optional[datetime] = None
+    recovery_candidate_at: Optional[datetime] = None
+    resolution_type: Optional[str] = None  # reserved: real_issue | false_positive | duplicate | operator_error | expected_idle
+    detection_type: Optional[str] = None  # startup | runtime | reopen
+    reopen_count: int = 0
+    muted_until: Optional[datetime] = None
+    snoozed_until: Optional[datetime] = None
+    last_notified_at: Optional[datetime] = None
+    notification_count: int = 0
 
 
 class BugCase(BugCaseCreate):
