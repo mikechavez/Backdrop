@@ -184,9 +184,26 @@ ticket — schema only.
 
 ## Completion Summary
 
-- Branch:
-- Commit:
+- Branch: `task/bugops-100-bugcase-model-sprint020`
+- Commits: 
+  - `4b1880a` — docs(sprint-020): add sprint plan, ticket specs, and BugOps system architecture
+  - `6abdcc9` — task(bugops): TASK-100 extend BugCase model with Sprint 020 fields
 - Changes made:
+  - Added 14 new fields to `BugCaseCreate` in `src/crypto_news_aggregator/bugops/models.py`
+  - All fields optional or have defaults (no breaking changes)
+  - `observation_count` defaults to 1 (not 0)
+  - `detection_type` and `resolution_type` include inline comments on valid values
+  - `BugCase` inherits all fields via inheritance from `BugCaseCreate`
 - Tests run:
+  - `poetry run pytest tests/bugops/test_bugops_models.py tests/bugops/test_llm_traces_cost_source.py -v`
+  - **Result: 25 passed** (15 model tests + 10 cost-runaway detector tests)
+  - Test output: all PASSED, 97 warnings (Pydantic deprecation warnings, not test failures)
 - Manual verification:
+  - ✅ BugCase instantiated with new fields via inheritance (test_bug_case_read_model_inherits_sprint020_fields)
+  - ✅ observation_count defaults to 1 (verified in test_bug_case_sprint020_fields_with_defaults)
+  - ✅ detection_type accepts None and valid values: startup, runtime, reopen
+  - ✅ Cost-runaway detector test suite unaffected (all 10 tests pass)
 - Deviations from plan:
+  - Ticket specified `pytest src/tests/bugops/ -v` but correct path is `tests/bugops/` (no `src/` prefix)
+  - `detection_type` remains `Optional[str] = None` at schema level for backward compatibility; Sprint 020 detectors will enforce non-null via store/detector creation logic, not at model validation
+  - Test fixture updates: 4 existing test cases required adding the pre-existing required field `alert_type` to pass Pydantic validation. This is not a behavior change — the field was already required in the model, just missing from fixture data.
