@@ -59,7 +59,7 @@ This sprint does not implement Evidence Packs, Investigations, Tickets, Railway 
 | #  | Ticket    | Title                                                              | Status   | Est | Actual |
 |----|-----------|--------------------------------------------------------------------|----------|-----|--------|
 | 1  | TASK-100  | Extend BugCase model with Sprint 020 fields                        | ✅ DONE  | S   | S      |
-| 2  | TASK-100A | Add canonical BugOps subsystem enum                                | 🔲 OPEN  | S   |        |
+| 2  | TASK-100A | Add canonical BugOps subsystem enum                                | ✅ DONE  | S   | S      |
 | 3  | TASK-100B | Add deterministic severity mapping for Sprint 020 detectors        | 🔲 OPEN  | S   |        |
 | 4  | TASK-101  | Add MongoDB indexes for BugOps collections                         | 🔲 OPEN  | S   |        |
 | 5  | TASK-102  | Add `create_case_direct()` and `attach_observation_to_case()`      | 🔲 OPEN  | S   |        |
@@ -921,6 +921,16 @@ Neither sprint begins until Sprint 020 success criteria are fully met.
   - Verified BugCase inheritance, test coverage: 25 tests pass (15 model + 10 cost-runaway)
   - Branch: `task/bugops-100-bugcase-model-sprint020`, commits: 4b1880a, 6abdcc9, b115f70
 
+- TASK-100A: Added canonical BugOps subsystem enum
+  - Created `BugOpsSubsystem` string enum with 8 canonical values: scheduler, ingestion, articles, signals, narratives, briefings, worker, database
+  - Added Pydantic field validators to enforce enum values on root_subsystem, affected_subsystems, and blast_radius
+  - Field annotations remain Optional[str] / list[str] for DB and backward compatibility
+  - Validators accept raw strings ("articles") and enum instances (BugOpsSubsystem.ARTICLES), reject invalid strings ("article", "ArticleFreshness"), preserve None/empty list compatibility
+  - Exported BugOpsSubsystem from bugops/__init__.py for easy import
+  - Test coverage: 12 new tests validating enum and field validation; all 27 model tests pass
+  - Broader bugops suite has pre-existing failures in test_alert_to_case_flow.py unrelated to this task
+  - Branch: `task/bugops-100-bugcase-model-sprint020`, commit: e1efb93
+
 **Next:**
-- TASK-100A: Canonical subsystem enum
 - TASK-100B: Deterministic severity mapping
+- TASK-101: MongoDB indexes

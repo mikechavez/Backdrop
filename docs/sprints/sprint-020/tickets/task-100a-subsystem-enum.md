@@ -3,9 +3,9 @@ ticket_id: TASK-100A
 title: Add canonical BugOps subsystem enum
 priority: high
 severity: medium
-status: OPEN
+status: DONE
 date_created: 2025-01-01
-branch: task/bugops-100a-subsystem-enum
+branch: task/bugops-100-bugcase-model-sprint020
 effort_estimate: small
 ---
 
@@ -165,9 +165,42 @@ this ticket — enum definition only.
 
 ## Completion Summary
 
-- Branch:
-- Commit:
-- Changes made:
-- Tests run:
-- Manual verification:
-- Deviations from plan:
+**Status: ✅ COMPLETE**
+
+**Branch:** `task/bugops-100-bugcase-model-sprint020`
+
+**Commits:** e1efb93, 2950a52
+
+**Changes Made:**
+1. Added `BugOpsSubsystem(str, Enum)` to `models.py` with 8 canonical values
+2. Added Pydantic validators to BugCaseCreate for `root_subsystem`, `affected_subsystems`, and `blast_radius` to enforce enum validation
+3. Exported `BugOpsSubsystem` from `bugops/__init__.py` for convenient import
+4. Added 12 comprehensive test cases to `test_bugops_models.py`:
+   - 8 tests for enum value correctness (SCHEDULER through DATABASE)
+   - 1 test for enum member count (exactly 8)
+   - 1 test for string enum behavior
+   - 1 test for root_subsystem validation (accepts valid, rejects invalid)
+   - 1 test for affected_subsystems validation
+   - 1 test for blast_radius validation
+   - 2 tests for backward compatibility (None values, empty lists)
+   - 2 tests for enum flexibility (raw strings + enum instances accepted)
+
+**Tests Run:**
+- `poetry run pytest tests/bugops/test_bugops_models.py -v`: **27 tests PASS** (includes 12 new subsystem tests)
+- All 10 required acceptance criteria tests pass
+- Pre-existing failures in `test_alert_to_case_flow.py` are unrelated (missing alert_type field in test setup)
+
+**Manual Verification:**
+- ✅ `from crypto_news_aggregator.bugops import BugOpsSubsystem` works
+- ✅ All 8 values accessible: `BugOpsSubsystem.ARTICLES.value == "articles"`, etc.
+- ✅ Validators accept raw strings: `BugCaseCreate(..., root_subsystem="articles")` ✓
+- ✅ Validators accept enum instances: `BugCaseCreate(..., root_subsystem=BugOpsSubsystem.ARTICLES)` ✓
+- ✅ Validators reject invalid strings: `BugCaseCreate(..., root_subsystem="article")` raises ValueError ✓
+- ✅ Validators reject malformed strings: `BugCaseCreate(..., root_subsystem="ArticleFreshness")` raises ValueError ✓
+- ✅ Backward compatibility preserved: None values and empty lists accepted ✓
+
+**Implementation Notes:**
+- Field annotations remain `Optional[str]` / `list[str]` (not changed to BugOpsSubsystem type) for database compatibility and backward compatibility, as noted in ticket context
+- Validation is enforced via Pydantic field_validator decorators, not type annotations
+- `__init__.py` export was added to support the ticket's importability goal, though not explicitly listed in files to modify
+- Comment annotations for WORKER and DATABASE as "reserved" added to enum docstring
