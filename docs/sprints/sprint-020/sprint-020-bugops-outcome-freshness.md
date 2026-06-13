@@ -932,7 +932,7 @@ Neither sprint begins until Sprint 020 success criteria are fully met.
 
 | Ticket | Title | Reason Created | Status |
 |--------|-------|----------------|--------|
-| | | | |
+| BUG-104 | Cost Runaway Alert Rounds Small Dollar Amounts To $0.00 | Found during TASK-100C Slack webhook verification | Backlog (low priority) |
 
 ---
 
