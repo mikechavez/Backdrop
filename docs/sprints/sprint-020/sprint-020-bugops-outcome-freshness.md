@@ -61,7 +61,7 @@ This sprint does not implement Evidence Packs, Investigations, Tickets, Railway 
 | 1  | TASK-100  | Extend BugCase model with Sprint 020 fields                        | ✅ DONE  | S   | S      |
 | 2  | TASK-100A | Add canonical BugOps subsystem enum                                | ✅ DONE  | S   | S      |
 | 3  | TASK-100B | Add deterministic severity mapping for Sprint 020 detectors        | ✅ DONE  | S   | S      |
-| 4  | TASK-100C | Configure Slack webhook in Railway for BugOps                     | 🔲 OPEN  | XS  |        |
+| 4  | TASK-100C | Configure Slack webhook in Railway for BugOps                     | ✅ DONE  | XS  | XS     |
 | 5  | TASK-101  | Add MongoDB indexes for BugOps collections                         | ✅ DONE  | S   | S      |
 | 6  | TASK-102  | Add `create_case_direct()` and `attach_observation_to_case()`      | ✅ DONE  | S   | S      |
 | 7  | TASK-103  | Implement DependencyGraph v1                                       | 🔲 OPEN  | S   |        |
@@ -990,6 +990,15 @@ Neither sprint begins until Sprint 020 success criteria are fully met.
   - Test coverage: 9 new tests in test_store_direct.py covering all patterns
   - All 30 tests pass (21 existing + 9 new)
   - Branch: `task/bugops-102-store-direct-methods`, commits: 4e9159a, 6ed0ee1, a46a97e
+
+- TASK-100C: Configured Slack webhook in Railway for BugOps
+  - Slack app: existing app reused
+  - Webhook: existing webhook reused, verified operational
+  - Channel: `#backdrop-bugops` (renamed from `#all-backdrop`)
+  - Environment variables: BUGOPS_ENABLED, BUGOPS_SLACK_ENABLED, BUGOPS_SLACK_WEBHOOK_URL configured in Railway
+  - Verification: end-to-end test successful — temporary threshold reduction triggered real BugCase and Slack delivery
+  - Status: operational, ready for production
+  - Completed: 2026-06-12
 
 **Next:**
 - TASK-103: Implement DependencyGraph v1

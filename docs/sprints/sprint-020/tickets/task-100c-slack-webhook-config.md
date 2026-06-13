@@ -3,8 +3,9 @@ ticket_id: TASK-100C
 title: Configure Slack webhook in Railway for BugOps
 priority: high
 severity: medium
-status: OPEN
+status: ✅ DONE
 date_created: 2025-01-01
+completed: 2026-06-12
 branch: (none — deploy config only, no code changes)
 effort_estimate: xs
 ---
@@ -160,7 +161,40 @@ ticket before or alongside Sprint 020 code work — do not wait until the end.
 
 ## Completion Summary
 
-- Webhook channel:
-- Railway deploy timestamp:
-- Test message confirmed:
-- Deviations from plan:
+- Webhook channel: `#backdrop-bugops`
+- Railway deploy timestamp: 2026-06-12
+- Test message confirmed: Yes — threshold reduction test triggered real BugCase and Slack delivery
+- Deviations from plan: None
+
+### Configuration Applied
+
+Environment variables set in Railway:
+```env
+BUGOPS_ENABLED=true
+BUGOPS_SLACK_ENABLED=true
+BUGOPS_SLACK_WEBHOOK_URL=<configured>
+```
+
+### Slack Configuration
+
+- Existing Slack app reused (no new app creation required)
+- Existing webhook reused and verified operational
+- Channel: `#backdrop-bugops` (renamed from `#all-backdrop`)
+- Webhook delivery: functional
+
+### Deployment Verification
+
+Railway logs confirmed:
+```text
+BugOps monitor running with poll interval: 300s
+```
+
+### End-to-End Test
+
+Temporary cost threshold reduction triggered a real BugOps alert:
+- ✅ BugCase created successfully
+- ✅ Slack formatting correct
+- ✅ Webhook delivery successful
+- ✅ Channel routing verified
+
+All acceptance criteria met.
