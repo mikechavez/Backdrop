@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import Optional
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo import ReturnDocument
 from .models import (
     BugAlertEventCreate,
     BugAlertEvent,
@@ -117,7 +118,7 @@ class BugOpsStore:
         result = await self.cases_collection.find_one_and_update(
             {"case_id": case_id},
             update_dict,
-            return_document=True
+            return_document=ReturnDocument.AFTER
         )
 
         if result:
