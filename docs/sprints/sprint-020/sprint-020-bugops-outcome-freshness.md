@@ -986,9 +986,10 @@ Neither sprint begins until Sprint 020 success criteria are fully met.
   - Freshness detectors create BugCases directly without going through process_alert_event()
   - create_case_direct(case: BugCaseCreate) → BugCase: inserts directly, returns created case
   - attach_observation_to_case(case_id, last_seen_at, affected_subsystems) → BugCase: uses $inc/$set/$addToSet
+  - Used ReturnDocument.AFTER (not boolean) for Motor/PyMongo compatibility
   - Test coverage: 9 new tests in test_store_direct.py covering all patterns
   - All 30 tests pass (21 existing + 9 new)
-  - Branch: `task/bugops-102-store-direct-methods`, commit: 4e9159a
+  - Branch: `task/bugops-102-store-direct-methods`, commits: 4e9159a, 6ed0ee1, a46a97e
 
 **Next:**
 - TASK-103: Implement DependencyGraph v1

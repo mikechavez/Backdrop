@@ -209,19 +209,23 @@ suppression wiring (TASK-108). No behavior change to existing flows.
 ## Completion Summary
 
 - Branch: `task/bugops-102-store-direct-methods`
-- Commit: `4e9159a`
+- Commits: `4e9159a` (implementation), `6ed0ee1` (docs), `a46a97e` (PyMongo compatibility fix)
 - Changes made:
   - Added `create_case_direct(case: BugCaseCreate) -> BugCase` to BugOpsStore
   - Added `attach_observation_to_case(case_id, last_seen_at, affected_subsystems) -> BugCase` to BugOpsStore
   - Created comprehensive test file with 9 test cases covering all requirements
   - Added `from datetime import datetime` import to store.py
+  - Added `from pymongo import ReturnDocument` import for PyMongo compatibility
+  - Fixed `return_document=True` → `return_document=ReturnDocument.AFTER` in attach_observation_to_case()
 - Tests run:
   - All 9 new tests in test_store_direct.py: PASSED
   - All 21 existing store tests: PASSED
-  - Combined 30/30 tests passing
+  - Combined 30/30 tests passing (verified after ReturnDocument fix)
 - Manual verification:
   - Methods follow existing patterns (model_dump, normalize_mongo_doc, error handling)
   - $inc for observation_count, $set for timestamps
   - $addToSet + $each for affected_subsystems deduplication
   - ValueError raised when case not found (matches existing pattern)
-- Deviations from plan: None
+  - ReturnDocument.AFTER used instead of boolean for proper PyMongo compatibility
+- Deviations from plan: 
+  - Added ReturnDocument enum import for Motor/PyMongo compatibility (ticket spec said return_document=True, but PyMongo requires the enum)
