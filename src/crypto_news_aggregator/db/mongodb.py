@@ -169,6 +169,23 @@ ENTITY_MENTIONS_INDEXES = [
     },
 ]
 
+BUG_CASES_INDEXES = [
+    {"keys": [("dedupe_key", 1), ("status", 1)], "name": "bug_cases_dedupe_key_status"},
+    {"keys": [("status", 1), ("created_at", -1)], "name": "bug_cases_status_created_at"},
+    {"keys": [("root_subsystem", 1), ("status", 1)], "name": "bug_cases_root_subsystem_status"},
+    {"keys": [("first_seen_at", 1)], "name": "bug_cases_first_seen_at"},
+]
+
+BUG_ALERT_EVENTS_INDEXES = [
+    {"keys": [("dedupe_key", 1)], "name": "bug_alert_events_dedupe_key"},
+    {"keys": [("created_at", -1)], "name": "bug_alert_events_created_at"},
+]
+
+NOTIFICATION_ATTEMPTS_INDEXES = [
+    {"keys": [("bugcase_id", 1)], "name": "notification_attempts_bugcase_id"},
+    {"keys": [("attempted_at", -1)], "name": "notification_attempts_attempted_at"},
+]
+
 
 logger = logging.getLogger(__name__)
 
@@ -237,6 +254,9 @@ COLLECTION_ALERTS = "alerts"
 COLLECTION_PRICE_HISTORY = "price_history"
 COLLECTION_TWEETS = "tweets"
 COLLECTION_ENTITY_MENTIONS = "entity_mentions"
+COLLECTION_BUG_CASES = "bug_cases"
+COLLECTION_BUG_ALERT_EVENTS = "bug_alert_events"
+COLLECTION_NOTIFICATION_ATTEMPTS = "notification_attempts"
 
 # Database name
 DB_NAME = "crypto_news"
@@ -565,6 +585,12 @@ class MongoManager:
             await entity_mentions_col.drop_indexes()
             tweets_col_for_reset = await self.get_async_collection(COLLECTION_TWEETS)
             await tweets_col_for_reset.drop_indexes()
+            bug_cases_col_for_reset = await self.get_async_collection(COLLECTION_BUG_CASES)
+            await bug_cases_col_for_reset.drop_indexes()
+            bug_alert_events_col_for_reset = await self.get_async_collection(COLLECTION_BUG_ALERT_EVENTS)
+            await bug_alert_events_col_for_reset.drop_indexes()
+            notification_attempts_col_for_reset = await self.get_async_collection(COLLECTION_NOTIFICATION_ATTEMPTS)
+            await notification_attempts_col_for_reset.drop_indexes()
 
         # Create indexes for articles collection
         for index_info in ARTICLE_INDEXES:
@@ -602,6 +628,28 @@ class MongoManager:
             keys = index_options.pop("keys")
             if not await self._has_index(entity_mentions_col, index_options.get("name")):
                 await entity_mentions_col.create_index(keys, **index_options)
+
+        # Create indexes for BugOps collections
+        bug_cases_col = await self.get_async_collection(COLLECTION_BUG_CASES)
+        for index_info in BUG_CASES_INDEXES:
+            index_options = index_info.copy()
+            keys = index_options.pop("keys")
+            if not await self._has_index(bug_cases_col, index_options.get("name")):
+                await bug_cases_col.create_index(keys, **index_options)
+
+        bug_alert_events_col = await self.get_async_collection(COLLECTION_BUG_ALERT_EVENTS)
+        for index_info in BUG_ALERT_EVENTS_INDEXES:
+            index_options = index_info.copy()
+            keys = index_options.pop("keys")
+            if not await self._has_index(bug_alert_events_col, index_options.get("name")):
+                await bug_alert_events_col.create_index(keys, **index_options)
+
+        notification_attempts_col = await self.get_async_collection(COLLECTION_NOTIFICATION_ATTEMPTS)
+        for index_info in NOTIFICATION_ATTEMPTS_INDEXES:
+            index_options = index_info.copy()
+            keys = index_options.pop("keys")
+            if not await self._has_index(notification_attempts_col, index_options.get("name")):
+                await notification_attempts_col.create_index(keys, **index_options)
 
         logger.info("MongoDB indexes initialized successfully")
         self._indexes_created = True

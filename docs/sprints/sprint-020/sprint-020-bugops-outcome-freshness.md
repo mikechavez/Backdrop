@@ -61,7 +61,7 @@ This sprint does not implement Evidence Packs, Investigations, Tickets, Railway 
 | 1  | TASK-100  | Extend BugCase model with Sprint 020 fields                        | ✅ DONE  | S   | S      |
 | 2  | TASK-100A | Add canonical BugOps subsystem enum                                | ✅ DONE  | S   | S      |
 | 3  | TASK-100B | Add deterministic severity mapping for Sprint 020 detectors        | ✅ DONE  | S   | S      |
-| 4  | TASK-101  | Add MongoDB indexes for BugOps collections                         | 🔲 OPEN  | S   |        |
+| 4  | TASK-101  | Add MongoDB indexes for BugOps collections                         | ✅ DONE  | S   | S      |
 | 5  | TASK-102  | Add `create_case_direct()` and `attach_observation_to_case()`      | 🔲 OPEN  | S   |        |
 | 6  | TASK-103  | Implement DependencyGraph v1                                       | 🔲 OPEN  | S   |        |
 | 7  | TASK-104  | Implement ArticleFreshness detector                                | 🔲 OPEN  | M   |        |
@@ -947,6 +947,14 @@ Neither sprint begins until Sprint 020 success criteria are fully met.
   - Branch: `task/bugops-100b-severity-mapping`, commits: 7f607e2, e7d8e14
   - PR: https://github.com/mikechavez/Backdrop/pull/358
 
+- TASK-101: Added MongoDB indexes for BugOps collections
+  - Added 8 indexes across 3 collections: bug_cases (4), bug_alert_events (2), notification_attempts (2)
+  - All index names match spec exactly; collection constants follow existing pattern
+  - Wired into initialize_indexes() with idempotent _has_index() checks
+  - notification_attempts lazy creation verified safe (created when first index is applied)
+  - Branch: `task/bugops-101-mongodb-indexes`, commits: de4108c, d993724
+  - Test coverage: All 33 existing bugops tests pass; 8 index names verified by import/assertion
+  - Manual verification: Index creation requires write-capable credential (not available in test env); to be verified on deploy
+
 **Next:**
-- TASK-101: MongoDB indexes for BugOps collections
 - TASK-102: create_case_direct() and attach_observation_to_case() store methods
