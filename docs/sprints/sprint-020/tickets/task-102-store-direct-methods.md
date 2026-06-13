@@ -208,9 +208,20 @@ suppression wiring (TASK-108). No behavior change to existing flows.
 
 ## Completion Summary
 
-- Branch:
-- Commit:
+- Branch: `task/bugops-102-store-direct-methods`
+- Commit: `4e9159a`
 - Changes made:
+  - Added `create_case_direct(case: BugCaseCreate) -> BugCase` to BugOpsStore
+  - Added `attach_observation_to_case(case_id, last_seen_at, affected_subsystems) -> BugCase` to BugOpsStore
+  - Created comprehensive test file with 9 test cases covering all requirements
+  - Added `from datetime import datetime` import to store.py
 - Tests run:
+  - All 9 new tests in test_store_direct.py: PASSED
+  - All 21 existing store tests: PASSED
+  - Combined 30/30 tests passing
 - Manual verification:
-- Deviations from plan:
+  - Methods follow existing patterns (model_dump, normalize_mongo_doc, error handling)
+  - $inc for observation_count, $set for timestamps
+  - $addToSet + $each for affected_subsystems deduplication
+  - ValueError raised when case not found (matches existing pattern)
+- Deviations from plan: None

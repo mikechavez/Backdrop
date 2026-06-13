@@ -61,26 +61,27 @@ This sprint does not implement Evidence Packs, Investigations, Tickets, Railway 
 | 1  | TASK-100  | Extend BugCase model with Sprint 020 fields                        | ✅ DONE  | S   | S      |
 | 2  | TASK-100A | Add canonical BugOps subsystem enum                                | ✅ DONE  | S   | S      |
 | 3  | TASK-100B | Add deterministic severity mapping for Sprint 020 detectors        | ✅ DONE  | S   | S      |
-| 4  | TASK-101  | Add MongoDB indexes for BugOps collections                         | ✅ DONE  | S   | S      |
-| 5  | TASK-102  | Add `create_case_direct()` and `attach_observation_to_case()`      | 🔲 OPEN  | S   |        |
-| 6  | TASK-103  | Implement DependencyGraph v1                                       | 🔲 OPEN  | S   |        |
-| 7  | TASK-104  | Implement ArticleFreshness detector                                | 🔲 OPEN  | M   |        |
-| 8  | TASK-105  | Implement SignalFreshness detector                                 | 🔲 OPEN  | M   |        |
-| 9  | TASK-106  | Implement NarrativeFreshness detector                              | 🔲 OPEN  | M   |        |
-| 10 | TASK-107  | Implement BriefingFreshness detector                               | 🔲 OPEN  | M   |        |
-| 11 | TASK-108  | Wire freshness detectors into monitor with cascade suppression     | 🔲 OPEN  | M   |        |
-| 12 | TASK-108A | Implement startup detection semantics                              | 🔲 OPEN  | M   |        |
-| 13 | TASK-109  | Implement auto-resolution with Recovery Window                     | 🔲 OPEN  | M   |        |
-| 14 | TASK-111  | Implement Slack notification contract for BugCase state changes    | 🔲 OPEN  | M   |        |
-| 15 | TASK-111A | Persist notification attempt records                               | 🔲 OPEN  | S   |        |
-| 16 | TASK-112  | Implement global deploy suppression                                | 🔲 OPEN  | S   |        |
-| 17 | TASK-112A | Send deploy suppression expiry summary                             | 🔲 OPEN  | S   |        |
-| 18 | TASK-113  | Update Sprint 020 docs and success criteria                        | 🔲 OPEN  | S   |        |
+| 4  | TASK-100C | Configure Slack webhook in Railway for BugOps                     | 🔲 OPEN  | XS  |        |
+| 5  | TASK-101  | Add MongoDB indexes for BugOps collections                         | ✅ DONE  | S   | S      |
+| 6  | TASK-102  | Add `create_case_direct()` and `attach_observation_to_case()`      | ✅ DONE  | S   | S      |
+| 7  | TASK-103  | Implement DependencyGraph v1                                       | 🔲 OPEN  | S   |        |
+| 8  | TASK-104  | Implement ArticleFreshness detector                                | 🔲 OPEN  | M   |        |
+| 9  | TASK-105  | Implement SignalFreshness detector                                 | 🔲 OPEN  | M   |        |
+| 10 | TASK-106  | Implement NarrativeFreshness detector                              | 🔲 OPEN  | M   |        |
+| 11 | TASK-107  | Implement BriefingFreshness detector                               | 🔲 OPEN  | M   |        |
+| 12 | TASK-108  | Wire freshness detectors into monitor with cascade suppression     | 🔲 OPEN  | M   |        |
+| 13 | TASK-108A | Implement startup detection semantics                              | 🔲 OPEN  | M   |        |
+| 14 | TASK-109  | Implement auto-resolution with Recovery Window                     | 🔲 OPEN  | M   |        |
+| 15 | TASK-111  | Implement Slack notification contract for BugCase state changes    | 🔲 OPEN  | M   |        |
+| 16 | TASK-111A | Persist notification attempt records                               | 🔲 OPEN  | S   |        |
+| 17 | TASK-112  | Implement global deploy suppression                                | 🔲 OPEN  | S   |        |
+| 18 | TASK-112A | Send deploy suppression expiry summary                             | 🔲 OPEN  | S   |        |
+| 19 | TASK-113  | Update Sprint 020 docs and success criteria                        | 🔲 OPEN  | S   |        |
 
 **Sequencing:**
 
 Phase 1 — Foundation (no behavior change):
-TASK-100 → TASK-100A → TASK-100B → TASK-101 → TASK-102
+TASK-100 → TASK-100A → TASK-100B → TASK-100C → TASK-101 → TASK-102
 
 Phase 2 — New primitives (no dependencies on Phase 1):
 TASK-103
@@ -184,6 +185,31 @@ Acceptance criteria:
 - Severity is not computed dynamically from observation count or
   blast radius in Sprint 020
 - Notification routing depends on this severity mapping
+
+---
+
+### TASK-100C — Configure Slack webhook in Railway for BugOps
+
+Configure deploy-time environment variables to enable BugOps Slack notifications in production.
+
+**Acceptance criteria:**
+
+- Slack incoming webhook created and URL recorded
+- Three environment variables set in Railway:
+  - `BUGOPS_ENABLED` = `true`
+  - `BUGOPS_SLACK_ENABLED` = `true`
+  - `BUGOPS_SLACK_WEBHOOK_URL` = `<webhook URL>`
+- At least one successful Slack delivery confirmed
+- Railway logs confirm `"BugOps monitor running"`
+
+**Notes:**
+
+- No code changes required. This is deploy configuration only.
+- Do this ticket before or alongside TASK-111 implementation.
+- Verify cost-runaway thresholds are acceptable before flipping in production:
+  - `BUGOPS_COST_5MIN_THRESHOLD_USD` defaults to `0.25`
+  - `BUGOPS_PROJECTED_HOURLY_THRESHOLD_USD` defaults to `1.00`
+- At $0.54/day production spend these thresholds are safe.
 
 ---
 
@@ -956,5 +982,13 @@ Neither sprint begins until Sprint 020 success criteria are fully met.
   - Test coverage: All 33 existing bugops tests pass; 8 index names verified by import/assertion
   - Manual verification: Index creation requires write-capable credential (not available in test env); to be verified on deploy
 
+- TASK-102: Added create_case_direct() and attach_observation_to_case() to BugOpsStore
+  - Freshness detectors create BugCases directly without going through process_alert_event()
+  - create_case_direct(case: BugCaseCreate) → BugCase: inserts directly, returns created case
+  - attach_observation_to_case(case_id, last_seen_at, affected_subsystems) → BugCase: uses $inc/$set/$addToSet
+  - Test coverage: 9 new tests in test_store_direct.py covering all patterns
+  - All 30 tests pass (21 existing + 9 new)
+  - Branch: `task/bugops-102-store-direct-methods`, commit: 4e9159a
+
 **Next:**
-- TASK-102: create_case_direct() and attach_observation_to_case() store methods
+- TASK-103: Implement DependencyGraph v1
