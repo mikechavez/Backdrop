@@ -200,9 +200,9 @@ Unblocks Phase 3 detectors and Phase 4 suppression/resolution logic.
 
 ## Completion Summary
 
-- Branch:
-- Commit:
-- Changes made:
-- Tests run:
-- Manual verification:
-- Deviations from plan:
+- Branch: `task/bugops-101-mongodb-indexes`
+- Commit: `de4108c`
+- Changes made: Added 3 index definition lists (8 total indexes) to `mongodb.py`. Added 3 collection name constants following existing pattern. Wired indexes into `initialize_indexes()` with idempotent `_has_index()` checks. Added collections to `force_recreate` drop block.
+- Tests run: 27 bugops model tests, 6 severity mapping tests (all pass). Verified all 8 index names by import and programmatic inspection.
+- Manual verification: Not performed for live index creation (available MongoDB URI is read-only). Index definitions were verified by import and programmatic assertion of all 8 names. Runtime index creation should be verified after deploy with `db.<collection>.getIndexes()`.
+- Deviations from plan: None. Implementation matches ticket spec exactly (8 index names verified, all 4 acceptance criteria met).
