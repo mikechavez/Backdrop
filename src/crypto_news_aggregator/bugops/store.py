@@ -1,6 +1,7 @@
 """BugOps alert and case storage."""
 
 import logging
+from datetime import datetime
 from typing import Optional
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
@@ -80,6 +81,49 @@ class BugOpsStore:
         case_dict["_id"] = result.inserted_id
         case_dict = _normalize_mongo_doc(case_dict)
         return BugCase(**case_dict)
+
+    async def create_case_direct(self, case: BugCaseCreate) -> BugCase:
+        """Create a BugCase directly from a BugCaseCreate, without a BugAlertEvent."""
+        case_dict = case.model_dump(by_alias=False, exclude_none=False)
+        result = await self.cases_collection.insert_one(case_dict)
+        case_dict["_id"] = result.inserted_id
+        case_dict = _normalize_mongo_doc(case_dict)
+        return BugCase(**case_dict)
+
+    async def attach_observation_to_case(
+        self,
+        case_id: str,
+        last_seen_at: datetime,
+        affected_subsystems: Optional[list[str]] = None
+    ) -> BugCase:
+        """Attach a new observation to an existing case.
+
+        Increments observation_count, updates last_seen_at, and optionally
+        adds to affected_subsystems without duplicating existing ones.
+        """
+        update_dict = {
+            "$inc": {"observation_count": 1},
+            "$set": {
+                "last_seen_at": last_seen_at,
+                "updated_at": datetime.utcnow()
+            }
+        }
+
+        if affected_subsystems and len(affected_subsystems) > 0:
+            update_dict["$addToSet"] = {
+                "affected_subsystems": {"$each": affected_subsystems}
+            }
+
+        result = await self.cases_collection.find_one_and_update(
+            {"case_id": case_id},
+            update_dict,
+            return_document=True
+        )
+
+        if result:
+            result = _normalize_mongo_doc(result)
+            return BugCase(**result)
+        raise ValueError(f"Case {case_id} not found")
 
     async def attach_alert_to_case(self, case_id: str, alert_id: str) -> BugCase:
         """Attach an alert event to an existing case."""
