@@ -64,7 +64,7 @@ This sprint does not implement Evidence Packs, Investigations, Tickets, Railway 
 | 4  | TASK-100C | Configure Slack webhook in Railway for BugOps                     | ✅ DONE  | XS  | XS     |
 | 5  | TASK-101  | Add MongoDB indexes for BugOps collections                         | ✅ DONE  | S   | S      |
 | 6  | TASK-102  | Add `create_case_direct()` and `attach_observation_to_case()`      | ✅ DONE  | S   | S      |
-| 7  | TASK-103  | Implement DependencyGraph v1                                       | 🔲 OPEN  | S   |        |
+| 7  | TASK-103  | Implement DependencyGraph v1                                       | ✅ DONE  | S   | S      |
 | 8  | TASK-104  | Implement ArticleFreshness detector                                | 🔲 OPEN  | M   |        |
 | 9  | TASK-105  | Implement SignalFreshness detector                                 | 🔲 OPEN  | M   |        |
 | 10 | TASK-106  | Implement NarrativeFreshness detector                              | 🔲 OPEN  | M   |        |
@@ -1000,5 +1000,14 @@ Neither sprint begins until Sprint 020 success criteria are fully met.
   - Status: operational, ready for production
   - Completed: 2026-06-12
 
-**Next:**
 - TASK-103: Implement DependencyGraph v1
+  - Created DependencyGraph class with upstream/downstream traversal
+  - Graph: `["scheduler", "ingestion", "articles", "signals", "narratives", "briefings"]`
+  - Accepts both `str` and `BugOpsSubsystem` enum inputs (compatibility enhancement)
+  - Both methods return `[]` for unknown/reserved subsystems per spec
+  - Test coverage: 35 tests pass (24 original + 11 enum-focused)
+  - Branch: `task/bugops-103-dependency-graph`, commit: 3f23999
+  - Status: ✅ DONE
+
+**Next:**
+- TASK-104–107: Four freshness detectors (can run in parallel)
