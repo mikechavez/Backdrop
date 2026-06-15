@@ -1026,5 +1026,16 @@ Neither sprint begins until Sprint 020 success criteria are fully met.
   - Branch: `task/bugops-104-article-freshness`, commits: 708b5dc (initial), a8f6ec5 (severity)
   - Status: ✅ DONE — ready for monitor integration (TASK-108)
 
+- TASK-105: Implement SignalFreshness detector
+  - Created `SignalFreshnessSignalSource` with simplified two-check logic (no historical activity or fetch preconditions)
+  - Precondition: At least one Article with `created_at` within window (no signal generation without articles to process)
+  - Failure condition: Fresh articles exist but no fresh signals (stall in signal generation worker)
+  - Recovery condition: Fresh signal appears within window
+  - Configuration: Added `BUGOPS_SIGNAL_FRESHNESS_WINDOW_MINUTES = 90` to core/config.py
+  - Test coverage: 10 tests covering idle/broken/recovery, tolerance buffer, exception handling
+  - All 56 tests pass (11 ArticleFreshness + 10 SignalFreshness + 35 DependencyGraph)
+  - Branch: `task/bugops-105-signal-freshness`, commit: 49ce910
+  - Status: ✅ DONE
+
 **Next:**
-- TASK-105–107: Three remaining freshness detectors (can run in parallel)
+- TASK-106–107: NarrativeFreshness and BriefingFreshness detectors (can run in parallel with existing work)

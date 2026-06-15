@@ -161,9 +161,13 @@ pytest src/tests/bugops/test_signal_freshness.py -v
 
 ## Completion Summary
 
-- Branch:
-- Commit:
+- Branch: `task/bugops-105-signal-freshness`
+- Commit: `49ce910`
 - Changes made:
-- Tests run:
-- Manual verification:
-- Deviations from plan:
+  - Created `src/crypto_news_aggregator/bugops/signal_sources/signal_freshness.py` with `SignalFreshnessSignalSource` class
+  - Created `src/tests/bugops/test_signal_freshness.py` with 10 unit tests
+  - Added `BUGOPS_SIGNAL_FRESHNESS_WINDOW_MINUTES: int = 90` to `src/crypto_news_aggregator/core/config.py`
+- Tests run: `poetry run pytest src/tests/bugops/test_signal_freshness.py -v` — all 10 tests pass
+- Full bugops suite: 56 tests pass (11 ArticleFreshness + 10 SignalFreshness + 35 DependencyGraph)
+- Manual verification: Detector logic verified — precondition check (articles), failure check (signals), recovery check, 60s tolerance, exception handling
+- Deviations from plan: None. Implementation follows TASK-104 pattern exactly.
