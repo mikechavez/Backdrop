@@ -178,9 +178,27 @@ existing system.
 
 ## Completion Summary
 
-- Branch:
-- Commit:
+- Branch: `task/bugops-103-dependency-graph`
+- Commit: `3f23999`
 - Changes made:
+  - Created `src/crypto_news_aggregator/bugops/dependency_graph.py` with `DependencyGraph` class
+  - Implemented `get_upstream_nodes()` and `get_downstream_nodes()` with correct traversal ordering
+  - Graph hardcoded as v1.0: `["scheduler", "ingestion", "articles", "signals", "narratives", "briefings"]`
+  - Both methods return `[]` for unknown/reserved subsystems (worker, database) per spec
+  - Fixed documentation wording: "nearest to subsystem, progressing toward root/leaves"
 - Tests run:
+  - 35 total tests pass (24 original + 11 enum-focused)
+  - All upstream/downstream traversal tests verify exact ordering, not just membership
+  - Enum input tests verify both `BugOpsSubsystem` enum and raw string inputs work identically
+  - Reserved subsystems and unknown strings all return `[]` as specified
 - Manual verification:
+  - `get_upstream_nodes("signals")` → `["articles", "ingestion", "scheduler"]` ✓
+  - `get_upstream_nodes(BugOpsSubsystem.SIGNALS)` → same result ✓
+  - `get_downstream_nodes("articles")` → `["signals", "narratives", "briefings"]` ✓
+  - `get_downstream_nodes(BugOpsSubsystem.ARTICLES)` → same result ✓
+  - Reserved enums (WORKER, DATABASE) return `[]` ✓
+  - Case-sensitive: "SIGNALS" returns `[]` ✓
 - Deviations from plan:
+  - **Added:** `DependencyGraph` accepts both `str` and `BugOpsSubsystem` inputs (not specified in ticket)
+  - **Reason:** Compatibility with TASK-100A canonical enum; avoids requiring callers to manually call `.value`
+  - **Behavior:** Preserves all specified behavior; normalizes enum to string internally; no performance impact
