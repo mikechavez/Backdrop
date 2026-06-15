@@ -65,7 +65,7 @@ This sprint does not implement Evidence Packs, Investigations, Tickets, Railway 
 | 5  | TASK-101  | Add MongoDB indexes for BugOps collections                         | ✅ DONE  | S   | S      |
 | 6  | TASK-102  | Add `create_case_direct()` and `attach_observation_to_case()`      | ✅ DONE  | S   | S      |
 | 7  | TASK-103  | Implement DependencyGraph v1                                       | ✅ DONE  | S   | S      |
-| 8  | TASK-104  | Implement ArticleFreshness detector                                | 🔲 OPEN  | M   |        |
+| 8  | TASK-104  | Implement ArticleFreshness detector                                | ✅ DONE  | M   | M      |
 | 9  | TASK-105  | Implement SignalFreshness detector                                 | 🔲 OPEN  | M   |        |
 | 10 | TASK-106  | Implement NarrativeFreshness detector                              | 🔲 OPEN  | M   |        |
 | 11 | TASK-107  | Implement BriefingFreshness detector                               | 🔲 OPEN  | M   |        |
@@ -1009,5 +1009,22 @@ Neither sprint begins until Sprint 020 success criteria are fully met.
   - Branch: `task/bugops-103-dependency-graph`, commit: 3f23999
   - Status: ✅ DONE
 
+### Session 3 (2026-06-14)
+
+**Completed:**
+- TASK-104: Implement ArticleFreshness detector
+  - Created `ArticleFreshnessSignalSource` with three-check failure logic
+  - **Precondition 1:** Fetch activity check via `find_one({"fetched_at": {"$gte": lookback}})` (efficient, no scan)
+  - **Precondition 2:** Historical time-of-day check — queries last 7 days, filters in Python for hour ±1 with circular distance formula (handles midnight wraparound correctly)
+  - **Failure condition:** No fresh articles within 60-min window + 60-sec tolerance
+  - Recovery detection: Fresh article exists within freshness window
+  - Exception handling: Logs errors, returns False (detector isolation per TASK-108)
+  - Static metadata: source_type, root_subsystem, severity (AlertSeverity.HIGH), dedupe_key, suggested_manual_check
+  - Configuration: Added 3 settings to core/config.py (BUGOPS_ARTICLE_FRESHNESS_WINDOW_MINUTES=60, BUGOPS_ARTICLE_FETCH_LOOKBACK_MINUTES=90, BUGOPS_ARTICLE_HISTORY_LOOKBACK_DAYS=7)
+  - Test coverage: 11 unit tests covering idle vs. broken logic, tolerance buffer, exception handling
+  - All tests pass: `poetry run pytest src/tests/bugops/test_article_freshness.py -v`
+  - Branch: `task/bugops-104-article-freshness`, commits: 708b5dc (initial), a8f6ec5 (severity)
+  - Status: ✅ DONE — ready for monitor integration (TASK-108)
+
 **Next:**
-- TASK-104–107: Four freshness detectors (can run in parallel)
+- TASK-105–107: Three remaining freshness detectors (can run in parallel)

@@ -225,18 +225,19 @@ pytest src/tests/bugops/test_article_freshness.py -v
 
 ## Acceptance Criteria
 
-- [ ] `source_type = "article_freshness"`
-- [ ] `root_subsystem = "articles"`
-- [ ] `dedupe_key = "article_freshness:articles"`
-- [ ] Uses `created_at` on `articles` (not `inserted_at` or `published_at`)
-- [ ] Returns `False` from `check_failure()` when either precondition not met
-- [ ] Returns `True` from `check_failure()` when both preconditions met and no
+- [x] `source_type = "article_freshness"`
+- [x] `root_subsystem = "articles"`
+- [x] `severity = AlertSeverity.HIGH` (via DETECTOR_SEVERITY)
+- [x] `dedupe_key = "article_freshness:articles"`
+- [x] Uses `created_at` on `articles` (not `inserted_at` or `published_at`)
+- [x] Returns `False` from `check_failure()` when either precondition not met
+- [x] Returns `True` from `check_failure()` when both preconditions met and no
   recent article
-- [ ] `check_recovery()` works correctly
-- [ ] `collect()` returns `[]` (satisfies protocol, not used by monitor)
-- [ ] 60-second tolerance buffer applied
-- [ ] All config from `core/config.py`
-- [ ] All test cases pass
+- [x] `check_recovery()` works correctly
+- [x] `collect()` returns `[]` (satisfies protocol, not used by monitor)
+- [x] 60-second tolerance buffer applied
+- [x] All config from `core/config.py`
+- [x] All test cases pass (11/11)
 
 ---
 
@@ -256,9 +257,31 @@ will be notified automatically.
 
 ## Completion Summary
 
-- Branch:
-- Commit:
+- Branch: `task/bugops-104-article-freshness`
+- Commits: 708b5dc (initial implementation), a8f6ec5 (add severity attribute)
 - Changes made:
-- Tests run:
-- Manual verification:
-- Deviations from plan:
+  - Created `src/crypto_news_aggregator/bugops/signal_sources/article_freshness.py` with `ArticleFreshnessSignalSource` class
+  - Three-check failure logic: fetch activity precondition, historical time-of-day precondition, freshness window check
+  - Added `check_recovery()` method for recovery condition detection
+  - Recovery and failure queries use 60-second tolerance buffer
+  - Exception handling: logs errors and returns False (detector isolation per TASK-108)
+  - Static metadata exposed: `source_type`, `root_subsystem`, `severity`, `dedupe_key`, `suggested_manual_check`
+  - Added three settings to `core/config.py`: `BUGOPS_ARTICLE_FRESHNESS_WINDOW_MINUTES`, `BUGOPS_ARTICLE_FETCH_LOOKBACK_MINUTES`, `BUGOPS_ARTICLE_HISTORY_LOOKBACK_DAYS`
+  - Created `src/tests/bugops/test_article_freshness.py` with 11 unit tests
+
+- Tests run: `poetry run pytest src/tests/bugops/test_article_freshness.py -v` — all 11 tests pass
+  - test_class_attributes (includes severity == AlertSeverity.HIGH assertion)
+  - test_check_failure_no_fetch_activity
+  - test_check_failure_no_historical_activity
+  - test_check_failure_articles_are_fresh
+  - test_check_failure_stale_articles_with_preconditions
+  - test_check_recovery_returns_true_when_fresh
+  - test_check_recovery_returns_false_when_no_fresh
+  - test_tolerance_buffer_30_seconds
+  - test_collect_returns_empty_list
+  - test_check_failure_handles_exception
+  - test_check_recovery_handles_exception
+
+- Manual verification: Detector ready for integration into monitor (TASK-108). Static metadata complete for cascade suppression and BugCase creation.
+
+- Deviations from plan: None. Added severity class attribute as required by TASK-108 pattern.
