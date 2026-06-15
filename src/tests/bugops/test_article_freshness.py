@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from crypto_news_aggregator.bugops.signal_sources.article_freshness import (
     ArticleFreshnessSignalSource,
 )
-from crypto_news_aggregator.bugops.models import BugOpsSubsystem
+from crypto_news_aggregator.bugops.models import BugOpsSubsystem, AlertSeverity
 
 
 class TestArticleFreshnessSignalSource:
@@ -38,6 +38,7 @@ class TestArticleFreshnessSignalSource:
         """Test that class attributes are correctly set."""
         assert signal_source.source_type == "article_freshness"
         assert signal_source.root_subsystem == BugOpsSubsystem.ARTICLES.value
+        assert signal_source.severity == AlertSeverity.HIGH
         assert signal_source.dedupe_key == "article_freshness:articles"
         assert "RSS ingestion health" in signal_source.suggested_manual_check
 

@@ -4,6 +4,7 @@ from typing import List
 from datetime import datetime, timedelta, timezone
 import logging
 from motor.motor_asyncio import AsyncIOMotorDatabase
+from crypto_news_aggregator.bugops.signal_sources.severity import DETECTOR_SEVERITY
 from ..models import BugAlertEventCreate, BugOpsSubsystem
 from ...db.mongodb import mongo_manager
 from ...core.config import get_settings
@@ -16,6 +17,7 @@ class ArticleFreshnessSignalSource:
 
     source_type = "article_freshness"
     root_subsystem = BugOpsSubsystem.ARTICLES.value
+    severity = DETECTOR_SEVERITY["article_freshness"]
     dedupe_key = "article_freshness:articles"
     suggested_manual_check = (
         "Check RSS ingestion health, recent fetch attempts, source availability, "
