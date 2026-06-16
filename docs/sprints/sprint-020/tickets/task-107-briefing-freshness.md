@@ -192,9 +192,42 @@ pytest src/tests/bugops/test_briefing_freshness.py -v
 
 ## Completion Summary
 
-- Branch:
-- Commit:
-- Changes made:
-- Tests run:
-- Manual verification:
-- Deviations from plan:
+- **Branch:** `task/bugops-107-briefing-freshness`
+- **Commits:** 
+  - `b773c9e` — Initial implementation (detector + 24 tests)
+  - `deb83fd` — Add real DST timezone tests with expected UTC conversion
+- **Changes made:**
+  - Created `BriefingFreshnessSignalSource` with schedule-based window logic
+    - Morning window: 8 AM EST (configurable)
+    - Evening window: 8 PM EST (configurable)
+    - Grace period: 30 minutes (configurable)
+    - Implemented `_get_most_recent_window()` to identify which scheduled window most recently elapsed
+    - Implemented `check_failure()`: grace_period_elapsed AND no_briefing_in_window AND fresh_narratives_exist
+    - Implemented `check_recovery()`: briefing_exists_in_current_window (no grace period check)
+    - Used `ZoneInfo("America/New_York")` for EST/EDT handling
+  - Added 4 config settings to `core/config.py`:
+    - `BUGOPS_BRIEFING_MORNING_HOUR_EST = 8`
+    - `BUGOPS_BRIEFING_EVENING_HOUR_EST = 20`
+    - `BUGOPS_BRIEFING_GRACE_PERIOD_MINUTES = 30`
+    - `BUGOPS_BRIEFING_NARRATIVE_LOOKBACK_MINUTES = 240`
+- **Tests run:**
+  - 28 BriefingFreshness tests: all pass
+  - 104 total BugOps tests: all pass (no regressions)
+  - Test coverage includes:
+    - Metadata validation (source_type, root_subsystem, dedupe_key, severity)
+    - Window resolution edge cases (7:59 AM, 8:05 AM, 20:05 PM, 1:00 AM next day)
+    - Grace period enforcement in failure detection
+    - Recovery detection (independent of grace period)
+    - Real DST tests with expected UTC conversion:
+      - January: 8 AM EST (UTC-5) = 1 PM UTC
+      - July: 8 AM EDT (UTC-4) = 12 PM UTC
+      - Spring forward (March 9): Transition handling
+      - Fall back (November 2): Transition handling
+      - Consistent window hour across EST/EDT with 1-hour UTC difference
+- **Manual verification:**
+  - All tests pass locally
+  - No regressions to existing BugOps suite
+  - Window calculation verified for all time-of-day cases
+  - UTC conversion verified across DST boundaries
+- **Deviations from plan:**
+  - None. Implementation follows ticket spec exactly.
