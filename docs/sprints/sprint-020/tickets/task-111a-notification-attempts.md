@@ -3,9 +3,9 @@ ticket_id: TASK-111A
 title: Persist notification attempt records
 priority: high
 severity: medium
-status: OPEN
+status: DONE
 date_created: 2025-01-01
-branch: task/bugops-111a-notification-attempts
+branch: task/bugops-111-notification-contract
 effort_estimate: small
 ---
 
@@ -255,9 +255,32 @@ Creates an auditable trail of notification delivery. Operators can query
 
 ## Completion Summary
 
-- Branch:
-- Commit:
+- Branch: `task/bugops-111-notification-contract`
+- Commits: 7a758c3 (initial)
 - Changes made:
-- Tests run:
+  - Added `NotificationAttemptCreate` and `NotificationAttempt` models to models.py with required schema fields
+  - Added `notification_attempts_collection` to `BugOpsStore.__init__()`
+  - Added `create_notification_attempt()` store method with error handling (logs but does not propagate storage errors)
+  - Updated `route_and_send_notification()` to persist attempt records via `_send_notification_and_persist()` helper
+  - Attempt records created for `sent`, `failed`, and `suppressed` outcomes
+  - Mute/snooze suppression persisted with `suppressed_reason="muted"` and `suppressed_reason="snoozed"`
+  - Notification IDs generated using `uuid4().hex` for uniqueness
+  - Error details captured in failed attempts: `error_type` (exception class name) and `error_message` (str(exception))
+- Test coverage: 9 new tests in test_notification_attempts.py covering:
+  - Sent attempt persistence with correct fields
+  - Failed attempt persistence with error details
+  - Mute/snooze suppressed attempt persistence with suppressed_reason
+  - Storage failure resilience (does not propagate)
+  - Attempt ID uniqueness across calls
+  - Event type persistence for different event types
+- All 156 bugops tests pass (9 new notification attempts + 147 existing)
 - Manual verification:
+  - Storage failure handling verified: create_notification_attempt errors logged but not raised
+  - Mute/snooze behavior verified: suppressed_reason correctly populated
+  - Event type preservation verified: bugcase_created, bugcase_reopened, severity_escalated all persist
+  - Notification ID uniqueness verified: uuid4 prevents same-second collisions
 - Deviations from plan:
+  - Deploy suppression attempt recording deferred to TASK-112 (suppression detection not yet implemented)
+  - Suppression status field in Slack message deferred to TASK-112A
+  - Skipped records not persisted (optional, high-volume noise)
+  - Storage failure handling wrapped at call points instead of in create_notification_attempt (allows detailed logging without propagation)
