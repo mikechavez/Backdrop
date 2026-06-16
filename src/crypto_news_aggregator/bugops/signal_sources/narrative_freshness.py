@@ -58,10 +58,17 @@ class NarrativeFreshnessSignalSource:
                 # Healthy - recent narrative exists
                 return False
 
-            # Fallback: Check ObjectId timestamps for narratives without last_summary_generated_at
-            # Fetch all narratives (reasonable limit) and check creation timestamps
-            all_narratives = await db.narratives.find({}).to_list(length=None)
-            for narrative in all_narratives:
+            # Fallback: Check ObjectId timestamps for narratives WITHOUT last_summary_generated_at
+            # Only consider narratives missing the primary field (don't override explicit stale timestamps)
+            # Query last 1000 documents (sorted descending by _id) with only _id projection
+            recent_narratives = (
+                await db.narratives.find({"last_summary_generated_at": {"$exists": False}})
+                .sort("_id", -1)
+                .limit(1000)
+                .projection({"_id": 1})
+                .to_list(length=1000)
+            )
+            for narrative in recent_narratives:
                 if "_id" in narrative and isinstance(narrative["_id"], ObjectId):
                     creation_time = narrative["_id"].generation_time
                     # Make generation_time aware if it's naive
@@ -100,9 +107,17 @@ class NarrativeFreshnessSignalSource:
             if fresh_narrative:
                 return True
 
-            # Fallback: Check ObjectId timestamps
-            all_narratives = await db.narratives.find({}).to_list(length=None)
-            for narrative in all_narratives:
+            # Fallback: Check ObjectId timestamps for narratives WITHOUT last_summary_generated_at
+            # Only consider narratives missing the primary field (don't override explicit stale timestamps)
+            # Query last 1000 documents (sorted descending by _id) with only _id projection
+            recent_narratives = (
+                await db.narratives.find({"last_summary_generated_at": {"$exists": False}})
+                .sort("_id", -1)
+                .limit(1000)
+                .projection({"_id": 1})
+                .to_list(length=1000)
+            )
+            for narrative in recent_narratives:
                 if "_id" in narrative and isinstance(narrative["_id"], ObjectId):
                     creation_time = narrative["_id"].generation_time
                     # Make generation_time aware if it's naive

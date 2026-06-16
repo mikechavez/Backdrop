@@ -26,11 +26,15 @@ def mock_db():
     db.signal_scores = signal_scores_mock
 
     # narratives collection
-    # find_one is async, find() is sync and returns a cursor
+    # find_one is async, find() returns a cursor with chaining methods
     narratives_mock = MagicMock()
     narratives_mock.find_one = AsyncMock()
 
+    # Create a proper cursor chain mock: find().sort().limit().projection().to_list()
     cursor_mock = MagicMock()
+    cursor_mock.sort.return_value = cursor_mock
+    cursor_mock.limit.return_value = cursor_mock
+    cursor_mock.projection.return_value = cursor_mock
     cursor_mock.to_list = AsyncMock()
     narratives_mock.find = MagicMock(return_value=cursor_mock)
 
@@ -163,6 +167,111 @@ class TestCheckFailure:
         result = await detector.check_failure(mock_db)
 
         assert result is False
+
+
+class TestPrimaryVsFallbackPrecedence:
+    """Test that primary field takes precedence over ObjectId fallback."""
+
+    @pytest.fixture
+    def mock_db(self):
+        """Create a mock AsyncIOMotorDatabase."""
+        db = AsyncMock()
+
+        # signal_scores collection
+        signal_scores_mock = AsyncMock()
+        db.signal_scores = signal_scores_mock
+
+        # narratives collection with proper cursor chaining
+        narratives_mock = MagicMock()
+        narratives_mock.find_one = AsyncMock()
+
+        cursor_mock = MagicMock()
+        cursor_mock.sort.return_value = cursor_mock
+        cursor_mock.limit.return_value = cursor_mock
+        cursor_mock.projection.return_value = cursor_mock
+        cursor_mock.to_list = AsyncMock()
+        narratives_mock.find = MagicMock(return_value=cursor_mock)
+
+        db.narratives = narratives_mock
+
+        return db
+
+    @pytest.fixture
+    def detector(self):
+        """Create a NarrativeFreshness detector instance."""
+        return NarrativeFreshnessSignalSource()
+
+    @pytest.mark.asyncio
+    async def test_stale_primary_overrides_fresh_objectid_in_failure_check(
+        self, detector, mock_db
+    ):
+        """
+        Regression test: A narrative with stale last_summary_generated_at but fresh ObjectId
+        should be treated as stale (failure), not fresh.
+
+        Scenario:
+        - Signals exist (precondition met)
+        - Narrative has last_summary_generated_at = 10 days ago (stale)
+        - Same narrative has ObjectId creation time = 5 minutes ago (fresh)
+        - Fallback query must EXCLUDE this narrative (via $exists: False check)
+        - Result: check_failure() returns True (failure detected)
+        """
+        now = datetime.now(timezone.utc)
+        old_time = now - timedelta(days=10)
+        fresh_oid = ObjectId.from_datetime(now)
+
+        # Precondition: Recent signal exists
+        mock_db.signal_scores.find_one.return_value = {
+            "_id": "signal1",
+            "last_updated": now,
+        }
+
+        # Primary query: No fresh narrative (stale last_summary_generated_at)
+        mock_db.narratives.find_one.return_value = None
+
+        # Fallback query should only find narratives WITHOUT last_summary_generated_at
+        # This narrative has the field (stale), so should be excluded
+        mock_db.narratives.find.return_value.to_list.return_value = []
+
+        result = await detector.check_failure(mock_db)
+
+        # Must detect failure (no fresh narratives via primary or fallback)
+        assert result is True
+
+        # Verify fallback query includes $exists check
+        fallback_query = mock_db.narratives.find.call_args[0][0]
+        assert "last_summary_generated_at" in fallback_query
+        assert "$exists" in fallback_query["last_summary_generated_at"]
+        assert fallback_query["last_summary_generated_at"]["$exists"] is False
+
+    @pytest.mark.asyncio
+    async def test_stale_primary_overrides_fresh_objectid_in_recovery_check(
+        self, detector, mock_db
+    ):
+        """
+        Regression test: Recovery check must also respect primary field precedence.
+        A narrative with stale last_summary_generated_at should not be considered recovered
+        even if ObjectId is fresh.
+        """
+        now = datetime.now(timezone.utc)
+        old_time = now - timedelta(days=10)
+
+        # Primary query: No fresh narrative (stale or absent)
+        mock_db.narratives.find_one.return_value = None
+
+        # Fallback query excludes narratives WITH last_summary_generated_at
+        mock_db.narratives.find.return_value.to_list.return_value = []
+
+        result = await detector.check_recovery(mock_db)
+
+        # Must not recover (no fresh narratives)
+        assert result is False
+
+        # Verify fallback query includes $exists check
+        fallback_query = mock_db.narratives.find.call_args[0][0]
+        assert "last_summary_generated_at" in fallback_query
+        assert "$exists" in fallback_query["last_summary_generated_at"]
+        assert fallback_query["last_summary_generated_at"]["$exists"] is False
 
 
 class TestCheckRecovery:
