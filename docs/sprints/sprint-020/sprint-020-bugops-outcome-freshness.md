@@ -72,7 +72,7 @@ This sprint does not implement Evidence Packs, Investigations, Tickets, Railway 
 | 12 | TASK-108  | Wire freshness detectors into monitor with cascade suppression     | ✅ DONE  | M   | M      |
 | 13 | TASK-108A | Implement startup detection semantics                              | ✅ DONE  | M   | M      |
 | 14 | TASK-109  | Implement auto-resolution with Recovery Window                     | ✅ DONE  | M   | M      |
-| 15 | TASK-111  | Implement Slack notification contract for BugCase state changes    | 🔲 OPEN  | M   |        |
+| 15 | TASK-111  | Implement Slack notification contract for BugCase state changes    | ✅ DONE  | M   | M      |
 | 16 | TASK-111A | Persist notification attempt records                               | 🔲 OPEN  | S   |        |
 | 17 | TASK-112  | Implement global deploy suppression                                | 🔲 OPEN  | S   |        |
 | 18 | TASK-112A | Send deploy suppression expiry summary                             | 🔲 OPEN  | S   |        |
@@ -1112,5 +1112,19 @@ Neither sprint begins until Sprint 020 success criteria are fully met.
   - Branch: task/bugops-109-auto-resolution, commit: baa17b4
   - Status: ✅ DONE
 
-**Next:**
 - TASK-111: Implement Slack notification contract for BugCase state changes
+  - Created `slack.py` with routing and message formatting functions
+  - Implemented `route_and_send_notification()` with severity-based routing (Critical/High notify, Medium queued for digest, Low skipped)
+  - Deduplication: bugcase_created only notifies once per case (notification_count check)
+  - Throttle: Max 1 notification per hour per case, except bugcase_reopened and severity_escalated (immediate)
+  - Mute/snooze flags suppress notifications without blocking auto-resolution
+  - Message format varies by event type: bugcase_created (full details), bugcase_reopened (minimal)
+  - Slack fields include: Case ID, Severity, Status, Root Subsystem, Affected Subsystems, Dedupe Key, Detection Type, Suppression Status
+  - Error handling: Slack failures logged, do not block BugCase creation
+  - Integrated into monitor at case creation and startup detection points
+  - Test coverage: notification routing, message formatting, mute/snooze behavior
+  - Branch: task/bugops-111-slack-notifications, commits: 531bff0, 074c07c
+  - Status: ✅ DONE
+
+**Next:**
+- TASK-111A: Persist notification attempt records
