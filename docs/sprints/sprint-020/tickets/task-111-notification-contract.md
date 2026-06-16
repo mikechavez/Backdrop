@@ -341,17 +341,28 @@ pytest src/tests/bugops/ -v
 ## Completion Summary
 
 - Branch: `task/bugops-111-notification-contract`
-- Commit: 531bff0
+- Commits: 531bff0 (initial), 154802b (critical fix for muted/snoozed behavior)
 - Changes made:
   - Added `route_and_send_notification()` async function to slack.py with full routing logic
   - Updated `_build_slack_message()` to support event_type parameter and Sprint 020 schema (all 13 fields)
-  - Added `update_notification_state()` store method (atomic $set + $inc)
+  - Added TWO store methods:
+    * `update_notification_state()`: sets last_notified_at + increments notification_count (for sent/logged)
+    * `update_last_notified_at_only()`: sets last_notified_at ONLY (for suppressed without counting)
   - Added BUGOPS_NOTIFICATION_THROTTLE_MINUTES=60 to core/config.py
   - Updated monitor.py to call route_and_send_notification() after creating new BugCases
-  - Created comprehensive test suite with 14 test cases covering all routing decisions
-- Tests run: All 146 bugops tests pass (14 new notification routing + 132 existing)
+  - Created comprehensive test suite with 15 test cases covering all routing decisions
+- Tests run: All 147 bugops tests pass (15 new notification routing + 132 existing)
 - Manual verification: 
-  - Routing logic verified through unit tests: severity routing, deduplication, throttle, escalation bypass, mute/snooze
-  - Store method integration verified
+  - Routing logic verified through unit tests: severity routing, deduplication, throttle, escalation bypass
+  - Muted/snoozed behavior tested end-to-end: suppressed delivery doesn't increment count, so unmuting allows re-notification
+  - Store method integration verified (ReturnDocument.AFTER used correctly)
   - Monitor integration point verified (notification called after case creation)
-- Deviations from plan: None — implementation matches spec exactly
+  - send_case_notification() signature change is backward-compatible (event_type has default)
+  - AlertSeverity enum confirmed: INFO (Low), WARNING (Medium), HIGH, CRITICAL
+- Critical Fix:
+  - Suppressed notifications (muted/snoozed) now use update_last_notified_at_only() instead of update_notification_state()
+  - This prevents a production bug where suppressed delivery would prevent future notifications forever
+  - notification_count only increments on actual delivery or Medium digest logging
+- Deviations from plan:
+  - Added second store method (update_last_notified_at_only) to handle suppressed case correctly
+  - This was necessary to prevent the production bug identified during code review
