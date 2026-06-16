@@ -18,6 +18,7 @@ def mock_store():
     """Create a mock BugOpsStore."""
     store = AsyncMock()
     store.update_notification_state = AsyncMock()
+    store.update_last_notified_at_only = AsyncMock()
     return store
 
 
@@ -234,23 +235,44 @@ class TestNotificationRouting:
 
     @pytest.mark.asyncio
     async def test_muted_bugcase_suppressed(self, high_bugcase, mock_store, mock_settings):
-        """Muted BugCase should suppress notification but update last_notified_at."""
+        """Muted BugCase should suppress notification, update last_notified_at, but NOT increment count."""
         high_bugcase.muted_until = datetime.utcnow() + timedelta(minutes=10)
         with patch("crypto_news_aggregator.bugops.slack.send_case_notification", new_callable=AsyncMock) as mock_send:
             result = await route_and_send_notification(high_bugcase, "bugcase_created", mock_store)
             assert result == "suppressed"
             mock_send.assert_not_called()
-            mock_store.update_notification_state.assert_called_once()
+            # Should use update_last_notified_at_only, NOT update_notification_state
+            mock_store.update_last_notified_at_only.assert_called_once()
+            mock_store.update_notification_state.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_snoozed_bugcase_suppressed(self, high_bugcase, mock_store, mock_settings):
-        """Snoozed BugCase should suppress notification but update last_notified_at."""
+        """Snoozed BugCase should suppress notification, update last_notified_at, but NOT increment count."""
         high_bugcase.snoozed_until = datetime.utcnow() + timedelta(hours=2)
         with patch("crypto_news_aggregator.bugops.slack.send_case_notification", new_callable=AsyncMock) as mock_send:
             result = await route_and_send_notification(high_bugcase, "bugcase_created", mock_store)
             assert result == "suppressed"
             mock_send.assert_not_called()
+            # Should use update_last_notified_at_only, NOT update_notification_state
+            mock_store.update_last_notified_at_only.assert_called_once()
+            mock_store.update_notification_state.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_muted_then_unmuted_can_notify(self, high_bugcase, mock_store, mock_settings):
+        """After mute expires, bugcase_created can notify (dedup doesn't block because count didn't increment)."""
+        # Case was created and muted without incrementing notification_count
+        high_bugcase.muted_until = None  # Mute expired
+        high_bugcase.notification_count = 0  # Still 0 because mute suppression didn't increment
+        high_bugcase.last_notified_at = datetime.utcnow() - timedelta(hours=1)  # Old suppression time
+
+        with patch("crypto_news_aggregator.bugops.slack.send_case_notification", new_callable=AsyncMock) as mock_send:
+            mock_send.return_value = True
+            result = await route_and_send_notification(high_bugcase, "bugcase_created", mock_store)
+            assert result == "sent"
+            mock_send.assert_called_once()
             mock_store.update_notification_state.assert_called_once()
+            # Verify dedup didn't block it
+            mock_store.update_last_notified_at_only.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_send_failure_returns_failed(self, high_bugcase, mock_store, mock_settings):

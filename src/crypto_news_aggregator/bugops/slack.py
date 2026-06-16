@@ -58,12 +58,12 @@ async def route_and_send_notification(
     # Mute/snooze check
     if case.muted_until and case.muted_until > now:
         logger.info(f"BugCase {case.case_id} notification suppressed (muted)")
-        await store.update_notification_state(case.case_id, now)
+        await store.update_last_notified_at_only(case.case_id, now)
         return "suppressed"
 
     if case.snoozed_until and case.snoozed_until > now:
         logger.info(f"BugCase {case.case_id} notification suppressed (snoozed)")
-        await store.update_notification_state(case.case_id, now)
+        await store.update_last_notified_at_only(case.case_id, now)
         return "suppressed"
 
     # Send notification

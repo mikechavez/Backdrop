@@ -244,7 +244,11 @@ class BugOpsStore:
         return [BugCase(**_normalize_mongo_doc(doc)) for doc in docs]
 
     async def update_notification_state(self, case_id: str, last_notified_at: datetime) -> BugCase:
-        """Update notification state: set last_notified_at and increment notification_count."""
+        """Update notification state: set last_notified_at and increment notification_count.
+
+        Used when a notification is actually sent or logged (digest).
+        For suppressed notifications, use update_last_notified_at_only() instead.
+        """
         result = await self.cases_collection.find_one_and_update(
             {"case_id": case_id},
             {
@@ -253,6 +257,27 @@ class BugOpsStore:
                     "updated_at": datetime.utcnow()
                 },
                 "$inc": {"notification_count": 1}
+            },
+            return_document=ReturnDocument.AFTER
+        )
+        if result:
+            result = _normalize_mongo_doc(result)
+            return BugCase(**result)
+        raise ValueError(f"Case {case_id} not found")
+
+    async def update_last_notified_at_only(self, case_id: str, last_notified_at: datetime) -> BugCase:
+        """Update last_notified_at without incrementing notification_count.
+
+        Used for suppressed notifications (muted/snoozed) to reset the throttle window
+        without counting the suppressed event as a delivered notification.
+        """
+        result = await self.cases_collection.find_one_and_update(
+            {"case_id": case_id},
+            {
+                "$set": {
+                    "last_notified_at": last_notified_at,
+                    "updated_at": datetime.utcnow()
+                }
             },
             return_document=ReturnDocument.AFTER
         )
