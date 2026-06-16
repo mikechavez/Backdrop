@@ -220,6 +220,15 @@ class BugOpsMonitor:
                     }
                 )
 
+                # Send notification via routing logic
+                if self.settings.BUGOPS_SLACK_ENABLED:
+                    try:
+                        from .slack import route_and_send_notification
+                        result = await route_and_send_notification(new_case, "bugcase_created", self.store)
+                        logger.debug(f"Slack notification result: {result} (case_id={new_case.case_id})")
+                    except Exception as e:
+                        logger.exception(f"Failed to send Slack notification for case {new_case.case_id}: {e}")
+
             except Exception as e:
                 duration_ms = int((time.monotonic() - start) * 1000)
                 logger.error(

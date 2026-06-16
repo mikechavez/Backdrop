@@ -242,3 +242,21 @@ class BugOpsStore:
             "dedupe_key": {"$regex": ":"}
         }).to_list(None)
         return [BugCase(**_normalize_mongo_doc(doc)) for doc in docs]
+
+    async def update_notification_state(self, case_id: str, last_notified_at: datetime) -> BugCase:
+        """Update notification state: set last_notified_at and increment notification_count."""
+        result = await self.cases_collection.find_one_and_update(
+            {"case_id": case_id},
+            {
+                "$set": {
+                    "last_notified_at": last_notified_at,
+                    "updated_at": datetime.utcnow()
+                },
+                "$inc": {"notification_count": 1}
+            },
+            return_document=ReturnDocument.AFTER
+        )
+        if result:
+            result = _normalize_mongo_doc(result)
+            return BugCase(**result)
+        raise ValueError(f"Case {case_id} not found")
