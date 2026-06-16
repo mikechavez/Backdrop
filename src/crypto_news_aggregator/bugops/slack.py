@@ -4,7 +4,8 @@ import logging
 import httpx
 from datetime import datetime, timedelta
 from typing import Optional
-from .models import BugCase, AlertSeverity
+from uuid import uuid4
+from .models import BugCase, AlertSeverity, NotificationAttemptCreate
 from .config import get_bugops_settings
 
 logger = logging.getLogger(__name__)
@@ -22,6 +23,7 @@ async def route_and_send_notification(
     """
     settings = get_bugops_settings()
     now = datetime.utcnow()
+    notification_id = f"notif_{case.case_id}_{uuid4().hex}"
 
     # Severity-based routing
     if case.severity in (AlertSeverity.CRITICAL, AlertSeverity.HIGH):
@@ -59,11 +61,37 @@ async def route_and_send_notification(
     if case.muted_until and case.muted_until > now:
         logger.info(f"BugCase {case.case_id} notification suppressed (muted)")
         await store.update_last_notified_at_only(case.case_id, now)
+        # Persist suppressed attempt record
+        attempt = NotificationAttemptCreate(
+            notification_id=notification_id,
+            bugcase_id=case.case_id,
+            event_type=event_type,
+            status="suppressed",
+            attempted_at=now,
+            suppressed_reason="muted",
+        )
+        try:
+            await store.create_notification_attempt(attempt)
+        except Exception as e:
+            logger.error(f"Failed to persist notification attempt: {e}", exc_info=True)
         return "suppressed"
 
     if case.snoozed_until and case.snoozed_until > now:
         logger.info(f"BugCase {case.case_id} notification suppressed (snoozed)")
         await store.update_last_notified_at_only(case.case_id, now)
+        # Persist suppressed attempt record
+        attempt = NotificationAttemptCreate(
+            notification_id=notification_id,
+            bugcase_id=case.case_id,
+            event_type=event_type,
+            status="suppressed",
+            attempted_at=now,
+            suppressed_reason="snoozed",
+        )
+        try:
+            await store.create_notification_attempt(attempt)
+        except Exception as e:
+            logger.error(f"Failed to persist notification attempt: {e}", exc_info=True)
         return "suppressed"
 
     # Send notification
@@ -71,12 +99,76 @@ async def route_and_send_notification(
         logger.debug(f"Slack notifications disabled, skipping case {case.case_id}")
         return "skipped"
 
-    success = await send_case_notification(case, event_type)
+    success, error_type, error_msg = await _send_notification_and_persist(
+        case, event_type, store, notification_id, now
+    )
     if success:
         await store.update_notification_state(case.case_id, now)
         return "sent"
     else:
         return "failed"
+
+
+async def _send_notification_and_persist(
+    case: BugCase,
+    event_type: str,
+    store,
+    notification_id: str,
+    now: datetime,
+) -> tuple[bool, Optional[str], Optional[str]]:
+    """Send notification via send_case_notification and persist attempt record.
+
+    Returns: (success: bool, error_type: str | None, error_msg: str | None)
+    """
+    try:
+        success = await send_case_notification(case, event_type)
+        if success:
+            # Persist sent attempt record
+            attempt = NotificationAttemptCreate(
+                notification_id=notification_id,
+                bugcase_id=case.case_id,
+                event_type=event_type,
+                status="sent",
+                attempted_at=now,
+            )
+            try:
+                await store.create_notification_attempt(attempt)
+            except Exception as e:
+                logger.error(f"Failed to persist notification attempt: {e}", exc_info=True)
+            return True, None, None
+        else:
+            # Persist failed attempt record (reason unknown from send_case_notification)
+            attempt = NotificationAttemptCreate(
+                notification_id=notification_id,
+                bugcase_id=case.case_id,
+                event_type=event_type,
+                status="failed",
+                attempted_at=now,
+                error_type="UnknownError",
+                error_message="Slack send returned False",
+            )
+            try:
+                await store.create_notification_attempt(attempt)
+            except Exception as e:
+                logger.error(f"Failed to persist notification attempt: {e}", exc_info=True)
+            return False, "UnknownError", "Slack send returned False"
+    except Exception as e:
+        # Persist failed attempt record
+        attempt = NotificationAttemptCreate(
+            notification_id=notification_id,
+            bugcase_id=case.case_id,
+            event_type=event_type,
+            status="failed",
+            attempted_at=now,
+            error_type=type(e).__name__,
+            error_message=str(e),
+        )
+        try:
+            await store.create_notification_attempt(attempt)
+        except Exception as store_error:
+            logger.error(f"Failed to persist notification attempt: {store_error}", exc_info=True)
+        logger.error(f"Error in _send_notification_and_persist: {e}", exc_info=True)
+        return False, type(e).__name__, str(e)
 
 
 async def send_case_notification(case: BugCase, event_type: str = "bugcase_created") -> bool:

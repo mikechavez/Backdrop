@@ -11,6 +11,8 @@ from .models import (
     BugAlertEvent,
     BugCaseCreate,
     BugCase,
+    NotificationAttemptCreate,
+    NotificationAttempt,
 )
 
 logger = logging.getLogger(__name__)
@@ -42,6 +44,7 @@ class BugOpsStore:
         self.cases_collection = db["bug_cases"]
         self.case_events_collection = db["bug_case_events"]
         self.tool_calls_collection = db["bug_tool_calls"]
+        self.notification_attempts_collection = db["notification_attempts"]
 
     async def create_alert_event(self, event: BugAlertEventCreate) -> BugAlertEvent:
         """Create a new alert event in the database."""
@@ -285,3 +288,22 @@ class BugOpsStore:
             result = _normalize_mongo_doc(result)
             return BugCase(**result)
         raise ValueError(f"Case {case_id} not found")
+
+    async def create_notification_attempt(
+        self, attempt: NotificationAttemptCreate
+    ) -> Optional[NotificationAttempt]:
+        """Create a notification attempt record.
+
+        Returns:
+            NotificationAttempt on success, None if storage fails.
+            Errors are logged but not propagated to the caller.
+        """
+        try:
+            attempt_dict = attempt.model_dump(by_alias=False, exclude_none=False)
+            result = await self.notification_attempts_collection.insert_one(attempt_dict)
+            attempt_dict["_id"] = result.inserted_id
+            attempt_dict = _normalize_mongo_doc(attempt_dict)
+            return NotificationAttempt(**attempt_dict)
+        except Exception as e:
+            logger.error(f"Failed to create notification attempt: {e}", exc_info=True)
+            return None
