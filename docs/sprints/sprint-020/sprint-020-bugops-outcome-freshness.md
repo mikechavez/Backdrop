@@ -66,8 +66,8 @@ This sprint does not implement Evidence Packs, Investigations, Tickets, Railway 
 | 6  | TASK-102  | Add `create_case_direct()` and `attach_observation_to_case()`      | ✅ DONE  | S   | S      |
 | 7  | TASK-103  | Implement DependencyGraph v1                                       | ✅ DONE  | S   | S      |
 | 8  | TASK-104  | Implement ArticleFreshness detector                                | ✅ DONE  | M   | M      |
-| 9  | TASK-105  | Implement SignalFreshness detector                                 | 🔲 OPEN  | M   |        |
-| 10 | TASK-106  | Implement NarrativeFreshness detector                              | 🔲 OPEN  | M   |        |
+| 9  | TASK-105  | Implement SignalFreshness detector                                 | ✅ DONE  | M   | M      |
+| 10 | TASK-106  | Implement NarrativeFreshness detector                              | ✅ DONE  | M   | M      |
 | 11 | TASK-107  | Implement BriefingFreshness detector                               | 🔲 OPEN  | M   |        |
 | 12 | TASK-108  | Wire freshness detectors into monitor with cascade suppression     | 🔲 OPEN  | M   |        |
 | 13 | TASK-108A | Implement startup detection semantics                              | 🔲 OPEN  | M   |        |
@@ -1037,5 +1037,19 @@ Neither sprint begins until Sprint 020 success criteria are fully met.
   - Branch: `task/bugops-105-signal-freshness`, commit: 49ce910
   - Status: ✅ DONE
 
+- TASK-106: Implement NarrativeFreshness detector
+  - Created `NarrativeFreshnessSignalSource` with two-part freshness check
+  - **Primary field:** `last_summary_generated_at` on narratives (via `find_one`)
+  - **Fallback:** ObjectId timestamps for narratives WITHOUT `last_summary_generated_at` field
+    - Query: `find({"last_summary_generated_at": {"$exists": False}}).sort("_id", -1).limit(1000).projection({"_id": 1})`
+    - **Critical fix:** Added `$exists: False` filter to prevent stale explicit timestamps from being overridden by fresh ObjectId
+  - Precondition: Checks for recent signal scores via `signal_scores.last_updated` (legitimate idle if none)
+  - Configuration: Added `BUGOPS_NARRATIVE_FRESHNESS_WINDOW_MINUTES = 120` to core/config.py
+  - Test coverage: 20 tests including 2 regression tests for primary/fallback precedence
+  - Regression tests verify stale `last_summary_generated_at` is not overridden by fresh ObjectId
+  - All 76 bugops tests pass (no regressions)
+  - Branch: `task/bugops-105-signal-freshness`, commits: c92d88d (initial), 83442e3 (critical fix)
+  - Status: ✅ DONE
+
 **Next:**
-- TASK-106–107: NarrativeFreshness and BriefingFreshness detectors (can run in parallel with existing work)
+- TASK-107: BriefingFreshness detector (schedule-based, two windows per day with grace period)
