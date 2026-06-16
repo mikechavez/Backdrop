@@ -62,6 +62,17 @@ class BugOpsStore:
             return BugCase(**doc)
         return None
 
+    async def find_open_case_by_root_subsystem(self, root_subsystem: str) -> Optional[BugCase]:
+        """Find an open BugCase by root_subsystem."""
+        doc = await self.cases_collection.find_one({
+            "root_subsystem": root_subsystem,
+            "status": "open"
+        })
+        if doc:
+            doc = _normalize_mongo_doc(doc)
+            return BugCase(**doc)
+        return None
+
     async def create_case_from_alert(self, event: BugAlertEvent) -> BugCase:
         """Create a new case from an alert event."""
         case_create = BugCaseCreate(

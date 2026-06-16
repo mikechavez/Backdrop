@@ -5,6 +5,8 @@ import logging
 import os
 import signal
 import sys
+import time
+from datetime import datetime
 from typing import TYPE_CHECKING, List
 
 if TYPE_CHECKING:
@@ -27,6 +29,11 @@ class BugOpsMonitor:
         from .store import BugOpsStore
         from .signal_sources.llm_traces import LLMTraceCostSignalSource
         from .signal_sources.railway_logs import RailwayLogSignalSource
+        from .signal_sources.article_freshness import ArticleFreshnessSignalSource
+        from .signal_sources.signal_freshness import SignalFreshnessSignalSource
+        from .signal_sources.narrative_freshness import NarrativeFreshnessSignalSource
+        from .signal_sources.briefing_freshness import BriefingFreshnessSignalSource
+        from .dependency_graph import DependencyGraph
 
         self.settings = get_bugops_settings()
         self.store = None
@@ -34,6 +41,15 @@ class BugOpsMonitor:
             LLMTraceCostSignalSource(),
             RailwayLogSignalSource(),
         ]
+        self.dependency_graph = DependencyGraph()
+        self.freshness_detectors = [
+            ArticleFreshnessSignalSource(),
+            SignalFreshnessSignalSource(),
+            NarrativeFreshnessSignalSource(),
+            BriefingFreshnessSignalSource(),
+        ]
+        self.detector_by_subsystem = {d.root_subsystem: d for d in self.freshness_detectors}
+        self.is_first_poll = True
         self.running = False
 
     async def run(self) -> None:
@@ -65,6 +81,7 @@ class BugOpsMonitor:
             self.running = True
             while self.running:
                 await self._poll_signals()
+                await self._poll_freshness_detectors()
                 await asyncio.sleep(self.settings.BUGOPS_POLL_INTERVAL_SECONDS)
 
         except Exception as e:
@@ -99,6 +116,124 @@ class BugOpsMonitor:
                     f"Error collecting signals from {source.source_type}: {e}",
                     exc_info=True
                 )
+
+    async def _poll_freshness_detectors(self) -> None:
+        """Poll freshness detectors with cascade suppression.
+
+        Processing order (deterministic):
+        1. Detector observes failure condition
+        2. Check for open upstream BugCase → attach if found
+        3. Check for open BugCase with same dedupe_key → attach if found
+        4. Create new BugCase
+
+        Notification sending deferred to TASK-111 to preserve separation of responsibilities.
+        """
+        from ..db.mongodb import mongo_manager
+        from .models import BugCaseCreate
+        from .signal_sources.severity import DETECTOR_SEVERITY
+
+        db = await mongo_manager.get_async_database()
+        now = datetime.utcnow()
+
+        for detector in self.freshness_detectors:
+            start = time.monotonic()
+            try:
+                failure = await detector.check_failure(db)
+                if not failure:
+                    continue
+
+                # Step 2: Check for open upstream BugCase
+                upstream_nodes = self.dependency_graph.get_upstream_nodes(
+                    detector.root_subsystem
+                )
+                upstream_case = None
+                for node in upstream_nodes:
+                    upstream_case = await self.store.find_open_case_by_root_subsystem(node)
+                    if upstream_case:
+                        break
+
+                if upstream_case:
+                    await self.store.attach_observation_to_case(
+                        upstream_case.case_id,
+                        last_seen_at=now,
+                        affected_subsystems=[detector.root_subsystem],
+                    )
+                    logger.info(
+                        "Cascade suppression: attached to upstream case",
+                        extra={
+                            "detector": detector.source_type,
+                            "upstream_case_id": upstream_case.case_id,
+                            "upstream_subsystem": upstream_case.root_subsystem,
+                        }
+                    )
+                    continue
+
+                # Step 3: Check for open BugCase with same dedupe_key
+                existing = await self.store.find_open_case_by_dedupe_key(
+                    detector.dedupe_key
+                )
+                if existing:
+                    await self.store.attach_observation_to_case(
+                        existing.case_id, last_seen_at=now
+                    )
+                    logger.info(
+                        "Case idempotency: attached to existing case",
+                        extra={
+                            "detector": detector.source_type,
+                            "case_id": existing.case_id,
+                            "dedupe_key": detector.dedupe_key,
+                        }
+                    )
+                    continue
+
+                # Step 4: Create new BugCase
+                detection_type = "startup" if self.is_first_poll else "runtime"
+                blast_radius = self.dependency_graph.get_downstream_nodes(
+                    detector.root_subsystem
+                )
+                case_create = BugCaseCreate(
+                    case_id=f"bc_{detector.root_subsystem}_{int(now.timestamp())}",
+                    severity=DETECTOR_SEVERITY[detector.source_type],
+                    alert_type=detector.source_type,
+                    title=f"{detector.root_subsystem.capitalize()} Freshness Failure",
+                    summary=f"No {detector.root_subsystem} output within expected window.",
+                    dedupe_key=detector.dedupe_key,
+                    source_types=[detector.source_type],
+                    root_subsystem=detector.root_subsystem,
+                    blast_radius=blast_radius,
+                    affected_subsystems=[],
+                    first_seen_at=now,
+                    last_seen_at=now,
+                    observation_count=1,
+                    detection_type=detection_type,
+                    suggested_manual_check=detector.suggested_manual_check,
+                )
+                new_case = await self.store.create_case_direct(case_create)
+                logger.info(
+                    "New BugCase created from freshness detector",
+                    extra={
+                        "detector": detector.source_type,
+                        "case_id": new_case.case_id,
+                        "detection_type": detection_type,
+                        "root_subsystem": detector.root_subsystem,
+                    }
+                )
+
+            except Exception as e:
+                duration_ms = int((time.monotonic() - start) * 1000)
+                logger.error(
+                    "Detector run failed",
+                    extra={
+                        "detector_name": detector.__class__.__name__,
+                        "detector_source_type": detector.source_type,
+                        "error_type": type(e).__name__,
+                        "error_message": str(e),
+                        "duration_ms": duration_ms,
+                    }
+                )
+
+        # After first complete poll, set is_first_poll = False
+        self.is_first_poll = False
 
     def stop(self) -> None:
         """Stop the monitor gracefully."""
