@@ -73,7 +73,7 @@ This sprint does not implement Evidence Packs, Investigations, Tickets, Railway 
 | 13 | TASK-108A | Implement startup detection semantics                              | ✅ DONE  | M   | M      |
 | 14 | TASK-109  | Implement auto-resolution with Recovery Window                     | ✅ DONE  | M   | M      |
 | 15 | TASK-111  | Implement Slack notification contract for BugCase state changes    | ✅ DONE  | M   | M      |
-| 16 | TASK-111A | Persist notification attempt records                               | 🔲 OPEN  | S   |        |
+| 16 | TASK-111A | Persist notification attempt records                               | ✅ DONE  | S   | S      |
 | 17 | TASK-112  | Implement global deploy suppression                                | 🔲 OPEN  | S   |        |
 | 18 | TASK-112A | Send deploy suppression expiry summary                             | 🔲 OPEN  | S   |        |
 | 19 | TASK-113  | Update Sprint 020 docs and success criteria                        | 🔲 OPEN  | S   |        |
@@ -1126,5 +1126,20 @@ Neither sprint begins until Sprint 020 success criteria are fully met.
   - Branch: task/bugops-111-slack-notifications, commits: 531bff0, 074c07c
   - Status: ✅ DONE
 
-**Next:**
 - TASK-111A: Persist notification attempt records
+  - Added `NotificationAttemptCreate` and `NotificationAttempt` models to models.py
+  - Added `create_notification_attempt()` to BugOpsStore with error handling (logs but doesn't propagate)
+  - Attempt records created for sent, failed, and suppressed outcomes
+  - Mute/snooze suppression persisted with suppressed_reason field
+  - Failed attempts capture error_type (exception class) and error_message (str)
+  - Notification IDs generated using uuid4().hex for uniqueness
+  - Helper function `_send_notification_and_persist()` wraps send and storage with error handling
+  - Storage failures do not propagate; logged at error level and execution continues
+  - Test coverage: 9 new tests covering all persistence paths and error handling
+  - All 156 bugops tests pass (9 new notification attempts + 147 existing)
+  - Branch: task/bugops-111-notification-contract, commits: 7a758c3, 5e87902
+  - Deviations: Deploy suppression attempt recording deferred to TASK-112 (suppression detection not implemented); skipped records not persisted
+  - Status: ✅ DONE
+
+**Next:**
+- TASK-112: Implement global deploy suppression
