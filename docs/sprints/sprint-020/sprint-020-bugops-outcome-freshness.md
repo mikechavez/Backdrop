@@ -70,8 +70,8 @@ This sprint does not implement Evidence Packs, Investigations, Tickets, Railway 
 | 10 | TASK-106  | Implement NarrativeFreshness detector                              | ✅ DONE  | M   | M      |
 | 11 | TASK-107  | Implement BriefingFreshness detector                               | ✅ DONE  | M   | M      |
 | 12 | TASK-108  | Wire freshness detectors into monitor with cascade suppression     | ✅ DONE  | M   | M      |
-| 13 | TASK-108A | Implement startup detection semantics                              | 🔲 OPEN  | M   |        |
-| 14 | TASK-109  | Implement auto-resolution with Recovery Window                     | 🔲 OPEN  | M   |        |
+| 13 | TASK-108A | Implement startup detection semantics                              | ✅ DONE  | M   | M      |
+| 14 | TASK-109  | Implement auto-resolution with Recovery Window                     | ✅ DONE  | M   | M      |
 | 15 | TASK-111  | Implement Slack notification contract for BugCase state changes    | 🔲 OPEN  | M   |        |
 | 16 | TASK-111A | Persist notification attempt records                               | 🔲 OPEN  | S   |        |
 | 17 | TASK-112  | Implement global deploy suppression                                | 🔲 OPEN  | S   |        |
@@ -1098,5 +1098,19 @@ Neither sprint begins until Sprint 020 success criteria are fully met.
   - Branch: `task/bugops-108a-startup-detection`, commit: d6c43df
   - Status: ✅ DONE
 
-**Next:**
 - TASK-109: Implement auto-resolution with Recovery Window
+  - Created `_run_auto_resolution()` method in BugOpsMonitor with deterministic state machine
+  - Added BUGOPS_RECOVERY_WINDOW_MINUTES = 10 to core/config.py
+  - Added three store methods: resolve_case(), update_recovery_candidate(), get_open_freshness_cases()
+  - Detector lookup uses detector_by_subsystem map with canonical enum values
+  - Recovery candidate set on first healthy observation, cleared on failure recurrence
+  - Case resolves only after Recovery Window elapses without re-violation
+  - Manually closed cases skipped; muted/snoozed cases resolve normally
+  - No Slack notification on auto-resolution
+  - Test coverage: 12 new tests covering all recovery scenarios
+  - All 132 BugOps tests pass (12 new + 120 existing)
+  - Branch: task/bugops-109-auto-resolution, commit: baa17b4
+  - Status: ✅ DONE
+
+**Next:**
+- TASK-111: Implement Slack notification contract for BugCase state changes

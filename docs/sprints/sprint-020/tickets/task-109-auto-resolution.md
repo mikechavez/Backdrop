@@ -272,9 +272,19 @@ Operators no longer need to manually close self-healing failures.
 
 ## Completion Summary
 
-- Branch:
-- Commit:
+- Branch: task/bugops-109-auto-resolution
+- Commit: baa17b4
 - Changes made:
+  - Added BUGOPS_RECOVERY_WINDOW_MINUTES = 10 to core/config.py
+  - Added three store methods to BugOpsStore:
+    - resolve_case(case_id) → sets status=resolved, resolved_at=now, clears recovery_candidate_at
+    - update_recovery_candidate(case_id, recovery_candidate_at) → can be None to clear
+    - get_open_freshness_cases() → finds all open cases with dedupe_key containing ':'
+  - Added _run_auto_resolution() to BugOpsMonitor with deterministic recovery window logic
+  - Integrated _run_auto_resolution() into main polling loop after _poll_freshness_detectors()
+  - Imported timedelta in monitor.py for Recovery Window calculations
 - Tests run:
-- Manual verification:
-- Deviations from plan:
+  - pytest src/tests/bugops/test_auto_resolution.py -v → 12 passed
+  - pytest src/tests/bugops/ -v → 132 passed (12 new + 120 existing)
+- Manual verification: None required (logic is deterministic and fully covered by unit tests)
+- Deviations from plan: None
