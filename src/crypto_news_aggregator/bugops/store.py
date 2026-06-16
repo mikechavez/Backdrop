@@ -196,3 +196,49 @@ class BugOpsStore:
             result = _normalize_mongo_doc(result)
             return BugCase(**result)
         raise ValueError(f"Case {case_id} not found")
+
+    async def resolve_case(self, case_id: str) -> BugCase:
+        """Resolve a BugCase (auto-resolution)."""
+        result = await self.cases_collection.find_one_and_update(
+            {"case_id": case_id},
+            {
+                "$set": {
+                    "status": "resolved",
+                    "resolved_at": datetime.utcnow(),
+                    "recovery_candidate_at": None,
+                    "updated_at": datetime.utcnow()
+                }
+            },
+            return_document=ReturnDocument.AFTER
+        )
+        if result:
+            result = _normalize_mongo_doc(result)
+            return BugCase(**result)
+        raise ValueError(f"Case {case_id} not found")
+
+    async def update_recovery_candidate(
+        self, case_id: str, recovery_candidate_at: Optional[datetime]
+    ) -> BugCase:
+        """Update recovery_candidate_at timestamp (can be None to clear)."""
+        result = await self.cases_collection.find_one_and_update(
+            {"case_id": case_id},
+            {
+                "$set": {
+                    "recovery_candidate_at": recovery_candidate_at,
+                    "updated_at": datetime.utcnow()
+                }
+            },
+            return_document=ReturnDocument.AFTER
+        )
+        if result:
+            result = _normalize_mongo_doc(result)
+            return BugCase(**result)
+        raise ValueError(f"Case {case_id} not found")
+
+    async def get_open_freshness_cases(self) -> list[BugCase]:
+        """Get all open BugCases from freshness detectors (identified by dedupe_key containing ':')."""
+        docs = await self.cases_collection.find({
+            "status": "open",
+            "dedupe_key": {"$regex": ":"}
+        }).to_list(None)
+        return [BugCase(**_normalize_mongo_doc(doc)) for doc in docs]

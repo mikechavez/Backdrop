@@ -6,7 +6,7 @@ import os
 import signal
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, List
 
 if TYPE_CHECKING:
@@ -82,6 +82,7 @@ class BugOpsMonitor:
             while self.running:
                 await self._poll_signals()
                 await self._poll_freshness_detectors()
+                await self._run_auto_resolution()
                 await asyncio.sleep(self.settings.BUGOPS_POLL_INTERVAL_SECONDS)
 
         except Exception as e:
@@ -234,6 +235,53 @@ class BugOpsMonitor:
 
         # After first complete poll, set is_first_poll = False
         self.is_first_poll = False
+
+    async def _run_auto_resolution(self) -> None:
+        """Auto-resolve BugCases when recovery conditions are met and Recovery Window elapses."""
+        from ..db.mongodb import mongo_manager
+        from .models import CaseStatus
+
+        db = await mongo_manager.get_async_database()
+        now = datetime.utcnow()
+        recovery_window = timedelta(minutes=self.settings.BUGOPS_RECOVERY_WINDOW_MINUTES)
+
+        open_cases = await self.store.get_open_freshness_cases()
+
+        for case in open_cases:
+            # Skip manually closed cases (terminal state)
+            if case.status == CaseStatus.CLOSED:
+                continue
+
+            # Find the right detector
+            detector = self.detector_by_subsystem.get(case.root_subsystem)
+            if detector is None:
+                logger.warning(f"No detector found for root_subsystem={case.root_subsystem}")
+                continue
+
+            try:
+                recovered = await detector.check_recovery(db)
+            except Exception as e:
+                logger.error(f"Recovery check failed for case {case.case_id}: {e}")
+                continue
+
+            if recovered:
+                if case.recovery_candidate_at is None:
+                    # First healthy observation
+                    await self.store.update_recovery_candidate(case.case_id, now)
+                else:
+                    elapsed = now - case.recovery_candidate_at
+                    if elapsed >= recovery_window:
+                        # Window elapsed — resolve
+                        await self.store.resolve_case(case.case_id)
+                        logger.info(f"BugCase auto-resolved: case_id={case.case_id}")
+                        # No Slack notification on resolution
+            else:
+                if case.recovery_candidate_at is not None:
+                    # Failure recurred before window elapsed
+                    await self.store.update_recovery_candidate(case.case_id, None)
+                    logger.info(
+                        f"Recovery candidate cleared (failure recurred): case_id={case.case_id}"
+                    )
 
     def stop(self) -> None:
         """Stop the monitor gracefully."""
