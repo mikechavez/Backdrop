@@ -68,7 +68,7 @@ This sprint does not implement Evidence Packs, Investigations, Tickets, Railway 
 | 8  | TASK-104  | Implement ArticleFreshness detector                                | ✅ DONE  | M   | M      |
 | 9  | TASK-105  | Implement SignalFreshness detector                                 | ✅ DONE  | M   | M      |
 | 10 | TASK-106  | Implement NarrativeFreshness detector                              | ✅ DONE  | M   | M      |
-| 11 | TASK-107  | Implement BriefingFreshness detector                               | 🔲 OPEN  | M   |        |
+| 11 | TASK-107  | Implement BriefingFreshness detector                               | ✅ DONE  | M   | M      |
 | 12 | TASK-108  | Wire freshness detectors into monitor with cascade suppression     | 🔲 OPEN  | M   |        |
 | 13 | TASK-108A | Implement startup detection semantics                              | 🔲 OPEN  | M   |        |
 | 14 | TASK-109  | Implement auto-resolution with Recovery Window                     | 🔲 OPEN  | M   |        |
@@ -1051,5 +1051,22 @@ Neither sprint begins until Sprint 020 success criteria are fully met.
   - Branch: `task/bugops-105-signal-freshness`, commits: c92d88d (initial), 83442e3 (critical fix)
   - Status: ✅ DONE
 
+- TASK-107: Implement BriefingFreshness detector
+  - Created `BriefingFreshnessSignalSource` with schedule-based window logic
+  - Morning: 8 AM EST, Evening: 8 PM EST, Grace period: 30 min (all configurable)
+  - Implemented `_get_most_recent_window()` handling day boundaries correctly (Tuesday 1 AM → Monday 8 PM)
+  - Implemented `check_failure()` with grace period, briefing window, and fresh narrative checks
+  - Implemented `check_recovery()` with no grace period check (recovery independent of grace)
+  - Used `ZoneInfo("America/New_York")` for EST/EDT handling (not pytz)
+  - Configuration added to core/config.py: morning hour, evening hour, grace period, narrative lookback
+  - Test coverage: 28 tests including real DST tests with expected UTC conversion
+    - January 8 AM EST (UTC-5) → 1 PM UTC ✓
+    - July 8 AM EDT (UTC-4) → 12 PM UTC ✓
+    - Spring/fall DST transitions verified
+    - Edge cases: grace period enforcement, recovery independence, window boundaries
+  - All 104 BugOps tests pass (no regressions)
+  - Branch: `task/bugops-107-briefing-freshness`, commits: b773c9e (initial), deb83fd (DST tests)
+  - Status: ✅ DONE
+
 **Next:**
-- TASK-107: BriefingFreshness detector (schedule-based, two windows per day with grace period)
+- TASK-108: Wire freshness detectors into monitor with cascade suppression
