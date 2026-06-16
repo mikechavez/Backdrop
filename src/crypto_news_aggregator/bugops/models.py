@@ -170,3 +170,24 @@ class BugToolCall(BugToolCallCreate):
 
     class Config:
         populate_by_name = True
+
+
+class NotificationAttemptCreate(BaseModel):
+    """Create a notification attempt record."""
+    notification_id: str
+    bugcase_id: str
+    event_type: str  # bugcase_created | bugcase_reopened | severity_escalated | suppression_summary
+    channel: str = "slack"
+    status: str  # sent | failed | suppressed | skipped
+    attempted_at: datetime = Field(default_factory=datetime.utcnow)
+    error_type: Optional[str] = None
+    error_message: Optional[str] = None
+    suppressed_reason: Optional[str] = None
+
+
+class NotificationAttempt(NotificationAttemptCreate):
+    """Notification attempt persisted in database."""
+    id: Optional[str] = Field(default=None, alias="_id")
+
+    class Config:
+        populate_by_name = True
