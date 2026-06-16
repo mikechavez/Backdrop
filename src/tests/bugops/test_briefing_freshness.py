@@ -280,18 +280,122 @@ class TestCheckRecovery:
 class TestTimezoneHandling:
     """Test EST/EDT transition handling."""
 
-    def test_uses_zoneinfo_not_hardcoded_offset(self, detector):
-        """Detector uses ZoneInfo, not hardcoded UTC offsets."""
-        # This is more of a code inspection test, but we can verify
-        # that window calculations work correctly around DST boundaries
+    def test_standard_time_utc_offset_january(self, detector):
+        """
+        January 15, 2026 is during Eastern Standard Time (UTC-5).
+        9:00 AM EST should resolve to 8:00 AM window.
+        8:00 AM EST = 13:00 UTC.
+        """
+        # January 15, 2026 9:00 AM Eastern Standard Time
+        now_est = datetime(2026, 1, 15, 9, 0, 0, tzinfo=EST)
 
-        # Just before DST ends (EST becomes EDT)
-        date = datetime(2026, 11, 1, 5, 0, 0, tzinfo=EST)
-        window_start, window_end = detector._get_most_recent_window(date)
+        window_start, window_end = detector._get_most_recent_window(now_est)
 
-        # Should still work correctly with ZoneInfo handling
-        assert window_start is not None
-        assert window_end is not None
+        # Verify window_start is in New York time at 8 AM
+        assert window_start.hour == 8
+        assert window_start.minute == 0
+        assert window_start.second == 0
+        assert window_start.day == 15
+        assert window_start.month == 1
+        assert window_start.year == 2026
+        assert window_start.tzinfo == EST
+
+        # Verify conversion to UTC gives correct hour (EST is UTC-5)
+        window_start_utc = window_start.astimezone(timezone.utc)
+        assert window_start_utc.hour == 13  # 8 AM EST + 5 hours = 1 PM UTC
+        assert window_start_utc.day == 15
+
+    def test_daylight_time_utc_offset_july(self, detector):
+        """
+        July 15, 2026 is during Eastern Daylight Time (UTC-4).
+        9:00 AM EDT should resolve to 8:00 AM window.
+        8:00 AM EDT = 12:00 UTC.
+        """
+        # July 15, 2026 9:00 AM Eastern Daylight Time
+        now_est = datetime(2026, 7, 15, 9, 0, 0, tzinfo=EST)
+
+        window_start, window_end = detector._get_most_recent_window(now_est)
+
+        # Verify window_start is in New York time at 8 AM
+        assert window_start.hour == 8
+        assert window_start.minute == 0
+        assert window_start.second == 0
+        assert window_start.day == 15
+        assert window_start.month == 7
+        assert window_start.year == 2026
+        assert window_start.tzinfo == EST
+
+        # Verify conversion to UTC gives correct hour (EDT is UTC-4)
+        window_start_utc = window_start.astimezone(timezone.utc)
+        assert window_start_utc.hour == 12  # 8 AM EDT + 4 hours = 12 PM UTC
+        assert window_start_utc.day == 15
+
+    def test_spring_forward_dst_transition(self, detector):
+        """
+        Test behavior on the spring forward DST transition date (March 9, 2026).
+        At 2:00 AM EST, clocks jump to 3:00 AM EDT.
+        This test ensures ZoneInfo handles the transition correctly.
+        """
+        # March 9, 2026 at 9:00 AM (after spring forward to EDT)
+        # This is 1 hour after the 2 AM → 3 AM transition
+        now_est = datetime(2026, 3, 9, 9, 0, 0, tzinfo=EST)
+
+        window_start, window_end = detector._get_most_recent_window(now_est)
+
+        # Window should still be at 8 AM (hour = 8)
+        assert window_start.hour == 8
+        assert window_start.tzinfo == EST
+
+        # On March 9, we're now in EDT (UTC-4 after 2 AM transition)
+        window_start_utc = window_start.astimezone(timezone.utc)
+        assert window_start_utc.hour == 12  # 8 AM EDT = 12 UTC
+
+    def test_fall_back_dst_transition(self, detector):
+        """
+        Test behavior on the fall back DST transition date (November 2, 2026).
+        At 2:00 AM EDT, clocks fall back to 1:00 AM EST.
+        This test ensures ZoneInfo handles the ambiguous hour correctly.
+        """
+        # November 2, 2026 at 9:00 AM (after fall back to EST)
+        # This is 1 hour after the 2 AM EDT → 1 AM EST transition
+        now_est = datetime(2026, 11, 2, 9, 0, 0, tzinfo=EST)
+
+        window_start, window_end = detector._get_most_recent_window(now_est)
+
+        # Window should be at 8 AM
+        assert window_start.hour == 8
+        assert window_start.tzinfo == EST
+
+        # After fall back, we're in EST (UTC-5)
+        window_start_utc = window_start.astimezone(timezone.utc)
+        assert window_start_utc.hour == 13  # 8 AM EST = 1 PM UTC
+
+    def test_consistent_window_across_dst_transition(self, detector):
+        """
+        Verify that the window calculation is consistent when called
+        before and after a DST transition with the same local time.
+        """
+        # Same local time on winter (EST) and summer (EDT) dates
+        # Both are 8:00 AM in their respective zones
+        winter_date = datetime(2026, 1, 15, 8, 0, 0, tzinfo=EST)  # EST
+        summer_date = datetime(2026, 7, 15, 8, 0, 0, tzinfo=EST)  # EDT
+
+        winter_window, _ = detector._get_most_recent_window(winter_date)
+        summer_window, _ = detector._get_most_recent_window(summer_date)
+
+        # Both should have hour = 8 (the configured morning hour)
+        assert winter_window.hour == 8
+        assert summer_window.hour == 8
+
+        # But their UTC conversions should differ by 1 hour due to DST
+        winter_utc = winter_window.astimezone(timezone.utc)
+        summer_utc = summer_window.astimezone(timezone.utc)
+
+        # winter: 8 AM EST (UTC-5) = 1 PM UTC
+        # summer: 8 AM EDT (UTC-4) = 12 PM UTC
+        assert winter_utc.hour == 13
+        assert summer_utc.hour == 12
+        assert (winter_utc.hour - summer_utc.hour) == 1
 
 
 class TestCollect:
