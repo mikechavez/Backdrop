@@ -180,9 +180,25 @@ pytest src/tests/bugops/test_narrative_freshness.py -v
 
 ## Completion Summary
 
-- Branch:
-- Commit:
+- Branch: `task/bugops-105-signal-freshness`
+- Commits: 
+  - c92d88d — initial implementation
+  - 83442e3 — fix ObjectId fallback precedence (critical bug fix)
 - Changes made:
-- Tests run:
-- Manual verification:
-- Deviations from plan:
+  - Created `narrative_freshness.py` with `NarrativeFreshnessSignalSource` class
+  - Implements two-part freshness check: primary field (`last_summary_generated_at`) + ObjectId fallback
+  - Fallback query bounded to 1000 docs, sorted descending by _id, projected to _id only
+  - Fallback only checks narratives WITHOUT `last_summary_generated_at` field (prevents overriding stale explicit timestamps)
+  - Added `BUGOPS_NARRATIVE_FRESHNESS_WINDOW_MINUTES = 120` config
+  - Created comprehensive test suite with 20 tests including 2 regression tests for primary/fallback precedence
+- Tests run: `poetry run pytest src/tests/bugops/test_narrative_freshness.py -v` — **20 passed**
+  - All 5 metadata tests pass
+  - All 6 failure condition tests pass
+  - All 2 primary-vs-fallback regression tests pass
+  - All 4 recovery condition tests pass
+  - All tolerance and exception handling tests pass
+- Manual verification: All 76 bugops tests pass (no regressions)
+- Deviations from plan: 
+  - Initial implementation used full collection scan; corrected to bounded query with sort/limit/projection
+  - Initial implementation didn't exclude narratives WITH stale `last_summary_generated_at`; added `$exists: False` filter
+  - Both deviations caught before merge and fixed with regression tests to prevent recurrence
