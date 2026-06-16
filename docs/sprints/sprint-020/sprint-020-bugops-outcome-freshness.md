@@ -1084,6 +1084,19 @@ Neither sprint begins until Sprint 020 success criteria are fully met.
   - Branch: `task/bugops-108-cascade-suppression`, commit: c4e7507
   - Status: ✅ DONE
 
-**Next:**
 - TASK-108A: Implement startup detection semantics
+  - Created comprehensive test suite validating startup detection behavior
+  - First poll creates BugCases with detection_type="startup"
+  - Subsequent polls use detection_type="runtime"
+  - is_first_poll flag correctly transitions True→False after first poll
+  - Cascade suppression applies normally to startup-created failures
+  - Ongoing failures deduplicate across polls (idempotency across poll 1→2)
+  - No healthy baseline required before BugCase creation
+  - Slack notification assertion deferred to TASK-111 (monitor.py line 129)
+  - Test coverage: 6 new tests in test_startup_detection.py
+  - All 120 BugOps tests pass (6 new + 114 existing)
+  - Branch: `task/bugops-108a-startup-detection`, commit: d6c43df
+  - Status: ✅ DONE
+
+**Next:**
 - TASK-109: Implement auto-resolution with Recovery Window

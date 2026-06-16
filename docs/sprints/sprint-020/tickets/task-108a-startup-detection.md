@@ -3,8 +3,9 @@ ticket_id: TASK-108A
 title: Implement startup detection semantics
 priority: high
 severity: medium
-status: OPEN
+status: DONE
 date_created: 2025-01-01
+date_completed: 2026-06-16
 branch: task/bugops-108a-startup-detection
 effort_estimate: medium
 ---
@@ -142,14 +143,14 @@ pytest src/tests/bugops/ -v
 
 ## Acceptance Criteria
 
-- [ ] `is_first_poll` is `True` for the entire first poll (all detectors in poll 1
+- [x] `is_first_poll` is `True` for the entire first poll (all detectors in poll 1
   see `is_first_poll=True`)
-- [ ] `is_first_poll` is `False` for all subsequent polls
-- [ ] Startup BugCases have `detection_type="startup"`
-- [ ] Runtime BugCases have `detection_type="runtime"`
-- [ ] No healthy baseline required before startup BugCase creation
-- [ ] Cascade suppression applies normally to startup failures
-- [ ] All test cases pass
+- [x] `is_first_poll` is `False` for all subsequent polls
+- [x] Startup BugCases have `detection_type="startup"`
+- [x] Runtime BugCases have `detection_type="runtime"`
+- [x] No healthy baseline required before startup BugCase creation
+- [x] Cascade suppression applies normally to startup failures
+- [x] All test cases pass
 
 ---
 
@@ -169,9 +170,17 @@ BugOps restart, not only when new failures begin.
 
 ## Completion Summary
 
-- Branch:
-- Commit:
+- Branch: `task/bugops-108a-startup-detection`
+- Commit: `d6c43df` — "task(bugops): TASK-108A implement startup detection semantics"
 - Changes made:
+  - Created `src/tests/bugops/test_startup_detection.py` with 6 comprehensive tests
+  - Verified monitor.py TASK-108 implementation: `is_first_poll` flag lifecycle, `detection_type` assignment, detector loop isolation
+  - Confirmed Slack notifications correctly deferred to TASK-111 (no changes needed to monitor.py)
 - Tests run:
+  - All 6 new startup detection tests pass
+  - All 120 bugops tests pass (no regressions)
+  - Test cases cover: first poll startup, second poll runtime, flag lifecycle, cascade suppression, ongoing failure deduplication, no healthy baseline required
 - Manual verification:
+  - Not applicable (pure unit tests with mocked dependencies)
 - Deviations from plan:
+  - Slack notification assertion deferred to TASK-111 because monitor.py intentionally defers notification sending for freshness detectors (see monitor.py:129 docstring). Notifications will be tested in TASK-111 routing tests.
