@@ -69,7 +69,7 @@ This sprint does not implement Evidence Packs, Investigations, Tickets, Railway 
 | 9  | TASK-105  | Implement SignalFreshness detector                                 | ✅ DONE  | M   | M      |
 | 10 | TASK-106  | Implement NarrativeFreshness detector                              | ✅ DONE  | M   | M      |
 | 11 | TASK-107  | Implement BriefingFreshness detector                               | ✅ DONE  | M   | M      |
-| 12 | TASK-108  | Wire freshness detectors into monitor with cascade suppression     | 🔲 OPEN  | M   |        |
+| 12 | TASK-108  | Wire freshness detectors into monitor with cascade suppression     | ✅ DONE  | M   | M      |
 | 13 | TASK-108A | Implement startup detection semantics                              | 🔲 OPEN  | M   |        |
 | 14 | TASK-109  | Implement auto-resolution with Recovery Window                     | 🔲 OPEN  | M   |        |
 | 15 | TASK-111  | Implement Slack notification contract for BugCase state changes    | 🔲 OPEN  | M   |        |
@@ -1068,5 +1068,22 @@ Neither sprint begins until Sprint 020 success criteria are fully met.
   - Branch: `task/bugops-107-briefing-freshness`, commits: b773c9e (initial), deb83fd (DST tests)
   - Status: ✅ DONE
 
-**Next:**
 - TASK-108: Wire freshness detectors into monitor with cascade suppression
+  - Created `_poll_freshness_detectors()` method with deterministic cascade suppression
+  - Instantiated DependencyGraph and all four freshness detectors at monitor startup
+  - Added `is_first_poll` flag to distinguish startup vs. runtime detection
+  - Added `detector_by_subsystem` lookup map for TASK-109 use
+  - New store method: `find_open_case_by_root_subsystem()`
+  - Cascade suppression order: upstream → dedupe → create (deterministic, tested)
+  - detection_type assignment: "startup" on first poll, "runtime" thereafter
+  - blast_radius populated from DependencyGraph.get_downstream_nodes()
+  - affected_subsystems set on upstream attachment only
+  - Detector exceptions isolated (logged, don't halt loop)
+  - Test coverage: 10 new integration tests in test_cascade_suppression.py
+  - All 114 BugOps tests pass
+  - Branch: `task/bugops-108-cascade-suppression`, commit: c4e7507
+  - Status: ✅ DONE
+
+**Next:**
+- TASK-108A: Implement startup detection semantics
+- TASK-109: Implement auto-resolution with Recovery Window

@@ -335,9 +335,12 @@ pytest src/tests/bugops/ -v
 
 ## Completion Summary
 
-- Branch:
-- Commit:
+- Branch: `task/bugops-108-cascade-suppression`
+- Commit: c4e7507
 - Changes made:
-- Tests run:
-- Manual verification:
-- Deviations from plan:
+  - `monitor.py`: Added `_poll_freshness_detectors()` method with cascade suppression logic; instantiated DependencyGraph and all four freshness detectors in `__init__`; added `is_first_poll` flag and `detector_by_subsystem` lookup
+  - `store.py`: Added `find_open_case_by_root_subsystem()` method for upstream BugCase queries
+  - `test_cascade_suppression.py`: Added 10 integration tests covering cascade suppression order, detection_type assignment, blast_radius population, affected_subsystems handling, exception isolation, and processing order enforcement
+- Tests run: All 114 BugOps tests pass (10 new + 104 existing)
+- Manual verification: Cascade suppression order verified via test assertions; exception isolation tested
+- Deviations from plan: None. Notification sending intentionally deferred to TASK-111 per design.
