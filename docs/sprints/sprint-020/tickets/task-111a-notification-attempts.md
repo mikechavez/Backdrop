@@ -280,7 +280,7 @@ Creates an auditable trail of notification delivery. Operators can query
   - Event type preservation verified: bugcase_created, bugcase_reopened, severity_escalated all persist
   - Notification ID uniqueness verified: uuid4 prevents same-second collisions
 - Deviations from plan:
-  - Deploy suppression attempt recording deferred to TASK-112 (suppression detection not yet implemented)
+  - Deploy suppression attempt recording is supported by schema but deferred until TASK-112 introduces deploy suppression detection
   - Suppression status field in Slack message deferred to TASK-112A
   - Skipped records not persisted (optional, high-volume noise)
   - Storage failure handling wrapped at call points instead of in create_notification_attempt (allows detailed logging without propagation)

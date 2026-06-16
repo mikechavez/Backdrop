@@ -1138,7 +1138,7 @@ Neither sprint begins until Sprint 020 success criteria are fully met.
   - Test coverage: 9 new tests covering all persistence paths and error handling
   - All 156 bugops tests pass (9 new notification attempts + 147 existing)
   - Branch: task/bugops-111-notification-contract, commits: 7a758c3, 5e87902
-  - Deviations: Deploy suppression attempt recording deferred to TASK-112 (suppression detection not implemented); skipped records not persisted
+  - Deviations: Deploy suppression attempt recording supported by schema but deferred until TASK-112 introduces suppression detection; skipped records not persisted
   - Status: ✅ DONE
 
 **Next:**
