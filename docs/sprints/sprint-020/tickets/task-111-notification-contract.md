@@ -340,9 +340,18 @@ pytest src/tests/bugops/ -v
 
 ## Completion Summary
 
-- Branch:
-- Commit:
+- Branch: `task/bugops-111-notification-contract`
+- Commit: 531bff0
 - Changes made:
-- Tests run:
-- Manual verification:
-- Deviations from plan:
+  - Added `route_and_send_notification()` async function to slack.py with full routing logic
+  - Updated `_build_slack_message()` to support event_type parameter and Sprint 020 schema (all 13 fields)
+  - Added `update_notification_state()` store method (atomic $set + $inc)
+  - Added BUGOPS_NOTIFICATION_THROTTLE_MINUTES=60 to core/config.py
+  - Updated monitor.py to call route_and_send_notification() after creating new BugCases
+  - Created comprehensive test suite with 14 test cases covering all routing decisions
+- Tests run: All 146 bugops tests pass (14 new notification routing + 132 existing)
+- Manual verification: 
+  - Routing logic verified through unit tests: severity routing, deduplication, throttle, escalation bypass, mute/snooze
+  - Store method integration verified
+  - Monitor integration point verified (notification called after case creation)
+- Deviations from plan: None — implementation matches spec exactly
