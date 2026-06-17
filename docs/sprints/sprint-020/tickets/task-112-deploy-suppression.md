@@ -251,9 +251,23 @@ Eliminates notification noise during planned deploys without losing case visibil
 
 ## Completion Summary
 
-- Branch:
-- Commit:
+- Branch: task/bugops-111-notification-contract
+- Commit: 231c445
 - Changes made:
-- Tests run:
-- Manual verification:
-- Deviations from plan:
+  - Added BUGOPS_SUPPRESSED_UNTIL to core/config.py (empty string default)
+  - Implemented is_suppression_active() helper in slack.py with timezone-aware comparison
+  - Added global suppression check as FIRST check in route_and_send_notification() before mute/snooze
+  - Suppressed notifications update last_notified_at, persist attempt record with status=suppressed and suppressed_reason=deploy_suppression
+  - Added _suppression_was_active flag to BugOpsMonitor.__init__()
+  - Integrated suppression expiry detection in main polling loop
+  - Added _send_suppression_expiry_summary() stub method (deferred to TASK-112A)
+  - Added mute_case(case_id, muted_until) and snooze_case(case_id, snoozed_until) to BugOpsStore
+- Tests run: poetry run pytest src/tests/bugops/ -v → 166 passed (10 new + 156 existing)
+- Test coverage:
+  - Suppression check logic: future/past/empty/invalid/None timestamps
+  - Notification routing: suppression active suppresses with status=suppressed, persists attempt
+  - Suppression expiry detection: transition from active→inactive triggers summary stub
+  - Mute/snooze operations: both store methods set fields correctly
+  - Auto-resolution proceeds normally during suppression (mocked verification)
+- Manual verification: Deferred to Railway deploy; suppression timestamp can be set in BUGOPS_SUPPRESSED_UNTIL env var
+- Deviations from plan: None
