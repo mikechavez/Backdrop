@@ -228,9 +228,43 @@ pytest src/tests/bugops/ -v
 
 ## Completion Summary
 
-- Branch:
-- Commit:
-- Changes made:
-- Tests run:
-- Manual verification:
-- Deviations from plan:
+- **Branch:** `task/bugops-112a-suppression-expiry-summary`
+- **Commit:** `0a1d0d0`
+
+**Changes made:**
+- Added `_suppression_started_at` field to `BugOpsMonitor.__init__()` to track when suppression becomes active
+- Updated main loop suppression check to capture suppression start time and call `_send_suppression_expiry_summary()` on expiry
+- Implemented `_send_suppression_expiry_summary()` in `monitor.py` that:
+  - Queries cases active during suppression window with Critical/High severity
+  - Filters to only unresolved cases
+  - Calls `send_suppression_summary()` if unresolved cases exist
+  - Resets `_suppression_started_at` to None after sending
+- Added `get_cases_active_during_window()` store method that queries cases by severity and creation timestamp (created_at >= window_start)
+- Implemented `send_suppression_summary()` in `slack.py` that:
+  - Returns False if Slack disabled, webhook URL missing, or no cases provided
+  - Builds summary message via `_build_suppression_summary_message()`
+  - Posts to Slack webhook with error handling
+  - Returns True/False for success
+- Implemented `_build_suppression_summary_message()` helper that:
+  - Formats summary with case count (singular/plural)
+  - Sorts cases by severity then case_id for consistent output
+  - Includes all required fields per spec
+
+**Tests run:**
+- 14 new tests in `test_suppression_expiry_summary.py`:
+  - `send_suppression_summary()` routing: 6 tests (Slack enabled/disabled, empty list, webhook missing, HTTP error, generic exception)
+  - Monitor expiry logic: 5 tests (unresolved cases, all resolved, Slack disabled, start time reset, reset on no unresolved)
+  - Message formatting: 3 tests (format fields, single case singular form, severity ordering)
+- All 179 BugOps tests pass (14 new + 165 existing)
+- One pre-existing flaky test in `test_auto_resolution.py` passes when run in isolation
+
+**Manual verification:**
+Manual verification deferred to deploy; end-to-end test requires real suppression start/expiry cycle in deployed environment.
+
+**Deviations from plan:**
+None. Implementation matches spec exactly:
+- Summary sent only when unresolved Critical/High cases exist at expiry
+- No summary if all cases resolved before suppression ended
+- Message format matches spec with severity, subsystem, count, and case listing
+- Suppression start tracking and reset implemented as specified
+- Error handling preserves robustness (Slack failures logged, don't block)

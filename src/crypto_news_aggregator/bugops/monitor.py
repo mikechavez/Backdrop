@@ -52,6 +52,7 @@ class BugOpsMonitor:
         self.is_first_poll = True
         self.running = False
         self._suppression_was_active = False
+        self._suppression_started_at: Optional[datetime] = None
 
     async def run(self) -> None:
         """Run the BugOps monitor loop."""
@@ -89,6 +90,9 @@ class BugOpsMonitor:
 
                 # Check for suppression expiry
                 currently_suppressed = is_suppression_active(self.settings)
+                if currently_suppressed and not self._suppression_was_active:
+                    # Suppression just became active
+                    self._suppression_started_at = datetime.utcnow()
                 if self._suppression_was_active and not currently_suppressed:
                     # Suppression just expired — trigger TASK-112A summary
                     await self._send_suppression_expiry_summary()
@@ -304,9 +308,31 @@ class BugOpsMonitor:
                     )
 
     async def _send_suppression_expiry_summary(self) -> None:
-        """Stub for TASK-112A: send summary when suppression expires."""
-        logger.debug("Suppression expiry detected; TASK-112A summary stub called")
-        # TODO: Implement TASK-112A suppression expiry summary
+        """Send one Slack summary of unresolved Critical/High cases from the suppression window."""
+        if not self.settings.BUGOPS_SLACK_ENABLED:
+            logger.debug("Slack notifications disabled, skipping suppression expiry summary")
+            return
+
+        suppression_start = self._suppression_started_at or datetime.utcnow()
+
+        cases = await self.store.get_cases_active_during_window(
+            window_start=suppression_start,
+            severities=["critical", "high"],
+        )
+
+        from .models import CaseStatus
+        unresolved = [c for c in cases if c.status == CaseStatus.OPEN]
+
+        if not unresolved:
+            logger.info("Suppression expired — all cases auto-resolved, no summary needed")
+            self._suppression_started_at = None
+            return
+
+        from .slack import send_suppression_summary
+        await send_suppression_summary(unresolved)
+
+        # Reset suppression tracking
+        self._suppression_started_at = None
 
     def stop(self) -> None:
         """Stop the monitor gracefully."""

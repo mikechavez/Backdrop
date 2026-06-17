@@ -75,7 +75,7 @@ This sprint does not implement Evidence Packs, Investigations, Tickets, Railway 
 | 15 | TASK-111  | Implement Slack notification contract for BugCase state changes    | ✅ DONE  | M   | M      |
 | 16 | TASK-111A | Persist notification attempt records                               | ✅ DONE  | S   | S      |
 | 17 | TASK-112  | Implement global deploy suppression                                | ✅ DONE  | S   | S      |
-| 18 | TASK-112A | Send deploy suppression expiry summary                             | 🔲 OPEN  | S   |        |
+| 18 | TASK-112A | Send deploy suppression expiry summary                             | ✅ DONE  | S   | S      |
 | 19 | TASK-113  | Update Sprint 020 docs and success criteria                        | 🔲 OPEN  | S   |        |
 
 **Sequencing:**
@@ -1158,5 +1158,22 @@ Neither sprint begins until Sprint 020 success criteria are fully met.
   - Status: ✅ DONE
 
 **Next:**
+- TASK-113: Update Sprint 020 docs and success criteria
+
+### Session 4 (2026-06-16)
+
+**Completed:**
 - TASK-112A: Send deploy suppression expiry summary
+  - Added `_suppression_started_at` field to monitor to track when suppression becomes active
+  - Updated main loop suppression check to capture start time and call summary method on expiry
+  - Implemented `_send_suppression_expiry_summary()` that queries unresolved Critical/High cases and sends summary if any exist
+  - Added `get_cases_active_during_window()` store method to query by severity and creation timestamp
+  - Implemented `send_suppression_summary()` in slack.py with full error handling
+  - Implemented `_build_suppression_summary_message()` helper with severity ordering and proper singular/plural formatting
+  - Test coverage: 14 comprehensive tests covering all routing and error paths
+  - All 179 BugOps tests pass (14 new + 165 existing)
+  - Branch: `task/bugops-112a-suppression-expiry-summary`, commit: 0a1d0d0
+  - Status: ✅ DONE
+
+**Next:**
 - TASK-113: Update Sprint 020 docs and success criteria
