@@ -2,13 +2,29 @@
 
 import logging
 import httpx
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from uuid import uuid4
 from .models import BugCase, AlertSeverity, NotificationAttemptCreate
 from .config import get_bugops_settings
 
 logger = logging.getLogger(__name__)
+
+
+def is_suppression_active(settings) -> bool:
+    """Return True if global deploy suppression is currently active."""
+    raw = settings.BUGOPS_SUPPRESSED_UNTIL
+    if not raw:
+        return False
+    try:
+        suppressed_until = datetime.fromisoformat(raw)
+        # Ensure timezone-aware comparison
+        now = datetime.now(timezone.utc)
+        if suppressed_until.tzinfo is None:
+            suppressed_until = suppressed_until.replace(tzinfo=timezone.utc)
+        return now < suppressed_until
+    except (ValueError, TypeError):
+        return False
 
 
 async def route_and_send_notification(
@@ -24,6 +40,29 @@ async def route_and_send_notification(
     settings = get_bugops_settings()
     now = datetime.utcnow()
     notification_id = f"notif_{case.case_id}_{uuid4().hex}"
+
+    # Global suppression check (FIRST check, before mute/snooze)
+    if is_suppression_active(settings):
+        logger.info(
+            f"[SUPPRESSED] Notification suppressed during maintenance window: "
+            f"case_id={case.case_id}"
+        )
+        # Still update last_notified_at so throttle resets correctly
+        await store.update_last_notified_at_only(case.case_id, now)
+        # Persist attempt record (TASK-111A)
+        attempt = NotificationAttemptCreate(
+            notification_id=notification_id,
+            bugcase_id=case.case_id,
+            event_type=event_type,
+            status="suppressed",
+            attempted_at=now,
+            suppressed_reason="deploy_suppression",
+        )
+        try:
+            await store.create_notification_attempt(attempt)
+        except Exception as e:
+            logger.error(f"Failed to persist notification attempt: {e}", exc_info=True)
+        return "suppressed"
 
     # Severity-based routing
     if case.severity in (AlertSeverity.CRITICAL, AlertSeverity.HIGH):

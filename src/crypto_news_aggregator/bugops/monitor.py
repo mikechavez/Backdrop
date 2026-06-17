@@ -51,6 +51,7 @@ class BugOpsMonitor:
         self.detector_by_subsystem = {d.root_subsystem: d for d in self.freshness_detectors}
         self.is_first_poll = True
         self.running = False
+        self._suppression_was_active = False
 
     async def run(self) -> None:
         """Run the BugOps monitor loop."""
@@ -80,9 +81,19 @@ class BugOpsMonitor:
 
             self.running = True
             while self.running:
+                from .slack import is_suppression_active
+
                 await self._poll_signals()
                 await self._poll_freshness_detectors()
                 await self._run_auto_resolution()
+
+                # Check for suppression expiry
+                currently_suppressed = is_suppression_active(self.settings)
+                if self._suppression_was_active and not currently_suppressed:
+                    # Suppression just expired — trigger TASK-112A summary
+                    await self._send_suppression_expiry_summary()
+                self._suppression_was_active = currently_suppressed
+
                 await asyncio.sleep(self.settings.BUGOPS_POLL_INTERVAL_SECONDS)
 
         except Exception as e:
@@ -291,6 +302,11 @@ class BugOpsMonitor:
                     logger.info(
                         f"Recovery candidate cleared (failure recurred): case_id={case.case_id}"
                     )
+
+    async def _send_suppression_expiry_summary(self) -> None:
+        """Stub for TASK-112A: send summary when suppression expires."""
+        logger.debug("Suppression expiry detected; TASK-112A summary stub called")
+        # TODO: Implement TASK-112A suppression expiry summary
 
     def stop(self) -> None:
         """Stop the monitor gracefully."""

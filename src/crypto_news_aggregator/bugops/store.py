@@ -307,3 +307,37 @@ class BugOpsStore:
         except Exception as e:
             logger.error(f"Failed to create notification attempt: {e}", exc_info=True)
             return None
+
+    async def mute_case(self, case_id: str, muted_until: datetime) -> BugCase:
+        """Mute a BugCase until the specified timestamp."""
+        result = await self.cases_collection.find_one_and_update(
+            {"case_id": case_id},
+            {
+                "$set": {
+                    "muted_until": muted_until,
+                    "updated_at": datetime.utcnow()
+                }
+            },
+            return_document=ReturnDocument.AFTER
+        )
+        if result:
+            result = _normalize_mongo_doc(result)
+            return BugCase(**result)
+        raise ValueError(f"Case {case_id} not found")
+
+    async def snooze_case(self, case_id: str, snoozed_until: datetime) -> BugCase:
+        """Snooze a BugCase until the specified timestamp."""
+        result = await self.cases_collection.find_one_and_update(
+            {"case_id": case_id},
+            {
+                "$set": {
+                    "snoozed_until": snoozed_until,
+                    "updated_at": datetime.utcnow()
+                }
+            },
+            return_document=ReturnDocument.AFTER
+        )
+        if result:
+            result = _normalize_mongo_doc(result)
+            return BugCase(**result)
+        raise ValueError(f"Case {case_id} not found")
