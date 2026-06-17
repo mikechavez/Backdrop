@@ -250,6 +250,90 @@ async def send_case_notification(case: BugCase, event_type: str = "bugcase_creat
         return False
 
 
+async def send_suppression_summary(cases: list[BugCase]) -> bool:
+    """Send a single Slack summary of cases active during suppression window.
+
+    Args:
+        cases: List of unresolved BugCases to include in summary
+
+    Returns:
+        True if sent successfully, False otherwise
+    """
+    settings = get_bugops_settings()
+
+    if not settings.BUGOPS_SLACK_ENABLED:
+        logger.debug("Slack notifications disabled, skipping suppression summary")
+        return False
+
+    if not settings.BUGOPS_SLACK_WEBHOOK_URL:
+        logger.warning("BUGOPS_SLACK_WEBHOOK_URL not configured, cannot send suppression summary")
+        return False
+
+    if not cases:
+        logger.debug("No unresolved cases for suppression summary")
+        return False
+
+    message = _build_suppression_summary_message(cases)
+
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                settings.BUGOPS_SLACK_WEBHOOK_URL,
+                json=message,
+                timeout=10.0
+            )
+            response.raise_for_status()
+            logger.info(f"Suppression expiry summary sent ({len(cases)} unresolved cases)")
+            return True
+    except httpx.HTTPError as e:
+        logger.error(f"Failed to send suppression summary: {e}")
+        return False
+    except Exception as e:
+        logger.error(f"Unexpected error sending suppression summary: {e}", exc_info=True)
+        return False
+
+
+def _build_suppression_summary_message(cases: list[BugCase]) -> dict:
+    """Build a Slack message payload for suppression expiry summary.
+
+    Args:
+        cases: List of unresolved BugCases
+
+    Returns:
+        A Slack message payload dict
+    """
+    # Build case list lines (sorted by severity then case_id for consistency)
+    severity_order = {"critical": 0, "high": 1}
+    sorted_cases = sorted(
+        cases,
+        key=lambda c: (severity_order.get(c.severity.value, 999), c.case_id)
+    )
+
+    case_lines = [
+        f"- {c.severity.value.upper()} {c.title} — {c.case_id}"
+        for c in sorted_cases
+    ]
+
+    text = (
+        f"Deploy suppression ended\n\n"
+        f"{len(sorted_cases)} unresolved BugCase{'s' if len(sorted_cases) != 1 else ''} "
+        f"{'were' if len(sorted_cases) != 1 else 'was'} active during suppression:\n\n"
+        + "\n".join(case_lines)
+    )
+
+    return {
+        "attachments": [
+            {
+                "color": "#ff6600",
+                "title": "🔔 Deploy Suppression Ended",
+                "text": text,
+                "footer": "BugOps Suppression Summary",
+                "ts": int(datetime.utcnow().timestamp())
+            }
+        ]
+    }
+
+
 def _build_slack_message(case: BugCase, event_type: str = "bugcase_created") -> dict:
     """Build a Slack message payload for a case.
 

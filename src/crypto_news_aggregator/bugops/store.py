@@ -341,3 +341,18 @@ class BugOpsStore:
             result = _normalize_mongo_doc(result)
             return BugCase(**result)
         raise ValueError(f"Case {case_id} not found")
+
+    async def get_cases_active_during_window(
+        self,
+        window_start: datetime,
+        severities: list[str],
+    ) -> list[BugCase]:
+        """Return BugCases with matching severity created or updated during window.
+
+        Queries cases where created_at >= window_start and severity is in severities list.
+        """
+        docs = await self.cases_collection.find({
+            "severity": {"$in": severities},
+            "created_at": {"$gte": window_start}
+        }).to_list(None)
+        return [BugCase(**_normalize_mongo_doc(doc)) for doc in docs]
