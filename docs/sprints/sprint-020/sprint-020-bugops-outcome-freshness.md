@@ -1145,13 +1145,16 @@ Neither sprint begins until Sprint 020 success criteria are fully met.
   - Added BUGOPS_SUPPRESSED_UNTIL environment variable to core/config.py (empty string default)
   - Implemented is_suppression_active() helper with timezone-aware comparison in slack.py
   - Global suppression check runs FIRST in route_and_send_notification() before mute/snooze
-  - When suppressed: update throttle window, persist attempt record with status=suppressed and suppressed_reason=deploy_suppression
+  - When suppressed: calls update_last_notified_at_only() (NOT update_notification_state()) to avoid poisoning deduplication from TASK-111
+  - Persist attempt record with status=suppressed and suppressed_reason=deploy_suppression
   - Added suppression state tracking to BugOpsMonitor via _suppression_was_active flag
   - Detect suppression expiry transition in main loop, trigger _send_suppression_expiry_summary() stub (TASK-112A)
-  - Added mute_case() and snooze_case() store methods for operator tooling
+  - Added mute_case() and snooze_case() store methods with ReturnDocument.AFTER for operator tooling
+  - Critical verification: Deploy suppression matches mute/snooze behavior exactly — no TASK-111 regression
+  - Edge case documented: Expiry detection resets on restart (acceptable, TASK-112A is deferred stub)
   - Test coverage: 10 new tests covering suppression logic, notification routing, expiry detection, mute/snooze operations
   - All 166 bugops tests pass (10 new + 156 existing)
-  - Branch: task/bugops-111-notification-contract, commit: 231c445
+  - Branch: task/bugops-112-deploy-suppression, commits: 231c445, a9df336
   - Status: ✅ DONE
 
 **Next:**
