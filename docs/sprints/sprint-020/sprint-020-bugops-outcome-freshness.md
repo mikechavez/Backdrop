@@ -50,7 +50,7 @@ This sprint does not implement Evidence Packs, Investigations, Tickets, Railway 
 - [ ] Medium digest batching (routing decision implemented, actual batching stubbed)
 - [ ] RuntimeError, WorkerFailure, SchedulerFailure, DatabaseFailure signal sources (separate sprint)
 - [ ] Slack interactive UI, buttons, slash commands, or acknowledgement actions
-- [ ] Dedicated flapping detection with manual escalation
+- [ ] Dedicated flapping detection with manual escalation (Recovery Window handles oscillation)
 
 ---
 
@@ -76,7 +76,7 @@ This sprint does not implement Evidence Packs, Investigations, Tickets, Railway 
 | 16 | TASK-111A | Persist notification attempt records                               | ✅ DONE  | S   | S      |
 | 17 | TASK-112  | Implement global deploy suppression                                | ✅ DONE  | S   | S      |
 | 18 | TASK-112A | Send deploy suppression expiry summary                             | ✅ DONE  | S   | S      |
-| 19 | TASK-113  | Update Sprint 020 docs and success criteria                        | 🔲 OPEN  | S   |        |
+| 19 | TASK-113  | Update Sprint 020 docs and success criteria                        | ✅ DONE  | S   | S      |
 
 **Sequencing:**
 
