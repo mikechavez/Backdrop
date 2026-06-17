@@ -24,11 +24,11 @@ Sprint 020 implements:
 - Cascade suppression
 - Idempotency and dedupe
 - Auto-resolution with Recovery Window
-- Flapping protection
+- Recovery Window repeated-failure handling (replaces dedicated flapping protection)
 - Notification routing rules
 - Detector isolation
 - Deploy suppression
-- Retention policy enforcement
+- Suppression expiry summary
 
 Sprint 020 does not implement:
 
@@ -54,8 +54,8 @@ failure when output was expected.
 Detects stalled article ingestion.
 
 **Last successful output**
-The most recent Article record with an `inserted_at` timestamp within
-the configured freshness window. `inserted_at` is authoritative.
+The most recent Article record with a `created_at` timestamp within
+the configured freshness window. `created_at` is authoritative.
 `published_at` is not used for freshness evaluation.
 
 **Expected input or activity**
@@ -76,7 +76,7 @@ are legitimate idle. Detection must account for source publishing patterns
 before raising a BugCase.
 
 **Recovery condition**
-At least one new Article is inserted with `inserted_at` within the
+At least one new Article is inserted with `created_at` within the
 freshness window, on a source that was previously stalled.
 
 **Severity:** High
@@ -89,7 +89,7 @@ freshness window, on a source that was previously stalled.
 Detects stalled signal generation.
 
 **Last successful output**
-The most recent Signal record with an `inserted_at` timestamp within the
+The most recent Signal record with a `last_updated` timestamp within the
 configured freshness window.
 
 **Expected input or activity**
@@ -98,7 +98,7 @@ generation should have run. If no articles are present, signal generation
 has no input and cannot be expected to produce output.
 
 **Failure condition**
-Articles exist with `inserted_at` within the freshness window AND no new
+Articles exist with `created_at` within the freshness window AND no new
 Signals have been generated within the freshness window.
 
 **Legitimate idle condition**
@@ -106,7 +106,7 @@ No articles have been inserted recently. Signal generation has no input
 and is correctly idle.
 
 **Recovery condition**
-At least one new Signal is generated with `inserted_at` within the
+At least one new Signal is generated with `last_updated` within the
 freshness window, corresponding to article input that was previously
 not producing signals.
 
@@ -120,7 +120,7 @@ not producing signals.
 Detects stale narrative refresh.
 
 **Last successful output**
-The most recent Narrative record with an `updated_at` or `inserted_at`
+The most recent Narrative record with a `last_summary_generated_at`
 timestamp within the configured freshness window.
 
 **Expected input or activity**
@@ -151,7 +151,7 @@ the freshness window after the stall period.
 Detects missing briefings.
 
 **Last successful output**
-The most recent Briefing record with an `inserted_at` timestamp within
+The most recent Briefing record with a `generated_at` timestamp within
 the configured freshness window. Briefings are expected on a known
 schedule. The freshness window is calibrated to that schedule.
 
@@ -171,7 +171,7 @@ successful briefing. Or no sufficiently fresh narratives exist to
 produce a briefing.
 
 **Recovery condition**
-A new Briefing is inserted with `inserted_at` within the expected
+A new Briefing is inserted with `generated_at` within the expected
 window following the stall period.
 
 **Severity:** High
@@ -331,19 +331,25 @@ Auto-resolution triggers when:
 
 Auto-resolution is blocked only when:
 - The recovery condition is re-violated before the Recovery Window
-  elapses (flapping protection, see below)
+  elapses (see Recovery Window repeated-failure handling, below)
 - The BugCase has been manually closed by an operator
 
 Auto-resolution still applies to BugCases with active mute or snooze
 flags. Mute and snooze affect notification behavior only. A muted or
 snoozed BugCase that meets recovery conditions resolves normally.
 
-**Flapping protection**
-If a BugCase oscillates between healthy and failed states within a
-short window, auto-resolution is suspended and the BugCase is escalated
-to require manual operator review. A notification is sent indicating the
-flapping condition. Flapping thresholds are configurable. Initial
-defaults may be set during implementation.
+**Recovery Window repeated-failure handling**
+If a BugCase is in recovery countdown and the failure recurs:
+- Clear `recovery_candidate_at` timestamp
+- BugCase remains open
+- Do NOT send a new notification
+- Do NOT create a new BugCase
+- Countdown resets on next recovery observation
+
+This mechanism naturally handles failure oscillation: if a failure
+keeps recurring within the recovery window, the case stays open and
+operators remain aware. Once recovery is stable for the full window,
+the case auto-resolves. No separate flapping detection is required.
 
 ---
 
@@ -378,10 +384,6 @@ which always notify immediately.
 **Reopen notification**
 When a resolved BugCase reopens, a new notification is sent at the
 BugCase's current severity regardless of throttle state.
-
-**Flapping notification**
-When flapping protection activates, a single notification is sent
-indicating the BugCase requires manual review.
 
 ---
 
@@ -470,8 +472,6 @@ These values are configurable and not immutable architecture.
   re-violation
 - A BugCase does not auto-resolve if the failure condition recurs
   during the Recovery Window
-- Flapping protection activates and notifies correctly under rapid
-  oscillation
 - A detector failure does not halt the polling loop or prevent other
   detectors from running
 - Notifications route correctly by severity and are not re-sent for

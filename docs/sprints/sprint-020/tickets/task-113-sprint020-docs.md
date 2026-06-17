@@ -208,9 +208,62 @@ Closes Sprint 020 formally. Required before Sprint 021 begins.
 
 ## Completion Summary
 
-- Branch:
-- Commit:
-- Changes made:
-- Tests run:
-- Manual verification:
-- Deviations from plan:
+**Branch:** `task/bugops-113-sprint020-docs`  
+**Commits:** 
+- `6b37543`: task(bugops): TASK-113 update Sprint 020 docs and signal sources exports
+- `a4cefc3`: docs: update BugOps documentation for Sprint 020
+
+**Changes made:**
+
+1. **Sprint doc updates** (`sprint-020-bugops-outcome-freshness.md`):
+   - Updated ticket table: TASK-113 status marked ✅ DONE (19 tickets total, all complete)
+   - Clarified out-of-scope: dedicated flapping detection deferred (Recovery Window handles oscillation)
+   - All key decisions documented (pre-sprint architecture decisions)
+   - All success criteria present and relevant
+   - Out-of-scope section explicitly includes Railway log, RuntimeExceptionSignalSource, Slack UI, dedicated flapping
+
+2. **Signal sources exports** (`signal_sources/__init__.py`):
+   - Added imports for four freshness detectors
+   - Added DETECTOR_SEVERITY export
+   - Exported all via `__all__`
+
+3. **BugOps system documentation** (`docs/bugops/00-bugops-system-overview.md`):
+   - Updated version to Sprint 020
+   - Rewrote system description for outcome freshness monitoring
+   - Documented current scope with nine new features
+   - Expanded "What BugOps Does Not Do" section with Sprint 020 specifics
+   - Added Outcome Freshness Detection & Cascade Suppression section with:
+     - DependencyGraph v1.0 visualization
+     - Three-step cascade suppression logic
+     - Recovery Window behavior (healthy countdown, failure recurrence handling)
+   - Documented canonical subsystem enum with 8 values
+   - Described all five signal sources (four freshness + LLMTraceCost)
+   - Updated monitor process with polling loop, auto-resolution, and suppression checks
+   - Updated configuration variables (14 env vars documented)
+   - Extended key data models section with Sprint 020 BugCase fields and NotificationAttempt model
+
+4. **BugOps runtime model** (`docs/bugops/10-bugops-runtime-model.md`):
+   - Updated version to Sprint 020
+   - Completely rewrote polling loop section with detailed pseudocode for cascade suppression
+   - Replaced Signal Collection section with Freshness Detector Interface
+   - Replaced Alert-to-Case section with comprehensive Cascade Suppression section
+   - Updated Case Lifecycle with auto-resolution, mute/snooze, reopened status
+   - Updated Slack Notification Flow with deduplication and throttle rules
+   - Removed Deterministic Report Generation (not in Sprint 020)
+   - Updated Configuration section with all 14 Sprint 020 env vars
+   - Completely rewrote Observability section with 14 structured logging patterns
+   - Updated Error Handling section with detector isolation details
+
+**Tests run:** All 180 BugOps tests pass (no regressions from documentation changes)
+
+**Manual verification:**
+- ✅ Ticket table shows 19 tickets: TASK-100 through TASK-113, all marked ✅ DONE
+- ✅ Flapping criterion explicitly absent from success criteria
+- ✅ Recovery Window repeated-failure criterion present in success criteria
+- ✅ Railway log and RuntimeExceptionSignalSource explicitly in out-of-scope section
+- ✅ signal_sources/__init__.py exports ArticleFreshness, SignalFreshness, NarrativeFreshness, BriefingFreshness, DETECTOR_SEVERITY
+- ✅ Documentation accurately reflects all Sprint 020 implementation (cascade suppression, startup detection, auto-resolution, Slack contract, notification persistence, suppression expiry)
+- ✅ All configuration variables documented with defaults
+- ✅ Links between doc files updated and cross-references accurate
+
+**Deviations from plan:** None. All TASK-113 requirements met exactly as specified. Sprint 020 is documented comprehensively across sprint doc and system documentation.

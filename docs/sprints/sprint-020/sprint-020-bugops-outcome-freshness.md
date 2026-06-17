@@ -1,8 +1,9 @@
 # Sprint 020 — Outcome Freshness & Failure Visibility
 
-**Status:** Planned
-**Started:** TBD
-**Target:** Production failures surface as BugCases automatically, with no manual monitoring required
+**Status:** ✅ Complete
+**Started:** 2026-06-11
+**Completed:** 2026-06-16
+**Target:** ✅ Production failures surface as BugCases automatically, with no manual monitoring required
 
 ---
 
@@ -50,7 +51,7 @@ This sprint does not implement Evidence Packs, Investigations, Tickets, Railway 
 - [ ] Medium digest batching (routing decision implemented, actual batching stubbed)
 - [ ] RuntimeError, WorkerFailure, SchedulerFailure, DatabaseFailure signal sources (separate sprint)
 - [ ] Slack interactive UI, buttons, slash commands, or acknowledgement actions
-- [ ] Dedicated flapping detection with manual escalation
+- [ ] Dedicated flapping detection with manual escalation (Recovery Window handles oscillation)
 
 ---
 
@@ -76,7 +77,7 @@ This sprint does not implement Evidence Packs, Investigations, Tickets, Railway 
 | 16 | TASK-111A | Persist notification attempt records                               | ✅ DONE  | S   | S      |
 | 17 | TASK-112  | Implement global deploy suppression                                | ✅ DONE  | S   | S      |
 | 18 | TASK-112A | Send deploy suppression expiry summary                             | ✅ DONE  | S   | S      |
-| 19 | TASK-113  | Update Sprint 020 docs and success criteria                        | 🔲 OPEN  | S   |        |
+| 19 | TASK-113  | Update Sprint 020 docs and success criteria                        | ✅ DONE  | S   | S      |
 
 **Sequencing:**
 
@@ -821,25 +822,25 @@ the Recovery Window
 
 ## Success Criteria
 
-- [ ] All four freshness detectors run in the BugOps polling loop without changes to monitor process structure
-- [ ] Each detector correctly distinguishes legitimate idle from broken using the five-part definition
-- [ ] Active failures present at BugOps startup create BugCases with detection_type=startup
-- [ ] Startup-created Critical and High BugCases send Slack notifications
-- [ ] Startup-created downstream failures are cascade-suppressed into upstream BugCases when applicable
-- [ ] Cascade suppression attaches downstream signals to upstream BugCases instead of creating new ones
-- [ ] Idempotency suppresses duplicate BugCases for repeated observations of the same open condition
-- [ ] A BugCase auto-resolves after the Recovery Window elapses without re-violation
-- [ ] A BugCase does not auto-resolve if the failure condition recurs during the Recovery Window
-- [ ] A detector failure does not halt the polling loop or prevent other detectors from running
-- [ ] Slack notifications are sent only for BugCase state changes, not repeated observations
-- [ ] Slack messages include severity, root_subsystem, affected_subsystems, summary, first_seen_at, last_seen_at, observation_count, dedupe_key, detection_type, and suggested_manual_check
-- [ ] Slack send failure records a failed notification attempt and does not block BugCase creation
-- [ ] BugCases with active mute or snooze flags resolve normally when recovery conditions are met
-- [ ] Deploy suppression suppresses notification delivery without suppressing BugCase creation or updates
-- [ ] Suppression expiry sends one summary for unresolved Critical and High BugCases active during suppression
-- [ ] Canonical subsystem names are used consistently across all components
-- [ ] Railway log ingestion and runtime exception monitoring are not implemented in Sprint 020
-- [ ] Detector runs are observable through structured logs
+- [x] All four freshness detectors run in the BugOps polling loop without changes to monitor process structure
+- [x] Each detector correctly distinguishes legitimate idle from broken using the five-part definition
+- [x] Active failures present at BugOps startup create BugCases with detection_type=startup
+- [x] Startup-created Critical and High BugCases send Slack notifications
+- [x] Startup-created downstream failures are cascade-suppressed into upstream BugCases when applicable
+- [x] Cascade suppression attaches downstream signals to upstream BugCases instead of creating new ones
+- [x] Idempotency suppresses duplicate BugCases for repeated observations of the same open condition
+- [x] A BugCase auto-resolves after the Recovery Window elapses without re-violation
+- [x] A BugCase does not auto-resolve if the failure condition recurs during the Recovery Window
+- [x] A detector failure does not halt the polling loop or prevent other detectors from running
+- [x] Slack notifications are sent only for BugCase state changes, not repeated observations
+- [x] Slack messages include severity, root_subsystem, affected_subsystems, summary, first_seen_at, last_seen_at, observation_count, dedupe_key, detection_type, and suggested_manual_check
+- [x] Slack send failure records a failed notification attempt and does not block BugCase creation
+- [x] BugCases with active mute or snooze flags resolve normally when recovery conditions are met
+- [x] Deploy suppression suppresses notification delivery without suppressing BugCase creation or updates
+- [x] Suppression expiry sends one summary for unresolved Critical and High BugCases active during suppression
+- [x] Canonical subsystem names are used consistently across all components
+- [x] Railway log ingestion and runtime exception monitoring are not implemented in Sprint 020
+- [x] Detector runs are observable through structured logs
 
 ---
 
