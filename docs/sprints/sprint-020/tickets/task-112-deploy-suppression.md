@@ -251,9 +251,32 @@ Eliminates notification noise during planned deploys without losing case visibil
 
 ## Completion Summary
 
-- Branch:
-- Commit:
+- Branch: task/bugops-112-deploy-suppression
+- Commits: 231c445, a9df336
 - Changes made:
-- Tests run:
-- Manual verification:
-- Deviations from plan:
+  - Added BUGOPS_SUPPRESSED_UNTIL to core/config.py (empty string default)
+  - Implemented is_suppression_active() helper in slack.py with timezone-aware comparison
+  - Added global suppression check as FIRST check in route_and_send_notification() before mute/snooze
+  - Suppressed notifications call update_last_notified_at_only() (NOT update_notification_state()) to avoid incrementing notification_count — preserves deduplication logic from TASK-111
+  - Persist attempt record with status=suppressed and suppressed_reason=deploy_suppression
+  - Added _suppression_was_active flag to BugOpsMonitor.__init__()
+  - Integrated suppression expiry detection in main polling loop
+  - Added _send_suppression_expiry_summary() stub method (deferred to TASK-112A)
+  - Added mute_case(case_id, muted_until) and snooze_case(case_id, snoozed_until) to BugOpsStore with ReturnDocument.AFTER
+- Tests run: poetry run pytest src/tests/bugops/ -v → 166 passed (10 new + 156 existing)
+- Test coverage:
+  - Suppression check logic: future/past/empty/invalid/None timestamps
+  - Notification routing: suppression active suppresses with status=suppressed, persists attempt
+  - Suppression expiry detection: transition from active→inactive triggers summary stub
+  - Mute/snooze operations: both store methods set fields correctly, use ReturnDocument.AFTER
+  - Auto-resolution proceeds normally during suppression (mocked verification)
+- Critical verification (TASK-111 regression check):
+  - ✅ Deploy suppression uses update_last_notified_at_only() — does NOT increment notification_count
+  - ✅ Deduplication logic preserved — suppressed notifications don't poison state
+  - ✅ Matches mute/snooze behavior from TASK-111 exactly
+- Edge case: Suppression expiry detection across process restart
+  - If service restarts during active suppression, _suppression_was_active resets to False
+  - Summary will be missed on restart (acceptable: TASK-112A is deferred stub, edge case is rare)
+  - Suppression timestamp in environment variable remains source-of-truth
+- Manual verification: Deferred to Railway deploy; suppression timestamp can be set in BUGOPS_SUPPRESSED_UNTIL env var
+- Deviations from plan: None

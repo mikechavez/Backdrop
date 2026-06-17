@@ -74,7 +74,7 @@ This sprint does not implement Evidence Packs, Investigations, Tickets, Railway 
 | 14 | TASK-109  | Implement auto-resolution with Recovery Window                     | ✅ DONE  | M   | M      |
 | 15 | TASK-111  | Implement Slack notification contract for BugCase state changes    | ✅ DONE  | M   | M      |
 | 16 | TASK-111A | Persist notification attempt records                               | ✅ DONE  | S   | S      |
-| 17 | TASK-112  | Implement global deploy suppression                                | 🔲 OPEN  | S   |        |
+| 17 | TASK-112  | Implement global deploy suppression                                | ✅ DONE  | S   | S      |
 | 18 | TASK-112A | Send deploy suppression expiry summary                             | 🔲 OPEN  | S   |        |
 | 19 | TASK-113  | Update Sprint 020 docs and success criteria                        | 🔲 OPEN  | S   |        |
 
@@ -1141,5 +1141,22 @@ Neither sprint begins until Sprint 020 success criteria are fully met.
   - Deviations: Deploy suppression attempt recording supported by schema but deferred until TASK-112 introduces suppression detection; skipped records not persisted
   - Status: ✅ DONE
 
-**Next:**
 - TASK-112: Implement global deploy suppression
+  - Added BUGOPS_SUPPRESSED_UNTIL environment variable to core/config.py (empty string default)
+  - Implemented is_suppression_active() helper with timezone-aware comparison in slack.py
+  - Global suppression check runs FIRST in route_and_send_notification() before mute/snooze
+  - When suppressed: calls update_last_notified_at_only() (NOT update_notification_state()) to avoid poisoning deduplication from TASK-111
+  - Persist attempt record with status=suppressed and suppressed_reason=deploy_suppression
+  - Added suppression state tracking to BugOpsMonitor via _suppression_was_active flag
+  - Detect suppression expiry transition in main loop, trigger _send_suppression_expiry_summary() stub (TASK-112A)
+  - Added mute_case() and snooze_case() store methods with ReturnDocument.AFTER for operator tooling
+  - Critical verification: Deploy suppression matches mute/snooze behavior exactly — no TASK-111 regression
+  - Edge case documented: Expiry detection resets on restart (acceptable, TASK-112A is deferred stub)
+  - Test coverage: 10 new tests covering suppression logic, notification routing, expiry detection, mute/snooze operations
+  - All 166 bugops tests pass (10 new + 156 existing)
+  - Branch: task/bugops-112-deploy-suppression, commits: 231c445, a9df336
+  - Status: ✅ DONE
+
+**Next:**
+- TASK-112A: Send deploy suppression expiry summary
+- TASK-113: Update Sprint 020 docs and success criteria
