@@ -213,8 +213,8 @@ class LogExcerptSection(BaseModel):
     lines_fetched: int
     lines_stored: int
     truncated: bool
-    window_start: datetime
-    window_end: datetime
+    window_start: Optional[datetime] = None
+    window_end: Optional[datetime] = None
     collected_at: datetime = Field(default_factory=datetime.utcnow)
     excerpts: list[str] = Field(default_factory=list)
 

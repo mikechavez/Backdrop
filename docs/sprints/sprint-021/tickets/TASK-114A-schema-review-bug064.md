@@ -2,9 +2,10 @@
 ticket_id: TASK-114A
 title: EvidencePack schema review against BUG-064
 priority: high
-status: OPEN
+status: ✅ COMPLETE
 phase: A
 date_created: 2026-06-16
+date_completed: 2026-06-18
 branch: task/bugops-114a-schema-review-bug-064
 effort_estimate: small
 ---
@@ -147,9 +148,11 @@ Architectural checkpoint. Prevents discovering schema gaps mid-implementation. N
 
 ## Completion Summary
 
-- Branch:
-- Commit:
-- Gaps found:
-- Schema changes made:
-- All references mapped: yes/no
-- Deviations from plan:
+- Branch: `task/bugops-114a-schema-review-bug-064`
+- Commit: `6fb26ad`
+- Mapping doc: `docs/sprints/sprint-021/design-artifacts/evidence-pack-bug064-schema-mapping.md`
+- Gaps found: Yes — LogExcerptSection.window_start and window_end were required but should be Optional
+- Schema changes made: LogExcerptSection fields changed to Optional (window_start, window_end)
+- Tests run: `pytest tests/bugops/ -k "not alert_to_case and not monitor and not slack"` — 79 passed
+- All references mapped: Yes — all 11 evidence references (E-001 through E-011) map cleanly
+- Deviations from plan: None — found and fixed valid schema gap before implementation begins
