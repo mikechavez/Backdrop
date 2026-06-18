@@ -70,7 +70,7 @@ Key design insight from BUG-064 Golden Incident exercise: for a cost-control fai
 | # | Ticket | Title | Phase | Status | Est |
 |---|--------|-------|-------|--------|-----|
 | 1 | TASK-114 | Define EvidencePack model and schema | A | ✅ COMPLETE | M |
-| 2 | TASK-114A | EvidencePack schema review against BUG-064 | A | 🔲 OPEN | S |
+| 2 | TASK-114A | EvidencePack schema review against BUG-064 | A | ✅ COMPLETE | S |
 | 3 | TASK-115 | Implement EvidencePack persistence | A | 🔲 OPEN | S |
 | 4 | TASK-116 | Implement EvidenceCollector framework | A | 🔲 OPEN | M |
 | 5 | TASK-117 | Collect subsystem metrics and system state | A | 🔲 OPEN | M |
@@ -298,3 +298,15 @@ TASK-114 (Define EvidencePack model and schema) implemented and locked:
 - ✅ Schema locked for BUG-064 cost-control failure diagnosis (llm_trace_summary.total_cost, operation_breakdown, config_evidence.critical_operations)
 - Commit: d2109c8
 - Five critical TASK-114A production-compatibility lockdown points documented in memory (llm_traces field matching, operation_breakdown structure, healthy_signals typing, sections_missing/collection_errors clarity, allocator framework integration)
+
+### Session 4 (2026-06-18) — TASK-114A Schema Review Complete
+
+TASK-114A (EvidencePack schema review against BUG-064) completed:
+- ✅ All 11 evidence references (E-001 through E-011) from Golden Investigation mapped to schema fields
+- ✅ Schema mapping document created: `docs/sprints/sprint-021/design-artifacts/evidence-pack-bug064-schema-mapping.md`
+- ✅ One schema gap found and fixed: LogExcerptSection.window_start and window_end changed to Optional
+- ✅ Rationale: Window boundaries are desirable metadata but not required; collectors populate when available
+- ✅ Verification: All evidence types (cost control metrics, retry patterns, errors, deployment health, infrastructure health) fully representable
+- ✅ Tests: 79 passed, no regressions (pytest tests/bugops/ -k "not alert_to_case and not monitor and not slack")
+- Commits: 6fb26ad (schema + mapping), fc2e234 (ticket completion)
+- Schema locked and ready for Phase A collector implementation (TASK-115 onwards)
