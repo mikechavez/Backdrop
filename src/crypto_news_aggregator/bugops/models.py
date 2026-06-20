@@ -238,11 +238,32 @@ class LLMTraceRecord(BaseModel):
 
 
 class LLMTraceSummary(BaseModel):
-    """LLM trace and cost summary for incident window."""
-    total_cost: float = 0.0
-    total_operations: int = 0
+    """Summary of LLM activity during the BugCase window."""
+    window_start: datetime
+    window_end: datetime
+    collected_at: datetime = Field(default_factory=datetime.utcnow)
+
+    # Aggregate stats
+    total_calls: int = 0
+    total_cost: float = 0.0  # Sum of llm_traces.cost (NOT cost_usd)
+    total_input_tokens: int = 0
+    total_output_tokens: int = 0
+    cached_calls: int = 0
+
+    # Per-operation breakdown
     operation_breakdown: dict = Field(default_factory=dict)
-    recent_traces: list[LLMTraceRecord] = Field(default_factory=list)
+    # Shape: {"briefing_generate": {"calls": 4, "cost": 0.0012, "last_at": "2026-06-20T..."}}
+
+    # Budget events (optional, for future use)
+    budget_events: list[dict] = Field(default_factory=list)
+    # Each: {"operation": str, "event": "soft_limit_reached|hard_limit_reached",
+    #        "cost_at_event": float, "timestamp": "2026-06-20T..."}
+
+    # Recent traces (last 10 within window, most recent first)
+    recent_traces: list[dict] = Field(default_factory=list)
+    # Each: {"operation": str, "model": str, "cost": float,
+    #        "input_tokens": int, "output_tokens": int,
+    #        "cached": bool, "timestamp": "2026-06-20T..."}
 
 
 class EvidenceReferenceAllocator:

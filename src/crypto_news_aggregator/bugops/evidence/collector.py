@@ -20,6 +20,7 @@ from .collectors.system_state import SystemStateCollector
 from .collectors.related_cases import RelatedCaseCollector
 from .collectors.deploy_context import DeployContextCollector
 from .collectors.config_evidence import ConfigEvidenceCollector
+from .collectors.llm_traces import LLMTraceCollector
 
 logger = logging.getLogger(__name__)
 
@@ -32,11 +33,12 @@ class EvidenceCollector:
     and marks the pack complete. One failure does not halt other collectors.
     """
 
-    def __init__(self, store: BugOpsStore, settings):
+    def __init__(self, store: BugOpsStore, settings, db=None):
         """Initialize with store and settings."""
         self.store = store
         self.settings = settings
         self.collectors: list[EvidenceCollectorBase] = []
+        self.db = db
 
         # Import RailwayClient for DeployContextCollector
         from ..clients.railway import RailwayClient
@@ -48,6 +50,8 @@ class EvidenceCollector:
         self.register_collector(RelatedCaseCollector())
         self.register_collector(DeployContextCollector(RailwayClient(settings)))
         self.register_collector(ConfigEvidenceCollector(settings, cost_tracker))
+        if db is not None:
+            self.register_collector(LLMTraceCollector(db))
 
     def register_collector(self, collector: EvidenceCollectorBase) -> None:
         """Register a collector. Called during monitor initialization."""
