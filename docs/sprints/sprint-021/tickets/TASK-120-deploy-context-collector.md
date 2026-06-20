@@ -186,7 +186,16 @@ pytest tests/bugops/ -v
 
 ## Completion Summary
 
-- Branch:
-- Commit:
+- Branch: `task/bugops-120-deploy-context-collector`
+- Commit: `0e05dc5` (feat(bugops): Implement TASK-120 DeployContextCollector)
 - Changes made:
-- Deviations from plan:
+  - ✅ Created `DeployContextCollector` at `bugops/evidence/collectors/deploy_context.py`
+  - ✅ Registered with `EvidenceCollector.__init__` for auto-initialization
+  - ✅ Created 8 comprehensive tests covering all acceptance criteria
+  - ✅ Updated existing test expectations for 4 auto-registered collectors
+- Deviations from plan: None — implemented exactly as specified in requirements
+- Status: ✅ **COMPLETE** and verified
+  - All 8 new tests passing
+  - All 70+ evidence collector tests passing
+  - Zero regressions to existing code
+  - Ready to unlock TASK-121 and TASK-121A (parallel collectors)

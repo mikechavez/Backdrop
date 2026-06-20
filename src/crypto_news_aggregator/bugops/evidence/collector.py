@@ -18,6 +18,7 @@ from .base import EvidenceCollectorBase
 from .collectors.metrics import MetricsCollector
 from .collectors.system_state import SystemStateCollector
 from .collectors.related_cases import RelatedCaseCollector
+from .collectors.deploy_context import DeployContextCollector
 
 logger = logging.getLogger(__name__)
 
@@ -36,10 +37,14 @@ class EvidenceCollector:
         self.settings = settings
         self.collectors: list[EvidenceCollectorBase] = []
 
+        # Import RailwayClient for DeployContextCollector
+        from ..clients.railway import RailwayClient
+
         # Register built-in collectors
         self.register_collector(MetricsCollector())
         self.register_collector(SystemStateCollector())
         self.register_collector(RelatedCaseCollector())
+        self.register_collector(DeployContextCollector(RailwayClient(settings)))
 
     def register_collector(self, collector: EvidenceCollectorBase) -> None:
         """Register a collector. Called during monitor initialization."""
