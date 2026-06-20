@@ -198,8 +198,13 @@ pytest tests/bugops/ -v
 
 ## Completion Summary
 
-- Branch:
-- Commit:
+- Branch: `task/bugops-117-metrics-system-state`
+- Commit: `04012b3` (implementation + 12 tests + test updates), `bb433f0` (docs)
 - Changes made:
-- Tests run:
-- Deviations from plan:
+  - Created `RelatedCaseCollector` at `bugops/evidence/collectors/related_cases.py`
+  - Added `get_related_cases()` store method to `BugOpsStore`
+  - Registered collector in `EvidenceCollector.__init__`
+  - Added 12 comprehensive unit tests
+  - Updated existing EvidenceCollector tests (3 collectors now, not 2)
+- Tests run: `pytest tests/bugops/test_related_case_collector.py tests/bugops/test_evidence_collector.py` → 48 passed, zero regressions
+- Deviations from plan: None. Implementation followed spec exactly.
