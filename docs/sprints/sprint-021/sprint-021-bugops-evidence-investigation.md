@@ -74,7 +74,7 @@ Key design insight from BUG-064 Golden Incident exercise: for a cost-control fai
 | 3 | TASK-115 | Implement EvidencePack persistence | A | ✅ COMPLETE | S |
 | 4 | TASK-116 | Implement EvidenceCollector framework | A | ✅ COMPLETE | M |
 | 5 | TASK-117 | Collect subsystem metrics and system state | A | ✅ COMPLETE | M |
-| 6 | TASK-118 | Collect related BugCases | A | 🔲 OPEN | S |
+| 6 | TASK-118 | Collect related BugCases | A | ✅ COMPLETE | S |
 | 7 | TASK-119 | Build Railway API client | A | 🔲 OPEN | M |
 | 8 | TASK-120 | Collect deploy context via Railway | A | 🔲 OPEN | M |
 | 9 | TASK-121 | Collect Configuration Evidence | A | 🔲 OPEN | S |
@@ -405,3 +405,48 @@ TASK-117 (Collect subsystem metrics and system state) implemented, verified, and
 - ✅ 77 total tests passing (14 new + 63 existing TASK-116/persistence/model tests); zero regressions
 - Commits: ff6166d (implementation + 22 tests) + bcd87ce (critical fixes: error handling, merge semantics)
 - All 7 Phase A collectors now have a proven pattern for safe error handling and multi-collector data merging
+
+### Session 8 (2026-06-19) — TASK-118 Related BugCase Collector Complete
+
+TASK-118 (Collect related BugCases) implemented, verified, and locked:
+- ✅ `RelatedCaseCollector` at `bugops/evidence/collectors/related_cases.py`:
+  - Deterministic collector (no LLM, no Railway API calls)
+  - Queries MongoDB for cases sharing subsystems within 7-day lookback window
+  - Matches on: root_subsystem, blast_radius, or affected_subsystems overlap
+  - Excludes current BugCase by case_id, limits to 10 results, sorts by first_seen_at descending
+  - Converts related BugCases to dicts preserving: case_id, root_subsystem, severity, status, first_seen_at, last_seen_at, title
+  - Handles empty related cases gracefully (writes empty list + timestamp, no error)
+
+- ✅ `get_related_cases()` store method added to `BugOpsStore`:
+  - Returns up to 10 BugCases sharing subsystems within lookback_days
+  - Query logic: $or across root_subsystem, affected_subsystems, blast_radius; excludes current case by $ne
+  - Returns sorted by first_seen_at descending (most recent first)
+  - Gracefully handles empty subsystems list (returns [])
+
+- ✅ Auto-registration in `EvidenceCollector.__init__`:
+  - RelatedCaseCollector registered during initialization (now 3 auto-collectors total)
+
+- ✅ Test suite (12 new tests for RelatedCaseCollector):
+  - With related cases found (multiple matches)
+  - With no related cases found (empty section handling)
+  - Subsystem extraction and deduplication
+  - Missing subsystem fields (None/empty lists)
+  - Store error handling (graceful failure)
+  - Timestamp formatting as ISO strings
+  - Reference allocator usage (collision-free IDs)
+  - Sort order preservation (most recent first)
+  - Collector name attribute
+  - Edge cases: single case, maximum 10 cases
+  - Field preservation from BugCases
+
+- ✅ Acceptance criteria verification:
+  - Collector implemented and registered with EvidenceCollector
+  - get_related_cases() store method added and tested
+  - Zero related cases handled gracefully (section written with empty list, not omitted)
+  - Evidence reference added only when related cases found
+  - Uses ref_allocator.next_ref() for collision-free IDs
+  - All tests pass, no regressions
+
+- ✅ 48 collector tests passing (12 new RelatedCaseCollector + 36 existing framework/metrics/system-state tests); zero regressions
+- Commit: 04012b3 (implementation + 12 tests + test updates)
+- Phase A now has 4 of 7 collectors complete; next: Railway API client (TASK-119) → deploy context, logs
