@@ -41,7 +41,11 @@ class DeployContextCollector:
             store: BugOpsStore instance for persisting evidence
             ref_allocator: Allocator for collision-free reference IDs
         """
-        window_start = bugcase.first_seen_at - timedelta(hours=self.LOOKBACK_HOURS)
+        # Handle edge case: CRITICAL cases may have first_seen_at = None
+        if bugcase.first_seen_at is None:
+            window_start = datetime.utcnow() - timedelta(hours=self.LOOKBACK_HOURS)
+        else:
+            window_start = bugcase.first_seen_at - timedelta(hours=self.LOOKBACK_HOURS)
 
         all_deployments = []
         sections_missing = []

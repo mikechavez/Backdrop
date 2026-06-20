@@ -331,3 +331,57 @@ async def test_collector_handles_missing_fields(mock_railway_client, mock_store,
     section_data = mock_store.update_evidence_pack_section.call_args[0][1]
     assert "deploy_context" in section_data
     assert len(section_data["deploy_context"]) == 2
+
+
+@pytest.mark.asyncio
+async def test_collector_handles_none_first_seen_at(mock_railway_client, mock_store):
+    """Test that collector handles None first_seen_at gracefully (edge case for CRITICAL cases)."""
+    from crypto_news_aggregator.bugops.models import BugOpsSubsystem
+
+    bugcase_no_first_seen = BugCase(
+        case_id="case_critical",
+        status=CaseStatus.OPEN,
+        severity=AlertSeverity.CRITICAL,
+        alert_type="test",
+        title="Critical Issue",
+        summary="Critical issue summary",
+        dedupe_key="test_critical",
+        source_types=["test"],
+        root_subsystem=BugOpsSubsystem.ARTICLES,
+        blast_radius=[],
+        affected_subsystems=[],
+        first_seen_at=None,  # Edge case: CRITICAL with no first_seen_at
+        last_seen_at=None,
+    )
+
+    deployment = {
+        "deployment_id": "deploy_1",
+        "status": "SUCCESS",
+        "created_at": (datetime.utcnow() - timedelta(hours=1)).isoformat(),
+        "updated_at": (datetime.utcnow() - timedelta(hours=1)).isoformat(),
+    }
+
+    mock_railway_client.get_recent_deployments.side_effect = [
+        [deployment],  # fastapi
+        [],  # celery_worker
+        [],  # celery_scheduler
+    ]
+
+    collector = DeployContextCollector(mock_railway_client)
+    ref_allocator = EvidenceReferenceAllocator()
+
+    # Should not raise — uses current time as fallback
+    await collector.collect(bugcase_no_first_seen, "pack_123", mock_store, ref_allocator)
+
+    # Verify window_start was computed from current time, not first_seen_at
+    calls = [call[1] for call in mock_railway_client.get_recent_deployments.call_args_list]
+    for call in calls:
+        since = call["since"]
+        # Should be approximately 24 hours ago from now
+        expected_min = datetime.utcnow() - timedelta(hours=24, minutes=1)
+        expected_max = datetime.utcnow() - timedelta(hours=23, minutes=59)
+        assert expected_min <= since <= expected_max
+
+    section_data = mock_store.update_evidence_pack_section.call_args[0][1]
+    assert "deploy_context" in section_data
+    assert len(section_data["deploy_context"]) == 1
