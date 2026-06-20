@@ -35,7 +35,8 @@ class TestGraphQL:
 
             mock_client.post.assert_called_once()
             call_kwargs = mock_client.post.call_args[1]
-            assert call_kwargs["headers"]["Authorization"] == "Bearer test-token-123"
+            # With project_id set, should use Project-Access-Token header
+            assert call_kwargs["headers"]["Project-Access-Token"] == "test-token-123"
             assert call_kwargs["headers"]["Content-Type"] == "application/json"
 
     @pytest.mark.asyncio

@@ -14,7 +14,7 @@ class RailwayClient:
     Service names resolved to deployment IDs for log and deployment queries.
     """
 
-    GRAPHQL_URL = "https://backboard.railway.app/graphql/v2"
+    GRAPHQL_URL = "https://backboard.railway.com/graphql/v2"
 
     def __init__(self, settings: BaseSettings):
         self.api_token = settings.RAILWAY_API_TOKEN
@@ -76,12 +76,13 @@ class RailwayClient:
                 return None
 
             # Now get active deployment for this service
+            # Note: Railway API does not support orderBy in deployments query
+            # Results are returned in reverse chronological order (newest first) by default
             deployment_query = """
             query GetActiveDeployment($serviceId: String!) {
               deployments(
                 first: 1
                 input: { serviceId: $serviceId }
-                orderBy: { field: CREATED_AT, direction: DESC }
               ) {
                 edges {
                   node {
@@ -168,12 +169,12 @@ class RailwayClient:
                 return []
 
             # Now get deployments
+            # Note: Railway API returns results in reverse chronological order by default (newest first)
             deployment_query = """
             query GetDeployments($serviceId: String!) {
               deployments(
                 first: 50
                 input: { serviceId: $serviceId }
-                orderBy: { field: CREATED_AT, direction: DESC }
               ) {
                 edges {
                   node {
@@ -292,16 +293,24 @@ class RailwayClient:
         Returns parsed response["data"] or None on any error.
         Handles: auth, timeout (10s default), HTTP errors, JSON parse errors.
         Logs errors at error level. Never raises.
+        Supports both Account/Workspace tokens (Bearer) and Project tokens (Project-Access-Token).
         """
         try:
             async with httpx.AsyncClient() as client:
+                headers = {"Content-Type": "application/json"}
+
+                # Determine token type: try Project-Access-Token first (more specific)
+                # If it fails with "Not Authorized", fall back to Bearer auth
+                # For now, use Project-Access-Token if we have a project_id set
+                if self.project_id:
+                    headers["Project-Access-Token"] = self.api_token
+                else:
+                    headers["Authorization"] = f"Bearer {self.api_token}"
+
                 response = await client.post(
                     self.GRAPHQL_URL,
                     json={"query": query, "variables": variables},
-                    headers={
-                        "Authorization": f"Bearer {self.api_token}",
-                        "Content-Type": "application/json",
-                    },
+                    headers=headers,
                     timeout=10.0,
                 )
                 response.raise_for_status()

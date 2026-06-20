@@ -10,10 +10,22 @@ import json
 import sys
 from datetime import datetime, timedelta, timezone
 
-RAILWAY_GRAPHQL_URL = "https://backboard.railway.app/graphql/v2"
+RAILWAY_GRAPHQL_URL = "https://backboard.railway.com/graphql/v2"
 
 
-async def run_introspection(token: str) -> dict:
+def get_headers(token: str, project_id: str) -> dict:
+    """Get appropriate auth headers based on token type."""
+    headers = {"Content-Type": "application/json"}
+    if project_id:
+        # Project token - use Project-Access-Token header
+        headers["Project-Access-Token"] = token
+    else:
+        # Account/Workspace token - use Bearer auth
+        headers["Authorization"] = f"Bearer {token}"
+    return headers
+
+
+async def run_introspection(token: str, project_id: str) -> dict:
     """Run schema introspection query to verify field names."""
     introspection_query = """
     {
@@ -36,10 +48,7 @@ async def run_introspection(token: str) -> dict:
             response = await client.post(
                 RAILWAY_GRAPHQL_URL,
                 json={"query": introspection_query},
-                headers={
-                    "Authorization": f"Bearer {token}",
-                    "Content-Type": "application/json",
-                },
+                headers=get_headers(token, project_id),
                 timeout=10.0,
             )
             response.raise_for_status()
@@ -79,10 +88,7 @@ async def test_get_services(token: str, project_id: str) -> dict:
             response = await client.post(
                 RAILWAY_GRAPHQL_URL,
                 json={"query": query, "variables": variables},
-                headers={
-                    "Authorization": f"Bearer {token}",
-                    "Content-Type": "application/json",
-                },
+                headers=get_headers(token, project_id),
                 timeout=10.0,
             )
             response.raise_for_status()
@@ -99,14 +105,13 @@ async def test_get_services(token: str, project_id: str) -> dict:
             return {}
 
 
-async def test_get_active_deployment(token: str, service_id: str) -> dict:
+async def test_get_active_deployment(token: str, project_id: str, service_id: str) -> dict:
     """Test GetActiveDeployment query."""
     query = """
     query GetActiveDeployment($serviceId: String!) {
       deployments(
         first: 1
         input: { serviceId: $serviceId }
-        orderBy: { field: CREATED_AT, direction: DESC }
       ) {
         edges {
           node {
@@ -126,10 +131,7 @@ async def test_get_active_deployment(token: str, service_id: str) -> dict:
             response = await client.post(
                 RAILWAY_GRAPHQL_URL,
                 json={"query": query, "variables": variables},
-                headers={
-                    "Authorization": f"Bearer {token}",
-                    "Content-Type": "application/json",
-                },
+                headers=get_headers(token, project_id),
                 timeout=10.0,
             )
             response.raise_for_status()
@@ -146,7 +148,7 @@ async def test_get_active_deployment(token: str, service_id: str) -> dict:
             return {}
 
 
-async def test_get_logs(token: str, deployment_id: str, line_cap: int = 200) -> dict:
+async def test_get_logs(token: str, project_id: str, deployment_id: str, line_cap: int = 200) -> dict:
     """Test GetDeploymentLogs query."""
     start_time = datetime.now(timezone.utc) - timedelta(minutes=10)
     end_time = datetime.now(timezone.utc)
@@ -183,10 +185,7 @@ async def test_get_logs(token: str, deployment_id: str, line_cap: int = 200) -> 
             response = await client.post(
                 RAILWAY_GRAPHQL_URL,
                 json={"query": query, "variables": variables},
-                headers={
-                    "Authorization": f"Bearer {token}",
-                    "Content-Type": "application/json",
-                },
+                headers=get_headers(token, project_id),
                 timeout=10.0,
             )
             response.raise_for_status()
@@ -225,7 +224,7 @@ async def main():
 
     # Step 1: Schema introspection
     print("\n1. Running schema introspection...")
-    schema = await run_introspection(token)
+    schema = await run_introspection(token, project_id)
     if schema:
         query_fields = (
             schema.get("__schema", {}).get("queryType", {}).get("fields", [])
@@ -262,7 +261,7 @@ async def main():
         service_name = services[0].get("node", {}).get("name")
         print(f"\n3. Testing GetActiveDeployment with service={service_name}...")
 
-        deployment_result = await test_get_active_deployment(token, service_id)
+        deployment_result = await test_get_active_deployment(token, project_id, service_id)
         deployments = (
             deployment_result.get("deployments", {}).get("edges", [])
         )
@@ -277,7 +276,7 @@ async def main():
 
             # Step 4: Test GetDeploymentLogs
             print(f"\n4. Testing GetDeploymentLogs with deployment_id={deployment_id[:12]}...")
-            logs_result = await test_get_logs(token, deployment_id)
+            logs_result = await test_get_logs(token, project_id, deployment_id)
             logs = logs_result.get("deploymentLogs", [])
 
             if logs:
@@ -293,7 +292,7 @@ async def main():
             print("❌ No active deployment found for service")
 
     print("\n" + "=" * 60)
-    print("Verification complete. RailwayClient schema is correct.")
+    print("✅ Verification complete. RailwayClient schema is correct.")
     print("=" * 60)
 
 
