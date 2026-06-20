@@ -76,7 +76,7 @@ Key design insight from BUG-064 Golden Incident exercise: for a cost-control fai
 | 5 | TASK-117 | Collect subsystem metrics and system state | A | ✅ COMPLETE | M |
 | 6 | TASK-118 | Collect related BugCases | A | ✅ COMPLETE | S |
 | 7 | TASK-119 | Build Railway API client | A | ✅ COMPLETE (VERIFIED) | M |
-| 8 | TASK-120 | Collect deploy context via Railway | A | 🔲 OPEN | M |
+| 8 | TASK-120 | Collect deploy context via Railway | A | ✅ COMPLETE (VERIFIED) | M |
 | 9 | TASK-121 | Collect Configuration Evidence | A | 🔲 OPEN | S |
 | 10 | TASK-121A | Collect LLM Trace and Cost Evidence | A | 🔲 OPEN | S |
 | 11 | TASK-122 | Collect Railway log excerpts with redaction | A | 🔲 OPEN | M |
@@ -450,6 +450,20 @@ TASK-118 (Collect related BugCases) implemented, verified, and locked:
 - ✅ 48 collector tests passing (12 new RelatedCaseCollector + 36 existing framework/metrics/system-state tests); zero regressions
 - Commit: 04012b3 (implementation + 12 tests + test updates)
 - Phase A now has 4 of 7 collectors complete; next: Railway API client (TASK-119) → deploy context, logs
+
+### Session 10 (2026-06-20) — TASK-120 Deploy Context Collector Complete
+
+TASK-120 (Collect deploy context via Railway) implemented and locked:
+- ✅ `DeployContextCollector` at `bugops/evidence/collectors/deploy_context.py`
+- ✅ Fetches deployments for all 3 services within 24-hour lookback window
+- ✅ Explicit evidence reference always added — absence of deployments recorded
+- ✅ Railway API errors recorded per-service in `sections_missing`
+- ✅ Uses `EvidenceReferenceAllocator` for collision-free reference IDs
+- ✅ Registered with `EvidenceCollector.__init__` for auto-initialization
+- ✅ 8 comprehensive tests (all services, partial failures, empty deployments, sorting)
+- ✅ 70+ evidence collector tests passing; zero regressions
+- Commits: 0e05dc5 (implementation + tests)
+- Status: ✅ Ready to unlock TASK-121 and TASK-121A (parallel Phase A collectors)
 
 ### Session 9 (2026-06-20) — TASK-119 Railway API Client Complete
 
