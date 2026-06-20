@@ -436,6 +436,50 @@ class TestLogCollectorEvidenceReferences:
             assert ref_id.startswith("E-")
 
 
+class TestLogCollectorNoneSafety:
+    """Tests for None value handling."""
+
+    @pytest.mark.asyncio
+    async def test_handles_none_first_seen_at(
+        self, mock_railway_client, mock_redactor, mock_settings, mock_store,
+        ref_allocator
+    ):
+        """Safely skips collection when first_seen_at is None."""
+        bugcase = BugCase(
+            case_id="BUG-001",
+            status="open",
+            severity=AlertSeverity.HIGH,
+            alert_type="test",
+            title="Test case",
+            summary="Test summary",
+            dedupe_key="test",
+            source_types=["test"],
+            created_at=datetime(2026, 6, 20, 12, 0, 0),
+            updated_at=datetime(2026, 6, 20, 12, 0, 0),
+            first_seen_at=None,  # No first_seen_at
+            last_seen_at=datetime(2026, 6, 20, 12, 15, 0),
+        )
+
+        collector = LogCollector(
+            mock_railway_client, mock_redactor, mock_settings
+        )
+
+        await collector.collect(bugcase, "pack-001", mock_store, ref_allocator)
+
+        # Verify Railway client was never called
+        assert not mock_railway_client.get_logs.called
+
+        # Verify store was updated with empty logs and error
+        assert mock_store.update_evidence_pack_section.called
+        call = mock_store.update_evidence_pack_section.call_args_list[0]
+        section_data = call[0][1]
+
+        assert section_data["log_excerpts"] == []
+        assert section_data["redactions_applied"] == 0
+        assert len(section_data["sections_missing"]) == 1
+        assert "first_seen_at" in section_data["sections_missing"][0]["reason"]
+
+
 class TestLogCollectorIntegration:
     """Integration tests with real LogRedactor."""
 

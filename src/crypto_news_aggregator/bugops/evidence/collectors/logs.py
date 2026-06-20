@@ -47,6 +47,25 @@ class LogCollector:
         line_cap = self.settings.BUGOPS_LOG_LINE_CAP
 
         # Expand window around the full incident duration
+        # If first_seen_at is None, skip log collection (cannot establish time window)
+        if bugcase.first_seen_at is None:
+            await store.update_evidence_pack_section(
+                pack_id,
+                {
+                    "log_excerpts": [],
+                    "redactions_applied": 0,
+                    "sections_missing": [
+                        {
+                            "section": "logs",
+                            "reason": "BugCase has no first_seen_at timestamp; cannot determine log window",
+                            "attempted_at": datetime.utcnow().isoformat(),
+                        }
+                    ],
+                },
+            )
+            logger.warning("LogCollector: skipped collection; bugcase.first_seen_at is None")
+            return
+
         window_start = bugcase.first_seen_at - timedelta(minutes=window_minutes)
         window_end = (
             (bugcase.last_seen_at or bugcase.first_seen_at)
@@ -94,6 +113,10 @@ class LogCollector:
             "log_excerpts": log_sections,
             "redactions_applied": total_redactions,
         }
+        # NOTE: redactions_applied uses $set semantics in store.update_evidence_pack_section().
+        # Currently, only LogCollector writes this field, so no collision risk.
+        # If future collectors add redaction, store must be updated to use $inc semantics
+        # to accumulate counts across collectors. For now, LogCollector owns this field.
 
         if missing_sections:
             section_data["sections_missing"] = missing_sections
