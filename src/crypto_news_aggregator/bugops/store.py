@@ -398,10 +398,10 @@ class BugOpsStore:
         Sets updated_at to now if not provided.
         Returns updated EvidencePack.
 
-        MERGE SEMANTICS FOR evidence_references:
-        The evidence_references field must be merged, not overwritten.
-        Multiple collectors each write their own references to this field.
-        Uses MongoDB dot-notation to set individual reference keys.
+        MERGE SEMANTICS:
+        - evidence_references: merged with individual keys set (multiple collectors)
+        - sections_missing: appended to list (multiple collectors add entries)
+        - All other fields: overwritten with $set
         """
         if updated_at is None:
             updated_at = datetime.utcnow()
@@ -410,8 +410,10 @@ class BugOpsStore:
 
         # Make a copy to avoid modifying the caller's dict
         section_data_copy = dict(section_data)
-        # Separate evidence_references from other fields
+        # Separate fields with special merge semantics
         evidence_refs = section_data_copy.pop("evidence_references", None)
+        sections_missing = section_data_copy.pop("sections_missing", None)
+        healthy_signals = section_data_copy.pop("healthy_signals", None)
 
         # Add all other fields directly
         if section_data_copy:
@@ -421,6 +423,18 @@ class BugOpsStore:
         if evidence_refs:
             for ref_key, ref_value in evidence_refs.items():
                 update_dict["$set"][f"evidence_references.{ref_key}"] = ref_value
+
+        # Add sections_missing using $push for append semantics (multiple collectors)
+        if sections_missing:
+            if "$push" not in update_dict:
+                update_dict["$push"] = {}
+            update_dict["$push"]["sections_missing"] = {"$each": sections_missing}
+
+        # Add healthy_signals using $push for append semantics (multiple collectors)
+        if healthy_signals:
+            if "$push" not in update_dict:
+                update_dict["$push"] = {}
+            update_dict["$push"]["healthy_signals"] = {"$each": healthy_signals}
 
         result = await self.evidence_packs_collection.find_one_and_update(
             {"pack_id": pack_id},

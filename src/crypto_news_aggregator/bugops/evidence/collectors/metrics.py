@@ -130,8 +130,9 @@ class MetricsCollector:
                 )
 
             except Exception as e:
-                logger.error(f"Metrics collector failed for {subsystem}: {e}", exc_info=True)
-                raise
+                logger.warning(f"Metrics collector failed for {subsystem}: {e}", exc_info=True)
+                # Record in sections_missing and continue with other subsystems
+                # Do NOT raise — collectors must handle errors internally
 
         # Write to Evidence Pack
         await store.update_evidence_pack_section(
