@@ -206,7 +206,15 @@ pytest tests/bugops/ -v
 
 ## Completion Summary
 
-- Branch:
-- Commit:
+- Branch: task/bugops-121-config-evidence-collector
+- Commit: 68a97e4
 - Changes made:
-- Deviations from plan:
+  - Created `ConfigEvidenceCollector` at `bugops/evidence/collectors/config_evidence.py`
+  - Collects LLM daily soft/hard limits, CRITICAL_OPERATIONS, BugOps thresholds, investigation config
+  - Handles missing settings gracefully (stores None, forward-compatible)
+  - Adds two evidence references: one for budget threshold, one for operations list
+  - Evidence descriptions include actual values for diagnostic value
+  - Auto-registered with EvidenceCollector during initialization
+  - Created 13 comprehensive unit tests covering all acceptance criteria
+  - Updated framework tests to expect 5 collectors (added config_evidence)
+- Deviations from plan: None; implementation matches ticket requirements exactly
