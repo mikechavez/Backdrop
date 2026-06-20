@@ -72,7 +72,7 @@ Key design insight from BUG-064 Golden Incident exercise: for a cost-control fai
 | 1 | TASK-114 | Define EvidencePack model and schema | A | ✅ COMPLETE | M |
 | 2 | TASK-114A | EvidencePack schema review against BUG-064 | A | ✅ COMPLETE | S |
 | 3 | TASK-115 | Implement EvidencePack persistence | A | ✅ COMPLETE | S |
-| 4 | TASK-116 | Implement EvidenceCollector framework | A | 🔲 OPEN | M |
+| 4 | TASK-116 | Implement EvidenceCollector framework | A | ✅ COMPLETE | M |
 | 5 | TASK-117 | Collect subsystem metrics and system state | A | 🔲 OPEN | M |
 | 6 | TASK-118 | Collect related BugCases | A | 🔲 OPEN | S |
 | 7 | TASK-119 | Build Railway API client | A | 🔲 OPEN | M |
@@ -331,3 +331,31 @@ TASK-115 (Implement EvidencePack persistence) implemented and locked:
 - ✅ 62 total BugOps tests passing (14 new + 48 existing); no regressions
 - Commit: 986ec0f
 - Persistence foundation locked for Phase A collector implementation (TASK-116 onwards)
+
+### Session 6 (2026-06-19) — TASK-116 Framework Complete + Code Review
+
+TASK-116 (Implement EvidenceCollector framework) implemented, code-reviewed, and locked:
+- ✅ `EvidenceCollectorBase` protocol at `bugops/evidence/base.py` — interface contract
+- ✅ `EvidenceCollector` orchestrator class at `bugops/evidence/collector.py`:
+  - `is_eligible(bugcase)`: Checks not manually closed, no existing pack, settling window elapsed OR Critical
+  - `collect(bugcase)`: Main entry point — creates pack, runs collectors in isolation, marks complete
+  - `_is_settling_window_elapsed()`: Window logic — Critical collects immediately, 10m default for others
+  - `_generate_pack_id()`: Pack ID format `ep_{case_id}_{unix_timestamp}`
+  - `register_collector()`: Register collectors during initialization
+- ✅ Collector isolation: Each collector runs in independent try/except, one failure ≠ halt
+- ✅ CollectionError recording: Per-collector failures accumulated locally, written once at end (no overwrites)
+- ✅ sections_collected accuracy: Only includes successfully completed collectors, not failed ones
+- ✅ Settling window: Resolved BugCases ARE eligible if window elapsed and no pack exists
+- ✅ 22 comprehensive tests covering all 12 acceptance criteria + 2 critical code-review requirements:
+  - Eligibility: closed, existing pack, window not elapsed, window elapsed, Critical, Resolved
+  - Collection: pack creation, collector execution, isolation, error recording, completion, zero collectors
+  - Settling window: Critical, no first_seen, after window, before window
+  - Error accumulation: Single failure, multiple failures all recorded (no overwrites)
+  - sections_collected accuracy: Success/failure filtering verified
+  - Pack ID generation and collector registration
+- ✅ Code-review verification (2 critical requirements):
+  - Failed collectors append CollectionError without overwriting prior errors
+  - sections_collected only includes collectors that actually completed successfully
+- ✅ 99 total tests passing (22 new + 77 existing store/model tests); zero regressions
+- Commits: e3ac564 (implementation) + a94ad5e (docs) + 25827d7 (code-review refinements)
+- Framework ready for Phase A collector implementation (TASK-117 onwards) — all 7 collectors can now register and run
