@@ -21,6 +21,7 @@ from .collectors.related_cases import RelatedCaseCollector
 from .collectors.deploy_context import DeployContextCollector
 from .collectors.config_evidence import ConfigEvidenceCollector
 from .collectors.llm_traces import LLMTraceCollector
+from .collectors.logs import LogCollector
 
 logger = logging.getLogger(__name__)
 
@@ -40,16 +41,19 @@ class EvidenceCollector:
         self.collectors: list[EvidenceCollectorBase] = []
         self.db = db
 
-        # Import RailwayClient for DeployContextCollector
+        # Import RailwayClient for DeployContextCollector and LogCollector
         from ..clients.railway import RailwayClient
         from ...services import cost_tracker
+        from .redaction import LogRedactor
 
         # Register built-in collectors
         self.register_collector(MetricsCollector())
         self.register_collector(SystemStateCollector())
         self.register_collector(RelatedCaseCollector())
-        self.register_collector(DeployContextCollector(RailwayClient(settings)))
+        railway_client = RailwayClient(settings)
+        self.register_collector(DeployContextCollector(railway_client))
         self.register_collector(ConfigEvidenceCollector(settings, cost_tracker))
+        self.register_collector(LogCollector(railway_client, LogRedactor(), settings))
         if db is not None:
             self.register_collector(LLMTraceCollector(db))
 

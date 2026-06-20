@@ -41,6 +41,8 @@ def mock_settings():
     """Create mock settings."""
     settings = MagicMock()
     settings.BUGOPS_EVIDENCE_SETTLING_WINDOW_MINUTES = 10
+    settings.BUGOPS_LOG_WINDOW_MINUTES = 10
+    settings.BUGOPS_LOG_LINE_CAP = 200
     return settings
 
 
@@ -537,14 +539,15 @@ async def test_collect_sections_collected_excludes_failures(
     call_args = mock_store.mark_evidence_pack_complete.call_args
     sections = call_args[1]["sections_collected"]
 
-    # Should have: metrics, system_state, related_cases, deploy_context, config_evidence (auto-registered), success_1, success_2
+    # Should have: metrics, system_state, related_cases, deploy_context, config_evidence, logs (auto-registered), success_1, success_2
     # Should NOT have: failing
-    assert len(sections) == 7
+    assert len(sections) == 8
     assert "metrics" in sections
     assert "system_state" in sections
     assert "related_cases" in sections
     assert "deploy_context" in sections
     assert "config_evidence" in sections
+    assert "logs" in sections
     assert "success_1" in sections
     assert "success_2" in sections
     assert "failing" not in sections
@@ -553,9 +556,9 @@ async def test_collect_sections_collected_excludes_failures(
 def test_register_collector(mock_settings, mock_collector):
     """Test register_collector adds collector to list."""
     collector = EvidenceCollector(AsyncMock(), mock_settings)
-    # EvidenceCollector auto-registers built-in collectors (MetricsCollector, SystemStateCollector, RelatedCaseCollector, DeployContextCollector, ConfigEvidenceCollector)
+    # EvidenceCollector auto-registers built-in collectors (MetricsCollector, SystemStateCollector, RelatedCaseCollector, DeployContextCollector, ConfigEvidenceCollector, LogCollector)
     initial_count = len(collector.collectors)
-    assert initial_count == 5
+    assert initial_count == 6
     collector.register_collector(mock_collector)
     assert len(collector.collectors) == initial_count + 1
     assert collector.collectors[-1] == mock_collector
