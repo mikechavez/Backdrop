@@ -213,8 +213,13 @@ Unlocks TASK-116 (EvidenceCollector framework) and all collector tickets. No beh
 
 ## Completion Summary
 
-- Branch:
-- Commit:
+- Branch: `task/bugops-115-evidence-pack-persistence`
+- Commit: 986ec0f (feat(bugops): Implement EvidencePack persistence layer (TASK-115))
 - Changes made:
-- Tests run:
-- Deviations from plan:
+  - Added `evidence_packs` collection to `BugOpsStore` with 5 store methods
+  - Implemented section-by-section updates with MongoDB dot-notation merge semantics for `evidence_references`
+  - Added 6 new config keys to `core/config.py` (settling window, log parameters, investigation token budget)
+  - Wired MongoDB indexes into existing `db/mongodb.py` initialization path (not orphaned)
+  - 14 comprehensive tests covering create, retrieve, partial updates, reference merging, and status logic
+- Tests run: 62 core bugops tests passing (14 new + 48 existing); no regressions
+- Deviations from plan: None. Index wiring initially missed but fixed before merge to follow established MongoDB initialization pattern.

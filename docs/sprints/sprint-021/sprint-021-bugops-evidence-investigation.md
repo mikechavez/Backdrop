@@ -71,7 +71,7 @@ Key design insight from BUG-064 Golden Incident exercise: for a cost-control fai
 |---|--------|-------|-------|--------|-----|
 | 1 | TASK-114 | Define EvidencePack model and schema | A | ✅ COMPLETE | M |
 | 2 | TASK-114A | EvidencePack schema review against BUG-064 | A | ✅ COMPLETE | S |
-| 3 | TASK-115 | Implement EvidencePack persistence | A | 🔲 OPEN | S |
+| 3 | TASK-115 | Implement EvidencePack persistence | A | ✅ COMPLETE | S |
 | 4 | TASK-116 | Implement EvidenceCollector framework | A | 🔲 OPEN | M |
 | 5 | TASK-117 | Collect subsystem metrics and system state | A | 🔲 OPEN | M |
 | 6 | TASK-118 | Collect related BugCases | A | 🔲 OPEN | S |
@@ -310,3 +310,24 @@ TASK-114A (EvidencePack schema review against BUG-064) completed:
 - ✅ Tests: 79 passed, no regressions (pytest tests/bugops/ -k "not alert_to_case and not monitor and not slack")
 - Commits: 6fb26ad (schema + mapping), fc2e234 (ticket completion)
 - Schema locked and ready for Phase A collector implementation (TASK-115 onwards)
+
+### Session 5 (2026-06-19) — TASK-115 Persistence Layer Complete
+
+TASK-115 (Implement EvidencePack persistence) implemented and locked:
+- ✅ EvidencePack MongoDB collection added to BugOpsStore with 5 store methods
+- ✅ `create_evidence_pack`: Insert and return with normalized ObjectId
+- ✅ `get_evidence_pack` / `get_evidence_pack_for_case`: Retrieve by pack_id or bugcase_id
+- ✅ `update_evidence_pack_section`: Section-by-section updates with MongoDB dot-notation merge semantics
+  - evidence_references field never replaced; collectors merge their refs (E-001/E-002 then E-003/E-004 = all four preserved)
+  - Other fields updated directly (last writer wins)
+- ✅ `mark_evidence_pack_complete`: Fetches stored pack, checks collection_errors and sections_missing, sets status (COMPLETE vs PARTIAL)
+- ✅ Six new config keys added: BUGOPS_EVIDENCE_SETTLING_WINDOW_MINUTES, BUGOPS_LOG_WINDOW_MINUTES, BUGOPS_LOG_LINE_CAP, BUGOPS_EVIDENCE_MAX_TOTAL_CHARS, BUGOPS_INVESTIGATION_MAX_INPUT_TOKENS, RAILWAY_API_TOKEN
+- ✅ MongoDB indexes wired into existing db/mongodb.py initialization path (not orphaned):
+  - pack_id (unique) for deduplication
+  - bugcase_id for case lookup
+  - collection_status for filtering by completion state
+  - created_at (descending) for time-based queries
+- ✅ 14 comprehensive tests (create, retrieve, partial updates, reference merging, status logic)
+- ✅ 62 total BugOps tests passing (14 new + 48 existing); no regressions
+- Commit: 986ec0f
+- Persistence foundation locked for Phase A collector implementation (TASK-116 onwards)
