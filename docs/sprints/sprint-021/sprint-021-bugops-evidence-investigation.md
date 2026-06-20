@@ -78,7 +78,7 @@ Key design insight from BUG-064 Golden Incident exercise: for a cost-control fai
 | 7 | TASK-119 | Build Railway API client | A | ✅ COMPLETE (VERIFIED) | M |
 | 8 | TASK-120 | Collect deploy context via Railway | A | ✅ COMPLETE (VERIFIED) | M |
 | 9 | TASK-121 | Collect Configuration Evidence | A | ✅ COMPLETE | S |
-| 10 | TASK-121A | Collect LLM Trace and Cost Evidence | A | 🔲 OPEN | S |
+| 10 | TASK-121A | Collect LLM Trace and Cost Evidence | A | ✅ COMPLETE | S |
 | 11 | TASK-122 | Collect Railway log excerpts with redaction | A | 🔲 OPEN | M |
 | 12 | TASK-123 | Wire EvidenceCollector into monitor loop | A | 🔲 OPEN | M |
 | — | **PHASE A EXIT GATE** | Review 3+ real Evidence Packs before proceeding | — | 🔲 OPEN | — |
@@ -591,3 +591,26 @@ TASK-121 (Collect Configuration Evidence) implemented and locked:
 - Commit: 68a97e4 (implementation + tests + ticket update)
 - Status: ✅ Ready to unlock TASK-121A (parallel phase, LLM trace collector)
 - Phase A now has 5 of 7 collectors complete; next: TASK-121A (LLM trace), TASK-122 (Railway logs), TASK-123 (wire monitor loop)
+
+### Session 12 (2026-06-20) — TASK-121A LLM Trace and Cost Evidence Collector Complete
+
+TASK-121A (Collect LLM Trace and Cost Evidence) implemented and locked:
+- ✅ `LLMTraceCollector` at `bugops/evidence/collectors/llm_traces.py` (152 lines)
+- ✅ Queries `llm_traces` collection with correct field names: `timestamp` (NOT `created_at`), `cost` (NOT `cost_usd`)
+- ✅ Window calculation: 60 minutes before `first_seen_at` to `last_seen_at` (or `first_seen_at` if `None`)
+- ✅ Aggregates: total_calls, total_cost, total_input_tokens, total_output_tokens, cached_calls
+- ✅ Per-operation breakdown: calls, cost, last_at timestamp for each operation
+- ✅ Recent traces: limited to 10, sorted most recent first
+- ✅ Evidence references: E-001 (cost), E-002 (operations) — collision-free via ref_allocator
+- ✅ Graceful empty window handling (no traces found)
+- ✅ Updated `LLMTraceSummary` model in `bugops/models.py`:
+  - Added window_start, window_end, collected_at timestamps
+  - Changed from total_operations to total_calls
+  - Changed recent_traces from `list[LLMTraceRecord]` to `list[dict]` (flexible storage)
+  - Added operation_breakdown and budget_events fields
+- ✅ Conditional registration in EvidenceCollector (optional db parameter)
+- ✅ 14 comprehensive unit tests: field names, window calculation, aggregation, breakdown, limiting, refs, empty handling, defaults, sorting, timestamps
+- ✅ 62 total collector tests passing (14 new LLMTraceCollector + 48 existing); zero regressions
+- Commits: 734c496 (implementation + tests + full spec compliance)
+- Status: ✅ COMPLETE — Ready to unlock TASK-122 (log collector) and TASK-123 (monitor wiring)
+- Phase A now has 6 of 7 collectors complete; final collector: TASK-122 (Railway logs with redaction)
