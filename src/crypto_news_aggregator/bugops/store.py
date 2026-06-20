@@ -1,7 +1,7 @@
 """BugOps alert and case storage."""
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
@@ -492,3 +492,47 @@ class BugOpsStore:
             result = _normalize_mongo_doc(result)
             return EvidencePack(**result)
         return None
+
+    async def get_related_cases(
+        self,
+        bugcase_id: str,
+        subsystems: list[str],
+        lookback_days: int = 7,
+        limit: int = 10,
+    ) -> list[BugCase]:
+        """
+        Find BugCases sharing subsystems with the current case.
+
+        Query: cases where root_subsystem OR any value in affected_subsystems
+        is in the provided subsystems list, AND first_seen_at >= (now - lookback_days),
+        AND case_id != bugcase_id.
+
+        Returns up to limit cases sorted by first_seen_at descending (most recent first).
+
+        Args:
+            bugcase_id: ID of the current BugCase to exclude from results
+            subsystems: List of subsystem names to search for
+            lookback_days: Number of days to look back (default 7)
+            limit: Maximum number of cases to return (default 10)
+
+        Returns:
+            List of related BugCases sorted by first_seen_at descending
+        """
+        if not subsystems:
+            return []
+
+        lookback_cutoff = datetime.utcnow() - timedelta(days=lookback_days)
+
+        docs = await self.cases_collection.find(
+            {
+                "$or": [
+                    {"root_subsystem": {"$in": subsystems}},
+                    {"affected_subsystems": {"$in": subsystems}},
+                    {"blast_radius": {"$in": subsystems}},
+                ],
+                "first_seen_at": {"$gte": lookback_cutoff},
+                "case_id": {"$ne": bugcase_id},
+            }
+        ).sort("first_seen_at", -1).limit(limit).to_list(None)
+
+        return [BugCase(**_normalize_mongo_doc(doc)) for doc in docs]
