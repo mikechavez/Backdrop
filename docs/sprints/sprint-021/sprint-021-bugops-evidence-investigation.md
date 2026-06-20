@@ -77,7 +77,7 @@ Key design insight from BUG-064 Golden Incident exercise: for a cost-control fai
 | 6 | TASK-118 | Collect related BugCases | A | ✅ COMPLETE | S |
 | 7 | TASK-119 | Build Railway API client | A | ✅ COMPLETE (VERIFIED) | M |
 | 8 | TASK-120 | Collect deploy context via Railway | A | ✅ COMPLETE (VERIFIED) | M |
-| 9 | TASK-121 | Collect Configuration Evidence | A | 🔲 OPEN | S |
+| 9 | TASK-121 | Collect Configuration Evidence | A | ✅ COMPLETE | S |
 | 10 | TASK-121A | Collect LLM Trace and Cost Evidence | A | 🔲 OPEN | S |
 | 11 | TASK-122 | Collect Railway log excerpts with redaction | A | 🔲 OPEN | M |
 | 12 | TASK-123 | Wire EvidenceCollector into monitor loop | A | 🔲 OPEN | M |
@@ -575,3 +575,19 @@ TASK-119 (Build Railway GraphQL API client) implemented, verified, and locked:
 - ✅ 48 collector tests passing (12 new RelatedCaseCollector + 36 existing framework/metrics/system-state tests); zero regressions
 - Commit: 04012b3 (implementation + 12 tests + test updates)
 - Phase A now has 4 of 7 collectors complete; next: Railway API client (TASK-119) → deploy context, logs
+
+### Session 11 (2026-06-20) — TASK-121 Configuration Evidence Collector Complete
+
+TASK-121 (Collect Configuration Evidence) implemented and locked:
+- ✅ `ConfigEvidenceCollector` at `bugops/evidence/collectors/config_evidence.py`
+- ✅ Collects LLM daily soft/hard limits, CRITICAL_OPERATIONS from cost_tracker, BugOps thresholds, investigation config
+- ✅ Graceful missing settings handling: uses getattr() with None default (forward-compatible)
+- ✅ Two evidence references added: one for budget threshold (budget-relevant to cost-control failures), one for critical operations (operation-relevant to routing/classification failures)
+- ✅ Evidence reference descriptions include actual values for diagnostic value (not just field names)
+- ✅ Auto-registers with EvidenceCollector during initialization (no manual registration)
+- ✅ 13 comprehensive unit tests: all settings reads, missing settings, reference allocation, timestamp, investigation config
+- ✅ Framework tests updated: now expect 5 auto-registered collectors (added config_evidence)
+- ✅ 35 collector tests passing (13 new ConfigEvidenceCollector + 22 existing framework); zero regressions
+- Commit: 68a97e4 (implementation + tests + ticket update)
+- Status: ✅ Ready to unlock TASK-121A (parallel phase, LLM trace collector)
+- Phase A now has 5 of 7 collectors complete; next: TASK-121A (LLM trace), TASK-122 (Railway logs), TASK-123 (wire monitor loop)
