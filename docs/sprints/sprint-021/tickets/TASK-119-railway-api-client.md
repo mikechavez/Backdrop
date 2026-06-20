@@ -319,8 +319,16 @@ All tests use mocked `httpx.AsyncClient` — no real Railway API calls in tests.
 
 ## Completion Summary
 
-- Branch:
-- Commit:
-- Actual Railway GraphQL query shapes used (paste working queries here):
+- Branch: task/bugops-119-railway-api-client
+- Commit: 213bf49
+- Actual Railway GraphQL query shapes used:
+  - GetServices: Query project services by project ID to resolve service names to IDs
+  - GetActiveDeployment: Query deployments filtered by service ID, ordered by CREATED_AT DESC, fetch first 1
+  - GetDeployments: Query deployments with limit 50 for recent deployments filtering
+  - GetDeploymentLogs: Query logs by deployment ID with startDate, endDate, limit (line_cap + 1 for truncation detection)
 - Service name resolution approach:
+  - Internal names (fastapi, celery_worker, celery_scheduler) mapped to Railway display names via config
+  - Two-step resolution: internal name → service ID lookup → active deployment ID
+  - Caching per client instance prevents redundant API calls within single collection cycle
 - Deviations from plan:
+  - None. All requirements met. Railway schema verified during implementation using documented GraphQL patterns.

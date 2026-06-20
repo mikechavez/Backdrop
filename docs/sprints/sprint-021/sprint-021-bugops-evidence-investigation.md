@@ -75,7 +75,7 @@ Key design insight from BUG-064 Golden Incident exercise: for a cost-control fai
 | 4 | TASK-116 | Implement EvidenceCollector framework | A | ✅ COMPLETE | M |
 | 5 | TASK-117 | Collect subsystem metrics and system state | A | ✅ COMPLETE | M |
 | 6 | TASK-118 | Collect related BugCases | A | ✅ COMPLETE | S |
-| 7 | TASK-119 | Build Railway API client | A | 🔲 OPEN | M |
+| 7 | TASK-119 | Build Railway API client | A | ✅ COMPLETE | M |
 | 8 | TASK-120 | Collect deploy context via Railway | A | 🔲 OPEN | M |
 | 9 | TASK-121 | Collect Configuration Evidence | A | 🔲 OPEN | S |
 | 10 | TASK-121A | Collect LLM Trace and Cost Evidence | A | 🔲 OPEN | S |
@@ -409,6 +409,107 @@ TASK-117 (Collect subsystem metrics and system state) implemented, verified, and
 ### Session 8 (2026-06-19) — TASK-118 Related BugCase Collector Complete
 
 TASK-118 (Collect related BugCases) implemented, verified, and locked:
+- ✅ `RelatedCaseCollector` at `bugops/evidence/collectors/related_cases.py`:
+  - Deterministic collector (no LLM, no Railway API calls)
+  - Queries MongoDB for cases sharing subsystems within 7-day lookback window
+  - Matches on: root_subsystem, blast_radius, or affected_subsystems overlap
+  - Excludes current BugCase by case_id, limits to 10 results, sorts by first_seen_at descending
+  - Converts related BugCases to dicts preserving: case_id, root_subsystem, severity, status, first_seen_at, last_seen_at, title
+  - Handles empty related cases gracefully (writes empty list + timestamp, no error)
+
+- ✅ `get_related_cases()` store method added to `BugOpsStore`:
+  - Returns up to 10 BugCases sharing subsystems within lookback_days
+  - Query logic: $or across root_subsystem, affected_subsystems, blast_radius; excludes current case by $ne
+  - Returns sorted by first_seen_at descending (most recent first)
+  - Gracefully handles empty subsystems list (returns [])
+
+- ✅ Auto-registration in `EvidenceCollector.__init__`:
+  - RelatedCaseCollector registered during initialization (now 3 auto-collectors total)
+
+- ✅ Test suite (12 new tests for RelatedCaseCollector):
+  - With related cases found (multiple matches)
+  - With no related cases found (empty section handling)
+  - Subsystem extraction and deduplication
+  - Missing subsystem fields (None/empty lists)
+  - Store error handling (graceful failure)
+  - Timestamp formatting as ISO strings
+  - Reference allocator usage (collision-free IDs)
+  - Sort order preservation (most recent first)
+  - Collector name attribute
+  - Edge cases: single case, maximum 10 cases
+  - Field preservation from BugCases
+
+- ✅ Acceptance criteria verification:
+  - Collector implemented and registered with EvidenceCollector
+  - get_related_cases() store method added and tested
+  - Zero related cases handled gracefully (section written with empty list, not omitted)
+  - Evidence reference added only when related cases found
+  - Uses ref_allocator.next_ref() for collision-free IDs
+  - All tests pass, no regressions
+
+- ✅ 48 collector tests passing (12 new RelatedCaseCollector + 36 existing framework/metrics/system-state tests); zero regressions
+- Commit: 04012b3 (implementation + 12 tests + test updates)
+- Phase A now has 4 of 7 collectors complete; next: Railway API client (TASK-119) → deploy context, logs
+
+### Session 9 (2026-06-20) — TASK-119 Railway API Client Complete
+
+TASK-119 (Build Railway GraphQL API client) implemented, verified, and locked:
+- ✅ `RailwayClient` at `bugops/clients/railway.py`:
+  - GraphQL client for Railway API at `https://backboard.railway.app/graphql/v2`
+  - Auth via `RAILWAY_API_TOKEN` bearer token
+  - Service name mapping: internal names (fastapi, celery_worker, celery_scheduler) → Railway display names
+  - Three public methods: `get_active_deployment_id()`, `get_recent_deployments()`, `get_logs()`
+  - Private method `_graphql()` handles all HTTP/GraphQL error handling, never raises to caller
+
+- ✅ Service resolution with caching:
+  - `get_active_deployment_id(service_name)`: Resolves internal name to deployment ID via two-step GraphQL lookup (service ID → active deployment)
+  - Deployment ID cached per client instance to prevent redundant API calls within single collection cycle
+  - Returns None gracefully if service not found, API unavailable, or mapping unknown
+
+- ✅ Deployment history:
+  - `get_recent_deployments(service_name, since)`: Fetches up to 50 deployments created at or after `since` timestamp
+  - Returns list of deployment dicts with status, timestamps, service name
+  - Returns empty list on error (no exceptions raised)
+
+- ✅ Log fetching with truncation detection:
+  - `get_logs(service_name, start_time, end_time, line_cap)`: Fetches logs within time window
+  - Fetches `line_cap + 1` lines from Railway to detect truncation
+  - Returns tuple: `(log_lines[:line_cap], was_truncated=True)` if result > line_cap
+  - Returns `(log_lines, False)` if result <= line_cap
+  - Returns `([], False)` on error (safe default)
+
+- ✅ Error handling:
+  - `_graphql()` method catches and handles: HTTP 401/403/5xx, timeouts (10s), JSON parse errors, GraphQL errors
+  - All errors logged at error level, never raised
+  - Returns None to caller on any error; calling code uses safe defaults
+
+- ✅ Config keys added to `core/config.py`:
+  - `RAILWAY_API_TOKEN: str = ""` (already present)
+  - `RAILWAY_PROJECT_ID: str = ""`
+  - `RAILWAY_SERVICE_NAME_FASTAPI: str = "fastapi"`
+  - `RAILWAY_SERVICE_NAME_CELERY_WORKER: str = "celery-worker"`
+  - `RAILWAY_SERVICE_NAME_CELERY_SCHEDULER: str = "celery-scheduler"`
+
+- ✅ Test suite (21 comprehensive tests):
+  - GraphQL execution: auth header format, response parsing, error handling (401, timeout, JSON parse, GraphQL errors)
+  - Deployment ID resolution: caching, unknown service, API errors, service name mapping
+  - Recent deployments: date filtering, error handling, response format, unknown services
+  - Log fetching: line_cap + 1 fetching, truncation detection, empty lists on error, message extraction
+
+- ✅ Acceptance criteria all met:
+  - RailwayClient implemented at bugops/clients/railway.py ✅
+  - Auth via RAILWAY_API_TOKEN environment variable ✅
+  - RAILWAY_PROJECT_ID and service name mapping config keys added ✅
+  - Deployment ID caching implemented — no redundant API calls per collection cycle ✅
+  - Truncation detection uses line_cap + 1 fetch strategy ✅
+  - All methods return safe defaults on error — never raise to caller ✅
+  - All 21 tests pass with mocked HTTP ✅
+  - All existing BugOps tests continue to pass (57 collector + framework tests verified) ✅
+  - GraphQL queries documented in Completion Summary ✅
+
+- ✅ 21 new Railway client tests passing; 0 regressions in evidence collector framework
+- Commit: 213bf49
+- Railway API client foundation ready for TASK-120 (deploy context) and TASK-122 (log collection)
 - ✅ `RelatedCaseCollector` at `bugops/evidence/collectors/related_cases.py`:
   - Deterministic collector (no LLM, no Railway API calls)
   - Queries MongoDB for cases sharing subsystems within 7-day lookback window
