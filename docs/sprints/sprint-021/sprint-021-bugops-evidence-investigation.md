@@ -496,7 +496,7 @@ TASK-119 (Build Railway GraphQL API client) implemented, verified, and locked:
   - Recent deployments: date filtering, error handling, response format, unknown services
   - Log fetching: line_cap + 1 fetching, truncation detection, empty lists on error, message extraction
 
-- ✅ Acceptance criteria all met:
+- ✅ Code implementation complete with all acceptance criteria met:
   - RailwayClient implemented at bugops/clients/railway.py ✅
   - Auth via RAILWAY_API_TOKEN environment variable ✅
   - RAILWAY_PROJECT_ID and service name mapping config keys added ✅
@@ -507,9 +507,16 @@ TASK-119 (Build Railway GraphQL API client) implemented, verified, and locked:
   - All existing BugOps tests continue to pass (57 collector + framework tests verified) ✅
   - GraphQL queries documented in Completion Summary ✅
 
-- ✅ 21 new Railway client tests passing; 0 regressions in evidence collector framework
-- Commit: 213bf49
-- Railway API client foundation ready for TASK-120 (deploy context) and TASK-122 (log collection)
+- ⏳ Schema verification against live Railway API:
+  - ✅ Introspection successful — confirmed 124 query fields and correct authentication
+  - ✅ Query structure validated — GetServices, GetActiveDeployment, GetDeploymentLogs all syntactically correct
+  - ⏳ Service resolution pending — requires RAILWAY_PROJECT_ID configured + current token has limited permissions
+  - ⏳ Log fetching pending — same blockers as service resolution
+  - Verification script created at scripts/verify_railway_schema.py for manual testing
+
+- 📍 Status: Code Complete, Schema Verified (live service/log verification requires RAILWAY_PROJECT_ID)
+- Commits: 213bf49 (code), 14edcc8 (docs)
+- Next: Set RAILWAY_PROJECT_ID env var, run verification script, then unlock TASK-120/122
 - ✅ `RelatedCaseCollector` at `bugops/evidence/collectors/related_cases.py`:
   - Deterministic collector (no LLM, no Railway API calls)
   - Queries MongoDB for cases sharing subsystems within 7-day lookback window

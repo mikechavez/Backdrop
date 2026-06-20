@@ -320,15 +320,89 @@ All tests use mocked `httpx.AsyncClient` — no real Railway API calls in tests.
 ## Completion Summary
 
 - Branch: task/bugops-119-railway-api-client
-- Commit: 213bf49
-- Actual Railway GraphQL query shapes used:
-  - GetServices: Query project services by project ID to resolve service names to IDs
-  - GetActiveDeployment: Query deployments filtered by service ID, ordered by CREATED_AT DESC, fetch first 1
-  - GetDeployments: Query deployments with limit 50 for recent deployments filtering
-  - GetDeploymentLogs: Query logs by deployment ID with startDate, endDate, limit (line_cap + 1 for truncation detection)
-- Service name resolution approach:
-  - Internal names (fastapi, celery_worker, celery_scheduler) mapped to Railway display names via config
-  - Two-step resolution: internal name → service ID lookup → active deployment ID
-  - Caching per client instance prevents redundant API calls within single collection cycle
-- Deviations from plan:
-  - None. All requirements met. Railway schema verified during implementation using documented GraphQL patterns.
+- Commit: 213bf49 (code), 14edcc8 (docs)
+
+### Code Verification ✅
+
+- RailwayClient fully implemented at `bugops/clients/railway.py`
+- All three public methods implemented: `get_active_deployment_id()`, `get_recent_deployments()`, `get_logs()`
+- Private `_graphql()` method handles all HTTP/GraphQL error cases gracefully
+- Config keys added: `RAILWAY_PROJECT_ID`, `RAILWAY_SERVICE_NAME_*`
+- Test suite: 21 comprehensive tests, all passing with mocked responses
+- No regressions: 57 existing evidence collector tests continue to pass
+
+### Schema Verification ✅ (Partial)
+
+**Verified Against Live Railway API:**
+- ✅ Schema introspection successful — confirmed 124 query fields available
+- ✅ GraphQL authentication via Bearer token works correctly
+- ✅ Query structure validates: no syntax errors, proper variable binding
+
+**GraphQL Query Shapes Confirmed:**
+```graphql
+query GetServices($projectId: String!) {
+  project(id: $projectId) {
+    services {
+      edges {
+        node { id name }
+      }
+    }
+  }
+}
+
+query GetActiveDeployment($serviceId: String!) {
+  deployments(
+    first: 1
+    input: { serviceId: $serviceId }
+    orderBy: { field: CREATED_AT, direction: DESC }
+  ) {
+    edges {
+      node { id status createdAt updatedAt }
+    }
+  }
+}
+
+query GetDeploymentLogs(
+  $deploymentId: String!
+  $startDate: DateTime
+  $endDate: DateTime
+  $limit: Int
+) {
+  deploymentLogs(
+    deploymentId: $deploymentId
+    startDate: $startDate
+    endDate: $endDate
+    limit: $limit
+    filter: ""
+  ) {
+    timestamp message severity
+  }
+}
+```
+
+### Live Verification Pending ⏳
+
+The following manual verification items remain:
+- [ ] Service resolution: Resolve actual service name to deployment ID in production
+- [ ] Log fetching: Retrieve non-empty logs for celery_worker service
+- [ ] Truncation detection: Verify was_truncated flag works correctly with actual data
+
+**Blockers for Live Verification:**
+- `RAILWAY_PROJECT_ID` environment variable not configured (must be set via Railway dashboard or API with broader token permissions)
+- Current `RAILWAY_TOKEN` has limited permissions (schema query only, cannot enumerate projects)
+
+**How to Complete Live Verification:**
+1. Set `RAILWAY_PROJECT_ID` in `.env` (get from Railway dashboard: Project Settings → ID)
+2. Run: `poetry run python3 scripts/verify_railway_schema.py`
+3. Script will test: GetServices → GetActiveDeployment → GetDeploymentLogs
+4. Update this ticket with results
+
+### Service Name Resolution Approach
+
+- Internal names (fastapi, celery_worker, celery_scheduler) mapped to Railway display names via config
+- Two-step resolution: internal name → service ID lookup → active deployment ID
+- Caching per client instance prevents redundant API calls within single collection cycle
+
+### Deviations from Plan
+
+- None in code implementation. Schema structure verified; live service/log tests deferred pending RAILWAY_PROJECT_ID configuration.
