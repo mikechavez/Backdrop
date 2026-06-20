@@ -13,6 +13,9 @@ from .models import (
     BugCase,
     NotificationAttemptCreate,
     NotificationAttempt,
+    EvidencePackCreate,
+    EvidencePack,
+    EvidencePackStatus,
 )
 
 logger = logging.getLogger(__name__)
@@ -45,6 +48,7 @@ class BugOpsStore:
         self.case_events_collection = db["bug_case_events"]
         self.tool_calls_collection = db["bug_tool_calls"]
         self.notification_attempts_collection = db["notification_attempts"]
+        self.evidence_packs_collection = db["evidence_packs"]
 
     async def create_alert_event(self, event: BugAlertEventCreate) -> BugAlertEvent:
         """Create a new alert event in the database."""
@@ -356,3 +360,121 @@ class BugOpsStore:
             "created_at": {"$gte": window_start}
         }).to_list(None)
         return [BugCase(**_normalize_mongo_doc(doc)) for doc in docs]
+
+    async def create_evidence_pack(self, pack: EvidencePackCreate) -> EvidencePack:
+        """Insert a new Evidence Pack. Returns persisted EvidencePack with id."""
+        pack_dict = pack.model_dump(by_alias=False, exclude_none=False)
+        result = await self.evidence_packs_collection.insert_one(pack_dict)
+        pack_dict["_id"] = result.inserted_id
+        pack_dict = _normalize_mongo_doc(pack_dict)
+        return EvidencePack(**pack_dict)
+
+    async def get_evidence_pack(self, pack_id: str) -> Optional[EvidencePack]:
+        """Retrieve an Evidence Pack by pack_id."""
+        doc = await self.evidence_packs_collection.find_one({"pack_id": pack_id})
+        if doc:
+            doc = _normalize_mongo_doc(doc)
+            return EvidencePack(**doc)
+        return None
+
+    async def get_evidence_pack_for_case(self, bugcase_id: str) -> Optional[EvidencePack]:
+        """Retrieve the Evidence Pack attached to a BugCase. Returns None if not yet collected."""
+        doc = await self.evidence_packs_collection.find_one({"bugcase_id": bugcase_id})
+        if doc:
+            doc = _normalize_mongo_doc(doc)
+            return EvidencePack(**doc)
+        return None
+
+    async def update_evidence_pack_section(
+        self,
+        pack_id: str,
+        section_data: dict,
+        updated_at: Optional[datetime] = None
+    ) -> Optional[EvidencePack]:
+        """
+        Update one or more fields on an existing Evidence Pack.
+        Used by collectors to write their section after collection completes.
+        section_data is a flat dict of field names to values.
+        Sets updated_at to now if not provided.
+        Returns updated EvidencePack.
+
+        MERGE SEMANTICS FOR evidence_references:
+        The evidence_references field must be merged, not overwritten.
+        Multiple collectors each write their own references to this field.
+        Uses MongoDB dot-notation to set individual reference keys.
+        """
+        if updated_at is None:
+            updated_at = datetime.utcnow()
+
+        update_dict: dict = {"$set": {"updated_at": updated_at}}
+
+        # Make a copy to avoid modifying the caller's dict
+        section_data_copy = dict(section_data)
+        # Separate evidence_references from other fields
+        evidence_refs = section_data_copy.pop("evidence_references", None)
+
+        # Add all other fields directly
+        if section_data_copy:
+            update_dict["$set"].update(section_data_copy)
+
+        # Add evidence_references using dot-notation for merge semantics
+        if evidence_refs:
+            for ref_key, ref_value in evidence_refs.items():
+                update_dict["$set"][f"evidence_references.{ref_key}"] = ref_value
+
+        result = await self.evidence_packs_collection.find_one_and_update(
+            {"pack_id": pack_id},
+            update_dict,
+            return_document=ReturnDocument.AFTER
+        )
+
+        if result:
+            result = _normalize_mongo_doc(result)
+            return EvidencePack(**result)
+        return None
+
+    async def mark_evidence_pack_complete(
+        self,
+        pack_id: str,
+        collection_completed_at: datetime,
+        collection_duration_ms: int,
+        sections_collected: list[str],
+        total_chars: int
+    ) -> Optional[EvidencePack]:
+        """
+        Mark an Evidence Pack as complete after all collectors have run.
+        Sets collection_status to:
+          COMPLETE if collection_errors is empty AND sections_missing is empty
+          PARTIAL if collection_errors is non-empty OR sections_missing is non-empty
+        """
+        # First, fetch the current pack to check error and missing sections state
+        current_pack = await self.get_evidence_pack(pack_id)
+        if not current_pack:
+            return None
+
+        # Determine status based on current state
+        has_errors = len(current_pack.collection_errors) > 0
+        has_missing = len(current_pack.sections_missing) > 0
+        status = EvidencePackStatus.PARTIAL if (has_errors or has_missing) else EvidencePackStatus.COMPLETE
+
+        update_dict = {
+            "$set": {
+                "collection_completed_at": collection_completed_at,
+                "collection_duration_ms": collection_duration_ms,
+                "sections_collected": sections_collected,
+                "total_chars": total_chars,
+                "collection_status": status,
+                "updated_at": datetime.utcnow()
+            }
+        }
+
+        result = await self.evidence_packs_collection.find_one_and_update(
+            {"pack_id": pack_id},
+            update_dict,
+            return_document=ReturnDocument.AFTER
+        )
+
+        if result:
+            result = _normalize_mongo_doc(result)
+            return EvidencePack(**result)
+        return None

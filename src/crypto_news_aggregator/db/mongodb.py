@@ -186,6 +186,13 @@ NOTIFICATION_ATTEMPTS_INDEXES = [
     {"keys": [("attempted_at", -1)], "name": "notification_attempts_attempted_at"},
 ]
 
+EVIDENCE_PACKS_INDEXES = [
+    {"keys": [("pack_id", 1)], "name": "evidence_packs_pack_id", "unique": True},
+    {"keys": [("bugcase_id", 1)], "name": "evidence_packs_bugcase_id"},
+    {"keys": [("collection_status", 1)], "name": "evidence_packs_collection_status"},
+    {"keys": [("created_at", -1)], "name": "evidence_packs_created_at"},
+]
+
 
 logger = logging.getLogger(__name__)
 
@@ -257,6 +264,7 @@ COLLECTION_ENTITY_MENTIONS = "entity_mentions"
 COLLECTION_BUG_CASES = "bug_cases"
 COLLECTION_BUG_ALERT_EVENTS = "bug_alert_events"
 COLLECTION_NOTIFICATION_ATTEMPTS = "notification_attempts"
+COLLECTION_EVIDENCE_PACKS = "evidence_packs"
 
 # Database name
 DB_NAME = "crypto_news"
@@ -591,6 +599,8 @@ class MongoManager:
             await bug_alert_events_col_for_reset.drop_indexes()
             notification_attempts_col_for_reset = await self.get_async_collection(COLLECTION_NOTIFICATION_ATTEMPTS)
             await notification_attempts_col_for_reset.drop_indexes()
+            evidence_packs_col_for_reset = await self.get_async_collection(COLLECTION_EVIDENCE_PACKS)
+            await evidence_packs_col_for_reset.drop_indexes()
 
         # Create indexes for articles collection
         for index_info in ARTICLE_INDEXES:
@@ -650,6 +660,13 @@ class MongoManager:
             keys = index_options.pop("keys")
             if not await self._has_index(notification_attempts_col, index_options.get("name")):
                 await notification_attempts_col.create_index(keys, **index_options)
+
+        evidence_packs_col = await self.get_async_collection(COLLECTION_EVIDENCE_PACKS)
+        for index_info in EVIDENCE_PACKS_INDEXES:
+            index_options = index_info.copy()
+            keys = index_options.pop("keys")
+            if not await self._has_index(evidence_packs_col, index_options.get("name")):
+                await evidence_packs_col.create_index(keys, **index_options)
 
         logger.info("MongoDB indexes initialized successfully")
         self._indexes_created = True
