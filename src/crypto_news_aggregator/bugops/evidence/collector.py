@@ -17,6 +17,7 @@ from ..store import BugOpsStore
 from .base import EvidenceCollectorBase
 from .collectors.metrics import MetricsCollector
 from .collectors.system_state import SystemStateCollector
+from .collectors.related_cases import RelatedCaseCollector
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,7 @@ class EvidenceCollector:
         # Register built-in collectors
         self.register_collector(MetricsCollector())
         self.register_collector(SystemStateCollector())
+        self.register_collector(RelatedCaseCollector())
 
     def register_collector(self, collector: EvidenceCollectorBase) -> None:
         """Register a collector. Called during monitor initialization."""
