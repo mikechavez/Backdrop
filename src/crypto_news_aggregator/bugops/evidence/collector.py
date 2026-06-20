@@ -125,11 +125,13 @@ class EvidenceCollector:
                     f"EvidenceCollector: {collector.collector_name} failed: {e}",
                     exc_info=True,
                 )
-                # Record error to Evidence Pack immediately
-                await self.store.update_evidence_pack_section(
-                    pack_id,
-                    {"collection_errors": collection_errors},
-                )
+
+        # Record all collected errors to Evidence Pack after all collectors have run
+        if collection_errors:
+            await self.store.update_evidence_pack_section(
+                pack_id,
+                {"collection_errors": collection_errors},
+            )
 
         # Mark pack complete
         collection_duration_ms = int((time.time() - collection_start) * 1000)

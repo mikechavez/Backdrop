@@ -255,6 +255,7 @@ async def test_collect_collector_isolation_on_failure(
 
     mock_store.create_evidence_pack = AsyncMock(return_value=mock_evidence_pack)
     mock_store.mark_evidence_pack_complete = AsyncMock(return_value=mock_evidence_pack)
+    mock_store.get_evidence_pack = AsyncMock(return_value=mock_evidence_pack)
 
     collector = EvidenceCollector(mock_store, mock_settings)
     collector.register_collector(failing_collector)
@@ -269,6 +270,12 @@ async def test_collect_collector_isolation_on_failure(
     # Error should be recorded
     assert mock_store.update_evidence_pack_section.called
 
+    # Verify sections_collected includes only the success_collector
+    mark_complete_call = mock_store.mark_evidence_pack_complete.call_args
+    sections = mark_complete_call[1]["sections_collected"]
+    assert "success_collector" in sections
+    assert "failing_collector" not in sections
+
 
 @pytest.mark.asyncio
 async def test_collect_records_collection_error(
@@ -281,6 +288,7 @@ async def test_collect_records_collection_error(
 
     mock_store.create_evidence_pack = AsyncMock(return_value=mock_evidence_pack)
     mock_store.mark_evidence_pack_complete = AsyncMock(return_value=mock_evidence_pack)
+    mock_store.get_evidence_pack = AsyncMock(return_value=mock_evidence_pack)
 
     collector = EvidenceCollector(mock_store, mock_settings)
     collector.register_collector(failing_collector)
@@ -297,6 +305,41 @@ async def test_collect_records_collection_error(
     assert errors[0]["source"] == "failing_collector"
     assert errors[0]["error_type"] == "RuntimeError"
     assert "Collection failed" in errors[0]["error_message"]
+
+
+@pytest.mark.asyncio
+async def test_collect_multiple_errors_all_recorded(
+    mock_store, mock_settings, open_bugcase, mock_evidence_pack
+):
+    """Test that all collector failures are recorded in a single error list."""
+    # Create two failing collectors
+    failing_collector_1 = AsyncMock(spec=EvidenceCollectorBase)
+    failing_collector_1.collector_name = "failing_collector_1"
+    failing_collector_1.collect = AsyncMock(side_effect=RuntimeError("First failure"))
+
+    failing_collector_2 = AsyncMock(spec=EvidenceCollectorBase)
+    failing_collector_2.collector_name = "failing_collector_2"
+    failing_collector_2.collect = AsyncMock(side_effect=ValueError("Second failure"))
+
+    mock_store.create_evidence_pack = AsyncMock(return_value=mock_evidence_pack)
+    mock_store.mark_evidence_pack_complete = AsyncMock(return_value=mock_evidence_pack)
+
+    collector = EvidenceCollector(mock_store, mock_settings)
+    collector.register_collector(failing_collector_1)
+    collector.register_collector(failing_collector_2)
+
+    result = await collector.collect(open_bugcase)
+
+    # Verify error was recorded once with both errors
+    assert mock_store.update_evidence_pack_section.called
+    call_args = mock_store.update_evidence_pack_section.call_args
+    section_data = call_args[0][1]
+    assert "collection_errors" in section_data
+    errors = section_data["collection_errors"]
+    # Both errors should be present in the single error list
+    assert len(errors) == 2
+    assert any(e["source"] == "failing_collector_1" for e in errors)
+    assert any(e["source"] == "failing_collector_2" for e in errors)
 
 
 @pytest.mark.asyncio
@@ -451,6 +494,46 @@ def test_generate_pack_id(mock_settings):
     assert parts[1] == "case"
     assert parts[2] == "123"
     assert parts[3].isdigit()
+
+
+@pytest.mark.asyncio
+async def test_collect_sections_collected_excludes_failures(
+    mock_store, mock_settings, open_bugcase, mock_evidence_pack
+):
+    """Test sections_collected only includes successfully completed collectors."""
+    # Create mixed collectors: success, failure, success
+    success_1 = AsyncMock(spec=EvidenceCollectorBase)
+    success_1.collector_name = "success_1"
+    success_1.collect = AsyncMock()
+
+    failing = AsyncMock(spec=EvidenceCollectorBase)
+    failing.collector_name = "failing"
+    failing.collect = AsyncMock(side_effect=RuntimeError("Failed"))
+
+    success_2 = AsyncMock(spec=EvidenceCollectorBase)
+    success_2.collector_name = "success_2"
+    success_2.collect = AsyncMock()
+
+    mock_store.create_evidence_pack = AsyncMock(return_value=mock_evidence_pack)
+    mock_store.mark_evidence_pack_complete = AsyncMock(return_value=mock_evidence_pack)
+
+    collector = EvidenceCollector(mock_store, mock_settings)
+    collector.register_collector(success_1)
+    collector.register_collector(failing)
+    collector.register_collector(success_2)
+
+    result = await collector.collect(open_bugcase)
+
+    # Verify mark_evidence_pack_complete was called with only successful collectors
+    assert mock_store.mark_evidence_pack_complete.called
+    call_args = mock_store.mark_evidence_pack_complete.call_args
+    sections = call_args[1]["sections_collected"]
+
+    # Only the two successful collectors should be in sections_collected
+    assert len(sections) == 2
+    assert "success_1" in sections
+    assert "success_2" in sections
+    assert "failing" not in sections
 
 
 def test_register_collector(mock_settings, mock_collector):
