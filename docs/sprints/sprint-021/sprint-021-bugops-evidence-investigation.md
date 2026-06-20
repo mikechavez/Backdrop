@@ -75,7 +75,7 @@ Key design insight from BUG-064 Golden Incident exercise: for a cost-control fai
 | 4 | TASK-116 | Implement EvidenceCollector framework | A | ✅ COMPLETE | M |
 | 5 | TASK-117 | Collect subsystem metrics and system state | A | ✅ COMPLETE | M |
 | 6 | TASK-118 | Collect related BugCases | A | ✅ COMPLETE | S |
-| 7 | TASK-119 | Build Railway API client | A | ✅ COMPLETE | M |
+| 7 | TASK-119 | Build Railway API client | A | ✅ COMPLETE (VERIFIED) | M |
 | 8 | TASK-120 | Collect deploy context via Railway | A | 🔲 OPEN | M |
 | 9 | TASK-121 | Collect Configuration Evidence | A | 🔲 OPEN | S |
 | 10 | TASK-121A | Collect LLM Trace and Cost Evidence | A | 🔲 OPEN | S |
@@ -507,16 +507,19 @@ TASK-119 (Build Railway GraphQL API client) implemented, verified, and locked:
   - All existing BugOps tests continue to pass (57 collector + framework tests verified) ✅
   - GraphQL queries documented in Completion Summary ✅
 
-- ⏳ Schema verification against live Railway API:
-  - ✅ Introspection successful — confirmed 124 query fields and correct authentication
-  - ✅ Query structure validated — GetServices, GetActiveDeployment, GetDeploymentLogs all syntactically correct
-  - ⏳ Service resolution pending — requires RAILWAY_PROJECT_ID configured + current token has limited permissions
-  - ⏳ Log fetching pending — same blockers as service resolution
-  - Verification script created at scripts/verify_railway_schema.py for manual testing
+- ✅ Live Railway API verification complete:
+  - ✅ Schema introspection: 124 query fields confirmed
+  - ✅ Endpoint verified: https://backboard.railway.com/graphql/v2 (corrected from .app to .com)
+  - ✅ Auth verified: Project tokens use Project-Access-Token header (not Bearer)
+  - ✅ Service resolution: Successfully resolved celery-worker (2c8a41b9-6ff...)
+  - ✅ Deployment resolution: Retrieved active deployment (1f60248e-364...)
+  - ✅ Log fetching: Retrieved 10 real production log lines from celery-worker
+  - ✅ Query syntax verified: orderBy argument removed (not supported by Railway API; pre-sorted results)
 
-- 📍 Status: Code Complete, Schema Verified (live service/log verification requires RAILWAY_PROJECT_ID)
-- Commits: 213bf49 (code), 14edcc8 (docs)
-- Next: Set RAILWAY_PROJECT_ID env var, run verification script, then unlock TASK-120/122
+- 📍 Status: ✅ FULLY COMPLETE — Code tested, schema verified, live services and logs confirmed working
+- Commits: 213bf49 (code), 14edcc8 (docs), 2343ae4 (live verification fixes)
+- Railway API client is production-ready and tested against live data
+- Ready to unlock TASK-120 (deploy context) and TASK-122 (log collection)
 - ✅ `RelatedCaseCollector` at `bugops/evidence/collectors/related_cases.py`:
   - Deterministic collector (no LLM, no Railway API calls)
   - Queries MongoDB for cases sharing subsystems within 7-day lookback window

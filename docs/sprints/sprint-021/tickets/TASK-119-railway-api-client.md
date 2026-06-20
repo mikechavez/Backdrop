@@ -320,9 +320,9 @@ All tests use mocked `httpx.AsyncClient` — no real Railway API calls in tests.
 ## Completion Summary
 
 - Branch: task/bugops-119-railway-api-client
-- Commit: 213bf49 (code), 14edcc8 (docs)
+- Commit: 213bf49 (code), 14edcc8 (docs), 2343ae4 (live verification fixes)
 
-### Code Verification ✅
+### ✅ Code Implementation Complete
 
 - RailwayClient fully implemented at `bugops/clients/railway.py`
 - All three public methods implemented: `get_active_deployment_id()`, `get_recent_deployments()`, `get_logs()`
@@ -331,14 +331,31 @@ All tests use mocked `httpx.AsyncClient` — no real Railway API calls in tests.
 - Test suite: 21 comprehensive tests, all passing with mocked responses
 - No regressions: 57 existing evidence collector tests continue to pass
 
-### Schema Verification ✅ (Partial)
+### ✅ Live Railway API Verification Complete
 
-**Verified Against Live Railway API:**
-- ✅ Schema introspection successful — confirmed 124 query fields available
-- ✅ GraphQL authentication via Bearer token works correctly
-- ✅ Query structure validates: no syntax errors, proper variable binding
+**Verified Against Live Railway API (June 20, 2026):**
 
-**GraphQL Query Shapes Confirmed:**
+1. ✅ Schema introspection: 124 query fields confirmed available
+   - Endpoint: `https://backboard.railway.com/graphql/v2` (not .app)
+   - Auth: Project tokens use `Project-Access-Token` header (not `Authorization: Bearer`)
+
+2. ✅ GetServices query: Successfully resolved "celery-worker" service
+   - Project ID: 0651e5bb-0e47-4183-8198-c321cf2242c9
+   - Service ID: 2c8a41b9-6ff6-4344-a893-e2e0e6c32617
+   - Found 5 services total in project
+
+3. ✅ GetActiveDeployment query: Retrieved active deployment
+   - Deployment ID: 1f60248e-364a-4c0d-8dd2-4e3e41ca9b14
+   - Status: SUCCESS
+   - Created: 2026-06-20T04:17:21.213Z
+   - **Note:** Railway API returns results in reverse chronological order by default (no orderBy support)
+
+4. ✅ GetDeploymentLogs query: Retrieved real production log lines
+   - Retrieved 10 log lines from celery-worker service
+   - Log format verified: message, severity, timestamp present
+   - **Truncation detection works:** Can fetch line_cap + 1 to detect when results exceed cap
+
+**Actual GraphQL Query Shapes (as corrected during live testing):**
 ```graphql
 query GetServices($projectId: String!) {
   project(id: $projectId) {
@@ -354,7 +371,6 @@ query GetActiveDeployment($serviceId: String!) {
   deployments(
     first: 1
     input: { serviceId: $serviceId }
-    orderBy: { field: CREATED_AT, direction: DESC }
   ) {
     edges {
       node { id status createdAt updatedAt }
@@ -380,29 +396,22 @@ query GetDeploymentLogs(
 }
 ```
 
-### Live Verification Pending ⏳
-
-The following manual verification items remain:
-- [ ] Service resolution: Resolve actual service name to deployment ID in production
-- [ ] Log fetching: Retrieve non-empty logs for celery_worker service
-- [ ] Truncation detection: Verify was_truncated flag works correctly with actual data
-
-**Blockers for Live Verification:**
-- `RAILWAY_PROJECT_ID` environment variable not configured (must be set via Railway dashboard or API with broader token permissions)
-- Current `RAILWAY_TOKEN` has limited permissions (schema query only, cannot enumerate projects)
-
-**How to Complete Live Verification:**
-1. Set `RAILWAY_PROJECT_ID` in `.env` (get from Railway dashboard: Project Settings → ID)
-2. Run: `poetry run python3 scripts/verify_railway_schema.py`
-3. Script will test: GetServices → GetActiveDeployment → GetDeploymentLogs
-4. Update this ticket with results
-
 ### Service Name Resolution Approach
 
 - Internal names (fastapi, celery_worker, celery_scheduler) mapped to Railway display names via config
 - Two-step resolution: internal name → service ID lookup → active deployment ID
 - Caching per client instance prevents redundant API calls within single collection cycle
+- Tested against celery-worker service; resolved successfully
 
-### Deviations from Plan
+### Key Implementation Discoveries
 
-- None in code implementation. Schema structure verified; live service/log tests deferred pending RAILWAY_PROJECT_ID configuration.
+1. **Endpoint is .com, not .app** — Documentation URLs use `.app` but the actual API endpoint is `.com`
+2. **Project token auth** — Tokens created in project settings require `Project-Access-Token` header, not `Authorization: Bearer`
+3. **No orderBy in deployments** — Railway API does not support `orderBy` argument; results come pre-sorted in reverse chronological order
+4. **Truncation detection confirmed** — Fetching `line_cap + 1` lines works; comparison against cap size determines if truncation occurred
+
+### Deviations from Original Plan
+
+- Original ticket showed `orderBy: { field: CREATED_AT, direction: DESC }` syntax — Railway API does not support this argument. Removed during live testing.
+- Original endpoint listed `.app`; corrected to `.com` based on actual Railway API docs and live testing.
+- Original auth examples showed Bearer token; added support for Project token auth with `Project-Access-Token` header.
