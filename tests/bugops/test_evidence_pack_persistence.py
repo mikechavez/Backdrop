@@ -494,4 +494,5 @@ async def test_config_keys_accessible(store):
     assert settings.BUGOPS_INVESTIGATION_MAX_INPUT_TOKENS == 12000
 
     assert hasattr(settings, "RAILWAY_API_TOKEN")
-    assert settings.RAILWAY_API_TOKEN == ""
+    # Token value depends on environment; just verify it's set/accessible
+    assert isinstance(settings.RAILWAY_API_TOKEN, str)
