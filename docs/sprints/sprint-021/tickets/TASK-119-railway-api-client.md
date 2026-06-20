@@ -2,11 +2,12 @@
 ticket_id: TASK-119
 title: Build Railway API client
 priority: high
-status: OPEN
+status: ✅ COMPLETE
 phase: A
 date_created: 2026-06-16
 branch: task/bugops-119-railway-api-client
 effort_estimate: medium
+date_completed: 2026-06-20
 ---
 
 # TASK-119: Build Railway API client
@@ -317,10 +318,72 @@ All tests use mocked `httpx.AsyncClient` — no real Railway API calls in tests.
 
 ---
 
+## Implementation Summary
+
+### What Was Built
+
+**RailwayClient** (`src/crypto_news_aggregator/bugops/clients/railway.py`):
+- Async GraphQL client with three public methods:
+  - `get_active_deployment_id(service_name)` — Resolves service name to deployment ID with caching
+  - `get_recent_deployments(service_name, since)` — Fetches deployments created after a timestamp
+  - `get_logs(service_name, start_time, end_time, line_cap)` — Fetches logs with truncation detection
+- Private `_graphql()` method handles all error cases gracefully (never raises)
+- Supports both Account/Workspace tokens (Bearer auth) and Project tokens (Project-Access-Token header)
+- Deployment ID caching prevents redundant API calls within collection cycle
+
+**Config Keys** (`src/crypto_news_aggregator/core/config.py`):
+- `RAILWAY_API_TOKEN` — API token for authentication
+- `RAILWAY_PROJECT_ID` — Project UUID for service lookups
+- `RAILWAY_SERVICE_NAME_FASTAPI`, `RAILWAY_SERVICE_NAME_CELERY_WORKER`, `RAILWAY_SERVICE_NAME_CELERY_SCHEDULER` — Service name mapping
+
+**Tests** (`tests/bugops/test_railway_client.py`):
+- 21 comprehensive tests covering:
+  - GraphQL execution, auth headers, error handling (401, timeout, JSON parse, GraphQL errors)
+  - Deployment ID caching and service resolution
+  - Recent deployments filtering and response format
+  - Log fetching, truncation detection, message extraction
+- All tests use mocked HTTP responses (no live API calls during testing)
+
+**Verification Script** (`scripts/verify_railway_schema.py`):
+- Runs against live Railway API to verify:
+  - Schema introspection (124 query fields)
+  - Service resolution (GetServices → service ID)
+  - Deployment lookup (GetActiveDeployment → deployment ID)
+  - Log fetching (GetDeploymentLogs → log lines)
+
+### Live Testing Results (2026-06-20)
+
+✅ **Schema Introspection**
+- Endpoint: `https://backboard.railway.com/graphql/v2`
+- Found 124 query fields available
+- Confirmed schema structure is correct
+
+✅ **Service Resolution**
+- Resolved "celery-worker" internal name to service ID: `2c8a41b9-6ff6-4344-a893-e2e0e6c32617`
+- Query: GetServices with project ID returns all services
+
+✅ **Deployment Lookup**
+- Retrieved active deployment: `1f60248e-364a-4c0d-8dd2-4e3e41ca9b14`
+- Status: SUCCESS
+- Created: 2026-06-20T04:17:21.213Z
+
+✅ **Log Fetching**
+- Retrieved 10 real production log lines from celery-worker service
+- Log format verified: timestamp, severity, message all present
+- Truncation detection: fetching line_cap + 1 correctly identifies overflow
+
+### Key Implementation Details
+
+1. **Endpoint Correction**: Documentation showed `.app` but actual API is `.com`
+2. **Auth Flexibility**: Added support for Project tokens (uses `Project-Access-Token` header instead of Bearer)
+3. **Query Syntax**: Removed unsupported `orderBy` argument; Railway API returns results pre-sorted in reverse chronological order
+4. **Error Handling**: All methods return safe defaults (None, [], False) on error; caller decides how to handle
+5. **Caching Strategy**: Deployment IDs cached per client instance; cache is fresh per collection cycle
+
 ## Completion Summary
 
 - Branch: task/bugops-119-railway-api-client
-- Commit: 213bf49 (code), 14edcc8 (docs), 2343ae4 (live verification fixes)
+- Commits: 213bf49 (code), 14edcc8 (docs), f021b54 (status), 2343ae4 (live verification fixes), 540b2d7 (final docs)
 
 ### ✅ Code Implementation Complete
 

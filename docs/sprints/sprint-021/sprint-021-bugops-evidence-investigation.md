@@ -1,7 +1,7 @@
 # Sprint 021 — Evidence & Investigation
 
-**Status:** Planned
-**Started:** —
+**Status:** In Progress
+**Started:** 2026-06-16
 **Target:** BugCases automatically produce Evidence Packs and Investigations, eliminating manual context reconstruction after production failures
 
 ---
