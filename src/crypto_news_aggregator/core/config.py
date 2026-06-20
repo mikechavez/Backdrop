@@ -235,6 +235,7 @@ class Settings(BaseSettings):
     BUGOPS_LOG_LINE_CAP: int = 200
     BUGOPS_EVIDENCE_MAX_TOTAL_CHARS: int = 60000
     BUGOPS_INVESTIGATION_MAX_INPUT_TOKENS: int = 12000
+    BUGOPS_HEALTH_ENDPOINT_URL: str = "http://localhost:8000"
     RAILWAY_API_TOKEN: str = ""
 
     # Fresh-start narrative trust boundary (FEATURE-060)

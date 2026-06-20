@@ -25,6 +25,14 @@ def mock_store():
     store.create_evidence_pack = AsyncMock()
     store.update_evidence_pack_section = AsyncMock()
     store.mark_evidence_pack_complete = AsyncMock()
+
+    # Mock mongo_manager for collectors that need MongoDB access
+    mock_db = AsyncMock()
+    store.mongo_manager = MagicMock()
+    store.mongo_manager.get_async_database = AsyncMock(return_value=mock_db)
+    # Mock __getitem__ for database collection access
+    mock_db.__getitem__.side_effect = lambda name: AsyncMock()  # Return empty async mock for any collection
+
     return store
 
 
@@ -529,8 +537,11 @@ async def test_collect_sections_collected_excludes_failures(
     call_args = mock_store.mark_evidence_pack_complete.call_args
     sections = call_args[1]["sections_collected"]
 
-    # Only the two successful collectors should be in sections_collected
-    assert len(sections) == 2
+    # Should have: metrics, system_state (auto-registered), success_1, success_2
+    # Should NOT have: failing
+    assert len(sections) == 4
+    assert "metrics" in sections
+    assert "system_state" in sections
     assert "success_1" in sections
     assert "success_2" in sections
     assert "failing" not in sections
@@ -539,7 +550,9 @@ async def test_collect_sections_collected_excludes_failures(
 def test_register_collector(mock_settings, mock_collector):
     """Test register_collector adds collector to list."""
     collector = EvidenceCollector(AsyncMock(), mock_settings)
-    assert len(collector.collectors) == 0
+    # EvidenceCollector auto-registers built-in collectors (MetricsCollector, SystemStateCollector)
+    initial_count = len(collector.collectors)
+    assert initial_count == 2
     collector.register_collector(mock_collector)
-    assert len(collector.collectors) == 1
-    assert collector.collectors[0] == mock_collector
+    assert len(collector.collectors) == initial_count + 1
+    assert collector.collectors[-1] == mock_collector

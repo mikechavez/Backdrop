@@ -276,8 +276,31 @@ pytest tests/bugops/ -v
 
 ## Completion Summary
 
-- Branch:
-- Commit:
+- Branch: `task/bugops-116-evidence-collector-framework`
+- Commits: 
+  - `ff6166d`: Initial implementation (MetricsCollector, SystemStateCollector, 22 tests)
+  - `bcd87ce`: Critical fixes (error handling, merge semantics)
 - Changes made:
+  - Created `MetricsCollector` at `bugops/evidence/collectors/metrics.py`
+  - Created `SystemStateCollector` at `bugops/evidence/collectors/system_state.py`
+  - Created `bugops/evidence/collectors/__init__.py` with collector exports
+  - Auto-registered both collectors in `EvidenceCollector.__init__`
+  - Added `BUGOPS_HEALTH_ENDPOINT_URL` config key to `core/config.py`
+  - Updated `bugops/store.py` to support append semantics for `sections_missing` and `healthy_signals`
+  - Updated test fixtures in `test_evidence_collector.py` to mock mongo_manager
+  - Created 14 comprehensive unit tests (6 MetricsCollector + 8 SystemStateCollector)
 - Tests run:
+  - `pytest tests/bugops/test_metrics_collector.py`: 6 passed
+  - `pytest tests/bugops/test_system_state_collector.py`: 8 passed
+  - `pytest tests/bugops/test_evidence_collector.py`: 22 passed (TASK-116 tests)
+  - Total: 77 tests passing across evidence/pack/models tests
 - Deviations from plan:
+  - None. All acceptance criteria met and verified:
+    - ✅ MetricsCollector queries MongoDB per subsystem with freshness indicators
+    - ✅ SystemStateCollector calls /health and derives healthy_signals
+    - ✅ Celery worker/scheduler explicitly recorded as sections_missing (TASK-119 deferred)
+    - ✅ Both collectors use EvidenceReferenceAllocator (no hardcoded IDs)
+    - ✅ Both collectors registered with EvidenceCollector
+    - ✅ Both collectors handle errors internally without raising
+    - ✅ Store supports append semantics for multi-collector contributions
+    - ✅ All TASK-116 tests continue to pass with auto-registered collectors
