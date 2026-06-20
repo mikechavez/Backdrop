@@ -285,13 +285,18 @@ Unblocks TASK-117 through TASK-122 (all collectors). No behavior change to exist
 ## Completion Summary
 
 - Branch: `task/bugops-116-evidence-collector-framework`
-- Commit: e3ac564
+- Final commit: 25827d7 (code-review refinements)
+- Key commits:
+  - e3ac564: Framework implementation
+  - a94ad5e: Documentation
+  - 25827d7: Error handling verification + 2 critical requirement tests
 - Changes made:
   - ✅ `src/crypto_news_aggregator/bugops/evidence/base.py` — `EvidenceCollectorBase` protocol
   - ✅ `src/crypto_news_aggregator/bugops/evidence/collector.py` — `EvidenceCollector` orchestrator class
   - ✅ `src/crypto_news_aggregator/bugops/evidence/__init__.py` — Package exports
-  - ✅ `tests/bugops/test_evidence_collector.py` — 20 comprehensive tests
-- Tests run: 20 new + 77 existing tests pass (77 core store/model/collector tests)
+  - ✅ `tests/bugops/test_evidence_collector.py` — 22 comprehensive tests
+- Tests run: 22 new + 77 existing tests pass (77 core store/model/collector tests)
   - All 12 acceptance criteria covered by test cases
   - All settling window, eligibility, and isolation scenarios tested
+  - ✅ Code-review verification: Errors accumulated without overwriting, sections_collected excludes failures
 - Deviations from plan: None — framework matches specification exactly
