@@ -237,6 +237,10 @@ class Settings(BaseSettings):
     BUGOPS_INVESTIGATION_MAX_INPUT_TOKENS: int = 12000
     BUGOPS_HEALTH_ENDPOINT_URL: str = "http://localhost:8000"
     RAILWAY_API_TOKEN: str = ""
+    RAILWAY_PROJECT_ID: str = ""
+    RAILWAY_SERVICE_NAME_FASTAPI: str = "fastapi"
+    RAILWAY_SERVICE_NAME_CELERY_WORKER: str = "celery-worker"
+    RAILWAY_SERVICE_NAME_CELERY_SCHEDULER: str = "celery-scheduler"
 
     # Fresh-start narrative trust boundary (FEATURE-060)
     FRESH_START_CUTOFF: str = "2026-05-10T00:00:00Z"
