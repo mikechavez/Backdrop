@@ -7,7 +7,7 @@ import signal
 import sys
 import time
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, List, Optional
 
 if TYPE_CHECKING:
     from .signal_sources.base import SignalSource
@@ -53,6 +53,8 @@ class BugOpsMonitor:
         self.running = False
         self._suppression_was_active = False
         self._suppression_started_at: Optional[datetime] = None
+        self.db = None
+        self.evidence_collector = None
 
     async def run(self) -> None:
         """Run the BugOps monitor loop."""
@@ -74,7 +76,17 @@ class BugOpsMonitor:
 
             logger.info("MongoDB connection initialized")
             db = await mongo_manager.get_async_database()
+            self.db = db
             self.store = BugOpsStore(db)
+
+            # Initialize EvidenceCollector with all collectors (auto-registered in __init__)
+            from .evidence.collector import EvidenceCollector
+
+            self.evidence_collector = EvidenceCollector(
+                store=self.store,
+                settings=self.settings,
+                db=self.db,
+            )
 
             logger.info(
                 f"BugOps monitor running with poll interval: {self.settings.BUGOPS_POLL_INTERVAL_SECONDS}s"
@@ -87,6 +99,7 @@ class BugOpsMonitor:
                 await self._poll_signals()
                 await self._poll_freshness_detectors()
                 await self._run_auto_resolution()
+                await self._run_evidence_collection()
 
                 # Check for suppression expiry
                 currently_suppressed = is_suppression_active(self.settings)
@@ -306,6 +319,48 @@ class BugOpsMonitor:
                     logger.info(
                         f"Recovery candidate cleared (failure recurred): case_id={case.case_id}"
                     )
+
+    async def _run_evidence_collection(self) -> None:
+        """
+        Check all BugCases without evidence packs.
+        Collect evidence for eligible cases.
+        Errors in one case do not halt collection for other cases.
+        """
+        from .models import EvidencePackStatus
+        from .slack import send_evidence_collected_notification
+
+        try:
+            candidates = await self.store.get_cases_without_evidence()
+
+            for bugcase in candidates:
+                try:
+                    if not await self.evidence_collector.is_eligible(bugcase):
+                        continue
+
+                    pack = await self.evidence_collector.collect(bugcase)
+
+                    if pack is None:
+                        continue
+
+                    if pack.collection_status == EvidencePackStatus.COMPLETE:
+                        await send_evidence_collected_notification(bugcase, pack, self.settings)
+                        logger.info(
+                            f"Evidence Pack complete for {bugcase.case_id}: "
+                            f"{len(pack.sections_collected)} sections collected"
+                        )
+                    else:
+                        logger.info(
+                            f"Partial Evidence Pack for {bugcase.case_id}: "
+                            f"missing={pack.sections_missing}"
+                        )
+
+                except Exception as e:
+                    logger.error(
+                        f"_run_evidence_collection: failed for {bugcase.case_id}: {e}"
+                    )
+
+        except Exception as e:
+            logger.error(f"_run_evidence_collection: outer failure: {e}")
 
     async def _send_suppression_expiry_summary(self) -> None:
         """Send one Slack summary of unresolved Critical/High cases from the suppression window."""

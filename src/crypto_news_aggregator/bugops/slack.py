@@ -5,7 +5,7 @@ import httpx
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 from uuid import uuid4
-from .models import BugCase, AlertSeverity, NotificationAttemptCreate
+from .models import BugCase, AlertSeverity, NotificationAttemptCreate, EvidencePack
 from .config import get_bugops_settings
 
 logger = logging.getLogger(__name__)
@@ -413,6 +413,103 @@ def _build_slack_message(case: BugCase, event_type: str = "bugcase_created") -> 
                 "fields": fields,
                 "footer": "BugOps Alert",
                 "ts": int(case.created_at.timestamp())
+            }
+        ]
+    }
+
+
+async def send_evidence_collected_notification(
+    bugcase: BugCase,
+    pack: EvidencePack,
+    settings,
+) -> bool:
+    """
+    Notify operator that evidence has been collected and investigation is pending.
+
+    Message includes:
+    - Case ID and severity
+    - Sections collected (comma-separated list)
+    - Count of collection errors if any
+    - First sentence: "Evidence collected for [case_id] — investigation pending"
+
+    Uses same Slack webhook and enabled check as existing notifications.
+    Failures are logged but do not raise.
+
+    Returns:
+        True if sent successfully, False otherwise
+    """
+    if not settings.BUGOPS_SLACK_ENABLED:
+        logger.debug(f"Slack notifications disabled, skipping evidence notification for {bugcase.case_id}")
+        return False
+
+    if not settings.BUGOPS_SLACK_WEBHOOK_URL:
+        logger.warning("BUGOPS_SLACK_WEBHOOK_URL not configured, cannot send evidence notification")
+        return False
+
+    message = _build_evidence_collected_message(bugcase, pack)
+
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                settings.BUGOPS_SLACK_WEBHOOK_URL,
+                json=message,
+                timeout=10.0
+            )
+            response.raise_for_status()
+            logger.info(f"Evidence collected notification sent for case {bugcase.case_id}")
+            return True
+    except httpx.HTTPError as e:
+        logger.error(f"Failed to send evidence notification for case {bugcase.case_id}: {e}")
+        return False
+    except Exception as e:
+        logger.error(f"Unexpected error sending evidence notification: {e}", exc_info=True)
+        return False
+
+
+def _build_evidence_collected_message(bugcase: BugCase, pack: EvidencePack) -> dict:
+    """Build a Slack message payload for evidence collection completion.
+
+    Args:
+        bugcase: The BugCase the evidence was collected for
+        pack: The completed EvidencePack
+
+    Returns:
+        A Slack message payload dict
+    """
+    severity_colors = {
+        "info": "#36a64f",
+        "warning": "#ffa500",
+        "high": "#ff6600",
+        "critical": "#ff0000",
+    }
+
+    color = severity_colors.get(bugcase.severity.value, "#808080")
+
+    # Build sections collected line
+    sections_list = ", ".join(pack.sections_collected) if pack.sections_collected else "none"
+
+    # Build error count line if present
+    error_count = len(pack.collection_errors) if pack.collection_errors else 0
+    error_line = f"Collection errors: {error_count}\n" if error_count > 0 else ""
+
+    text = (
+        f"Evidence collected for {bugcase.case_id} — investigation pending\n\n"
+        f"Case: {bugcase.case_id}\n"
+        f"Severity: {bugcase.severity.value.capitalize()}\n"
+        f"Root subsystem: {bugcase.root_subsystem}\n"
+        f"Sections collected: {sections_list}\n"
+        f"{error_line}"
+        f"Status: {pack.collection_status.value.capitalize()}"
+    )
+
+    return {
+        "attachments": [
+            {
+                "color": color,
+                "title": "📦 Evidence Pack Complete",
+                "text": text,
+                "footer": "BugOps Evidence Collection",
+                "ts": int(pack.created_at.timestamp()) if pack.created_at else int(datetime.utcnow().timestamp())
             }
         ]
     }
