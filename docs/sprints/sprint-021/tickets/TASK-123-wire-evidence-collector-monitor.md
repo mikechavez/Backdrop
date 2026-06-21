@@ -267,10 +267,28 @@ Closes Phase A. After this ticket deploys, Evidence Packs are generated automati
 
 ## Completion Summary
 
-- Branch:
-- Commit:
-- Changes made:
-- Tests run:
-- Manual verification results:
-- Phase A Exit Gate status: pending / passed
-- Deviations from plan:
+- **Branch:** task/bugops-123-wire-evidence-collector-monitor
+- **Commit:** 90a3e22
+- **Changes made:**
+  - ✅ Added `get_cases_without_evidence()` store method (cases without Evidence Packs, status != closed)
+  - ✅ Initialized `EvidenceCollector` with auto-registered 7 collectors in `monitor.run()`
+  - ✅ Implemented `_run_evidence_collection()` method with error isolation per case
+  - ✅ Added `send_evidence_collected_notification()` Slack notification function
+  - ✅ Wired `_run_evidence_collection()` into monitor polling loop after `_run_auto_resolution()`
+  - ✅ Updated existing test for monitor initialization with proper asyncio.sleep patching
+  
+- **Tests run:**
+  - ✅ 7 new integration tests for evidence collection (all passing)
+  - ✅ 257 total BugOps tests passing (collector, persistence, store, monitor tests)
+  - ✅ All acceptance criteria verified by tests (eligibility, collection, notification routing)
+  
+- **Manual verification results:** Pending after Railway deployment
+- **Phase A Exit Gate status:** READY TO PROCEED
+  - All 7 Phase A collectors implemented and auto-wired
+  - Monitor loop configured to generate Evidence Packs automatically
+  - Slack notifications configured for COMPLETE packs only
+  - Phase A Exit Gate review can now begin (manually review 3+ real Evidence Packs)
+  
+- **Deviations from plan:** None
+  - EvidenceCollector auto-registers all collectors in __init__ (cleaner than manual registration)
+  - No additional files required beyond monitor.py, store.py, slack.py, tests

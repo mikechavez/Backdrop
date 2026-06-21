@@ -80,7 +80,7 @@ Key design insight from BUG-064 Golden Incident exercise: for a cost-control fai
 | 9 | TASK-121 | Collect Configuration Evidence | A | ✅ COMPLETE | S |
 | 10 | TASK-121A | Collect LLM Trace and Cost Evidence | A | ✅ COMPLETE | S |
 | 11 | TASK-122 | Collect Railway log excerpts with redaction | A | ✅ COMPLETE | M |
-| 12 | TASK-123 | Wire EvidenceCollector into monitor loop | A | 🔲 OPEN | M |
+| 12 | TASK-123 | Wire EvidenceCollector into monitor loop | A | ✅ COMPLETE | M |
 | — | **PHASE A EXIT GATE** | Review 3+ real Evidence Packs before proceeding | — | 🔲 OPEN | — |
 | 13 | TASK-124 | Define Investigation model and schema | B | 🔲 OPEN | M |
 | 14 | TASK-125 | Implement InvestigationProvider | B | 🔲 OPEN | L |
@@ -627,6 +627,26 @@ TASK-121A formal review completed before TASK-123 wiring to catch schema drift:
 - ✅ **Documentation cleanup:** TASK-121A ticket Completion Summary updated to document `operations` → `operation_breakdown` rename decision and confirm InvestigationProvider should read the canonical field name.
 - Artifacts: Review document created (`TASK-121A-REVIEW.md`), ticket updated with design decision note
 - Status: ✅ COMPLETE — Schema drift closed. Ready for TASK-123.
+
+### Session 14 (2026-06-20) — TASK-123 Monitor Loop Wiring Complete
+
+TASK-123 (Wire EvidenceCollector into monitor loop) implemented and locked:
+- ✅ `get_cases_without_evidence()` store method added: queries cases where status != 'closed' AND no Evidence Pack attached
+- ✅ EvidenceCollector initialized in monitor.run() with db parameter for LLMTraceCollector registration
+- ✅ `_run_evidence_collection()` method: queries store, checks eligibility, collects evidence, isolates errors
+- ✅ `send_evidence_collected_notification()` Slack function: notifies on COMPLETE packs only (not PARTIAL)
+- ✅ Integrated into polling loop: _run_evidence_collection() runs after _run_auto_resolution()
+- ✅ 7 new integration tests: all passing
+- ✅ 257 total BugOps tests passing (no regressions)
+- Commit: 90a3e22
+- Status: ✅ COMPLETE — Phase A is now COMPLETE. All 7 collectors wired and auto-generating Evidence Packs.
+
+**Phase A Exit Gate: READY TO PROCEED**
+- All Phase A tasks complete (TASK-114 through TASK-123)
+- All 7 collectors implemented and auto-registered
+- Monitor loop configured for automatic Evidence Pack generation
+- Next: Manual review gate — generate and validate 3+ real Evidence Packs against Phase A Exit Criteria
+- Phase B starts after gate passes (TASK-124: Investigation model definition)
 
 ### Session 13 (2026-06-20) — TASK-122 Log Collector with Redaction Complete
 
