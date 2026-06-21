@@ -16,14 +16,13 @@ from crypto_news_aggregator.bugops.models import (
 
 @pytest.fixture
 def mock_store():
-    """Create a mock BugOpsStore."""
+    """Create a mock BugOpsStore with correct shape (db attribute, not mongo_manager)."""
     store = AsyncMock()
     store.update_evidence_pack_section = AsyncMock()
 
-    # Mock mongo_manager with async database
+    # BugOpsStore has db attribute directly (not mongo_manager)
     mock_db = AsyncMock()
-    store.mongo_manager = MagicMock()
-    store.mongo_manager.get_async_database = AsyncMock(return_value=mock_db)
+    store.db = mock_db
 
     return store
 
@@ -83,7 +82,7 @@ async def test_metrics_collector_with_recent_artifacts(mock_store, mock_settings
         collector = MetricsCollector()
 
         # Setup mock database responses
-        mock_db = await mock_store.mongo_manager.get_async_database()
+        mock_db = mock_store.db
 
         # Mock collection responses
         async def mock_find_one(sort=None, projection=None):
@@ -148,7 +147,7 @@ async def test_metrics_collector_with_stale_artifacts(mock_store, mock_settings,
         collector = MetricsCollector()
 
         # Setup mock database responses
-        mock_db = await mock_store.mongo_manager.get_async_database()
+        mock_db = mock_store.db
 
         # Return stale artifact
         async def mock_find_one_stale(sort=None, projection=None):
@@ -199,7 +198,7 @@ async def test_metrics_collector_with_no_artifacts(mock_store, mock_settings, bu
         collector = MetricsCollector()
 
         # Setup mock database responses
-        mock_db = await mock_store.mongo_manager.get_async_database()
+        mock_db = mock_store.db
 
         # Return None for no artifacts
         async def mock_find_one_empty(sort=None, projection=None):
@@ -267,7 +266,7 @@ async def test_metrics_collector_skips_non_mongodb_subsystems(mock_store, mock_s
         collector = MetricsCollector()
 
         # Setup mock database responses
-        mock_db = await mock_store.mongo_manager.get_async_database()
+        mock_db = mock_store.db
         mock_db.__getitem__ = AsyncMock()
 
         # Run collector
@@ -294,7 +293,7 @@ async def test_metrics_collector_uses_ref_allocator(mock_store, mock_settings, b
         collector = MetricsCollector()
 
         # Setup mock database responses
-        mock_db = await mock_store.mongo_manager.get_async_database()
+        mock_db = mock_store.db
 
         async def mock_find_one(sort=None, projection=None):
             return {"created_at": datetime.utcnow() - timedelta(minutes=30)}
@@ -349,7 +348,7 @@ async def test_metrics_collector_with_only_root_subsystem(mock_store, mock_setti
         collector = MetricsCollector()
 
         # Setup mock database responses
-        mock_db = await mock_store.mongo_manager.get_async_database()
+        mock_db = mock_store.db
 
         async def mock_find_one(sort=None, projection=None):
             return {"generated_at": datetime.utcnow() - timedelta(minutes=45)}
@@ -378,3 +377,82 @@ async def test_metrics_collector_with_only_root_subsystem(mock_store, mock_setti
         assert len(metrics) == 1
         assert metrics[0]["subsystem"] == BugOpsSubsystem.BRIEFINGS.value
         assert metrics[0]["artifact_count"] == 3
+
+
+@pytest.mark.asyncio
+async def test_metrics_collector_with_real_bugopsstore_shape(mock_settings, bugcase_with_blast_radius):
+    """
+    Regression test: MetricsCollector must work with actual BugOpsStore shape.
+
+    Tests that MetricsCollector.collect() uses store.db directly (not store.mongo_manager)
+    as required by BugOpsStore(db=...) initialization pattern.
+
+    Context: BUG-064 validation gate discovered MetricsCollector was attempting to access
+    non-existent store.mongo_manager.get_async_database(). Fixed to use store.db directly.
+    """
+    with patch("crypto_news_aggregator.bugops.evidence.collectors.metrics.get_settings") as mock_get_settings:
+        mock_get_settings.return_value = mock_settings
+
+        collector = MetricsCollector()
+
+        # Create a store shape that matches actual BugOpsStore.__init__(db=...)
+        # BugOpsStore stores the database as self.db
+        store = AsyncMock()
+        store.update_evidence_pack_section = AsyncMock()
+
+        # Simulate real BugOpsStore which has db directly, NOT mongo_manager
+        mock_db = AsyncMock()
+        store.db = mock_db
+        # Explicitly do NOT add mongo_manager to test that collector uses store.db
+
+        # Setup mock database responses for subsystems
+        async def mock_find_one(sort=None, projection=None):
+            return {"created_at": datetime.utcnow() - timedelta(minutes=30)}
+
+        async def mock_count_documents(query):
+            return 5
+
+        articles_collection = AsyncMock()
+        articles_collection.find_one = mock_find_one
+        articles_collection.count_documents = mock_count_documents
+
+        signals_collection = AsyncMock()
+        signals_collection.find_one = mock_find_one
+        signals_collection.count_documents = mock_count_documents
+
+        narratives_collection = AsyncMock()
+        narratives_collection.find_one = mock_find_one
+        narratives_collection.count_documents = mock_count_documents
+
+        # Setup mock_db to return collections (simulating db["collection_name"])
+        collections_dict = {
+            "articles": articles_collection,
+            "signals": signals_collection,
+            "narratives": narratives_collection,
+        }
+        mock_db.__getitem__.side_effect = lambda name: collections_dict.get(name)
+
+        # Run collector with real BugOpsStore shape
+        ref_allocator = EvidenceReferenceAllocator()
+        await collector.collect(bugcase_with_blast_radius, "pack_1", store, ref_allocator)
+
+        # Verify store.update_evidence_pack_section was called (collector succeeded)
+        assert store.update_evidence_pack_section.called
+        call_args = store.update_evidence_pack_section.call_args
+        assert call_args[0][0] == "pack_1"
+
+        update_data = call_args[0][1]
+        assert "subsystem_metrics" in update_data
+        assert "subsystem_metrics_collected_at" in update_data
+
+        # Verify metrics were collected from the right subsystems
+        metrics = update_data["subsystem_metrics"]
+        subsystem_names = [m["subsystem"] for m in metrics]
+        assert BugOpsSubsystem.ARTICLES.value in subsystem_names
+        assert BugOpsSubsystem.SIGNALS.value in subsystem_names
+        assert BugOpsSubsystem.NARRATIVES.value in subsystem_names
+
+        # The collector succeeded without attempting to access mongo_manager
+        # If it had tried to access mongo_manager, the test would have failed when
+        # the collector tried to call store.mongo_manager.get_async_database()
+        # and got an AttributeError
