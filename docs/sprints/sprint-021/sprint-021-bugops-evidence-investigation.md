@@ -81,11 +81,16 @@ Key design insight from BUG-064 Golden Incident exercise: for a cost-control fai
 | 10 | TASK-121A | Collect LLM Trace and Cost Evidence | A | ✅ COMPLETE | S |
 | 11 | TASK-122 | Collect Railway log excerpts with redaction | A | ✅ COMPLETE | M |
 | 12 | TASK-123 | Wire EvidenceCollector into monitor loop | A | ✅ COMPLETE | M |
-| — | **PHASE A EXIT GATE** | Review 3+ real Evidence Packs before proceeding | — | 🔲 OPEN | — |
-| 13 | TASK-124 | Define Investigation model and schema | B | 🔲 OPEN | M |
-| 14 | TASK-125 | Implement InvestigationProvider | B | 🔲 OPEN | L |
-| 15 | TASK-126 | Wire Investigation generation to Evidence Pack completion | B | 🔲 OPEN | M |
-| 16 | TASK-127 | Evidence Pack and Investigation quality review | B | 🔲 OPEN | M |
+| — | — | **PHASE A EXIT GATE** | — | — | — |
+| — | TASK-114B | Provision isolated local Mongo for gate review | Gate | ✅ COMPLETE | S |
+| 13 | TASK-114C | Tier 1: Historical replay (3 incidents) | Gate | 🔲 OPEN | M |
+| 14 | TASK-114D | Tier 2: Synthetic failure injection | Gate | 🔲 OPEN | M |
+| 15 | TASK-114E | Exit scorecard review + manual sign-off | Gate | 🔲 OPEN | S |
+| — | **PHASE A VALIDATION COMPLETE** | Gate passed → Phase B unblocked | — | 🔲 BLOCKED | — |
+| 16 | TASK-124 | Define Investigation model and schema | B | 🔲 BLOCKED | M |
+| 17 | TASK-125 | Implement InvestigationProvider | B | 🔲 BLOCKED | L |
+| 18 | TASK-126 | Wire Investigation generation to Evidence Pack completion | B | 🔲 BLOCKED | M |
+| 19 | TASK-127 | Evidence Pack and Investigation quality review | B | 🔲 BLOCKED | M |
 
 **Sequencing:**
 
@@ -96,34 +101,84 @@ Phase A — Evidence Infrastructure (sequential where noted, parallel where poss
 - TASK-123 (depends on all collectors: 117, 118, 119, 120, 121, 121A, 122)
 
 Phase A Exit Gate (mandatory before Phase B):
-- Generate 3+ real Evidence Packs from production BugCases
-- Review manually against exit criteria below
+- Tier 1: Historical replay of 3 known, closed incidents (TASK-114C)
+- Tier 2: Synthetic failure injection + real monitor loop pass (TASK-114D)
+- Consolidated scorecard review and manual sign-off (TASK-114E)
+- Tier 3 (production observation) is optional/post-gate — ongoing tuning once Phase B is underway, not a blocking requirement
 
 Phase B — Triage Generation (sequential):
 - TASK-124 → TASK-125 → TASK-126 → TASK-127
 
 ---
 
-## Phase A Exit Criteria
+## Phase A Exit Gate (Revised)
 
-**Do not begin TASK-124 until all of the following are confirmed:**
+**Rationale for revision:** The original gate ("wait for 3+ real production Evidence Packs") made Phase A validation depend on production failing, which is backwards — it should validate the harness, not hope for incidents. The revised gate uses historical replay of known, already-diagnosed incidents (so results can be scored against ground truth instead of eyeballed) plus targeted synthetic failure injection (so timing/degradation paths get exercised without waiting). Production observation continues afterward as ongoing monitoring, not a gate.
 
-- [ ] At least 3 real Evidence Packs generated from production BugCases and stored successfully
-- [ ] No Evidence Pack has a missing section without an explicit reason recorded in `collection_errors`
+**Do not begin TASK-124 until the consolidated scorecard (TASK-114E) has been reviewed and signed off.**
+
+### Tier 1 — Historical Replay (TASK-114C)
+
+Replay three real, closed, documented incidents through the actual `EvidenceCollector`, each scored via blind diagnosis against documented ground truth before comparison:
+
+- **BUG-064** — cost control failure / briefing generation halt (primary target; sprint's own Golden Investigation benchmark)
+- **BUG-084** — narrative summary fabrication (tests a different failure class — content correctness, not infra — expected to surface an Evidence Pack coverage gap rather than pass cleanly)
+- **BUG-073** — articles missing fingerprints / deduplication broken (tests deploy-context and related-case collectors specifically)
+
+### Tier 2 — Synthetic Failure Injection (TASK-114D)
+
+Inject failure conditions historical replay can't cover, including one pass through the real monitor loop (not a direct `collect()` call) to validate settling-window timing rather than bypassing it:
+
+- Railway API unavailable / timeout (partial pack handling)
+- Missing/disabled critical operation config
+- Malformed config value
+- Unhealthy subsystem signal (worker/scheduler down)
+- Freshness-style alert (if collectors support it yet — else documented as gap)
+- Real monitor loop pass: settling window default delay + critical bypass
+
+### Tier 3 — Production Observation (optional, post-gate)
+
+Review naturally occurring production incidents as they happen. No longer a gate requirement — ongoing tuning once Phase B is underway.
+
+### Consolidated Exit Criteria
+
+Mechanical criteria (checkable from TASK-114C / TASK-114D output):
+
+- [ ] At least 3 Evidence Packs generated (historical or synthetic) and stored successfully
+- [ ] No Evidence Pack has a missing section without an explicit reason recorded in `collection_errors` or `sections_missing`
 - [ ] Configuration Evidence section is populated with LLM budget settings and critical operations list
 - [ ] LLM Trace Evidence section is populated with operation counts, costs, and recent traces
 - [ ] Log excerpts are present for at least 2 of the 3 services (FastAPI, Celery worker, Celery scheduler)
 - [ ] Truncation metadata is recorded correctly when log cap is reached
 - [ ] Redaction is applied — `redactions_applied` count is accurate
-- [ ] Per-section `collected_at` timestamps are present on all collected sections
-- [ ] Evidence references (E-001, E-002...) are indexable within the pack — no collisions across collectors
+- [ ] Per-section `collected_at` timestamps are present on all collected sections, across all packs from both tiers
+- [ ] Evidence references (E-001, E-002...) are indexable with no collisions — across ALL packs generated in both tiers combined
 - [ ] At least one partial Evidence Pack (Railway API unavailable or timeout) handled gracefully with explicit error record
-- [ ] BUG-064 scenario is reproducible: a simulated cost-control failure produces an Evidence Pack containing `llm_trace_summary.total_cost`, `config_evidence.critical_operations`, blocked operation name, and healthy system signals
+- [ ] BUG-064 replay reproduces the documented incident: resulting pack contains `llm_trace_summary.total_cost`, `config_evidence.critical_operations`, the blocked operation name (`briefing_generate`), and the healthy signals eliminating other subsystems
+- [ ] Settling window timing verified via real monitor loop pass: default delay respected, critical-severity bypass confirmed
 
-Operator judgment call after manual review:
+Judgment-call criteria — require Mike's manual sign-off, not auto-passed:
+
 - [ ] Configuration Evidence is useful — budget settings and critical operations list would have helped diagnose a real incident
 - [ ] Log excerpts add signal beyond what metrics already show
-- [ ] Evidence Pack is readable by a human unfamiliar with the incident
+- [ ] Evidence Pack is readable by a human unfamiliar with the incident (informed by the TASK-114C blind diagnosis MATCH/PARTIAL/MISS scores)
+
+See `TASK-114E-exit-gate-scorecard.md` for full scoring and the consolidated go/no-go recommendation.
+
+### Sequencing
+
+```
+TASK-114B (dev environment)
+    ↓
+    ├──→ TASK-114C (Tier 1: historical replay)  ──┐
+    └──→ TASK-114D (Tier 2: synthetic injection) ──┤
+                                                     ↓
+                                          TASK-114E (scorecard)
+                                                     ↓
+                                    Mike reviews → Phase B (TASK-124) unblocked
+```
+
+TASK-114C and TASK-114D can run in parallel once TASK-114B completes — both only depend on the local Mongo instance, not on each other.
 
 ---
 
@@ -250,7 +305,7 @@ When Evidence Pack exceeds `BUGOPS_EVIDENCE_MAX_TOTAL_CHARS`, truncate in this o
 | 2026-06-16 | All InvestigationProvider calls route through LLM Gateway | Direct provider calls prohibited; gateway enforces spend caps, tracing, and model routing | TASK-125 must use gateway.call(), never direct Anthropic API |
 | 2026-06-16 | Evidence Packs retained permanently | Evidence Packs are the operational corpus; raw data expires at 90 days but records persist | evidence_packs collection has no TTL index |
 | 2026-06-16 | Investigations generated only after Evidence Pack completion | Evidence before interpretation; no immediate investigation path; Critical cases get fast Evidence Packs via immediate collection | TASK-126 triggers on Evidence Pack completion event, not on BugCase creation |
-| 2026-06-16 | Phase B blocked until 3 real Evidence Packs pass manual review | Prevents over-specifying Investigation layer before seeing actual collected evidence | Phase A Exit Gate is a hard dependency for TASK-124 |
+| 2026-06-16 (revised 2026-06-20) | Phase B blocked until Phase A Exit Gate scorecard passes manual review. Originally specified as "3 real production Evidence Packs"; revised to historical replay + synthetic injection (see Phase A Exit Gate section above) so validation doesn't depend on production failing | Prevents over-specifying Investigation layer before seeing actual collected evidence; revision additionally allows scoring against known ground truth instead of eyeballing plausibility | Phase A Exit Gate (TASK-114E scorecard) is a hard dependency for TASK-124 |
 
 ---
 
@@ -647,6 +702,24 @@ TASK-123 (Wire EvidenceCollector into monitor loop) implemented and locked:
 - Monitor loop configured for automatic Evidence Pack generation
 - Next: Manual review gate — generate and validate 3+ real Evidence Packs against Phase A Exit Criteria
 - Phase B starts after gate passes (TASK-124: Investigation model definition)
+
+### Session 15 (2026-06-20) — TASK-114B Dev Environment Complete
+
+TASK-114B (Provision isolated local Mongo for Phase A Exit Gate review) implemented and locked:
+- ✅ `docker-compose.gate-review.yml`: MongoDB 7.0 container on port 27018, named volume, health check
+- ✅ `.env.gate-review`: MONGODB_URI pointing to localhost:27018/bugops_gate_review (gitignored)
+- ✅ `scripts/gate-review-init.py`: Initialization script that verifies environment, creates collections/indexes
+- ✅ Safety verified: No production data path, no hardcoded credentials, isolated database name
+- ✅ Database validation note: App's `MongoManager.validate_database_connection()` expects `crypto_news`, so gate review scripts should use direct `MongoClient()` instead of `MongoManager`
+- ✅ Teardown command documented: `docker compose -f docker-compose.gate-review.yml down -v`
+- Commit: (included in TASK-114B completion summary)
+- Status: ✅ COMPLETE — TASK-114C and TASK-114D now unblocked
+
+**Phase A Exit Gate: Infrastructure Ready**
+- All evidence collectors completed (TASK-114 through TASK-123)
+- Isolated MongoDB environment provisioned (TASK-114B)
+- Historical replay (TASK-114C), synthetic injection (TASK-114D), and scorecard review (TASK-114E) can now proceed
+- After exit gate passes: Phase B unlocked (TASK-124: Investigation model)
 
 ### Session 13 (2026-06-20) — TASK-122 Log Collector with Redaction Complete
 
