@@ -83,7 +83,7 @@ Key design insight from BUG-064 Golden Incident exercise: for a cost-control fai
 | 12 | TASK-123 | Wire EvidenceCollector into monitor loop | A | ✅ COMPLETE | M |
 | — | — | **PHASE A EXIT GATE** | — | — | — |
 | — | TASK-114B | Provision isolated local Mongo for gate review | Gate | ✅ COMPLETE | S |
-| 13 | TASK-114C | Tier 1: Historical replay (3 incidents) | Gate | 🔲 OPEN | M |
+| 13 | TASK-114C | Tier 1: Historical replay (3 incidents) | Gate | ✅ COMPLETE (w/ defect fix) | M |
 | 14 | TASK-114D | Tier 2: Synthetic failure injection | Gate | 🔲 OPEN | M |
 | 15 | TASK-114E | Exit scorecard review + manual sign-off | Gate | 🔲 OPEN | S |
 | — | **PHASE A VALIDATION COMPLETE** | Gate passed → Phase B unblocked | — | 🔲 BLOCKED | — |
@@ -720,6 +720,41 @@ TASK-114B (Provision isolated local Mongo for Phase A Exit Gate review) implemen
 - Isolated MongoDB environment provisioned (TASK-114B)
 - Historical replay (TASK-114C), synthetic injection (TASK-114D), and scorecard review (TASK-114E) can now proceed
 - After exit gate passes: Phase B unlocked (TASK-124: Investigation model)
+
+### Session 16 (2026-06-21) — TASK-114C Tier 1 Historical Reconstruction Complete
+
+TASK-114C (Tier 1: Historical Incident Replay) implemented, validated, and locked:
+- ✅ 3 documented incidents reconstructed as synthetic BugCases
+  - BUG-064: Cost control failure / briefing generation halt
+  - BUG-073: Articles missing fingerprints / deduplication broken
+  - BUG-084: Narrative summary fabrication
+- ✅ 3 Evidence Packs generated and persisted to bugops_gate_review
+  - All packs status: PARTIAL (expected — health endpoint and Railway unavailable in gate review)
+  - 6 collectors executed per pack; 1 collector had initialization bug (fixed)
+  - 5-7 evidence references per pack, no collisions
+- ✅ 3 Blind diagnoses written and timestamped (2026-06-21T04:31:17Z) before ground truth comparison
+  - BUG-064: PARTIAL (identified operation, missed CRITICAL_OPERATIONS check)
+  - BUG-073: PARTIAL (identified subsystem/timing, cannot detect code path regression)
+  - BUG-084: PARTIAL (identified operation, cannot detect LLM fabrication — expected gap)
+- ✅ Exit gate criteria audit: 11/13 mechanical PASS, 2/13 PARTIAL (expected)
+- ✅ **DEFECT DISCOVERED AND RESOLVED**: MetricsCollector mongo_manager initialization bug
+  - Issue: `db = await store.mongo_manager.get_async_database()` (non-existent attribute)
+  - Fix: `db = store.db` (actual BugOpsStore shape)
+  - Validation: Regression test added + BUG-064 re-collected successfully with metrics
+  - Impact: HIGH (critical collector was broken), now FIXED and VERIFIED
+  - Commit: Included in TASK-114C branch
+
+**Documentation Generated:**
+- `TASK-114C-REPLAY-RESULTS.md`: Comprehensive final report with fact/synthetic separation, diagnoses, scoring, and recommendations
+- `TASK-114C-EXECUTIVE-SUMMARY.md`: One-page overview
+- `TASK-114C-COMPLETION-CHECKLIST.md`: Full checklist + lessons learned
+- `TASK-114C-RECONSTRUCTION-STATUS.md`: Phase 1 reconstruction details
+
+**Status: ✅ COMPLETE — Validation pass with one discovered-and-resolved defect**
+- Phase A / Phase B separation validated as correct
+- Known limitations (content fabrication, code path analysis) documented as expected
+- MetricsCollector fix verified working with real BugOpsStore shape
+- Ready for TASK-114D (synthetic failure injection)
 
 ### Session 13 (2026-06-20) — TASK-122 Log Collector with Redaction Complete
 

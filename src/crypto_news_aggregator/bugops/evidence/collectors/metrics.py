@@ -42,7 +42,7 @@ class MetricsCollector:
             store: BugOpsStore instance for persisting evidence
             ref_allocator: Allocator for collision-free reference IDs
         """
-        db = await store.mongo_manager.get_async_database()
+        db = store.db
 
         # Determine which subsystems to collect metrics for
         subsystems_to_check = set(bugcase.blast_radius or [])
