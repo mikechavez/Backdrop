@@ -326,8 +326,68 @@ Combined with `config_evidence.llm_daily_soft_limit = $0.25`, this would have ma
 
 ## Completion Summary
 
-- Branch:
-- Commit:
-- Changes made:
-- Tests run:
-- Deviations from plan:
+- **Branch:** task/bugops-121-config-evidence-collector
+- **Commit:** 734c496 (feat: Implement TASK-121A LLMTraceCollector)
+- **Status:** ✅ COMPLETE
+
+### Changes Made
+
+1. **LLMTraceCollector Implementation**
+   - Created `bugops/evidence/collectors/llm_traces.py` (152 lines)
+   - Queries `llm_traces` collection with correct field names (`timestamp`, `cost`)
+   - Window calculation: 60 minutes before `first_seen_at` to `last_seen_at` (or `first_seen_at` if `None`)
+   - Aggregates: total_calls, total_cost, total_input_tokens, total_output_tokens, cached_calls
+   - Per-operation breakdown: calls, cost, last_at timestamp for each operation
+   - Recent traces: limited to 10, sorted most recent first
+   - Evidence references: E-001 (cost), E-002 (operations)
+   - Graceful handling of empty windows (no traces)
+
+2. **LLMTraceSummary Model Update** (bugops/models.py)
+   - Added `window_start`, `window_end`, `collected_at` datetime fields
+   - Changed from `total_operations` to `total_calls` for clarity
+   - Replaced `recent_traces: list[LLMTraceRecord]` with `recent_traces: list[dict]` (more flexible)
+   - Added `operation_breakdown: dict` for per-operation stats
+   - Added `budget_events: list[dict]` (reserved for future)
+
+3. **EvidenceCollector Registration** (bugops/evidence/collector.py)
+   - Added optional `db` parameter to `__init__()`
+   - Conditional registration of LLMTraceCollector when `db` is not None
+   - Maintains backward compatibility (db=None skips registration)
+
+### Test Suite: 14 Tests
+
+✅ All passing:
+- Trace collection with multiple operations
+- Field name correctness (timestamp, cost)
+- Window calculation (60-minute lookback, None handling)
+- Aggregation accuracy (cost, tokens, cached calls)
+- Operation breakdown structure
+- Recent traces limiting
+- Evidence reference generation
+- Empty window handling
+- Missing field defaults
+- Sort order verification
+- Collected_at timestamp generation
+
+**Test run:** `poetry run pytest tests/bugops/test_llm_trace_collector.py -v` → 14 passed
+
+### Regressions
+
+✅ Zero regressions to existing collectors
+- All 62 evidence collector tests passing (14 new + 48 existing)
+- MetricsCollector, SystemStateCollector, RelatedCaseCollector, DeployContextCollector, ConfigEvidenceCollector all passing
+
+### Deviations from Plan
+
+None. Implementation follows TASK-121A spec exactly:
+- Correct field names (timestamp, cost)
+- Correct window calculation
+- Correct aggregations
+- Evidence reference generation
+- Graceful error handling
+
+### Next Steps
+
+- TASK-121B: Can run in parallel (deferred to separate PR)
+- TASK-122: Railway log collector with redaction (depends on TASK-119 ✅)
+- TASK-123: Wire EvidenceCollector into monitor loop (depends on all collectors ✅)
