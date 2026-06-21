@@ -68,6 +68,7 @@ async def test_bugops_monitor_initialization_sequence():
     """Test the full initialization sequence of the monitor."""
     from crypto_news_aggregator.bugops.monitor import BugOpsMonitor
     from crypto_news_aggregator.db.mongodb import mongo_manager
+    import asyncio
 
     monitor = BugOpsMonitor()
     monitor.settings.BUGOPS_ENABLED = True
@@ -78,13 +79,14 @@ async def test_bugops_monitor_initialization_sequence():
         with patch.object(mongo_manager, 'get_async_database', new_callable=AsyncMock, return_value=mock_async_db):
             with patch.object(mongo_manager, 'aclose', new_callable=AsyncMock):
                 with patch.object(monitor, '_poll_signals', new_callable=AsyncMock):
-                    monitor.running = True
-                    await monitor._poll_signals()
-                    monitor.running = False
-
-                    # This should NOT raise TypeError about awaiting sync Database
-                    await monitor.run()
-                    assert True
+                    with patch.object(monitor, '_poll_freshness_detectors', new_callable=AsyncMock):
+                        with patch.object(monitor, '_run_auto_resolution', new_callable=AsyncMock):
+                            with patch.object(monitor, '_run_evidence_collection', new_callable=AsyncMock):
+                                # Patch sleep to immediately stop after one iteration
+                                with patch.object(asyncio, 'sleep', new_callable=AsyncMock, side_effect=lambda *args: monitor.stop()):
+                                    # This should NOT raise TypeError about awaiting sync Database
+                                    await monitor.run()
+                                    assert True
 
 
 @pytest.mark.asyncio
@@ -299,3 +301,244 @@ async def test_poll_signals_slack_returns_false_is_logged():
         await monitor._poll_signals()
         # Verify Slack was attempted
         mock_send_notification.assert_called_once_with(fake_case)
+
+
+@pytest.mark.asyncio
+async def test_run_evidence_collection_queries_store():
+    """Test that _run_evidence_collection queries get_cases_without_evidence."""
+    from crypto_news_aggregator.bugops.monitor import BugOpsMonitor
+
+    monitor = BugOpsMonitor()
+    monitor.store = AsyncMock()
+    monitor.evidence_collector = AsyncMock()
+    monitor.store.get_cases_without_evidence.return_value = []
+
+    await monitor._run_evidence_collection()
+
+    monitor.store.get_cases_without_evidence.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_run_evidence_collection_checks_eligibility():
+    """Test that _run_evidence_collection calls is_eligible for each case."""
+    from crypto_news_aggregator.bugops.monitor import BugOpsMonitor
+    from crypto_news_aggregator.bugops.models import BugCase, AlertSeverity, CaseStatus
+    from datetime import datetime
+
+    monitor = BugOpsMonitor()
+    fake_case = BugCase(
+        case_id="TEST-EV-001",
+        title="Test case",
+        summary="Test summary",
+        severity=AlertSeverity.WARNING,
+        status=CaseStatus.OPEN,
+        source_types=["test"],
+        alert_type="test_alert",
+        dedupe_key="test-dedupe-001",
+        created_at=datetime.utcnow(),
+    )
+
+    monitor.store = AsyncMock()
+    monitor.evidence_collector = AsyncMock()
+    monitor.store.get_cases_without_evidence.return_value = [fake_case]
+    monitor.evidence_collector.is_eligible.return_value = False
+
+    await monitor._run_evidence_collection()
+
+    monitor.evidence_collector.is_eligible.assert_called_once_with(fake_case)
+
+
+@pytest.mark.asyncio
+async def test_run_evidence_collection_skips_ineligible_cases():
+    """Test that _run_evidence_collection skips ineligible cases."""
+    from crypto_news_aggregator.bugops.monitor import BugOpsMonitor
+    from crypto_news_aggregator.bugops.models import BugCase, AlertSeverity, CaseStatus
+    from datetime import datetime
+
+    monitor = BugOpsMonitor()
+    fake_case = BugCase(
+        case_id="TEST-EV-002",
+        title="Test case",
+        summary="Test summary",
+        severity=AlertSeverity.WARNING,
+        status=CaseStatus.OPEN,
+        source_types=["test"],
+        alert_type="test_alert",
+        dedupe_key="test-dedupe-002",
+        created_at=datetime.utcnow(),
+    )
+
+    monitor.store = AsyncMock()
+    monitor.evidence_collector = AsyncMock()
+    monitor.store.get_cases_without_evidence.return_value = [fake_case]
+    monitor.evidence_collector.is_eligible.return_value = False
+
+    await monitor._run_evidence_collection()
+
+    # collect should NOT be called for ineligible cases
+    monitor.evidence_collector.collect.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_run_evidence_collection_calls_collect_for_eligible_cases():
+    """Test that _run_evidence_collection calls collect for eligible cases."""
+    from crypto_news_aggregator.bugops.monitor import BugOpsMonitor
+    from crypto_news_aggregator.bugops.models import BugCase, AlertSeverity, CaseStatus, EvidencePack, EvidencePackStatus
+    from datetime import datetime
+
+    monitor = BugOpsMonitor()
+    fake_case = BugCase(
+        case_id="TEST-EV-003",
+        title="Test case",
+        summary="Test summary",
+        severity=AlertSeverity.WARNING,
+        status=CaseStatus.OPEN,
+        source_types=["test"],
+        alert_type="test_alert",
+        dedupe_key="test-dedupe-003",
+        created_at=datetime.utcnow(),
+    )
+
+    fake_pack = EvidencePack(
+        pack_id="ep_test_123",
+        bugcase_id="TEST-EV-003",
+        collection_status=EvidencePackStatus.COMPLETE,
+        sections_collected=["metrics"],
+        created_at=datetime.utcnow(),
+    )
+
+    monitor.store = AsyncMock()
+    monitor.evidence_collector = AsyncMock()
+    monitor.store.get_cases_without_evidence.return_value = [fake_case]
+    monitor.evidence_collector.is_eligible.return_value = True
+    monitor.evidence_collector.collect.return_value = fake_pack
+
+    await monitor._run_evidence_collection()
+
+    monitor.evidence_collector.collect.assert_called_once_with(fake_case)
+
+
+@pytest.mark.asyncio
+async def test_run_evidence_collection_sends_notification_for_complete_packs():
+    """Test that _run_evidence_collection sends Slack notification for COMPLETE packs."""
+    from crypto_news_aggregator.bugops.monitor import BugOpsMonitor
+    from crypto_news_aggregator.bugops.models import BugCase, AlertSeverity, CaseStatus, EvidencePack, EvidencePackStatus
+    from datetime import datetime
+
+    monitor = BugOpsMonitor()
+    monitor.settings.BUGOPS_SLACK_ENABLED = True
+    fake_case = BugCase(
+        case_id="TEST-EV-004",
+        title="Test case",
+        summary="Test summary",
+        severity=AlertSeverity.WARNING,
+        status=CaseStatus.OPEN,
+        source_types=["test"],
+        alert_type="test_alert",
+        dedupe_key="test-dedupe-004",
+        created_at=datetime.utcnow(),
+    )
+
+    fake_pack = EvidencePack(
+        pack_id="ep_test_124",
+        bugcase_id="TEST-EV-004",
+        collection_status=EvidencePackStatus.COMPLETE,
+        sections_collected=["metrics"],
+        created_at=datetime.utcnow(),
+    )
+
+    monitor.store = AsyncMock()
+    monitor.evidence_collector = AsyncMock()
+    monitor.store.get_cases_without_evidence.return_value = [fake_case]
+    monitor.evidence_collector.is_eligible.return_value = True
+    monitor.evidence_collector.collect.return_value = fake_pack
+
+    with patch('crypto_news_aggregator.bugops.slack.send_evidence_collected_notification', new_callable=AsyncMock) as mock_notify:
+        await monitor._run_evidence_collection()
+        mock_notify.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_run_evidence_collection_does_not_notify_for_partial_packs():
+    """Test that _run_evidence_collection does NOT send Slack notification for PARTIAL packs."""
+    from crypto_news_aggregator.bugops.monitor import BugOpsMonitor
+    from crypto_news_aggregator.bugops.models import BugCase, AlertSeverity, CaseStatus, EvidencePack, EvidencePackStatus
+    from datetime import datetime
+
+    monitor = BugOpsMonitor()
+    monitor.settings.BUGOPS_SLACK_ENABLED = True
+    fake_case = BugCase(
+        case_id="TEST-EV-005",
+        title="Test case",
+        summary="Test summary",
+        severity=AlertSeverity.WARNING,
+        status=CaseStatus.OPEN,
+        source_types=["test"],
+        alert_type="test_alert",
+        dedupe_key="test-dedupe-005",
+        created_at=datetime.utcnow(),
+    )
+
+    fake_pack = EvidencePack(
+        pack_id="ep_test_125",
+        bugcase_id="TEST-EV-005",
+        collection_status=EvidencePackStatus.PARTIAL,
+        sections_collected=["metrics"],
+        sections_missing=[{"collector_name": "logs", "reason": "API timeout"}],
+        created_at=datetime.utcnow(),
+    )
+
+    monitor.store = AsyncMock()
+    monitor.evidence_collector = AsyncMock()
+    monitor.store.get_cases_without_evidence.return_value = [fake_case]
+    monitor.evidence_collector.is_eligible.return_value = True
+    monitor.evidence_collector.collect.return_value = fake_pack
+
+    with patch('crypto_news_aggregator.bugops.slack.send_evidence_collected_notification', new_callable=AsyncMock) as mock_notify:
+        await monitor._run_evidence_collection()
+        mock_notify.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_run_evidence_collection_handles_errors_gracefully():
+    """Test that _run_evidence_collection handles errors gracefully and continues."""
+    from crypto_news_aggregator.bugops.monitor import BugOpsMonitor
+    from crypto_news_aggregator.bugops.models import BugCase, AlertSeverity, CaseStatus
+    from datetime import datetime
+
+    monitor = BugOpsMonitor()
+    case1 = BugCase(
+        case_id="TEST-EV-006",
+        title="Case 1",
+        summary="Test summary",
+        severity=AlertSeverity.WARNING,
+        status=CaseStatus.OPEN,
+        source_types=["test"],
+        alert_type="test_alert",
+        dedupe_key="test-dedupe-006",
+        created_at=datetime.utcnow(),
+    )
+    case2 = BugCase(
+        case_id="TEST-EV-007",
+        title="Case 2",
+        summary="Test summary",
+        severity=AlertSeverity.WARNING,
+        status=CaseStatus.OPEN,
+        source_types=["test"],
+        alert_type="test_alert",
+        dedupe_key="test-dedupe-007",
+        created_at=datetime.utcnow(),
+    )
+
+    monitor.store = AsyncMock()
+    monitor.evidence_collector = AsyncMock()
+    monitor.store.get_cases_without_evidence.return_value = [case1, case2]
+
+    # First case fails, second succeeds
+    monitor.evidence_collector.is_eligible.side_effect = [Exception("Test error"), True]
+
+    # Should NOT raise
+    await monitor._run_evidence_collection()
+
+    # Both cases should have been attempted
+    assert monitor.evidence_collector.is_eligible.call_count == 2

@@ -536,3 +536,30 @@ class BugOpsStore:
         ).sort("first_seen_at", -1).limit(limit).to_list(None)
 
         return [BugCase(**_normalize_mongo_doc(doc)) for doc in docs]
+
+    async def get_cases_without_evidence(self) -> list[BugCase]:
+        """
+        Return BugCases that have no Evidence Pack attached and are eligible for collection.
+
+        Query: cases where status is NOT 'closed' (CaseStatus.CLOSED),
+        AND case_id is NOT in evidence_packs.bugcase_id collection.
+
+        Includes both open and resolved cases — resolved cases are still eligible
+        if they have no Evidence Pack (see TASK-116 eligibility rules).
+
+        Returns:
+            List of BugCases without Evidence Packs
+        """
+        # Fetch all bugcase_ids that have evidence packs
+        evidence_pack_docs = await self.evidence_packs_collection.find(
+            {}, {"bugcase_id": 1}
+        ).to_list(None)
+        bugcase_ids_with_packs = {doc["bugcase_id"] for doc in evidence_pack_docs}
+
+        # Query for cases where status != 'closed' and not in bugcase_ids_with_packs
+        docs = await self.cases_collection.find({
+            "status": {"$ne": "closed"},
+            "case_id": {"$nin": list(bugcase_ids_with_packs)}
+        }).to_list(None)
+
+        return [BugCase(**_normalize_mongo_doc(doc)) for doc in docs]
