@@ -594,26 +594,39 @@ TASK-121 (Collect Configuration Evidence) implemented and locked:
 
 ### Session 12 (2026-06-20) — TASK-121A LLM Trace and Cost Evidence Collector Complete
 
-TASK-121A (Collect LLM Trace and Cost Evidence) implemented and locked:
+TASK-121A (Collect LLM Trace and Cost Evidence) implemented, reviewed, and locked:
 - ✅ `LLMTraceCollector` at `bugops/evidence/collectors/llm_traces.py` (152 lines)
 - ✅ Queries `llm_traces` collection with correct field names: `timestamp` (NOT `created_at`), `cost` (NOT `cost_usd`)
 - ✅ Window calculation: 60 minutes before `first_seen_at` to `last_seen_at` (or `first_seen_at` if `None`)
 - ✅ Aggregates: total_calls, total_cost, total_input_tokens, total_output_tokens, cached_calls
 - ✅ Per-operation breakdown: calls, cost, last_at timestamp for each operation
 - ✅ Recent traces: limited to 10, sorted most recent first
-- ✅ Evidence references: E-001 (cost), E-002 (operations) — collision-free via ref_allocator
+- ✅ Evidence references: E-001 (cost), E-002 (operation_breakdown) — collision-free via ref_allocator
 - ✅ Graceful empty window handling (no traces found)
 - ✅ Updated `LLMTraceSummary` model in `bugops/models.py`:
   - Added window_start, window_end, collected_at timestamps
   - Changed from total_operations to total_calls
   - Changed recent_traces from `list[LLMTraceRecord]` to `list[dict]` (flexible storage)
-  - Added operation_breakdown and budget_events fields
+  - Added **operation_breakdown** (not "operations" — clarified for InvestigationProvider) and budget_events fields
 - ✅ Conditional registration in EvidenceCollector (optional db parameter)
 - ✅ 14 comprehensive unit tests: field names, window calculation, aggregation, breakdown, limiting, refs, empty handling, defaults, sorting, timestamps
+- ✅ TASK-121A formal review pass complete: schema naming confirmed, TASK-114A mapping verified accurate, all 8 acceptance criteria satisfied, BUG-064 diagnosticity confirmed
 - ✅ 62 total collector tests passing (14 new LLMTraceCollector + 48 existing); zero regressions
-- Commits: 734c496 (implementation + tests + full spec compliance)
+- Commits: 734c496 (implementation + tests); ticket updated with design decision doc
 - Status: ✅ COMPLETE — Ready to unlock TASK-122 (log collector) and TASK-123 (monitor wiring)
 - Phase A now has 6 of 7 collectors complete; final collector: TASK-122 (Railway logs with redaction)
+
+### Session 13 (2026-06-20) — TASK-121A Formal Review Pass Complete
+
+TASK-121A formal review completed before TASK-123 wiring to catch schema drift:
+- ✅ **Canonical schema naming audit:** Ticket spec prescribed `operations`, implementation uses `operation_breakdown`. Deliberate design choice during implementation (more descriptive name). Now documented in ticket completion summary for InvestigationProvider.
+- ✅ **TASK-114A mapping verification:** Schema mapping document (`evidence-pack-bug064-schema-mapping.md`) is accurate and complete. LLMTraceSummary section (lines 58-63) correctly references `operation_breakdown`.
+- ✅ **Acceptance criteria audit:** All 8 criteria satisfied (model, field, field names, empty traces, references, registration, mapping, tests)
+- ✅ **EvidencePack compatibility:** No field duplication, no conflicts, all future compatibility verified (TASK-123, TASK-124+)
+- ✅ **BUG-064 diagnosticity:** Root cause (cost control failure) fully diagnosable from Evidence Pack alone. Soft limit threshold ($0.25) vs. actual spend ($0.2954) vs. blocked operation name vs. critical operations list all present.
+- ✅ **Documentation cleanup:** TASK-121A ticket Completion Summary updated to document `operations` → `operation_breakdown` rename decision and confirm InvestigationProvider should read the canonical field name.
+- Artifacts: Review document created (`TASK-121A-REVIEW.md`), ticket updated with design decision note
+- Status: ✅ COMPLETE — Schema drift closed. Ready for TASK-123.
 
 ### Session 13 (2026-06-20) — TASK-122 Log Collector with Redaction Complete
 

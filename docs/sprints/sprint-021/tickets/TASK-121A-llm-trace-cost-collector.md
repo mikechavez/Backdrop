@@ -326,9 +326,24 @@ Combined with `config_evidence.llm_daily_soft_limit = $0.25`, this would have ma
 
 ## Completion Summary
 
-- **Branch:** task/bugops-121-config-evidence-collector
+- **Branch:** task/bugops-121a-llm-trace-cost-collector
 - **Commit:** 734c496 (feat: Implement TASK-121A LLMTraceCollector)
 - **Status:** ✅ COMPLETE
+
+### Design Decision: Field Naming
+
+**Original spec (line 107):** `operations: dict`  
+**Final canonical name:** `operation_breakdown: dict`  
+**Reason:** More descriptive; aligns with "breakdown by operation" semantics; matches TASK-114A schema review.
+
+**All references use the canonical name:**
+- ✅ `models.py:254` — field definition
+- ✅ `llm_traces.py:123` — collector assignment
+- ✅ `llm_traces.py:139` — evidence reference field name
+- ✅ `test_llm_trace_collector.py` — all tests (14 passing)
+- ✅ `evidence-pack-bug064-schema-mapping.md:61` — schema mapping confirmed
+
+**For InvestigationProvider (TASK-124+):** Read `llm_trace_summary.operation_breakdown` (NOT `operations`).
 
 ### Changes Made
 
