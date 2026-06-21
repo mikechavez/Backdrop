@@ -285,8 +285,21 @@ pytest tests/bugops/ -v
 
 ## Completion Summary
 
-- Branch:
-- Commit:
-- Changes made:
-- Redaction patterns added beyond baseline (if any):
-- Deviations from plan:
+- **Branch:** `task/bugops-122-railway-log-collector-redaction`
+- **Commits:** 
+  - 8b5c1f9 (implementation + tests)
+  - bb45faa (defensive checks for edge cases)
+- **Changes made:**
+  - Created `bugops/evidence/redaction.py` — LogRedactor with 6 patterns
+  - Created `bugops/evidence/collectors/logs.py` — LogCollector with Railway integration
+  - Created `tests/bugops/test_log_redactor.py` — 24 comprehensive tests
+  - Created `tests/bugops/test_log_collector.py` — 16 comprehensive tests (including None-safety)
+  - Modified `bugops/evidence/collector.py` — auto-register LogCollector
+  - Modified `tests/bugops/test_evidence_collector.py` — update for 6th collector
+- **Redaction patterns added beyond baseline:** None; all 6 patterns match ticket specification exactly
+- **Deviations from plan:** 
+  - Added defensive `first_seen_at=None` check (same pattern as TASK-120)
+  - Added test case for None-safety verification
+  - Documented `redactions_applied` field ownership for future cumulative redaction support
+
+**Test Results:** 62 total tests passing (24 redactor + 16 collector + 22 framework tests; zero regressions)

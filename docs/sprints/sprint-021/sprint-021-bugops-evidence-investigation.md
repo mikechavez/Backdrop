@@ -79,7 +79,7 @@ Key design insight from BUG-064 Golden Incident exercise: for a cost-control fai
 | 8 | TASK-120 | Collect deploy context via Railway | A | ✅ COMPLETE (VERIFIED) | M |
 | 9 | TASK-121 | Collect Configuration Evidence | A | ✅ COMPLETE | S |
 | 10 | TASK-121A | Collect LLM Trace and Cost Evidence | A | ✅ COMPLETE | S |
-| 11 | TASK-122 | Collect Railway log excerpts with redaction | A | 🔲 OPEN | M |
+| 11 | TASK-122 | Collect Railway log excerpts with redaction | A | ✅ COMPLETE | M |
 | 12 | TASK-123 | Wire EvidenceCollector into monitor loop | A | 🔲 OPEN | M |
 | — | **PHASE A EXIT GATE** | Review 3+ real Evidence Packs before proceeding | — | 🔲 OPEN | — |
 | 13 | TASK-124 | Define Investigation model and schema | B | 🔲 OPEN | M |
@@ -614,3 +614,22 @@ TASK-121A (Collect LLM Trace and Cost Evidence) implemented and locked:
 - Commits: 734c496 (implementation + tests + full spec compliance)
 - Status: ✅ COMPLETE — Ready to unlock TASK-122 (log collector) and TASK-123 (monitor wiring)
 - Phase A now has 6 of 7 collectors complete; final collector: TASK-122 (Railway logs with redaction)
+
+### Session 13 (2026-06-20) — TASK-122 Log Collector with Redaction Complete
+
+TASK-122 (Collect Railway log excerpts with redaction) implemented and locked:
+- ✅ `LogRedactor` at `bugops/evidence/redaction.py` (6 patterns: MongoDB URIs, Bearer tokens, api_key, email, hex tokens)
+- ✅ `LogCollector` at `bugops/evidence/collectors/logs.py` (Railway integration for all 3 services)
+- ✅ Window: first_seen_at ± BUGOPS_LOG_WINDOW_MINUTES to last_seen_at ± BUGOPS_LOG_WINDOW_MINUTES
+- ✅ Lines redacted before storage via LogRedactor.redact_lines()
+- ✅ Truncation metadata recorded per service (truncated flag, lines_fetched, lines_stored)
+- ✅ Railway failures handled gracefully per-service in sections_missing; continues to other services
+- ✅ Evidence reference counts total lines and truncated services
+- ✅ Auto-registered in EvidenceCollector (no manual registration)
+- ✅ Defensive check: bugcase.first_seen_at=None skips collection with explicit error (same pattern as TASK-120)
+- ✅ Defensive check: redactions_applied field ownership documented for future cumulative support
+- ✅ 24 redactor tests: all patterns verified, no false positives
+- ✅ 16 collector tests: collection, redaction, errors, references, None-safety
+- ✅ 62 total collector tests passing (40 new + 22 existing framework); zero regressions
+- Commits: 8b5c1f9 (implementation + tests), bb45faa (defensive checks)
+- Status: ✅ COMPLETE — All 7 Phase A collectors now complete; ready for TASK-123 (monitor wiring)
