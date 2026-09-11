@@ -331,6 +331,11 @@ print('Timestamp: ' + new Date().toISOString());
 
 #### Step 2: Dry-Run — Count and Sample llm_traces Older Than 7 Days
 
+**⚠️ CRITICAL FIELD CORRECTION:** The llm_traces collection uses `timestamp` field (not `created_at`). This is confirmed by:
+- TTL index: `{ timestamp: 1, expireAfterSeconds: 2592000 }`
+- Audit output showing age distribution by `timestamp`
+- Fresh audit showing oldest trace: 2026-08-29
+
 **Cutoff date: 2026-09-04T00:00:00Z**
 **Batch limit: 100,000 documents**
 
@@ -340,7 +345,7 @@ In your existing `mongosh` session:
 const db = db.getSiblingDB('crypto_news');
 const cutoff = new Date('2026-09-04T00:00:00Z');
 const toDelete = db.llm_traces.find(
-  { 'created_at': { $lt: cutoff } },
+  { 'timestamp': { $lt: cutoff } },
   { _id: 1 }
 ).limit(100000).toArray();
 print('=== DRY-RUN: llm_traces DELETION ===');
@@ -349,74 +354,120 @@ print('Documents to delete: ' + toDelete.length);
 print('Sample IDs (first 10):');
 toDelete.slice(0, 10).forEach(doc => print('  ' + doc._id));
 print('Estimated MB to free: ' + Math.round(toDelete.length * 0.65));
+print('Note: Filter uses timestamp field (TTL index field)');
 ```
 
 **Expected output:** ~90K–100K documents per batch (after first 100K deleted in previous session), ~60–70 MB recovery per batch
+
+**Validation before proceeding:**
+- If `toDelete.length === 0`: STOP — field name may still be wrong; check first document: `db.llm_traces.findOne({}, {_id:0, timestamp:1, created_at:1, updated_at:1})`
+- If `toDelete.length > 0`: Proceed to Step 3
 
 #### Step 3: Execute Deletion Batch (100K at a time)
 
 **Repeat for each batch (up to 3 batches to clear ~281K traces).**
 
-**Run only after confirming dry-run output above.**
+**Run only after confirming dry-run output above (toDelete.length > 0).**
 
-In your existing `mongosh` session:
+In your existing `mongosh` session, run this EXACTLY as shown:
 
 ```javascript
 const db = db.getSiblingDB('crypto_news');
 const cutoff = new Date('2026-09-04T00:00:00Z');
 const toDelete = db.llm_traces.find(
-  { 'created_at': { $lt: cutoff } },
+  { 'timestamp': { $lt: cutoff } },
   { _id: 1 }
 ).limit(100000).toArray();
 const idList = toDelete.map(doc => doc._id);
 print('=== BATCH DELETION ===');
 print('Timestamp: ' + new Date().toISOString());
-print('Deleting ' + idList.length + ' documents with created_at < 2026-09-04T00:00:00Z');
+print('IDs selected: ' + idList.length);
+print('Deleting ' + idList.length + ' documents with timestamp < 2026-09-04T00:00:00Z');
 const result = db.llm_traces.deleteMany({ _id: { $in: idList } });
 print('Result: Deleted ' + result.deletedCount + ' documents');
 if (result.deletedCount === 0) {
   print('WARNING: No documents deleted. Remaining pool may be exhausted.');
+} else if (result.deletedCount !== idList.length) {
+  print('WARNING: Deleted count (' + result.deletedCount + ') differs from selected count (' + idList.length + ')');
 }
 print('');
-print('Next step: Run post-batch verification audit and check Atlas UI.');
+print('NEXT: Check Atlas quota on UI, then run Step 4 verification.');
 ```
 
 **Record the output:**
 - Batch number
-- Exact timestamp
+- Exact timestamp (from print output)
 - IDs selected (count)
-- Deleted count
+- Deleted count (from result)
 - Any errors or warnings
 
-#### Step 4: Post-Batch Verification (Atlas-Focused)
+**CRITICAL: Before proceeding to Step 4, check Atlas UI (https://cloud.mongodb.com) for quota usage.**
 
-After each deletion batch, run this read-only audit:
+#### Step 4: Post-Batch Verification (In-Session Mongosh)
 
-```bash
-python scripts/mongodb_storage_audit.py \
-  --database crypto_news \
-  --show-age > /tmp/audit-batch-N-2026-09-11.txt
+After each deletion batch, run these read-only checks in the same `mongosh` session:
+
+**4a. Database Stats (Quick Snapshot)**
+
+```javascript
+const db = db.getSiblingDB('crypto_news');
+const stats = db.dbStats();
+print('=== POST-BATCH DB STATS ===');
+print('Timestamp: ' + new Date().toISOString());
+print('Data Size: ' + Math.round(stats.dataSize / 1024 / 1024) + ' MB');
+print('Storage Size: ' + Math.round(stats.storageSize / 1024 / 1024) + ' MB');
+print('Index Size: ' + Math.round(stats.indexSize / 1024 / 1024) + ' MB');
+```
+
+**4b. llm_traces Collection Status**
+
+```javascript
+const traces = db.llm_traces;
+print('=== llm_traces STATUS ===');
+print('Total documents: ' + traces.countDocuments({}));
+print('Documents older than 2026-09-04: ' + traces.countDocuments({ 'timestamp': { $lt: new Date('2026-09-04T00:00:00Z') } }));
+print('Documents newer than 2026-09-04: ' + traces.countDocuments({ 'timestamp': { $gte: new Date('2026-09-04T00:00:00Z') } }));
+const oldest = traces.findOne({}, { sort: { timestamp: 1 } });
+const newest = traces.findOne({}, { sort: { timestamp: -1 } });
+print('Oldest trace: ' + (oldest ? oldest.timestamp.toISOString() : 'N/A'));
+print('Newest trace: ' + (newest ? newest.timestamp.toISOString() : 'N/A'));
+```
+
+**4c. Protected Collections Check (Integrity Verification)**
+
+```javascript
+print('=== PROTECTED COLLECTIONS CHECK ===');
+print('api_costs documents: ' + db.api_costs.countDocuments({}));
+print('articles documents: ' + db.articles.countDocuments({}));
+print('entity_mentions documents: ' + db.entity_mentions.countDocuments({}));
+print('narratives documents: ' + db.narratives.countDocuments({}));
+print('daily_briefings documents: ' + db.daily_briefings.countDocuments({}));
 ```
 
 **Then record in ticket:**
-1. Batch number and timestamp (exact ISO)
-2. IDs deleted (count from mongosh output above)
-3. Actual deleted count (from mongosh result)
-4. **Atlas quota usage** (check Atlas UI directly: https://cloud.mongodb.com)
-   - Record: X MB / 512 MB and whether WRITES BLOCKED is still active
-5. From audit output:
-   - Total llm_traces (should decrease)
+1. Batch number and timestamp (from Step 3 output)
+2. IDs deleted (count from Step 3)
+3. Actual deleted count (from Step 3 result)
+4. **CRITICAL: Atlas quota usage** (check Atlas UI directly at https://cloud.mongodb.com)
+   - Record: X MB / 512 MB 
+   - Record: Is WRITES BLOCKED still active?
+   - **This is the authoritative measurement**
+5. From Step 4 output:
+   - Total llm_traces after batch
    - Oldest remaining trace timestamp
-   - Collections storage size
-   - Indexes storage size
+   - Database data size
+   - Database storage size
+   - Protected collections: count should NOT change
+6. Decide: Continue to next batch or stop?
 
 **Stopping Conditions (Check AFTER Each Batch):**
-- ✋ **Stop if** deletion throws an error or fails
-- ✋ **Stop if** Atlas usage does not change or increases after first batch
-- ✋ **Stop if** data integrity check fails (protected collections modified)
-- ✅ **Continue if** Atlas usage drops AND protected collections unchanged
+- ✋ **Stop if** deletion threw an error
+- ✋ **Stop if** Atlas quota did not move or increased after first batch
+- ✋ **Stop if** protected collections count changed (data loss)
+- ✋ **Stop if** oldest remaining trace shows unexpected pattern
+- ✅ **Continue if** Atlas quota dropped AND protected collections unchanged
 
-**Do NOT assume dbStats headroom is accurate.** Check Atlas UI directly for quota usage.
+**CRITICAL: Do NOT assume dbStats is accurate for quota decisions.** Only trust Atlas UI reading.
 
 ---
 
