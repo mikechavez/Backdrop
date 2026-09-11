@@ -339,10 +339,9 @@ print('Timestamp: ' + new Date().toISOString());
 **Cutoff date: 2026-09-04T00:00:00Z**
 **Batch limit: 100,000 documents**
 
-In your existing `mongosh` session:
+In your existing `mongosh` session (you are already connected to crypto_news database):
 
 ```javascript
-const db = db.getSiblingDB('crypto_news');
 const cutoff = new Date('2026-09-04T00:00:00Z');
 const toDelete = db.llm_traces.find(
   { 'timestamp': { $lt: cutoff } },
@@ -357,6 +356,8 @@ print('Estimated MB to free: ' + Math.round(toDelete.length * 0.65));
 print('Note: Filter uses timestamp field (TTL index field)');
 ```
 
+**Do not declare `const db` again** — you are already in the crypto_news database session. Use the existing `db` variable.
+
 **Expected output:** ~90K–100K documents per batch (after first 100K deleted in previous session), ~60–70 MB recovery per batch
 
 **Validation before proceeding:**
@@ -369,10 +370,9 @@ print('Note: Filter uses timestamp field (TTL index field)');
 
 **Run only after confirming dry-run output above (toDelete.length > 0).**
 
-In your existing `mongosh` session, run this EXACTLY as shown:
+In your existing `mongosh` session (already in crypto_news database):
 
 ```javascript
-const db = db.getSiblingDB('crypto_news');
 const cutoff = new Date('2026-09-04T00:00:00Z');
 const toDelete = db.llm_traces.find(
   { 'timestamp': { $lt: cutoff } },
@@ -394,6 +394,8 @@ print('');
 print('NEXT: Check Atlas quota on UI, then run Step 4 verification.');
 ```
 
+**Do not declare `const db` again** — use the existing `db` variable from your session.
+
 **Record the output:**
 - Batch number
 - Exact timestamp (from print output)
@@ -409,8 +411,9 @@ After each deletion batch, run these read-only checks in the same `mongosh` sess
 
 **4a. Database Stats (Quick Snapshot)**
 
+Run in your existing mongosh session:
+
 ```javascript
-const db = db.getSiblingDB('crypto_news');
 const stats = db.dbStats();
 print('=== POST-BATCH DB STATS ===');
 print('Timestamp: ' + new Date().toISOString());
@@ -443,6 +446,8 @@ print('entity_mentions documents: ' + db.entity_mentions.countDocuments({}));
 print('narratives documents: ' + db.narratives.countDocuments({}));
 print('daily_briefings documents: ' + db.daily_briefings.countDocuments({}));
 ```
+
+**All blocks use the existing `db` variable from your session.**
 
 **Then record in ticket:**
 1. Batch number and timestamp (from Step 3 output)
