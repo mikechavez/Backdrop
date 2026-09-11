@@ -223,16 +223,31 @@ The exact operator command package for the approved `llm_traces` cutoff must be 
 - Remaining old traces (231K docs) preserved; can be cleaned up in Phase 4
 
 ### Prevention Gaps → TASK-128
-Handed to TASK-128 for long-term fixes:
+
+**CRITICAL:** 231,406 old traces remain in database (not required for quota recovery but undeleted). The cleanup restored service, but database will accumulate again unless TASK-128 implements:
+
 1. **Durable TTL validation** at startup (ensure TTL index exists and is configured)
 2. **Retention monitoring dashboard** (track trace age distribution, quota usage trends)
-3. **Automatic cleanup** (periodic job to delete traces older than 7 days, configurable)
+3. **Automatic cleanup** (periodic job to delete traces older than configurable window, e.g., 7 days)
 4. **Quota alerting** (alert when storage crosses 75%, 90%, 100% of quota)
 5. **Index bloat monitoring** (track index size growth, early warning)
 
+**Recurrence risk:** Without TASK-128, production may exceed quota again in 2–4 weeks depending on trace volume. TASK-128 must be prioritized before high-volume production runs resume.
+
+### Metrics Clarification
+
+| Metric | Pre-Cleanup (2026-09-11 01:38 UTC) | Post-Cleanup (2026-09-11 20:20:45 UTC) | Note |
+|--------|-----|-----|-----|
+| **Logical Data Size** (dataSize) | 428 MB | 358 MB | Application data; 70 MB freed by deletion |
+| **Allocated Storage Size** (storageSize) | 108 MB | 121 MB | Disk allocation; counts toward Atlas quota. Increase due to compaction lag (normal) |
+| **Atlas Quota Limit** | 512 MB | 512 MB | Fixed M0 tier limit |
+| **Quota Status** | **-24.9 MB** (EXCEEDED) | **+391 MB headroom** (HEALTHY) | Pre: over quota; Post: restored |
+| **Index Size** | ~83.3 MB | ~83.3 MB (estimated) | Unchanged; not deleted |
+| **llm_traces Documents** | 393,114 | 293,114 | 100,000 deleted; 231,406 old docs remain |
+
 ---
 
-**Status:** ✅ BUG-105 COMPLETE — Production restored, incident documented, prevention handoff ready.
+**Status:** ✅ BUG-105 COMPLETE — Production restored, incident documented. **TASK-128 required for recurrence prevention.**
 
 ## Files to Modify
 
