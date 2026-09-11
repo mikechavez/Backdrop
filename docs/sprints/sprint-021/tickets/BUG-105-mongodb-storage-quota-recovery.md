@@ -312,22 +312,21 @@ Production verification must be performed using the deployment platform and Atla
 
 #### Step 1: Verify Database and Quota (Read-Only)
 
-```bash
-mongosh "mongodb+srv://[USER]:[PASS]@[CLUSTER].mongodb.net/crypto_news" \
-  --eval "
-  const db = db.getSiblingDB('crypto_news');
-  const stats = db.dbStats();
-  const quotaMB = 512;
-  const usedMB = Math.round(stats.dataSize / 1024 / 1024);
-  const storageMB = Math.round(stats.storageSize / 1024 / 1024);
-  print('=== PRE-CLEANUP VERIFICATION ===');
-  print('Database: crypto_news');
-  print('Data Size: ' + usedMB + ' MB');
-  print('Storage Size: ' + storageMB + ' MB');
-  print('Quota: ' + quotaMB + ' MB');
-  print('Over Quota: ' + (storageMB - quotaMB) + ' MB');
-  print('Timestamp: ' + new Date().toISOString());
-  "
+In your existing `mongosh` session (already authenticated):
+
+```javascript
+const db = db.getSiblingDB('crypto_news');
+const stats = db.dbStats();
+const quotaMB = 512;
+const usedMB = Math.round(stats.dataSize / 1024 / 1024);
+const storageMB = Math.round(stats.storageSize / 1024 / 1024);
+print('=== PRE-CLEANUP VERIFICATION ===');
+print('Database: crypto_news');
+print('Data Size: ' + usedMB + ' MB');
+print('Storage Size: ' + storageMB + ' MB');
+print('Quota: ' + quotaMB + ' MB');
+print('Over Quota: ' + (storageMB - quotaMB) + ' MB');
+print('Timestamp: ' + new Date().toISOString());
 ```
 
 #### Step 2: Dry-Run — Count and Sample llm_traces Older Than 7 Days
@@ -335,77 +334,89 @@ mongosh "mongodb+srv://[USER]:[PASS]@[CLUSTER].mongodb.net/crypto_news" \
 **Cutoff date: 2026-09-04T00:00:00Z**
 **Batch limit: 100,000 documents**
 
-```bash
-mongosh "mongodb+srv://[USER]:[PASS]@[CLUSTER].mongodb.net/crypto_news" \
-  --eval "
-  const db = db.getSiblingDB('crypto_news');
-  const cutoff = new Date('2026-09-04T00:00:00Z');
-  const toDelete = db.llm_traces.find(
-    { 'created_at': { \$lt: cutoff } },
-    { _id: 1 }
-  ).limit(100000).toArray();
-  print('=== DRY-RUN: llm_traces DELETION ===');
-  print('Cutoff: ' + cutoff.toISOString());
-  print('Documents to delete: ' + toDelete.length);
-  print('Sample IDs (first 10):');
-  toDelete.slice(0, 10).forEach(doc => print('  ' + doc._id));
-  print('Estimated MB to free: ' + Math.round(toDelete.length * 0.65));
-  "
+In your existing `mongosh` session:
+
+```javascript
+const db = db.getSiblingDB('crypto_news');
+const cutoff = new Date('2026-09-04T00:00:00Z');
+const toDelete = db.llm_traces.find(
+  { 'created_at': { $lt: cutoff } },
+  { _id: 1 }
+).limit(100000).toArray();
+print('=== DRY-RUN: llm_traces DELETION ===');
+print('Cutoff: ' + cutoff.toISOString());
+print('Documents to delete: ' + toDelete.length);
+print('Sample IDs (first 10):');
+toDelete.slice(0, 10).forEach(doc => print('  ' + doc._id));
+print('Estimated MB to free: ' + Math.round(toDelete.length * 0.65));
 ```
 
-**Expected output:** ~250K–300K documents to delete, ~160–200 MB recovery
+**Expected output:** ~90K–100K documents per batch (after first 100K deleted in previous session), ~60–70 MB recovery per batch
 
-#### Step 3: Execute Deletion (One Batch)
+#### Step 3: Execute Deletion Batch (100K at a time)
+
+**Repeat for each batch (up to 3 batches to clear ~281K traces).**
 
 **Run only after confirming dry-run output above.**
 
-```bash
-mongosh "mongodb+srv://[USER]:[PASS]@[CLUSTER].mongodb.net/crypto_news" \
-  --eval "
-  const db = db.getSiblingDB('crypto_news');
-  const cutoff = new Date('2026-09-04T00:00:00Z');
-  const toDelete = db.llm_traces.find(
-    { 'created_at': { \$lt: cutoff } },
-    { _id: 1 }
-  ).limit(100000).toArray();
-  const idList = toDelete.map(doc => doc._id);
-  print('Deleting ' + idList.length + ' documents...');
-  const result = db.llm_traces.deleteMany({ _id: { \$in: idList } });
-  print('=== DELETION RESULT ===');
-  print('Deleted: ' + result.deletedCount);
-  print('Timestamp: ' + new Date().toISOString());
-  "
+In your existing `mongosh` session:
+
+```javascript
+const db = db.getSiblingDB('crypto_news');
+const cutoff = new Date('2026-09-04T00:00:00Z');
+const toDelete = db.llm_traces.find(
+  { 'created_at': { $lt: cutoff } },
+  { _id: 1 }
+).limit(100000).toArray();
+const idList = toDelete.map(doc => doc._id);
+print('=== BATCH DELETION ===');
+print('Timestamp: ' + new Date().toISOString());
+print('Deleting ' + idList.length + ' documents with created_at < 2026-09-04T00:00:00Z');
+const result = db.llm_traces.deleteMany({ _id: { $in: idList } });
+print('Result: Deleted ' + result.deletedCount + ' documents');
+if (result.deletedCount === 0) {
+  print('WARNING: No documents deleted. Remaining pool may be exhausted.');
+}
+print('');
+print('Next step: Run post-batch verification audit and check Atlas UI.');
 ```
 
 **Record the output:**
-- Exact count deleted
-- Timestamp
-- Any errors
+- Batch number
+- Exact timestamp
+- IDs selected (count)
+- Deleted count
+- Any errors or warnings
 
-#### Step 4: Post-Batch Verification
+#### Step 4: Post-Batch Verification (Atlas-Focused)
 
-After each deletion batch, run:
+After each deletion batch, run this read-only audit:
 
 ```bash
-mongosh "mongodb+srv://[USER]:[PASS]@[CLUSTER].mongodb.net/crypto_news" \
-  --eval "
-  const db = db.getSiblingDB('crypto_news');
-  const stats = db.dbStats();
-  const quotaMB = 512;
-  const usedMB = Math.round(stats.dataSize / 1024 / 1024);
-  const storageMB = Math.round(stats.storageSize / 1024 / 1024);
-  const headroom = quotaMB - storageMB;
-  print('=== POST-BATCH VERIFICATION ===');
-  print('Data Size: ' + usedMB + ' MB');
-  print('Storage Size: ' + storageMB + ' MB');
-  print('Headroom: ' + headroom + ' MB');
-  print('Status: ' + (headroom >= 100 ? 'TARGET REACHED' : 'Continue cleanup'));
-  print('Timestamp: ' + new Date().toISOString());
-  "
+python scripts/mongodb_storage_audit.py \
+  --database crypto_news \
+  --show-age > /tmp/audit-batch-N-2026-09-11.txt
 ```
 
-**Stop if headroom ≥ 100 MB.**
-**Escalate if headroom decreases unexpectedly.**
+**Then record in ticket:**
+1. Batch number and timestamp (exact ISO)
+2. IDs deleted (count from mongosh output above)
+3. Actual deleted count (from mongosh result)
+4. **Atlas quota usage** (check Atlas UI directly: https://cloud.mongodb.com)
+   - Record: X MB / 512 MB and whether WRITES BLOCKED is still active
+5. From audit output:
+   - Total llm_traces (should decrease)
+   - Oldest remaining trace timestamp
+   - Collections storage size
+   - Indexes storage size
+
+**Stopping Conditions (Check AFTER Each Batch):**
+- ✋ **Stop if** deletion throws an error or fails
+- ✋ **Stop if** Atlas usage does not change or increases after first batch
+- ✋ **Stop if** data integrity check fails (protected collections modified)
+- ✅ **Continue if** Atlas usage drops AND protected collections unchanged
+
+**Do NOT assume dbStats headroom is accurate.** Check Atlas UI directly for quota usage.
 
 ---
 
@@ -562,28 +573,65 @@ The problem is **retention volume**, not broken TTL. TTL is working (configured 
    - M2: Starts at 2 GB
    - Would immediately resolve quota, but increases cost
 
-**Decision Gate: Further Deletion or Investigation?**
+### Phase 3: Experimental Cleanup — Testing Atlas Quota Response ⚠️ PENDING
 
-**Option A: Attempt Final Cleanup Batch** (Recommendation: Try this first)
-- Delete remaining 281,575 traces older than 2026-09-04
-- Expected impact: Reduce collections from 107 MB → ~40 MB (67 MB freed in application)
-- Measurement: Re-run audit; check if Atlas quota drops below 500 MB
-- **If Atlas quota moves:** Gap was application data; continue with incremental cleanup
-- **If Atlas quota unchanged:** Gap is Atlas infrastructure; proceed to Option B
+**Objective:** Determine whether deleting remaining old traces reduces Atlas quota usage. This is an **experiment, not a definitive test**. The 307 MB gap may remain even after application data is minimized if it represents cluster-level overhead or unreclaimed allocation.
 
-**Option B: Escalate to Atlas Infrastructure** (If Option A shows no movement)
-- The 307 MB gap between dbStats (~205 MB) and Atlas quota (511.93 MB) is likely:
-  - Replica storage (M0 counts copies)
+**Approved Action: Batch Deletion of Remaining Old Traces**
+
+Remaining cleanup pool: **281,575 traces older than 2026-09-04** (within approved 7-day retention window, low business risk)
+
+**Deletion Parameters (STRICT):**
+
+1. **Batch size:** ≤100,000 documents per batch
+2. **Batch count:** Minimum 3 batches required to clear pool
+3. **After-batch measurement:** Run fresh audit and check Atlas quota **after each batch**
+4. **Stopping condition:** Stop immediately if:
+   - A deletion fails or throws an error
+   - Atlas usage does not move or increases after first batch
+   - Data integrity check fails
+5. **Record keeping:** After each batch, document:
+   - Batch number and timestamp
+   - IDs selected (count)
+   - Deleted count (actual)
+   - Pre-batch Atlas usage (Atlas UI)
+   - Post-batch Atlas usage (Atlas UI)
+   - Remaining trace count (from audit)
+   - Oldest remaining trace timestamp
+6. **Protected collections:** Do NOT delete from:
+   - `api_costs` (active admin queries)
+   - `articles` (business-critical content)
+   - `entity_mentions` (narrative/entity lookups)
+   - `narratives` (production operations)
+   - `daily_briefings` (production operations)
+
+**Interpretation Rules (IMPORTANT):**
+
+- ✅ **If Atlas usage drops:** Conclude that application data was contributing to quota usage; continue cleanup as needed
+- ⚠️ **If Atlas usage unchanged after 1-2 batches:** The gap likely cannot be resolved by application-level deletion alone; escalate per Option B below
+- ❌ **Do NOT conclude "infrastructure overhead"** unless:
+  - Atlas remains at 511.93 MB / 512 MB after deleting 200K+ traces
+  - AND application data is reduced to <50 MB
+  - AND independent verification (Atlas UI, support) confirms no data loss
+  - Even then, the conclusion is "likely infrastructure overhead," not certainty
+
+**Option B: Escalation Path** (If Deletion Does Not Free Quota)
+
+If after deleting 200K+ old traces, Atlas quota remains exhausted:
+- This is **not a failure of BUG-105**, but a sign the bottleneck is beyond application-level cleanup
+- Likely causes (unproven):
+  - Replica set storage counted in quota (M0 behavior)
   - Oplog or replication metadata
-  - Atlas system overhead
-- **Action:** Contact Atlas support or review M0 tier documentation
-- **Not in scope of BUG-105** (application-level cleanup)
-- **TASK-128 focuses on prevention** (TTL monitoring, quota alerting, automatic cleanup)
+  - Unreclaimed filesystem allocation
+  - Atlas tier/cluster configuration
+- **Practical fix:** 
+  - Atlas tier upgrade (M2 or Flex; outside scope)
+  - MongoDB/Atlas support investigation (outside scope)
+  - Cluster rebuild or compaction (outside scope)
+- **Not in scope of BUG-105** (application-level cleanup experiment)
 
-**Operator Choice:**
-- If you want to attempt Option A, I will prepare a bounded deletion command for the remaining 281,575 old traces
-- If you want to skip to Option B, document the finding and pivot to TASK-128 prevention work
-- **No obligation to delete further** if you believe the gap is Atlas-level infrastructure
+**TASK-128 Remains Priority:**
+Regardless of whether this experiment frees quota, TASK-128 focuses on **prevention** (TTL monitoring, quota alerting, automatic cleanup) to avoid re-accumulation.
 
 ### Phase 3: Production Restart & Verification (BUG-105)
 
@@ -622,6 +670,13 @@ After cleanup achieves operational headroom:
 - [x] Claude Code performs read-only post-cleanup audit; compares before/after: **Audit 2026-09-11T20:20:45Z — PASSED**
 - [ ] Atlas quota headroom verified at ≥100 MB: **NOT CONFIRMED; Atlas reports 511.93 MB / 512 MB and WRITES BLOCKED**
 
+**Experimental Cleanup Phase (IN PROGRESS):**
+- [ ] Batch 1 (≤100K traces): Delete, audit, check Atlas usage
+- [ ] Batch 2 (≤100K traces): Delete, audit, check Atlas usage
+- [ ] Batch 3 (≤100K traces): Delete, audit, check Atlas usage
+- [ ] Record decisions: Did Atlas usage move? Were any deletions halted? Why?
+- [ ] Remaining trace count and oldest timestamp documented
+
 **Production Runtime Verification Phase (PARTIAL):**
 - [x] Production service restarted successfully: **Running at https://context-owl-production.up.railway.app/**
 - [x] `ensure_trace_indexes()` completes without OperationFailure: **Inferred from successful service startup**
@@ -630,6 +685,7 @@ After cleanup achieves operational headroom:
 - [x] Read endpoints operational: **/api/v1/signals/trending responds**
 - [ ] Incident documentation complete (no secrets, timestamps, root cause, deletions, verification)
 - [ ] Cleanup procedures and lessons linked to `TASK-128` for future reference
+- [ ] Experimental cleanup results documented and interpreted per Phase 3 rules
 
 **Health Endpoint Status (2026-09-11T20:26:48Z):**
 ```
