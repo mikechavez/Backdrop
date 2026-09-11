@@ -54,6 +54,7 @@ Key design insight from BUG-064 Golden Incident exercise: for a cost-control fai
 **Emergency Production Reliability Work**
 - [ ] MongoDB storage quota recovery and incident documentation (BUG-105)
 - [ ] MongoDB retention, storage monitoring, and startup hardening (TASK-128)
+- [ ] Railway runtime missing `libexpat.so.1` recovery (BUG-107)
 
 ### Out of Scope / Non-Goals
 
@@ -97,6 +98,7 @@ Key design insight from BUG-064 Golden Incident exercise: for a cost-control fai
 | 19 | TASK-127 | Evidence Pack and Investigation quality review | B | 🔲 BLOCKED | M |
 | 20 | BUG-105 | Recover MongoDB Atlas storage quota and restore production startup | Emergency | 🔲 OPEN | M |
 | 21 | TASK-128 | Prevent MongoDB storage exhaustion and harden startup index initialization | Emergency | 🔲 OPEN | L |
+| 22 | BUG-107 | Railway runtime missing `libexpat.so.1` recovery | Emergency | 🔲 OPEN | M |
 
 **Sequencing:**
 
