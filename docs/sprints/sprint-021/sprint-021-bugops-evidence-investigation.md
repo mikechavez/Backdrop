@@ -51,6 +51,10 @@ Key design insight from BUG-064 Golden Incident exercise: for a cost-control fai
 - [ ] Wire Investigation generation to Evidence Pack completion (TASK-126)
 - [ ] Evidence Pack and Investigation quality review (TASK-127)
 
+**Emergency Production Reliability Work**
+- [ ] MongoDB storage quota recovery and incident documentation (BUG-105)
+- [ ] MongoDB retention, storage monitoring, and startup hardening (TASK-128)
+
 ### Out of Scope / Non-Goals
 
 - [ ] Investigation reruns or superseded Investigation versioning
@@ -91,6 +95,8 @@ Key design insight from BUG-064 Golden Incident exercise: for a cost-control fai
 | 17 | TASK-125 | Implement InvestigationProvider | B | 🔲 BLOCKED | L |
 | 18 | TASK-126 | Wire Investigation generation to Evidence Pack completion | B | 🔲 BLOCKED | M |
 | 19 | TASK-127 | Evidence Pack and Investigation quality review | B | 🔲 BLOCKED | M |
+| 20 | BUG-105 | Recover MongoDB Atlas storage quota and restore production startup | Emergency | 🔲 OPEN | M |
+| 21 | TASK-128 | Prevent MongoDB storage exhaustion and harden startup index initialization | Emergency | 🔲 OPEN | L |
 
 **Sequencing:**
 
@@ -108,6 +114,11 @@ Phase A Exit Gate (mandatory before Phase B):
 
 Phase B — Triage Generation (sequential):
 - TASK-124 → TASK-125 → TASK-126 → TASK-127
+
+Emergency Production Reliability Work:
+- BUG-105 is the immediate production recovery and documentation ticket.
+- TASK-128 depends on BUG-105 and implements retention, monitoring, cleanup, and startup hardening.
+- Emergency work may proceed in parallel with the Phase A gate and Phase B sequencing; it is not a dependency of TASK-124 through TASK-127.
 
 ---
 
@@ -314,6 +325,8 @@ When Evidence Pack exceeds `BUGOPS_EVIDENCE_MAX_TOTAL_CHARS`, truncate in this o
 | Ticket | Title | Reason Created | Status |
 |--------|-------|----------------|--------|
 | TASK-121A | Collect LLM Trace and Cost Evidence | LLM activity is primary evidence for cost-control failures; llm_traces is single source of truth | 🔲 OPEN |
+| BUG-105 | Recover MongoDB Atlas storage quota and restore production startup | Production Atlas quota exhaustion blocks writes and causes startup failure | 🔲 OPEN |
+| TASK-128 | Prevent MongoDB storage exhaustion and harden startup index initialization | Follow-up retention, monitoring, and resilience work from BUG-105 | 🔲 OPEN |
 
 ---
 
