@@ -264,10 +264,10 @@ The exact operator command package for the approved `llm_traces` cutoff must be 
 **Summary:** Application-side cleanup complete; Atlas quota recovered from 511.93 MB (WRITES BLOCKED) to 392.09 MB, achieving approved 119.91 MB headroom target. Production is operational. Durable retention monitoring and automatic prevention assigned to TASK-128.
 
 **What's Done:**
-- ✅ 331,406 traces deleted (7-day retention window satisfied; zero traces remain older than 2026-09-04)
+- ✅ 331,406 traces deleted (7-day retention window satisfied; zero traces remain older than 2026-09-04; approved historical llm_traces intentionally removed)
 - ✅ WRITES BLOCKED cleared; production operational
 - ✅ Approved headroom target achieved (119.91 MB; approved range 100–150 MB)
-- ✅ Protected collections preserved; no data loss
+- ✅ Protected collections preserved; no unintended data loss or corruption
 - ✅ Safe, bounded cleanup protocol executed without corruption
 
 **What Remains (TASK-128):**
