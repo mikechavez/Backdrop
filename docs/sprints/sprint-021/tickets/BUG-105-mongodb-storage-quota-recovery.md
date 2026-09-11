@@ -25,6 +25,18 @@ The operator will provide confirmation and command output after each cleanup ste
 
 ## Evidence
 
+### Fresh MongoDB Inspection (2026-09-11, operator session)
+
+The operator connected to `crypto_news` and confirmed the following current collection statistics:
+
+- `llm_traces`: 295,191 documents; 213.25 MB logical data; 62.05 MB collection storage; 76.56 MB indexes
+- `articles`: 16,243 documents; 85.18 MB logical data; 33.97 MB collection storage; 8.55 MB indexes
+- `api_costs`: 225,007 documents; 36.72 MB logical data; 5.69 MB collection storage; 8.46 MB indexes
+- `entity_mentions`: 47,725 documents; 15.47 MB logical data; 2.29 MB collection storage; 2.63 MB indexes
+- `llm_cache`: 1 document; 0.07 MB collection storage; 0.48 MB indexes
+
+The `llm_traces` index set alone occupies 76.56 MB. The trace count increased after the Railway service was restarted, which is consistent with the application resuming LLM trace writes. These figures are diagnostic collection statistics and must not be presented as Atlas quota headroom.
+
 ### Production Baseline (2026-09-11 01:38 UTC)
 
 **Read-only audit executed:** `scripts/mongodb_storage_audit.py --database crypto_news --show-indexes --show-age`
@@ -247,7 +259,7 @@ The exact operator command package for the approved `llm_traces` cutoff must be 
 
 ---
 
-**Status:** ✅ BUG-105 COMPLETE — Production restored, incident documented. **TASK-128 required for recurrence prevention.**
+**Status:** OPEN — Application runtime recovery occurred, but Atlas quota recovery is not verified. Atlas currently reports approximately 511.93 MB / 512 MB and `WRITES BLOCKED`. **TASK-128 is required for recurrence prevention.**
 
 ## Files to Modify
 
@@ -461,28 +473,121 @@ The problem is **retention volume**, not broken TTL. TTL is working (configured 
 - Per-batch audit re-run to verify space recovered
 - Stop and escalate if any unexpected behavior
 
-### Phase 2.5: Post-Cleanup Read-Only Audit ✅ COMPLETE
+### Phase 2.5: Post-Cleanup Read-Only Audit ⚠️ ATLAS QUOTA UNVERIFIED
 
-**Audit executed:** 2026-09-11 20:20:45 UTC
+**First audit executed:** 2026-09-11 20:20:45 UTC  
+**Fresh audit executed:** 2026-09-11 (later session)
 
-**Audit Results:**
+**First Audit Results (2026-09-11 20:20:45 UTC):**
 - **Total llm_traces:** 293,114 (down from 393,114; -100,000 deleted)
-- **Traces < 2026-09-04:** 231,406 (remaining old traces, not needed for recovery)
-- **Traces >= 2026-09-04:** 61,708 (recent traces, unchanged; preserved for debugging)
-- **Data Size:** 358 MB
-- **Storage Size:** 121 MB
-- **Headroom:** 391 MB ✅ **TARGET ACHIEVED**
+- **Traces < 2026-09-04:** 231,406 (remaining old traces)
+- **Traces >= 2026-09-04:** 61,708 (recent traces)
+- **Data Size:** 358 MB (application-reported logical data)
+- **Storage Size:** 121 MB (application-reported allocated storage)
+- **⚠️ CRITICAL:** Atlas reported 511.93 MB / 512 MB with `WRITES BLOCKED` — dbStats headroom claim was invalid
 
-**Verification:**
-- ✅ Deleted count matches expected (100,000)
-- ✅ Recent traces untouched (61,708 unchanged)
-- ✅ Storage metrics consistent with deletion impact
-- ✅ Headroom exceeds target (391 MB >> 100 MB minimum)
-- ✅ No data corruption; document counts add up (61,708 + 231,406 = 293,114)
+**Fresh Audit Results (Current Session):**
+- **Total llm_traces:** 295,191 documents
+  - Newer than 7 days (2026-09-04): 13,616 documents
+  - Older than 7 days: 281,575 documents (approved cleanup pool, not yet deleted)
+  - Older than 30 days: 0 documents (TTL is working)
+  - **Oldest trace:** 2026-08-29 (13 days old)
+- **Logical Data Size:** ~360 MB (unchanged; deletion impact absorbed by new writes)
+- **Collection Storage:** ~107 MB (allocated disk for collections)
+- **Total Index Size:** ~98 MB (unchanged; indexes not deleted)
+- **Combined (collections + indexes):** ~205 MB
+
+**Critical Discovery — Atlas Overhead Identified:**
+| Metric | Application (dbStats) | Atlas Reports |
+|--------|--------|--------|
+| Collections + Indexes | ~205 MB | — |
+| Total Quota | — | 512 MB |
+| **Current Usage** | **~205 MB** | **511.93 MB** |
+| **Difference (Atlas Overhead)** | — | **~307 MB** |
+| **Status** | — | **WRITES BLOCKED** |
+
+**Findings:**
+
+1. ✅ **TTL is working correctly** — No expired 30-day backlog; oldest trace is 2026-08-29 (within 30-day window)
+2. ✅ **First deletion succeeded** — 100,000 traces were removed (2026-09-11 20:18:15 UTC)
+3. ⚠️ **Application has re-accumulated traces** — 295,191 current (vs. 293,114 post-cleanup), indicating Railway is writing new traces faster than they expire
+4. ⚠️ **Atlas quota still exhausted** — 511.93 MB / 512 MB remains, despite ~205 MB in collections/indexes
+5. ⚠️ **~307 MB Atlas overhead unaccounted for** — Likely replica storage, cluster metadata, oplog, or M0-tier operational overhead not exposed in dbStats
+6. ✅ **Protected collections intact** — api_costs (225K docs), articles (16K docs), entity_mentions (47K docs) unchanged
+7. ✅ **No data corruption** — Document counts and sums are consistent
+
+### Phase 2.6: Operational Unknowns — Atlas Quota Mechanism ⚠️ UNRESOLVED
+
+**What the audit established:**
+- Application-level data + indexes = ~205 MB
+- Atlas-reported usage = 511.93 MB
+- Difference = ~307 MB (not in dbStats; not in collections or indexes)
+
+**Hypotheses for the 307 MB gap (not yet verified):**
+1. **Replica storage overhead** — M0 tier may count replica set copies, oplog, or replication metadata in quota
+2. **Cluster-level metadata** — Atlas system collections, indexes, or operational structures
+3. **Disk allocation overhead** — Physical storage allocation includes filesystem/padding overhead
+4. **Atlas metric delay** — The quota meter updates on a delay (unlikely but possible)
+5. **Pre-existing unused space** — Space allocated but not reclaimed by previous compaction
+
+**What further trace deletion MAY do:**
+- ✅ Further reduce logical application data (reducing "Collections + Indexes" from 205 MB)
+- ❌ May NOT reduce Atlas quota usage if the overhead is replica/cluster-level
+- ❌ May NOT reduce Atlas quota usage if the 307 MB gap is Atlas's inherent tier cost
+
+**Actions that could resolve this (in priority order):**
+
+1. **Monitor quota after deletion** (if operator approves)
+   - Delete remaining 281,575 old traces (>2026-09-04)
+   - Expected: Reduce collections from 107 MB → ~40 MB
+   - Measure: Does Atlas quota drop below 500 MB?
+   - Risk: If no movement, confirms gap is replica/cluster overhead (beyond scope of BUG-105)
+
+2. **Check Atlas documentation** (outside this ticket)
+   - Verify M0 tier quota counts replica storage
+   - Verify whether oplog is included in quota
+   - Confirm whether compaction delay is expected
+
+3. **Contact Atlas support** (outside this ticket, escalation)
+   - If deletion doesn't free Atlas quota, Atlas may have a replication/metadata issue
+   - May require cluster rebuild or tier upgrade
+
+4. **Index removal / rebuild** (risk-high, may not help)
+   - 98 MB in indexes; if removed and rebuilt, could compact storage
+   - Risk: May not help if indexes are already optimal
+   - Not recommended without understanding root cause
+
+5. **Upgrade to M2 or Flex tier** (outside scope, cost increase)
+   - M0: Fixed 512 MB
+   - M2: Starts at 2 GB
+   - Would immediately resolve quota, but increases cost
+
+**Decision Gate: Further Deletion or Investigation?**
+
+**Option A: Attempt Final Cleanup Batch** (Recommendation: Try this first)
+- Delete remaining 281,575 traces older than 2026-09-04
+- Expected impact: Reduce collections from 107 MB → ~40 MB (67 MB freed in application)
+- Measurement: Re-run audit; check if Atlas quota drops below 500 MB
+- **If Atlas quota moves:** Gap was application data; continue with incremental cleanup
+- **If Atlas quota unchanged:** Gap is Atlas infrastructure; proceed to Option B
+
+**Option B: Escalate to Atlas Infrastructure** (If Option A shows no movement)
+- The 307 MB gap between dbStats (~205 MB) and Atlas quota (511.93 MB) is likely:
+  - Replica storage (M0 counts copies)
+  - Oplog or replication metadata
+  - Atlas system overhead
+- **Action:** Contact Atlas support or review M0 tier documentation
+- **Not in scope of BUG-105** (application-level cleanup)
+- **TASK-128 focuses on prevention** (TTL monitoring, quota alerting, automatic cleanup)
+
+**Operator Choice:**
+- If you want to attempt Option A, I will prepare a bounded deletion command for the remaining 281,575 old traces
+- If you want to skip to Option B, document the finding and pivot to TASK-128 prevention work
+- **No obligation to delete further** if you believe the gap is Atlas-level infrastructure
 
 ### Phase 3: Production Restart & Verification (BUG-105)
 
-After cleanup achieves headroom target:
+After cleanup achieves operational headroom:
 - Restart production service
 - Verify all Gunicorn workers pass lifespan startup
 - Verify `ensure_trace_indexes()` completes without OperationFailure
@@ -505,7 +610,7 @@ After cleanup achieves headroom target:
 - [x] TTL status and retention candidates are verified.
 - [x] Baseline captured and documented with no secrets.
 
-**Recovery Phase (CLEANUP COMPLETE):**
+**Recovery Phase (CLEANUP PARTIAL — ATLAS QUOTA NOT RECOVERED):**
 - [x] Retention cutoff for llm_traces explicitly approved: **7 days (delete docs < 2026-09-04T00:00:00Z)**
 - [x] api_costs query audit complete: **NOT APPROVED for deletion (active in admin.py, cost_tracker.py, llm/cache.py)**
 - [x] Headroom target (100-150 MB free) documented and approved: **100–150 MB ✅**
@@ -515,9 +620,9 @@ After cleanup achieves headroom target:
 - [x] Operator runs post-batch verification; reports headroom status: **391 MB headroom, TARGET REACHED**
 - [x] Cleanup halted — target achieved (no further batches needed)
 - [x] Claude Code performs read-only post-cleanup audit; compares before/after: **Audit 2026-09-11T20:20:45Z — PASSED**
-- [x] Atlas quota headroom verified at ≥100 MB: **391 MB headroom confirmed**
+- [ ] Atlas quota headroom verified at ≥100 MB: **NOT CONFIRMED; Atlas reports 511.93 MB / 512 MB and WRITES BLOCKED**
 
-**Production Restart Phase (COMPLETE):**
+**Production Runtime Verification Phase (PARTIAL):**
 - [x] Production service restarted successfully: **Running at https://context-owl-production.up.railway.app/**
 - [x] `ensure_trace_indexes()` completes without OperationFailure: **Inferred from successful service startup**
 - [x] Health endpoint responds: **Endpoint live at /api/v1/health (2026-09-11T20:26:48Z)**
