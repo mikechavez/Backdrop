@@ -12,7 +12,7 @@ import hashlib
 import json
 from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Any
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 import httpx
 
@@ -236,7 +236,8 @@ class LLMGateway:
             db = await mongo_manager.get_async_database()
             result = await db.llm_cache.find_one({
                 "operation": operation,
-                "input_hash": input_hash
+                "input_hash": input_hash,
+                "expires_at": {"$gt": datetime.now(timezone.utc)},
             })
 
             if result and result.get("cached_response"):
@@ -272,6 +273,8 @@ class LLMGateway:
         """
         try:
             db = await mongo_manager.get_async_database()
+            now = datetime.now(timezone.utc)
+            expires_at = now + timedelta(days=get_settings().LLM_CACHE_RETENTION_DAYS)
             await db.llm_cache.update_one(
                 {
                     "operation": operation,
@@ -282,7 +285,8 @@ class LLMGateway:
                         "operation": operation,
                         "input_hash": input_hash,
                         "cached_response": response,
-                        "cached_at": datetime.now(timezone.utc),
+                        "cached_at": now,
+                        "expires_at": expires_at,
                         "cached_count": 1
                     }
                 },
@@ -314,7 +318,8 @@ class LLMGateway:
             db = client.crypto_news
             result = db.llm_cache.find_one({
                 "operation": operation,
-                "input_hash": input_hash
+                "input_hash": input_hash,
+                "expires_at": {"$gt": datetime.now(timezone.utc)},
             })
             client.close()
 
@@ -354,6 +359,8 @@ class LLMGateway:
 
             client = MongoClient(db_connection_string, serverSelectionTimeoutMS=2000)
             db = client.crypto_news
+            now = datetime.now(timezone.utc)
+            expires_at = now + timedelta(days=get_settings().LLM_CACHE_RETENTION_DAYS)
             db.llm_cache.update_one(
                 {
                     "operation": operation,
@@ -364,7 +371,8 @@ class LLMGateway:
                         "operation": operation,
                         "input_hash": input_hash,
                         "cached_response": response,
-                        "cached_at": datetime.now(timezone.utc),
+                        "cached_at": now,
+                        "expires_at": expires_at,
                         "cached_count": 1
                     }
                 },

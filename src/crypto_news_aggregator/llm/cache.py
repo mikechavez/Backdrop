@@ -144,6 +144,12 @@ class LLMResponseCache:
         )
 
 
+async def ensure_llm_cache_indexes(db: AsyncIOMotorDatabase) -> None:
+    """Ensure automatic expiry for cache records; cached values are disposable."""
+    collection = db["llm_cache"]
+    await collection.create_index([("expires_at", 1)], expireAfterSeconds=0)
+
+
 class CostTracker:
     """Track API costs for monitoring and budgeting"""
     

@@ -127,6 +127,39 @@ async def check_data_freshness() -> dict:
         return {"status": "error", "error": str(e)[:100]}
 
 
+async def check_mongodb_retention_indexes() -> dict:
+    """Validate TTL indexes without making trace/cache retention API-critical."""
+    settings = get_settings()
+    try:
+        db = await mongo_manager.get_async_database()
+        traces = await db.llm_traces.index_information()
+        cache = await db.llm_cache.index_information()
+        expected_seconds = settings.LLM_TRACE_RETENTION_DAYS * 86400
+        trace_ttl = next(
+            (index.get("expireAfterSeconds") for index in traces.values()
+             if index.get("key") == [("timestamp", 1)]),
+            None,
+        )
+        cache_ttl = next(
+            (index.get("expireAfterSeconds") for index in cache.values()
+             if index.get("key") == [("expires_at", 1)]),
+            None,
+        )
+        valid = trace_ttl == expected_seconds and cache_ttl == 0
+        result = {
+            "status": "ok" if valid else "warning",
+            "llm_traces_ttl_seconds": trace_ttl,
+            "llm_traces_expected_ttl_seconds": expected_seconds,
+            "llm_cache_ttl_seconds": cache_ttl,
+        }
+        if not valid:
+            logger.error("MongoDB TTL index validation failed: %s", result)
+        return result
+    except Exception as exc:
+        logger.exception("MongoDB TTL index validation unavailable")
+        return {"status": "warning", "error": type(exc).__name__}
+
+
 # --- Main endpoint ---
 
 # Critical checks: if these fail, system is unhealthy
@@ -221,6 +254,7 @@ async def health_check() -> Dict[str, Any]:
         "redis": await check_redis(),
         "llm": await check_llm(),
         "data_freshness": await check_data_freshness(),
+        "mongodb_retention": await check_mongodb_retention_indexes(),
     }
 
     # Check pipeline heartbeats

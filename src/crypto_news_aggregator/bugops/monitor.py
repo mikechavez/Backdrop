@@ -28,6 +28,7 @@ class BugOpsMonitor:
         from .config import get_bugops_settings
         from .store import BugOpsStore
         from .signal_sources.llm_traces import LLMTraceCostSignalSource
+        from .signal_sources.mongodb_storage import MongoStorageSignalSource
         from .signal_sources.railway_logs import RailwayLogSignalSource
         from .signal_sources.article_freshness import ArticleFreshnessSignalSource
         from .signal_sources.signal_freshness import SignalFreshnessSignalSource
@@ -39,6 +40,7 @@ class BugOpsMonitor:
         self.store = None
         self.signal_sources: List["SignalSource"] = [
             LLMTraceCostSignalSource(),
+            MongoStorageSignalSource(),
             RailwayLogSignalSource(),
         ]
         self.dependency_graph = DependencyGraph()

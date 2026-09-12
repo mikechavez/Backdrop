@@ -155,6 +155,8 @@ db.llm_traces.createIndex({ operation: 1 })
 db.llm_traces.createIndex({ operation: 1, timestamp: -1 })
 ```
 
+`LLM_TRACE_RETENTION_DAYS` configures the TTL (default 30). Startup validates/updates the TTL index with `collMod` when necessary. Trace index failures are logged and exposed through `/api/v1/health` under `checks.mongodb_retention`; they do not alone make the API unavailable.
+
 **Critical field notes:**
 - Always query using `timestamp`, not `created_at` — the latter does not exist on this collection
 - Cost field is `cost`, not `cost_usd` — aggregations must use `"$cost"`
@@ -174,9 +176,20 @@ Prompt-response cache managed by `LLMCache`. Reduces redundant API calls for ide
   "cache_key": "sha256_hash_of_prompt",
   "response": "...",        // Cached LLM response text
   "model": "claude-haiku-4-5-20251001",
-  "created_at": ISODate("...")
+  "cached_at": ISODate("..."),
+  "expires_at": ISODate("...")
 }
 ```
+
+`LLM_CACHE_RETENTION_DAYS` defaults to 7 days. An `expires_at` TTL index removes disposable cache records asynchronously; cache misses are safe because responses can be recomputed. Legacy entries without `expires_at` are ignored by reads and removed in bounded cleanup after their configured age.
+
+### Retention and storage safeguards
+
+- Celery schedules `mongodb_retention_cleanup` daily. Each collection cleanup selects at most `MONGODB_CLEANUP_BATCH_SIZE` IDs (default 1,000), then deletes only those IDs. Collection failures are isolated.
+- LLM traces default to 30 days; LLM cache defaults to 7 days.
+- Tier-3 article cleanup is disabled by default (`ARTICLE_TIER3_RETENTION_DAYS=0`). When enabled, it only considers old tier-3 records and preserves articles referenced by narratives. Tier 1/2, unknown-tier records, narratives, briefings, and BugOps evidence are not scheduled for deletion.
+- `/api/v1/health` validates trace/cache TTL indexes. BugOps storage alerts use `dbStats` plus configured quota thresholds; this is explicitly an estimate, not authoritative Atlas quota usage. Check Atlas directly before operational decisions.
+- Operator procedures and the dry-run/explicit-confirmation cleanup CLI are documented in `docs/runbooks/mongodb-retention-and-quota.md`.
 
 Cache hit rate can be checked via `db.llm_cache` query. Wired since BUG-072 (Sprint 14); hit rate not yet measured (see TASK-070).
 

@@ -87,6 +87,14 @@ def get_schedule():
                 "time_limit": 300,  # 5 minutes
             },
         },
+        # Bounded daily cleanup: traces/cache follow configured retention;
+        # tier-3 article cleanup remains disabled unless explicitly configured.
+        "mongodb-retention-cleanup": {
+            "task": "mongodb_retention_cleanup",
+            "schedule": crontab(hour=4, minute=20),
+            "kwargs": {"dry_run": False, "confirm": True},
+            "options": {"expires": 3600, "time_limit": 300},
+        },
         # Consolidate duplicate narratives every hour
         "consolidate-narratives": {
             "task": "consolidate_narratives",  # Task registered with short name in tasks/__init__.py

@@ -510,3 +510,7 @@ time curl -X POST "http://localhost:8000/admin/trigger-briefing?force=true"
 
 ---
 *Last updated: 2026-04-25* | *Generated from: 04-llm-client.txt, 04-llm-prompts.txt, 05-briefing-generation.txt* | *Anchor: llm-integration-generation*
+
+## Trace and Cache Retention (TASK-128)
+
+`llm_traces.timestamp` has a configurable TTL (`LLM_TRACE_RETENTION_DAYS`, default 30). Cache entries use `expires_at` with a TTL index and configurable `LLM_CACHE_RETENTION_DAYS` (default 7). The daily bounded cleanup task is a backstop for expired/legacy rows; cache contents are disposable, traces remain operational audit data within the configured window. See [MongoDB retention and quota operations](../../runbooks/mongodb-retention-and-quota.md).

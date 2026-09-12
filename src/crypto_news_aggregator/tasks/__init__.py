@@ -37,6 +37,7 @@ from .fetch_news import fetch_news as fetch_news_task
 from .warm_cache import warm_cache_task
 from .digest_tasks import send_daily_digest_task
 from .narrative_refresh import refresh_flagged_narratives_task
+from .mongodb_retention import cleanup_mongodb_retention
 
 app = Celery("crypto_news_aggregator")
 app.config_from_object("crypto_news_aggregator.tasks.celery_config")
@@ -63,6 +64,7 @@ __all__ = [
     "warm_cache_task",
     "send_daily_digest_task",
     "refresh_flagged_narratives_task",
+    "cleanup_mongodb_retention",
 ]
 
 # FIXED: Auto-discover ALL task modules
@@ -78,6 +80,7 @@ app.autodiscover_tasks(
         "crypto_news_aggregator.tasks.warm_cache",
         "crypto_news_aggregator.tasks.digest_tasks",
         "crypto_news_aggregator.tasks.narrative_refresh",
+        "crypto_news_aggregator.tasks.mongodb_retention",
     ]
 )
 

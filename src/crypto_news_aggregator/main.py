@@ -80,6 +80,7 @@ from .core.rate_limiting import RateLimitMiddleware
 from .db.mongodb import initialize_mongodb, mongo_manager
 from .services.price_service import price_service
 from .llm.tracing import ensure_trace_indexes
+from .llm.cache import ensure_llm_cache_indexes
 from .llm.draft_capture import ensure_draft_indexes
 
 logger.info("Attempting to load application settings...")
@@ -106,8 +107,27 @@ async def lifespan(app: FastAPI):
 
     # Ensure LLM tracing indexes
     db = await mongo_manager.get_async_database()
-    await ensure_trace_indexes(db)
-    logger.info("LLM tracing indexes ensured.")
+    try:
+        await ensure_trace_indexes(db, settings.LLM_TRACE_RETENTION_DAYS)
+        app.state.trace_indexes_status = "ok"
+        logger.info("LLM tracing indexes ensured.")
+    except Exception:
+        # Trace storage is observability, not an API availability dependency.
+        # Keep the exception visible for operators and health/monitoring paths.
+        app.state.trace_indexes_status = "error"
+        logger.exception(
+            "LLM trace index initialization failed; continuing in degraded mode. "
+            "Trace retention/index behavior may be incomplete."
+        )
+
+    try:
+        await ensure_llm_cache_indexes(db)
+        app.state.llm_cache_indexes_status = "ok"
+    except Exception:
+        app.state.llm_cache_indexes_status = "error"
+        logger.exception(
+            "LLM cache TTL index initialization failed; cache expiry may be delayed."
+        )
 
     # Ensure briefing draft capture indexes
     await ensure_draft_indexes(db)

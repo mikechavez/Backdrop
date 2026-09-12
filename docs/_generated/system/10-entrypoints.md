@@ -397,3 +397,7 @@ Full healthy startup should show:
 
 ---
 *Last updated: 2026-04-25* | *Generated from: 01-entrypoints.txt, 02-celery-registration.txt, 03-celery-beat.txt, 04-mongo-init.txt, 12-config.txt* | *Anchor: application-entrypoints*
+
+## MongoDB Retention Maintenance (TASK-128)
+
+Celery Beat schedules `mongodb_retention_cleanup` daily. It selects and deletes a bounded batch of explicit document IDs per eligible collection. Manual cleanup defaults to dry-run and requires both `--execute` and `--confirm`. Trace/cache index initialization is best-effort for API availability, but failures are logged and surfaced by the `/api/v1/health` retention check. Article tier-3 cleanup is disabled by default. See [MongoDB retention and quota operations](../../runbooks/mongodb-retention-and-quota.md).
