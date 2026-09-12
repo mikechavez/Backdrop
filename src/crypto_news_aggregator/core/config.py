@@ -32,6 +32,16 @@ class Settings(BaseSettings):
     MONGODB_MIN_POOL_SIZE: int = (
         1  # Default min pool size for MongoDB connections  # Default database name
     )
+    # Retention windows are configurable; zero disables article deletion.
+    LLM_TRACE_RETENTION_DAYS: int = 30
+    LLM_CACHE_RETENTION_DAYS: int = 7
+    ARTICLE_TIER3_RETENTION_DAYS: int = 0
+    MONGODB_CLEANUP_BATCH_SIZE: int = 1000
+    # dbStats-based storage is an estimate, not Atlas quota truth. Configure the
+    # known tier limit only to produce an explicitly labeled estimate.
+    MONGODB_STORAGE_QUOTA_MB: Optional[float] = 512.0
+    MONGODB_STORAGE_WARNING_PERCENT: float = 75.0
+    MONGODB_STORAGE_CRITICAL_PERCENT: float = 90.0
 
     # For backward compatibility
     DATABASE_URL: Optional[str] = None
@@ -256,8 +266,42 @@ class Settings(BaseSettings):
             )
         return v
 
+    @field_validator("LLM_TRACE_RETENTION_DAYS", "LLM_CACHE_RETENTION_DAYS", "MONGODB_CLEANUP_BATCH_SIZE")
+    @classmethod
+    def _require_positive_retention_limits(cls, v: int) -> int:
+        if v <= 0:
+            raise ValueError("Retention days and cleanup batch size must be greater than zero")
+        return v
+
+    @field_validator("ARTICLE_TIER3_RETENTION_DAYS")
+    @classmethod
+    def _allow_disabled_article_retention(cls, v: int) -> int:
+        if v < 0:
+            raise ValueError("ARTICLE_TIER3_RETENTION_DAYS must be zero (disabled) or positive")
+        return v
+
+    @field_validator("MONGODB_STORAGE_WARNING_PERCENT", "MONGODB_STORAGE_CRITICAL_PERCENT")
+    @classmethod
+    def _validate_storage_thresholds(cls, v: float) -> float:
+        if not 0 < v <= 100:
+            raise ValueError("MongoDB storage alert thresholds must be within (0, 100]")
+        return v
+
+    @field_validator("MONGODB_STORAGE_QUOTA_MB")
+    @classmethod
+    def _validate_storage_quota(cls, v: Optional[float]) -> Optional[float]:
+        if v is not None and v < 0:
+            raise ValueError("MONGODB_STORAGE_QUOTA_MB cannot be negative")
+        if v == 0:
+            return None
+        return v
+
     @model_validator(mode="after")
     def build_postgres_url(self) -> "Settings":
+        if self.MONGODB_STORAGE_CRITICAL_PERCENT < self.MONGODB_STORAGE_WARNING_PERCENT:
+            raise ValueError(
+                "MONGODB_STORAGE_CRITICAL_PERCENT must be >= MONGODB_STORAGE_WARNING_PERCENT"
+            )
         if self.POSTGRES_URL is None:
             self.POSTGRES_URL = f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_SERVER}/{self.POSTGRES_DB}"
         if self.DATABASE_URL is None:

@@ -2,7 +2,7 @@
 ticket_id: TASK-128
 title: Prevent MongoDB storage exhaustion and make startup index initialization resilient
 priority: high
-status: OPEN
+status: IN_PROGRESS
 phase: B
 date_created: 2026-09-10
 branch: task/bugops-126-mongodb-retention-monitoring-hardening
@@ -104,14 +104,26 @@ python scripts/mongodb_storage_audit.py --help
 
 Add focused tests for TTL index options, cleanup cutoffs, batch limits, dry-run behavior, alert thresholds, and startup behavior when index creation raises Atlas code 8000.
 
+## Implementation Update (2026-09-12)
+
+- Added configurable trace/cache/article retention, bounded batch size, and estimated storage alert thresholds; documented in the operational runbook. The local `.env.example` template is excluded from the commit by the repository's environment-file security hook.
+- Trace TTL initialization now validates the configured TTL and uses `collMod` rather than dropping an existing timestamp index when its TTL changes. Startup treats trace/cache index setup as noncritical, logs exceptions, and continues in degraded mode; `/api/v1/health` reports missing/mismatched TTL indexes.
+- Cache writes now set `expires_at` and cache lookups ignore expired entries. Added a TTL index and bounded cleanup backstop.
+- Added daily Celery cleanup for expired traces/cache and optional tier-3 articles. Each collection is isolated; each delete selects at most the configured number of `_id`s, then deletes only those IDs. Manual CLI defaults to dry-run and requires both `--execute` and `--confirm`. Tier-3 deletion defaults off and excludes articles referenced by narratives.
+- Added dbStats storage estimate reporting and threshold classification through the existing BugOps signal pipeline. Reports and alerts explicitly state that the configured-quota percentage is an estimate and Atlas is authoritative.
+- Removed credentials/URI details from MongoDB validation and connection logging; audit output now redacts the entire URI authority.
+- Added [MongoDB retention and quota runbook](../../../runbooks/mongodb-retention-and-quota.md) and updated generated data-model, LLM, and entrypoint docs.
+- Focused local verification: 51 tests passed across retention, tracing, database validation, and health endpoint suites; the two beat-schedule tests passed; changed Python files compile. A broader command including `tests/tasks/test_briefing_tasks.py` stalled in that existing test module and was interrupted after 52 tests had passed; no production database was accessed.
+- Not yet verified against a live MongoDB deployment: actual TTL expiry timing, Atlas code-8000 degradation behavior, scheduled task execution in the deployed Celery topology, and the BugOps alert delivery path.
+
 ## Acceptance Criteria
 
-- [ ] Retention policies are explicit, configurable, tested, and documented.
-- [ ] `llm_traces` TTL behavior is verified end to end.
-- [ ] Cache cleanup and bounded article cleanup exist with dry-run support.
-- [ ] Scheduled cleanup runs safely and logs auditable results.
-- [ ] Storage usage warning/critical monitoring is implemented.
-- [ ] Startup behavior is resilient and still observable under index-write failure.
-- [ ] Tests pass locally without requiring production credentials.
-- [ ] Operational runbook and generated architecture docs are updated.
-- [ ] PR includes migration/deployment notes and a rollback approach.
+- [x] Retention policies are explicit, configurable, tested, and documented.
+- [ ] `llm_traces` TTL behavior is verified end to end against MongoDB.
+- [x] Cache cleanup and bounded article cleanup exist with dry-run support; article deletion is off by default.
+- [x] Scheduled cleanup runs as a bounded task and logs cutoff, matched/selected/deleted counts, duration, and errors.
+- [x] Storage usage warning/critical monitoring is implemented via BugOps, using an explicitly labeled dbStats estimate.
+- [x] Startup trace/cache index behavior is resilient and observable via logs and health status under index-write failure.
+- [x] Focused tests pass locally without production credentials; full suite not yet verified.
+- [x] Operational runbook and generated architecture docs are updated.
+- [x] Deployment notes and rollback/data irreversibility caveats are documented in the runbook.

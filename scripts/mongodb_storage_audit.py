@@ -54,9 +54,9 @@ class MongoStorageAudit:
         """Redact credentials from URI for safe logging."""
         try:
             parsed = urlparse(uri)
-            if parsed.password:
-                return uri.replace(parsed.password, "***")
-            return uri[:50] + "..." if len(uri) > 50 else uri
+            if parsed.netloc:
+                return parsed._replace(netloc="***").geturl()
+            return "mongodb://***"
         except Exception:
             return "mongodb://***"
 
@@ -336,6 +336,17 @@ class MongoStorageAudit:
             print(f"  Data size: {self._format_bytes(db_stats.get('data_size_bytes', 0))}")
             print(f"  Storage size: {self._format_bytes(db_stats.get('storage_size_bytes', 0))}")
             print(f"  Total index size: {self._format_bytes(db_stats.get('indexes_size_bytes', 0))}")
+            quota_mb = getattr(self, "quota_mb", None)
+            if quota_mb and quota_mb > 0:
+                estimate_bytes = (
+                    db_stats.get("storage_size_bytes", 0)
+                    + db_stats.get("indexes_size_bytes", 0)
+                )
+                estimate_pct = estimate_bytes / (quota_mb * 1024 * 1024) * 100
+                print(
+                    f"  Configured-quota estimate: {estimate_pct:.1f}% of {quota_mb:g} MB "
+                    "(dbStats estimate only; verify actual usage in Atlas)"
+                )
             print()
 
         # Collection stats
@@ -453,6 +464,12 @@ Examples:
         help="MongoDB connection URI (reads from MONGODB_URI env var if not provided)"
     )
     parser.add_argument(
+        "--quota-mb",
+        type=float,
+        default=float(os.getenv("MONGODB_STORAGE_QUOTA_MB", "512")),
+        help="Configured quota used only for a dbStats estimate (default from MONGODB_STORAGE_QUOTA_MB or 512)",
+    )
+    parser.add_argument(
         "--show-indexes",
         action="store_true",
         help="Include detailed index metadata and access statistics"
@@ -477,6 +494,7 @@ Examples:
             verbose=args.verbose
         )
         audit.connect()
+        audit.quota_mb = args.quota_mb
         try:
             audit.print_summary_report(
                 show_indexes=args.show_indexes,

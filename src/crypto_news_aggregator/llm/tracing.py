@@ -7,7 +7,10 @@ This module handles schema validation, index setup, and analysis queries.
 
 import logging
 from datetime import datetime, timezone, timedelta
+
 from motor.motor_asyncio import AsyncIOMotorDatabase
+
+from ..core.config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -15,21 +18,80 @@ COLLECTION_NAME = "llm_traces"
 TTL_DAYS = 30
 
 
-async def ensure_trace_indexes(db: AsyncIOMotorDatabase) -> None:
-    """Create indexes on llm_traces collection. Safe to call repeatedly."""
+async def ensure_trace_indexes(
+    db: AsyncIOMotorDatabase, retention_days: int | None = None
+) -> None:
+    """Ensure trace indexes and enforce the configured TTL without hiding errors."""
+    if retention_days is None:
+        retention_days = get_settings().LLM_TRACE_RETENTION_DAYS
+    if retention_days <= 0:
+        raise ValueError("LLM_TRACE_RETENTION_DAYS must be greater than zero")
+
     collection = db[COLLECTION_NAME]
 
-    await collection.create_index("timestamp", expireAfterSeconds=TTL_DAYS * 86400)
-    await collection.create_index("operation")
-    await collection.create_index([("operation", 1), ("timestamp", -1)])
-    await collection.create_index("trace_id", unique=True)
-    await collection.create_index([("model", 1), ("timestamp", -1)])
-    await collection.create_index([("provider", 1), ("timestamp", -1)])
-    await collection.create_index([("status", 1), ("timestamp", -1)])
-    await collection.create_index([("cached", 1), ("timestamp", -1)])
-    await collection.create_index([("briefing_id", 1), ("phase", 1), ("iteration", 1)])
+    ttl_seconds = retention_days * 86400
+    existing = await collection.index_information()
+    timestamp_ttl = next(
+        (
+            (name, spec)
+            for name, spec in existing.items()
+            if spec.get("key") == [("timestamp", 1)]
+            and "expireAfterSeconds" in spec
+        ),
+        None,
+    )
+    if timestamp_ttl and timestamp_ttl[1].get("expireAfterSeconds") != ttl_seconds:
+        await db.command(
+            "collMod",
+            COLLECTION_NAME,
+            index={"keyPattern": {"timestamp": 1}, "expireAfterSeconds": ttl_seconds},
+        )
+    elif not timestamp_ttl:
+        # If a non-TTL timestamp index already exists, use collMod to add TTL
+        # without dropping/rebuilding an index on production data.
+        timestamp_index = next(
+            (
+                spec
+                for spec in existing.values()
+                if spec.get("key") == [("timestamp", 1)]
+            ),
+            None,
+        )
+        if timestamp_index:
+            await db.command(
+                "collMod",
+                COLLECTION_NAME,
+                index={"keyPattern": {"timestamp": 1}, "expireAfterSeconds": ttl_seconds},
+            )
+        else:
+            await collection.create_index(
+                [("timestamp", 1)],
+                expireAfterSeconds=ttl_seconds,
+            )
 
-    logger.info("llm_traces indexes ensured")
+    indexes = [
+        ([("operation", 1)], {}),
+        ([("operation", 1), ("timestamp", -1)], {}),
+        ([("trace_id", 1)], {"unique": True}),
+        ([("model", 1), ("timestamp", -1)], {}),
+        ([("provider", 1), ("timestamp", -1)], {}),
+        ([("status", 1), ("timestamp", -1)], {}),
+        ([("cached", 1), ("timestamp", -1)], {}),
+        ([("briefing_id", 1), ("phase", 1), ("iteration", 1)], {}),
+    ]
+    for keys, options in indexes:
+        matching_index = next(
+            (spec for spec in existing.values() if spec.get("key") == keys), None
+        )
+        if matching_index is None:
+            await collection.create_index(keys, **options)
+        elif options.get("unique") and not matching_index.get("unique", False):
+            raise RuntimeError(
+                "llm_traces trace_id index exists without the required unique constraint; "
+                "resolve duplicate trace IDs and migrate the index explicitly"
+            )
+
+    logger.info("llm_traces indexes ensured; ttl_days=%s", retention_days)
 
 
 async def get_traces_summary(db: AsyncIOMotorDatabase, days: int = 1) -> list[dict]:

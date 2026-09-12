@@ -15,6 +15,7 @@ import httpx
 from .cache import LLMResponseCache
 from .gateway import get_gateway
 from ..services.cost_tracker import check_llm_budget
+from ..core.config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +37,9 @@ class OptimizedAnthropicLLM:
             raise ValueError("Anthropic API key not provided.")
         self.api_key = api_key
         self.db = db
-        self.cache = LLMResponseCache(db, ttl_hours=168)  # 1 week cache
+        self.cache = LLMResponseCache(
+            db, ttl_hours=get_settings().LLM_CACHE_RETENTION_DAYS * 24
+        )
 
     async def initialize(self):
         """Initialize database indexes for cache"""

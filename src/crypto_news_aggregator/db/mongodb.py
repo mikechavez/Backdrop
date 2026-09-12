@@ -237,8 +237,7 @@ def validate_database_connection(uri: Optional[str] = None) -> str:
             f"FATAL: Database name missing from MONGODB_URI!\n"
             f"  Expected: '{EXPECTED_DB}'\n"
             f"  Got: (empty)\n"
-            f"  Check MONGODB_URI environment variable.\n"
-            f"  URI: {uri[:50]}...{uri[-20:] if len(uri) > 70 else uri}"
+            "  Check MONGODB_URI environment variable. URI omitted for safety."
         )
 
     if db_name != EXPECTED_DB:
@@ -246,8 +245,7 @@ def validate_database_connection(uri: Optional[str] = None) -> str:
             f"FATAL: Database name mismatch!\n"
             f"  Expected: '{EXPECTED_DB}'\n"
             f"  Got: '{db_name}'\n"
-            f"  Check MONGODB_URI environment variable.\n"
-            f"  URI: {uri[:50]}...{uri[-20:] if len(uri) > 70 else uri}"
+            "  Check MONGODB_URI environment variable. URI omitted for safety."
         )
 
     logger.info(f"✅ Database validation passed: Using '{db_name}'")
@@ -504,10 +502,10 @@ class MongoManager:
         """Get a masked version of the MongoDB URI for logging."""
         if not self.settings.MONGODB_URI:
             return ""
-        parts = self.settings.MONGODB_URI.split("//")
-        if len(parts) > 1:
-            return f"{parts[0]}//****:****@{'@'.join(parts[1:])}"
-        return self.settings.MONGODB_URI
+        scheme = self.settings.MONGODB_URI.partition(":")[0]
+        # Never preserve the authority, path, or query: credentials can appear
+        # in nonstandard URI forms and query parameters can also be sensitive.
+        return f"{scheme}://***" if scheme else "mongodb://***"
 
     def get_database(self, db_name: Optional[str] = None) -> Database:
         """Get a synchronous database instance."""

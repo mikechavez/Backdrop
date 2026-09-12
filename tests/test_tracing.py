@@ -19,29 +19,52 @@ class TestEnsureTraceIndexes:
 
     @pytest.mark.asyncio
     async def test_ensure_indexes_creates_expected(self):
-        """ensure_trace_indexes should create 3 custom indexes."""
+        """ensure_trace_indexes should create required indexes and the configured TTL."""
         # Mock MongoDB database and collection
         mock_collection = AsyncMock()
+        mock_collection.index_information = AsyncMock(return_value={})
         mock_db = AsyncMock(spec=AsyncIOMotorDatabase)
         mock_db.__getitem__ = MagicMock(return_value=mock_collection)
 
         await ensure_trace_indexes(mock_db)
 
-        # Verify create_index was called 3 times with expected arguments
-        assert mock_collection.create_index.call_count == 3
+        # TTL plus the eight query/uniqueness indexes.
+        assert mock_collection.create_index.call_count == 9
 
-        # Check calls (order matters for fire-and-forget)
+        # Check TTL and query indexes.
         calls = mock_collection.create_index.call_args_list
 
         # TTL index on timestamp
-        assert calls[0][0][0] == "timestamp"
+        assert calls[0][0][0] == [("timestamp", 1)]
         assert calls[0][1]["expireAfterSeconds"] == 30 * 86400  # 30 days
 
         # Index on operation
-        assert calls[1][0][0] == "operation"
+        assert calls[1][0][0] == [("operation", 1)]
 
         # Compound index (operation, timestamp desc)
         assert calls[2][0][0] == [("operation", 1), ("timestamp", -1)]
+
+    @pytest.mark.asyncio
+    async def test_ttl_index_is_updated_without_drop_when_retention_changes(self):
+        collection = AsyncMock()
+        collection.index_information = AsyncMock(return_value={
+            "timestamp_1": {
+                "key": [("timestamp", 1)],
+                "expireAfterSeconds": 30 * 86400,
+            }
+        })
+        db = AsyncMock(spec=AsyncIOMotorDatabase)
+        db.__getitem__ = MagicMock(return_value=collection)
+        db.command = AsyncMock()
+
+        await ensure_trace_indexes(db, retention_days=7)
+
+        db.command.assert_awaited_once_with(
+            "collMod",
+            COLLECTION_NAME,
+            index={"keyPattern": {"timestamp": 1}, "expireAfterSeconds": 7 * 86400},
+        )
+        collection.drop_index.assert_not_awaited()
 
 
 class TestTraceDocumentShape:
