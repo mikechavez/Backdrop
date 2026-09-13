@@ -55,6 +55,7 @@ Key design insight from BUG-064 Golden Incident exercise: for a cost-control fai
 - [ ] MongoDB storage quota recovery and incident documentation (BUG-105)
 - [ ] MongoDB retention, storage monitoring, and startup hardening (TASK-128)
 - [ ] Railway runtime missing `libexpat.so.1` recovery (BUG-107)
+- [ ] Investigate empty Signals page despite recent article ingestion (BUG-108)
 
 ### Out of Scope / Non-Goals
 
@@ -99,6 +100,7 @@ Key design insight from BUG-064 Golden Incident exercise: for a cost-control fai
 | 20 | BUG-105 | Recover MongoDB Atlas storage quota and restore production startup | Emergency | 🔲 OPEN | M |
 | 21 | TASK-128 | Prevent MongoDB storage exhaustion and harden startup index initialization | Emergency | 🔲 OPEN | L |
 | 22 | BUG-107 | Railway runtime missing `libexpat.so.1` recovery | Emergency | 🔲 OPEN | M |
+| 23 | BUG-108 | Investigate empty Signals page despite recent article ingestion | Emergency | 🔲 OPEN | M |
 
 **Sequencing:**
 
@@ -120,6 +122,7 @@ Phase B — Triage Generation (sequential):
 Emergency Production Reliability Work:
 - BUG-105 is the immediate production recovery and documentation ticket.
 - TASK-128 depends on BUG-105 and implements retention, monitoring, cleanup, and startup hardening.
+- BUG-108 is a separate investigation of the production Signals page's empty results; its cause is not yet known.
 - Emergency work may proceed in parallel with the Phase A gate and Phase B sequencing; it is not a dependency of TASK-124 through TASK-127.
 
 ---
