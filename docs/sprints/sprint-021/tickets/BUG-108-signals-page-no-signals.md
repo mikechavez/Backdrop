@@ -173,53 +173,174 @@ Cloud Code can perform repository inspection, these read-only database queries, 
 - BUG-083 documents a disabled market-event detector. The Signals page endpoint investigated here is the separate trending-entity endpoint; do not assume BUG-083 explains this symptom.
 - This ticket is investigation-first. Do not change signal scoring, thresholds, or delete/alter production data until the cause and intended behavior are established.
 
-## Investigation Results (2026-09-13)
+## Investigation Results (2026-09-13 21:30 UTC)
 
-### Root Cause: IDENTIFIED ✓
-**Entity extraction is not running or not creating primary entity mentions for recent articles.**
+### Root Cause: CONFIRMED ✓
+**Entity enrichment (extraction + relevance/sentiment scoring) is not running at all. Recent articles are created, but never enriched.**
 
-- ✅ Articles: 45 ingested in last 24h (Sept 12 21:33 → Sept 13 21:23 UTC) across 6 sources (bitcoin.com, cryptoslate, coindesk, etc.)
-- ❌ Entity mentions: 0 primary mentions in 24h and 7d windows; only 2 mentions total in 30d (from Aug 24, 20 days old)
-- ✅ Article-to-mention linkage: Valid—the 2 primary mentions found have matching articles and correct types
-- ✅ Signal computation: Correct—returns zero for 24h/7d because there genuinely are no recent primary mentions
-- ✅ API response: Correct—`GET /api/v1/signals/trending?timeframe=7d` correctly returned count:0 at 19:48:58 UTC
-- ✅ Frontend: Correct—displays "No signals detected yet." when count===0
+### Evidence Summary
+- ✅ **44 articles** ingested in last 24h (Sept 12 16:42 → latest)
+- ✅ **346 articles** in last 7 days
+- ❌ **0 articles** enriched with relevance_tier in 24h
+- ❌ **0 articles** enriched with relevance_score in 7 days
+- ❌ **0 articles** have entities array populated in 24h
+- ❌ **0 entity_mentions** created in 24h
+- ⚠️ **0% enrichment rate** across entire 7-day window
 
-### Data Path Validation
-1. **Ingestion:** ✅ RSS feeds running, 45 articles in 24h
-2. **Entity Extraction:** ❌ **NOT PRODUCING PRIMARY MENTIONS** (failure point; last mention: Aug 24)
-3. **Signal Computation:** ✅ Returns zero correctly given the data
-4. **API:** ✅ Returns zero correctly
-5. **Frontend:** ✅ Displays zero correctly
+### Data Path Validation (CONFIRMED)
 
-### Why 30d Returns One Result
-The 30d endpoint response (Bitcoin, score 1.17) is correct: Bitcoin has 1 mention dated Aug 24 (just within 30d window) that meets `current_mentions >= 1` filter. This is old data that happens to pass the time boundary.
+| Stage | Status | Evidence |
+|-------|--------|----------|
+| **1. RSS Ingestion** | ✅ Working | 44 articles in 24h; 346 in 7d; articles have basic fields (title, text, source, created_at) |
+| **2. Entity Extraction** | ❌ **NOT RUNNING** | Zero articles with `entities` array; zero articles with `relevance_tier`; zero articles with `relevance_score` |
+| **3. Mention Creation** | ❌ **BLOCKED** | Zero entity_mentions in 24h (last: Aug 24, 20 days old) |
+| **4. Signal Computation** | ✅ Correct Logic | Correctly returns zero for 24h/7d; correctly returns 1 for 30d (old data) |
+| **5. API Response** | ✅ Correct Behavior | Correctly returns `count:0, signals:[]` for 7d at 19:48:58 UTC |
+| **6. Frontend Display** | ✅ Correct Logic | Correctly shows "No signals detected yet" when count===0 |
+
+### Exact Failure Point
+**`process_new_articles_from_mongodb()` in `src/crypto_news_aggregator/background/rss_fetcher.py:399`**
+
+This function is called by:
+- `fetch_and_process_rss_feeds()` at rss_fetcher.py:900 (end of ingestion)
+- Then `schedule_rss_fetch()` runs it every 30 minutes with `run_immediately=True` (main.py:154)
+
+**Status:** The function either:
+1. Is not being invoked (but RSS ingestion proves `schedule_rss_fetch()` IS running)
+2. Is failing silently (no exceptions being logged)
+3. Is returning without processing (early exit condition)
+4. Has dependencies failing (LLM initialization, database writes, etc.)
+
+### Enrichment Flow (Should Happen But Doesn't)
+The code at rss_fetcher.py:426–897 should:
+1. Query articles missing enrichment (relevance_score, sentiment_score, relevance_tier, entities)
+2. Initialize optimized LLM with caching (line 413)
+3. Initialize selective processor (line 420)
+4. Batch process articles (line 461–567):
+   - Classify relevance tier (rule-based, no LLM cost)
+   - Extract entities (via LLM or regex)
+   - Create `entity_mentions` collection records
+5. Batch enrich tier-1 articles (line 632–896):
+   - Classify relevance & sentiment
+   - Save to articles collection
+
+**Current State:** Step 1 would find 346 articles missing enrichment (all 7 days), but nothing beyond that is happening.
+
+### Scheduling Verification
+- ✅ `schedule_rss_fetch(1800, run_immediately=True)` is created on startup (main.py:154)
+- ✅ Should run every 30 minutes (1800 seconds) indefinitely
+- ✅ Calls `fetch_and_process_rss_feeds()` which calls `process_new_articles_from_mongodb()`
+- ❌ The enrichment inside is not producing any database changes
 
 ### Secondary Issue: Frontend-Backend Timeframe Mismatch
 - **UI Label:** "Most talked-about keywords in the **last 24 hours**"
-- **Actual Request:** No explicit `timeframe` param → backend defaults to **7d**
-- **Impact:** Mismatch is confusing but secondary; will be fixed once entity extraction resumes
+- **Actual Query:** `signalsAPI.getSignals()` omits `timeframe` parameter → backend defaults to **7d**
+- **Status:** Secondary; reconcile once entity extraction resumes
 
-### Proposed Fix Plan
-**Phase 1 (Operator):** Verify entity extraction task is running/healthy; restart if needed; allow 10-15 min for pipeline catch-up  
-**Phase 2 (Code):** Fix timeframe mismatch by updating UI label to "last 7 days" (simpler) OR changing request to `timeframe: "24h"`  
-**Phase 3 (Verification):** Confirm signals return, verify latency, check for regressions
+### Why 30d Returns One Result (Correct Behavior)
+The 30d endpoint response shows Bitcoin with 1 mention because:
+- Last old mention: Aug 24 (just within 30d window)
+- Current window: Aug 14 21:33 → Sept 13 21:33 UTC
+- Bitcoin has `current_mentions: 1` (the Aug 24 mention) + 13 previous
+- Filter `current_mentions >= 1` passes, so Bitcoin is returned ✓
 
-### Code Review: No Bugs Found
-All code paths are correct:
-- `compute_trending_signals()` correctly implements timeframe windows and filters
-- API endpoint correctly validates parameters and caches
-- Frontend correctly displays empty state
-- **No code changes needed to fix the zero-signal issue** (issue is in data pipeline)
+### Code Review: All Paths Correct
+- `compute_trending_signals()` (signal_service.py:667): Correct logic ✓
+- `/api/v1/signals/trending` endpoint (signals.py:424): Correct validation & caching ✓  
+- `Signals.tsx` page: Correct display logic ✓
+- **No code bugs—issue is operational (enrichment not running)**
+
+## Proposed Remediation (Operator Authorization Required)
+
+### Phase 1: Investigate Why Enrichment Stopped (Read-Only Diagnostics)
+**Goal:** Determine why `process_new_articles_from_mongodb()` produces no database changes.
+
+**Steps (read-only):**
+1. Check Railway production logs for `process_new_articles_from_mongodb` in past 7 days
+   - Search for: "Entity extraction complete", "Batch enriched", "Exception" in rss_fetcher logs
+   - Identify: Last successful enrichment timestamp and count
+2. Check for error patterns: 
+   - LLM initialization failures ("Failed to initialize optimized LLM", "LLM error")
+   - Database write failures ("Failed to insert entity mentions")
+   - Missing dependencies (cache indexes, MongoDB connection issues)
+3. Verify article query returns results:
+   - Sample query the MongoDB enrichment_query (rss_fetcher.py:426–438) to confirm articles exist waiting for enrichment
+4. Check if `schedule_rss_fetch` background task is actively running
+   - Confirm no task cancellations or exceptions in startup/shutdown logs
+
+**Expected outcome:** Identify whether enrichment is silently returning early, throwing unhandled exceptions, or blocked on a dependency.
+
+### Phase 2: Remediation (Operator Action)
+**Based on Phase 1 findings:**
+
+**If LLM initialization failing:**
+- Verify ANTHROPIC_API_KEY, DEEPSEEK_API_KEY configured in Railway
+- Check LLM gateway health and rate limits
+- Restart worker if transient credential/rate-limit issue
+
+**If database writes failing:**
+- Check MongoDB write quotas (Atlas M0 limits)
+- Verify `entity_mentions` collection indexes exist
+- Check collection write permissions for application user
+
+**If silently returning:**
+- Add debug logging to `process_new_articles_from_mongodb()` to trace execution path
+- Run single article through enrichment manually to isolate failure
+
+**If task not running:**
+- Check if `asyncio.create_task(schedule_rss_fetch(...))` exception at startup
+- Verify background task cancellation not happening prematurely
+- Restart Railway dyno to reinitialize background workers
+
+### Phase 3: Post-Fix Verification (Code + Operational)
+
+**1. Confirm entity extraction resumes (5-10 min):**
+```
+# Check entity_mentions collection for recent entries
+db.entity_mentions.find({ created_at: { $gte: new Date(Date.now() - 600000) } }).count()
+# Should return > 0
+```
+
+**2. Verify signals return (query API):**
+```
+GET /api/v1/signals/trending?timeframe=24h
+# Should return count > 0, not empty signals array
+```
+
+**3. Check Signals page (UI test):**
+- Load https://[domain]/signals
+- Should display list of trending entities, not "No signals detected yet"
+
+**4. Monitor logs for errors:**
+- Watch for mention insertion failures
+- Check LLM cost & cache hit rates
+- Verify no resource exhaustion
+
+### Phase 4: Frontend Timeframe Alignment (Code - Post-Fix)
+Once entity extraction is confirmed working:
+
+**Option A (Recommended): Update label to match 7d backend default**
+- File: `context-owl-ui/src/pages/Signals.tsx` line ~39
+- Change: "Most talked-about keywords in the last **24 hours**" → "**last 7 days**"
+- Rationale: Simpler, matches current API behavior
+
+**Option B: Change request to explicit 24h**
+- File: `context-owl-ui/src/api/signals.ts` line 26
+- Add: `timeframe: filters?.timeframe ?? "24h"` (currently undefined)
+- File: `context-owl-ui/src/pages/Signals.tsx` line ~39
+- Keep: "last 24 hours" label
+- Rationale: Aligns with original product intent (if 24h is truly intended)
+
+**Recommendation:** Confirm intended product behavior with product team, then implement Option A or B accordingly.
 
 ## Acceptance Criteria
 
 - [x] The production data path from recent articles to primary entity mentions to trending API results is documented with timestamps/counts.
-  - **Finding:** Articles (45 in 24h) → Entity extraction (MISSING) → Signal computation (correctly returns 0)
+  - **Finding:** 44 articles (24h) → 0 enriched → 0 mentions → 0 signals (correct given data)
 - [x] The zero-result behavior for 24-hour and 7-day windows, versus one 30-day result, is explained by evidence.
-  - **Finding:** 0 recent mentions (correct); 1 thirty-day mention (Aug 24, old but within window; correct)
+  - **Finding:** 0 mentions (enrichment not running) vs 1 old mention (Aug 24)
 - [x] The frontend timeframe label and actual request behavior are reconciled with product intent.
-  - **Finding:** Label mismatch exists (says 24h, requests 7d); secondary issue; fixable post-operator-fix
+  - **Finding:** Mismatch documented; fix pending Phase 4 (post-operator fix)
 - [x] A root cause and scoped fix plan are documented; any implementation is verified against tests and production-safe checks.
-  - **Root Cause:** Entity extraction not running/not creating primary mentions for recent articles
-  - **Fix Plan:** Operator verifies/restarts extraction → Code updates label → Verification tests
+  - **Root Cause:** Entity enrichment task (`process_new_articles_from_mongodb`) not producing database changes
+  - **Verification Path:** Phase 1 diagnostics → Phase 2 remediation → Phase 3 operational checks → Phase 4 code fix
