@@ -5,7 +5,7 @@ priority: high
 status: IN_PROGRESS
 phase: B
 date_created: 2026-09-10
-branch: task/bugops-126-mongodb-retention-monitoring-hardening
+branch: codex/task-128-mongodb-retention-hardening
 effort_estimate: large
 depends_on: BUG-105
 ---
@@ -114,14 +114,22 @@ Add focused tests for TTL index options, cleanup cutoffs, batch limits, dry-run 
 - Removed credentials/URI details from MongoDB validation and connection logging; audit output now redacts the entire URI authority.
 - Added [MongoDB retention and quota runbook](../../../runbooks/mongodb-retention-and-quota.md) and updated generated data-model, LLM, and entrypoint docs.
 - Focused local verification: 51 tests passed across retention, tracing, database validation, and health endpoint suites; the two beat-schedule tests passed; changed Python files compile. A broader command including `tests/tasks/test_briefing_tasks.py` stalled in that existing test module and was interrupted after 52 tests had passed; no production database was accessed.
-- Not yet verified against a live MongoDB deployment: actual TTL expiry timing, Atlas code-8000 degradation behavior, scheduled task execution in the deployed Celery topology, and the BugOps alert delivery path.
+- At the time of the original implementation update, live MongoDB verification was still pending; the later deployment findings are recorded below.
+
+## Live Deployment Verification (2026-09-13)
+
+- Railway `/api/v1/health` returned HTTP 200. MongoDB and Redis checks were `ok`; `mongodb_retention` was `ok`, reporting the configured trace TTL as 2,592,000 seconds (30 days) and the cache TTL index as 0 seconds on `expires_at`.
+- Supplied Railway logs repeatedly reported `llm_traces indexes ensured; ttl_days=30` without index errors.
+- Celery logs confirm `mongodb_retention_cleanup` was received and succeeded on 2026-09-12 and 2026-09-13. On the observed runs, no expired traces were found, one expired cache record was deleted on the first run and none on the next, and article cleanup was disabled by configuration. The task used `dry_run: false` and a 1,000-ID per-collection batch limit.
+- This verifies the scheduled task is being dispatched and executed in Railway and that the configured TTL indexes are visible to health checks. Actual asynchronous TTL deletion timing and Atlas code-8000 degradation remain unverified. BugOps alert delivery also remains unverified.
+- The health response still reported unrelated LLM-routing and pipeline-heartbeat datetime errors; those are tracked separately and are not evidence of a MongoDB retention failure.
 
 ## Acceptance Criteria
 
 - [x] Retention policies are explicit, configurable, tested, and documented.
-- [ ] `llm_traces` TTL behavior is verified end to end against MongoDB.
+- [ ] `llm_traces` TTL expiration is verified end to end against MongoDB (the live index/configuration is confirmed; actual TTL deletion timing remains unverified).
 - [x] Cache cleanup and bounded article cleanup exist with dry-run support; article deletion is off by default.
-- [x] Scheduled cleanup runs as a bounded task and logs cutoff, matched/selected/deleted counts, duration, and errors.
+- [x] Scheduled cleanup runs as a bounded task in the Railway Celery deployment and logs cutoff, matched/selected/deleted counts, duration, and errors.
 - [x] Storage usage warning/critical monitoring is implemented via BugOps, using an explicitly labeled dbStats estimate.
 - [x] Startup trace/cache index behavior is resilient and observable via logs and health status under index-write failure.
 - [x] Focused tests pass locally without production credentials; full suite not yet verified.
