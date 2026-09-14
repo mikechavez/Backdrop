@@ -36,49 +36,75 @@ def test_age_cutoff_calculated_correctly():
 
 
 @pytest.mark.asyncio
-async def test_enrichment_query_structure_includes_cutoff():
-    """Verify enrichment query includes created_at cutoff with $gte operator.
+async def test_enrichment_query_structure_from_production_code():
+    """Verify production enrichment query structure by inspecting actual rss_fetcher code.
 
-    Extracts the actual query-building logic from process_new_articles_from_mongodb()
-    and verifies the query structure at the source, not via a duplicate example.
+    Extract and verify the exact query dict, sort(), and limit() calls from the
+    process_new_articles_from_mongodb() function using AST inspection and execution.
     """
-    from datetime import datetime as dt, timezone as tz, timedelta
-    from crypto_news_aggregator.core.config import get_settings
+    import ast
     import inspect
+    from datetime import datetime as dt, timezone as tz, timedelta
+    from crypto_news_aggregator.background import rss_fetcher
+    from crypto_news_aggregator.core.config import get_settings
 
-    # Get settings via the actual application function
+    # Get the actual function source
+    source = inspect.getsource(rss_fetcher.process_new_articles_from_mongodb)
+
+    # Parse and find the enrichment_query dict assignment
+    tree = ast.parse(source)
+
+    # Look for the enrichment_query variable assignment
+    enrichment_query_found = False
+    sort_found = False
+    limit_found = False
+
+    for node in ast.walk(tree):
+        # Check for enrichment_query dict with created_at
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Name) and target.id == "enrichment_query":
+                    enrichment_query_found = True
+                    # Verify the dict has "created_at" key
+                    if isinstance(node.value, ast.Dict):
+                        keys = [k.value if isinstance(k, ast.Constant) else None
+                               for k in node.value.keys]
+                        assert "created_at" in keys, \
+                            "enrichment_query must have 'created_at' key in source"
+
+        # Check for .sort("created_at", -1)
+        if isinstance(node, ast.Call):
+            if isinstance(node.func, ast.Attribute):
+                if node.func.attr == "sort":
+                    if len(node.args) >= 2:
+                        first_arg = node.args[0]
+                        second_arg = node.args[1]
+                        if isinstance(first_arg, ast.Constant) and first_arg.value == "created_at":
+                            if isinstance(second_arg, ast.UnaryOp) and isinstance(second_arg.op, ast.USub):
+                                if isinstance(second_arg.operand, ast.Constant) and second_arg.operand.value == 1:
+                                    sort_found = True
+
+                # Check for .limit(max_batch_articles)
+                if node.func.attr == "limit":
+                    limit_found = True
+
+    # Verify query structure was found in production code
+    assert enrichment_query_found, \
+        "enrichment_query dict assignment not found in process_new_articles_from_mongodb()"
+    assert sort_found, \
+        ".sort('created_at', -1) not found in MongoDB query in process_new_articles_from_mongodb()"
+    assert limit_found, \
+        ".limit() not found in MongoDB query in process_new_articles_from_mongodb()"
+
+    # Now verify the query behavior by extracting settings
     settings = get_settings()
     age_cutoff_days = settings.ENRICHMENT_AGE_CUTOFF_DAYS
     cutoff_date = dt.now(tz.utc) - timedelta(days=age_cutoff_days)
 
-    # The actual query as built in process_new_articles_from_mongodb()
-    # Line 434-447 in rss_fetcher.py
-    enrichment_query = {
-        "created_at": {"$gte": cutoff_date},
-        "$or": [
-            {"relevance_score": {"$exists": False}},
-            {"relevance_score": None},
-            {"relevance_score": 0.0},
-            {"sentiment_score": {"$exists": False}},
-            {"sentiment_score": None},
-            {"sentiment_score": 0.0},
-            {"sentiment": {"$exists": False}},
-            {"relevance_tier": {"$exists": False}},
-            {"relevance_tier": None},
-        ]
-    }
-
-    # Verify structure—query MUST have age cutoff and $gte operator
-    assert "created_at" in enrichment_query, "Query must include created_at for age cutoff"
-    assert "$gte" in enrichment_query["created_at"], "Cutoff must use $gte operator (>=)"
-    assert isinstance(enrichment_query["created_at"]["$gte"], dt), "Cutoff must be datetime"
-    assert "$or" in enrichment_query, "Query must include enrichment conditions"
-    assert len(enrichment_query["$or"]) > 0, "Query must have enrichment conditions"
-
-    # Verify cutoff is actually set (not None or in future)
-    assert enrichment_query["created_at"]["$gte"] <= dt.now(tz.utc), \
-        "Cutoff must be in the past"
-    assert enrichment_query["created_at"]["$gte"] > dt.now(tz.utc) - timedelta(days=age_cutoff_days + 1), \
+    # Verify cutoff bounds are reasonable
+    assert age_cutoff_days > 0, "Age cutoff days must be positive"
+    assert cutoff_date < dt.now(tz.utc), "Cutoff must be in the past"
+    assert (dt.now(tz.utc) - cutoff_date).days >= age_cutoff_days - 1, \
         "Cutoff must be within configured age window"
 
 

@@ -55,17 +55,35 @@ async def create_or_update_articles(articles: List[ArticleCreate]):
                 await article_service.create_article(article_data)
                 succeeded_count += 1
         except DuplicateKeyError as e:
-            # E11000 error: unique constraint violation (expected for duplicate URLs).
-            # Treat as successful since the article is already stored.
-            # Log narrowly without exposing URLs or raw IDs per ticket 28.
-            if "url" in str(e).lower():
+            # E11000 error: unique constraint violation.
+            # Expected only for duplicate URLs (url_unique index per mongodb.py line 88).
+            # Check error details to distinguish expected from unexpected violations.
+
+            # DuplicateKeyError details: try structured error details first
+            violated_index = None
+            if hasattr(e, 'details') and e.details and isinstance(e.details, dict):
+                # MongoDB error response includes keyPattern or index information
+                violated_index = e.details.get('index') or e.details.get('keyPattern')
+
+            # Only URL duplicates are expected (url_unique index);
+            # treat as success since article is already stored
+            is_url_duplicate = False
+            if violated_index and 'url' in str(violated_index).lower():
+                is_url_duplicate = True
+            elif not violated_index and 'url_unique' in str(e):
+                # Message-based detection when details unavailable
+                is_url_duplicate = True
+
+            if is_url_duplicate:
                 logger.debug(
                     "Duplicate URL detected. Article already in database; skipping."
                 )
                 succeeded_count += 1
             else:
-                # Unexpected unique index error - propagate
-                logger.error(f"Unexpected unique constraint violation: {e}")
+                # Unexpected unique constraint (not URL) - propagate for investigation
+                logger.error(
+                    "Unexpected unique constraint violation. Propagating."
+                )
                 failed_articles.append((article, "unique_constraint_error"))
                 raise
 

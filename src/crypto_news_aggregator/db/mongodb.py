@@ -449,22 +449,26 @@ class MongoManager:
             logger.info(
                 f"Creating Motor client for loop {id(current_loop)}"
             )
-            self._async_client = AsyncIOMotorClient(
+            new_client = AsyncIOMotorClient(
                 self._connection_uri,
                 **self._connection_kwargs,
             )
 
-            # Verify connection with ping
+            # Verify connection with ping BEFORE assigning to shared state
             try:
-                await self._async_client.admin.command("ping")
+                await new_client.admin.command("ping")
                 logger.info("Motor client connected to MongoDB successfully")
-                # Track the loop this client is bound to (AFTER successful ping)
+                # Assign BOTH client and loop atomically after successful ping
+                # This prevents concurrent callers from seeing unset _client_loop
+                self._async_client = new_client
                 self._client_loop = current_loop
             except Exception as e:
                 logger.error(f"Failed to ping MongoDB: {e}")
-                # SAFETY: Clear both client and loop on ping failure
-                self._async_client = None
-                self._client_loop = None
+                # Close failed client immediately
+                try:
+                    new_client.close()
+                except Exception:
+                    pass
                 raise
 
         return self._async_client
@@ -533,6 +537,11 @@ class MongoManager:
 
         # Get client (with lazy creation if needed)
         client = await self.get_async_client()
+        if client is None:
+            raise RuntimeError(
+                "Failed to obtain MongoDB client after initialization. "
+                "Check MongoManager lifecycle and connection settings."
+            )
         db = client[target_db_name]
         logger.debug("[MongoManager] Successfully got database: %s", target_db_name)
         return db

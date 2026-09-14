@@ -73,6 +73,18 @@ class Settings(BaseSettings):
     ENTITY_EXTRACTION_BATCH_SIZE: int = 10
     POLYMARKET_API_KEY: str = ""
 
+    # Enrichment pipeline settings (BUG-108: bounded query)
+    ENRICHMENT_AGE_CUTOFF_DAYS: int = Field(
+        default=30,
+        env="ENRICHMENT_AGE_CUTOFF_DAYS",
+        description="Maximum age of articles to process in enrichment (days). Prevents reprocessing old articles."
+    )
+    ENRICHMENT_MAX_ARTICLES_PER_RUN: int = Field(
+        default=5000,
+        env="ENRICHMENT_MAX_ARTICLES_PER_RUN",
+        description="Maximum articles loaded per enrichment cycle. Prevents unbounded memory use."
+    )
+
     # Helicone proxy settings (TASK-074)
     USE_HELICONE_PROXY: bool = Field(
         default=False,

@@ -423,7 +423,16 @@ async def process_new_articles_from_mongodb():
     # Keep standard LLM for sentiment/relevance (not entity extraction)
     llm_client = get_llm_provider()
 
+    # Build enrichment query with age cutoff (newest first) and limit to prevent
+    # unbounded memory use and infinite reprocessing on interruptions.
+    # Configured via settings.ENRICHMENT_AGE_CUTOFF_DAYS and ENRICHMENT_MAX_ARTICLES_PER_RUN
+    age_cutoff_days = settings.ENRICHMENT_AGE_CUTOFF_DAYS
+    max_batch_articles = settings.ENRICHMENT_MAX_ARTICLES_PER_RUN
+
+    cutoff_date = datetime.now(timezone.utc) - __import__('datetime').timedelta(days=age_cutoff_days)
+
     enrichment_query = {
+        "created_at": {"$gte": cutoff_date},
         "$or": [
             {"relevance_score": {"$exists": False}},
             {"relevance_score": None},
@@ -437,9 +446,9 @@ async def process_new_articles_from_mongodb():
         ]
     }
 
-    # Collect articles into batches for entity extraction
+    # Collect articles into batches for entity extraction with explicit limit and ordering
     articles_list = []
-    async for article in collection.find(enrichment_query):
+    async for article in collection.find(enrichment_query).sort("created_at", -1).limit(max_batch_articles):
         articles_list.append(article)
 
     if not articles_list:
@@ -606,9 +615,9 @@ async def process_new_articles_from_mongodb():
     processed = 0
     tier_counts = {1: 0, 2: 0, 3: 0}  # Track tier distribution
 
-    # Collect articles into enrichment batches
+    # Collect articles into enrichment batches (second query uses same bounds as first)
     articles_for_enrichment = []
-    async for article in collection.find(enrichment_query):
+    async for article in collection.find(enrichment_query).sort("created_at", -1).limit(max_batch_articles):
         article_id = article.get("_id")
         title = article.get("title") or ""
         body_parts = [
