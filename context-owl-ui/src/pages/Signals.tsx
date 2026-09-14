@@ -85,8 +85,8 @@ export function Signals() {
     refetch,
     dataUpdatedAt
   } = useInfiniteQuery({
-    queryKey: ['signals'],
-    queryFn: ({ pageParam = 0 }) => signalsAPI.getSignals({ offset: pageParam, limit: SIGNALS_PER_PAGE }),
+    queryKey: ['signals', '24h'],
+    queryFn: ({ pageParam = 0 }) => signalsAPI.getSignals({ offset: pageParam, limit: SIGNALS_PER_PAGE, timeframe: '24h' }),
     getNextPageParam: (lastPage) => lastPage.has_more ? lastPage.offset + SIGNALS_PER_PAGE : undefined,
     initialPageParam: 0,
     refetchInterval: 30000, // 30 seconds

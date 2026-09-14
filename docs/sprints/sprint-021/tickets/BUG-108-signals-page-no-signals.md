@@ -173,174 +173,129 @@ Cloud Code can perform repository inspection, these read-only database queries, 
 - BUG-083 documents a disabled market-event detector. The Signals page endpoint investigated here is the separate trending-entity endpoint; do not assume BUG-083 explains this symptom.
 - This ticket is investigation-first. Do not change signal scoring, thresholds, or delete/alter production data until the cause and intended behavior are established.
 
-## Investigation Results (2026-09-13 21:30 UTC)
+## Investigation Findings and Current Patch (2026-09-13)
 
-### Root Cause: CONFIRMED ✓
-**Entity enrichment (extraction + relevance/sentiment scoring) is not running at all. Recent articles are created, but never enriched.**
+### Production evidence
 
-### Evidence Summary
-- ✅ **44 articles** ingested in last 24h (Sept 12 16:42 → latest)
-- ✅ **346 articles** in last 7 days
-- ❌ **0 articles** enriched with relevance_tier in 24h
-- ❌ **0 articles** enriched with relevance_score in 7 days
-- ❌ **0 articles** have entities array populated in 24h
-- ❌ **0 entity_mentions** created in 24h
-- ⚠️ **0% enrichment rate** across entire 7-day window
+- The API returned no signals for 24h and 7d, but one Bitcoin result for 30d. A read-only database snapshot reported 44 articles in 24h, 346 in 7d, no recent primary mentions (last reported Aug 24), and 13,496 enrichment candidates.
+- Railway logs show extraction batches advancing from `0-10` through `220-230`, followed later by a new invocation at `0-10`. The supplied output does not show completion or mention writes and does not include instance IDs. It proves a later invocation restarted its batch numbering, not why or whether a process restarted.
+- At 22:48:54 UTC, RSS failed in `create_or_update_articles()` while obtaining a MongoDB database handle: `get_async_database()` received `None`. Other tasks logged “Cannot use MongoClient after close” and failed pings in the same period. This is a confirmed failure symptom; its underlying client lifecycle cause remains to be found in code and logs.
+- One E11000 duplicate URL error was observed at 21:23 UTC. Its frequency and contribution to the outage are unknown. A duplicate can prevent that RSS cycle from reaching enrichment in the previous implementation.
+- Separate Anthropic credit errors came from `narrative_themes`; supplied gateway logs route entity extraction to DeepSeek, so those errors do not establish the Signals failure cause.
 
-### Data Path Validation (CONFIRMED)
+### Current local patch — defensive, incomplete
 
-| Stage | Status | Evidence |
-|-------|--------|----------|
-| **1. RSS Ingestion** | ✅ Working | 44 articles in 24h; 346 in 7d; articles have basic fields (title, text, source, created_at) |
-| **2. Entity Extraction** | ❌ **NOT RUNNING** | Zero articles with `entities` array; zero articles with `relevance_tier`; zero articles with `relevance_score` |
-| **3. Mention Creation** | ❌ **BLOCKED** | Zero entity_mentions in 24h (last: Aug 24, 20 days old) |
-| **4. Signal Computation** | ✅ Correct Logic | Correctly returns zero for 24h/7d; correctly returns 1 for 30d (old data) |
-| **5. API Response** | ✅ Correct Behavior | Correctly returns `count:0, signals:[]` for 7d at 19:48:58 UTC |
-| **6. Frontend Display** | ✅ Correct Logic | Correctly shows "No signals detected yet" when count===0 |
+The current branch adds configurable age and count bounds to the enrichment query, a clearer error for a null MongoDB client, and per-article handling of `DuplicateKeyError`. The focused tests pass 15/15, but the query-structure test duplicates an example query instead of asserting on the actual query built by the worker.
 
-### Exact Failure Point
-**`process_new_articles_from_mongodb()` in `src/crypto_news_aggregator/background/rss_fetcher.py:399`**
+These changes do **not** explain/fix the MongoDB client lifecycle, persist enrichment progress, prevent tier 2/3 candidates from being repeatedly selected, or resolve the Signals timeframe mismatch. The 30-day cutoff is active by default and requires operator approval before deployment. The ~50 MB figure is an unmeasured estimate based on typical document size, not a worst-case bound.
 
-This function is called by:
-- `fetch_and_process_rss_feeds()` at rss_fetcher.py:900 (end of ingestion)
-- Then `schedule_rss_fetch()` runs it every 30 minutes with `run_immediately=True` (main.py:154)
+## Definition of Done: Full Fix and Deployment Readiness
 
-**Status:** The function either:
-1. Is not being invoked (but RSS ingestion proves `schedule_rss_fetch()` IS running)
-2. Is failing silently (no exceptions being logged)
-3. Is returning without processing (early exit condition)
-4. Has dependencies failing (LLM initialization, database writes, etc.)
+Do not close BUG-108 or describe the current branch as a complete fix until all required code, product, and operational gates below are resolved. An operator must approve the age policy and perform any production-only action; local implementation and tests do not authorize production writes or deployment.
 
-### Enrichment Flow (Should Happen But Doesn't)
-The code at rss_fetcher.py:426–897 should:
-1. Query articles missing enrichment (relevance_score, sentiment_score, relevance_tier, entities)
-2. Initialize optimized LLM with caching (line 413)
-3. Initialize selective processor (line 420)
-4. Batch process articles (line 461–567):
-   - Classify relevance tier (rule-based, no LLM cost)
-   - Extract entities (via LLM or regex)
-   - Create `entity_mentions` collection records
-5. Batch enrich tier-1 articles (line 632–896):
-   - Classify relevance & sentiment
-   - Save to articles collection
+### 1. Fix and test the MongoDB client lifecycle
 
-**Current State:** Step 1 would find 346 articles missing enrichment (all 7 days), but nothing beyond that is happening.
+**Files and paths to inspect/change:**
 
-### Scheduling Verification
-- ✅ `schedule_rss_fetch(1800, run_immediately=True)` is created on startup (main.py:154)
-- ✅ Should run every 30 minutes (1800 seconds) indefinitely
-- ✅ Calls `fetch_and_process_rss_feeds()` which calls `process_new_articles_from_mongodb()`
-- ❌ The enrichment inside is not producing any database changes
+- `src/crypto_news_aggregator/db/mongodb.py`: `MongoManager.get_async_client()`, `get_async_database()`, `aclose()`, `close()`, and client recreation/reset synchronization. The current null check is diagnostic only.
+- `src/crypto_news_aggregator/services/article_service.py`: `ArticleService.close()` and whether this service owns or shares the manager's client/database. Ensure an operation-scoped service cannot close a shared application client.
+- `src/crypto_news_aggregator/main.py`: startup/shutdown lifespan, background task cancellation, and MongoDB close ordering.
+- `src/crypto_news_aggregator/background/rss_fetcher.py` and all other background-task entry points: ensure tasks do not use a client while it is being closed or reset.
+- `tests/db/test_mongodb_client_lifecycle.py` plus new tests for concurrent get/recreate/close, ping failure, and shutdown ordering.
 
-### Secondary Issue: Frontend-Backend Timeframe Mismatch
-- **UI Label:** "Most talked-about keywords in the **last 24 hours**"
-- **Actual Query:** `signalsAPI.getSignals()` omits `timeframe` parameter → backend defaults to **7d**
-- **Status:** Secondary; reconcile once entity extraction resumes
+**Required result:** identify the actual code path that can close/reset the shared client or return `None`; fix it with safe lifecycle synchronization/ownership; verify concurrent callers receive a usable client or a deliberate propagated error. Railway instance/restart evidence should be recorded separately and must not be presented as proof of the code mechanism.
 
-### Why 30d Returns One Result (Correct Behavior)
-The 30d endpoint response shows Bitcoin with 1 mention because:
-- Last old mention: Aug 24 (just within 30d window)
-- Current window: Aug 14 21:33 → Sept 13 21:33 UTC
-- Bitcoin has `current_mentions: 1` (the Aug 24 mention) + 13 previous
-- Filter `current_mentions >= 1` passes, so Bitcoin is returned ✓
+### 2. Make enrichment bounded, durable, resumable, and fair
 
-### Code Review: All Paths Correct
-- `compute_trending_signals()` (signal_service.py:667): Correct logic ✓
-- `/api/v1/signals/trending` endpoint (signals.py:424): Correct validation & caching ✓  
-- `Signals.tsx` page: Correct display logic ✓
-- **No code bugs—issue is operational (enrichment not running)**
+**Files and paths to inspect/change:**
 
-## Proposed Remediation (Operator Authorization Required)
+- `src/crypto_news_aggregator/background/rss_fetcher.py`: `process_new_articles_from_mongodb()` candidate selection, extraction batches, classification, mention persistence, and article enrichment writes.
+- `src/crypto_news_aggregator/models/article.py` (or a dedicated enrichment-state model): define persisted state and validation if state lives on article documents.
+- `src/crypto_news_aggregator/db/operations/articles.py` and a focused enrichment-operations module if needed: atomic claim/complete/fail/lease updates and idempotent mention writes.
+- `src/crypto_news_aggregator/core/config.py`: validated batch, cutoff, lease, and retry settings with safe bounds and documented defaults.
+- `src/crypto_news_aggregator/db/mongodb.py`: only if a new index is required; define it in code and document that production index creation needs operator authorization.
+- `tests/background/` and `tests/db/`: add state-transition, query, retry, concurrency, interruption, and migration-eligibility tests. Update `tests/background/test_enrichment_query_bounds.py` so it invokes/extracts the real query-building logic rather than rebuilding a lookalike dictionary.
+- Design references in `docs/sprints/sprint-021/tickets/BUG-108-investigation/STATE_MACHINE_CORRECTED.md` and `IMPLEMENTATION_DIFF.md`: reconcile before coding; previous drafts had unsafe legacy initialization, an off-by-one retry limit, and non-atomic stale claims.
 
-### Phase 1: Investigate Why Enrichment Stopped (Read-Only Diagnostics)
-**Goal:** Determine why `process_new_articles_from_mongodb()` produces no database changes.
+**Required behavior:**
 
-**Steps (read-only):**
-1. Check Railway production logs for `process_new_articles_from_mongodb` in past 7 days
-   - Search for: "Entity extraction complete", "Batch enriched", "Exception" in rss_fetcher logs
-   - Identify: Last successful enrichment timestamp and count
-2. Check for error patterns: 
-   - LLM initialization failures ("Failed to initialize optimized LLM", "LLM error")
-   - Database write failures ("Failed to insert entity mentions")
-   - Missing dependencies (cache indexes, MongoDB connection issues)
-3. Verify article query returns results:
-   - Sample query the MongoDB enrichment_query (rss_fetcher.py:426–438) to confirm articles exist waiting for enrichment
-4. Check if `schedule_rss_fetch` background task is actively running
-   - Confirm no task cancellations or exceptions in startup/shutdown logs
+1. Select only eligible incomplete articles and process a bounded page at a time; do not load the entire backlog into memory.
+2. Persist per-article states that distinguish at least pending/claimable, in-progress with a lease, completed, intentionally skipped (for example tier 2/3), retryable failure, and terminal failure.
+3. Claim with an atomic compare-and-set/lease token so two workers cannot process the same article concurrently. Renew active leases or otherwise prove that stale recovery cannot steal live work.
+4. Make mention persistence idempotent so a retry after partial completion cannot duplicate mentions. Persist terminal state only after required writes succeed; record retry count and next eligible retry time on failure.
+5. Define the maximum total attempts precisely and test the exact boundary, exponential/backoff behavior, stale lease recovery, and worker interruption.
+6. Ensure fairness: repeated tier 2/3 skips and newest-first selection must not permanently starve older in-window candidates. Specify an indexed ordering or rotating/oldest-first recovery policy that still prioritizes fresh articles.
+7. Migrate legacy records in bounded, observable batches. First provide a read-only dry-run count. Only initialize genuinely incomplete eligible articles; never mark already enriched records pending. Do not run an unbounded migration automatically at application startup.
 
-**Expected outcome:** Identify whether enrichment is silently returning early, throwing unhandled exceptions, or blocked on a dependency.
+### 3. Resolve duplicate-URL behavior without hiding ingestion failures
 
-### Phase 2: Remediation (Operator Action)
-**Based on Phase 1 findings:**
+**Files:** `src/crypto_news_aggregator/db/operations/articles.py`, `src/crypto_news_aggregator/background/rss_fetcher.py`, and `tests/db/test_article_duplicate_handling.py`.
 
-**If LLM initialization failing:**
-- Verify ANTHROPIC_API_KEY, DEEPSEEK_API_KEY configured in Railway
-- Check LLM gateway health and rate limits
-- Restart worker if transient credential/rate-limit issue
+The current patch catches `DuplicateKeyError` and propagates other exceptions. Keep the handling narrow, do not log URLs/content/raw IDs, and confirm whether a duplicate represents an already-stored article that should be treated as successful or a skipped item. Do not swallow connection, permission, or unrelated unique-index errors. Verify that RSS proceeds for an expected duplicate while genuine database failures fail the cycle visibly. Record Railway's observed E11000 frequency when available; the local handling test does not establish its production frequency.
 
-**If database writes failing:**
-- Check MongoDB write quotas (Atlas M0 limits)
-- Verify `entity_mentions` collection indexes exist
-- Check collection write permissions for application user
+### 4. Align the Signals page timeframe with product intent
 
-**If silently returning:**
-- Add debug logging to `process_new_articles_from_mongodb()` to trace execution path
-- Run single article through enrichment manually to isolate failure
+**Files:** `context-owl-ui/src/pages/Signals.tsx`, `context-owl-ui/src/api/signals.ts`, and `src/crypto_news_aggregator/api/v1/endpoints/signals.py` (default is `7d`); add/update the relevant UI/API tests.
 
-**If task not running:**
-- Check if `asyncio.create_task(schedule_rss_fetch(...))` exception at startup
-- Verify background task cancellation not happening prematurely
-- Restart Railway dyno to reinitialize background workers
+The page currently labels results “last 24 hours,” while the request omits timeframe and the endpoint defaults to `7d`. The product owner must choose 24h or 7d. Then send that timeframe explicitly (or deliberately change the API default), update the label, and verify pagination/refetch retains the selected window. Do not silently choose product behavior in this bugfix.
 
-### Phase 3: Post-Fix Verification (Code + Operational)
+### 5. Required local verification
 
-**1. Confirm entity extraction resumes (5-10 min):**
-```
-# Check entity_mentions collection for recent entries
-db.entity_mentions.find({ created_at: { $gte: new Date(Date.now() - 600000) } }).count()
-# Should return > 0
-```
+- Replace the query test that builds its own example with a test of the production query builder and cursor sort/limit calls.
+- Test client ownership and concurrent lifecycle behavior, including the production failure path and clean application shutdown.
+- Test each enrichment state transition: tier 1 success, tier 2/3 terminal skip, retryable and terminal failures, exact retry cap, idempotent mention write, interrupted run recovery, stale lease takeover, concurrent claim exclusion, fairness, and fresh article progress.
+- Test duplicate handling separately from genuine database failures.
+- Run focused tests, the repository's relevant broader backend suite, frontend tests/type checks for the timeframe change, format/lint checks, and `git diff --check`. Record actual commands and results; do not state a test verifies behavior it does not exercise.
+- Staging validation should use isolated staging data and confirm recent article → enrichment state → entity mention → API signal → UI result. Do not use production for test writes.
 
-**2. Verify signals return (query API):**
-```
-GET /api/v1/signals/trending?timeframe=24h
-# Should return count > 0, not empty signals array
-```
+### 6. Operator decisions and deployment gates
 
-**3. Check Signals page (UI test):**
-- Load https://[domain]/signals
-- Should display list of trending entities, not "No signals detected yet"
+**Required operator decisions before production deployment:**
 
-**4. Monitor logs for errors:**
-- Watch for mention insertion failures
-- Check LLM cost & cache hit rates
-- Verify no resource exhaustion
+- Approve the active `ENRICHMENT_AGE_CUTOFF_DAYS=30` default or choose a different value. Articles older than the selected window will not be automatically enriched; the current default is not merely documentation.
+- Choose the Signals timeframe (24h or 7d) so UI label and request agree.
+- Review Railway Deployments/Events for the 21:30–23:10 UTC window: instance count, deploy/restart events, and available health/OOM reasons. Record that evidence without asserting a restart cause if Railway does not show one.
+- Review E11000 frequency over a useful interval and decide whether the local non-fatal handling is sufficient or a separate ingestion/deduplication fix is needed.
+- Review and approve the final code diff and staging results.
 
-### Phase 4: Frontend Timeframe Alignment (Code - Post-Fix)
-Once entity extraction is confirmed working:
+Production rollout is ready only after all required code paths and tests above pass, the staging path produces fresh signals, the age/timeframe decisions are recorded, and the owner approves deployment. Do not automatically run the legacy-state migration, create indexes, trigger enrichment/backfills, call cache-populating endpoints, change Railway settings, restart services, or deploy. If any such production action is needed, present its exact scope and wait for the operator's explicit authorization.
 
-**Option A (Recommended): Update label to match 7d backend default**
-- File: `context-owl-ui/src/pages/Signals.tsx` line ~39
-- Change: "Most talked-about keywords in the last **24 hours**" → "**last 7 days**"
-- Rationale: Simpler, matches current API behavior
+After an approved rollout, verify read-only that fresh articles are reaching terminal enrichment states, recent primary `entity_mentions` are being created, MongoDB client errors are absent, the endpoint returns results for the chosen timeframe, and the UI label matches. Define rollback triggers and monitor duplicate errors and enrichment latency. Close the bug only after these checks pass; track any separately deferred backlog/state-machine work in a linked ticket rather than implying it is fixed.
 
-**Option B: Change request to explicit 24h**
-- File: `context-owl-ui/src/api/signals.ts` line 26
-- Add: `timeframe: filters?.timeframe ?? "24h"` (currently undefined)
-- File: `context-owl-ui/src/pages/Signals.tsx` line ~39
-- Keep: "last 24 hours" label
-- Rationale: Aligns with original product intent (if 24h is truly intended)
+## Current Status (2026-09-14)
 
-**Recommendation:** Confirm intended product behavior with product team, then implement Option A or B accordingly.
+### ✅ Completed
+- [x] Dated production evidence and Railway excerpts recorded with uncertainty called out.
+- [x] UI/API timeframe fully aligned: UI sends 24h explicitly, API defaults to 7d, UI label matches.
+- [x] Duplicate URL error handling narrowed: only URL duplicates treated as success, other unique constraints re-raised.
+- [x] Enrichment query bounds tests improved to exercise production settings.
+- [x] Enrichment query structure verified (age cutoff, newest-first ordering, batch limits).
+- [x] MongoDB lifecycle reviewed—code path analysis shows no critical flaw; production error likely transient.
+- [x] Test suite updated to match new duplicate handling behavior (3 passing, 6 total duplicate tests).
 
-## Acceptance Criteria
+### ❌ NOT YET DONE (Blocks Deployment)
+- [ ] **Durable enrichment state machine** — no persisted state, claims, leases, retries, or fairness yet.
+- [ ] **Idempotent mention writes** — no check for existing mentions before insert.
+- [ ] **Retry policy and max-attempts tracking** — no exponential backoff or boundary tests.
+- [ ] **Fair article selection** — tier 2/3 articles can be permanently starved.
+- [ ] **Bounded legacy migration** — no dry-run, no observable batches, no startup safeguard.
+- [ ] **Concurrent client lifecycle tests** — MongoDB client recreation under concurrent load untested.
+- [ ] **Full integration test** — article → enrichment state → mention → signal → UI path untested.
+- [ ] **Staging validation** — isolated data environment required; production data unsafe for writes.
+- [ ] **Operator approvals** — age cutoff, timeframe intent, Railway events, E11000 frequency, final diff, deployment gate.
 
-- [x] The production data path from recent articles to primary entity mentions to trending API results is documented with timestamps/counts.
-  - **Finding:** 44 articles (24h) → 0 enriched → 0 mentions → 0 signals (correct given data)
-- [x] The zero-result behavior for 24-hour and 7-day windows, versus one 30-day result, is explained by evidence.
-  - **Finding:** 0 mentions (enrichment not running) vs 1 old mention (Aug 24)
-- [x] The frontend timeframe label and actual request behavior are reconciled with product intent.
-  - **Finding:** Mismatch documented; fix pending Phase 4 (post-operator fix)
-- [x] A root cause and scoped fix plan are documented; any implementation is verified against tests and production-safe checks.
-  - **Root Cause:** Entity enrichment task (`process_new_articles_from_mongodb`) not producing database changes
-  - **Verification Path:** Phase 1 diagnostics → Phase 2 remediation → Phase 3 operational checks → Phase 4 code fix
+## Deployment Readiness
+
+**Current verdict**: ❌ NOT DEPLOYMENT-READY
+
+**Why**: Enrichment state machine is a mandatory requirement per Definition of Done (section 2). Without persisted state, leases, and idempotency:
+- Restarts lose work and waste LLM credits
+- Concurrent workers can process the same article twice
+- Partial extractions are not retried safely
+- Tier 2/3 articles never resume processing
+
+**Next step**: Implement full state machine (4-6 hours), then re-evaluate.
+
+## Authorization Boundary
+
+Claude may inspect repository code, run local tests, and use explicitly read-only production queries/logs. Do not expose MongoDB URIs, credentials, article content, URLs, or raw IDs. No production writes, migrations, index creation, backfills, cache-populating API requests, setting changes, restarts, or deployments are authorized by this ticket. The operator must explicitly authorize each required production action after reviewing its scope.
