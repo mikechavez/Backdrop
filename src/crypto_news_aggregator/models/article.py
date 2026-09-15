@@ -80,7 +80,10 @@ class ArticleBase(BaseModel):
     sentiment_score: Optional[float] = None
     sentiment_label: Optional[str] = None
     raw_data: Dict[str, Any]  # To store the raw article payload
-    published_at: datetime  # Timestamp from the source
+    published_at: Optional[datetime] = None  # Source publication timestamp.
+    # None means unknown/unverifiable -- never substitute ingestion or
+    # processing time here (see BUG-109). Consumers computing freshness
+    # windows must treat None as "exclude", not as "now".
     
     # Narrative data fields
     actors: Optional[List[str]] = None

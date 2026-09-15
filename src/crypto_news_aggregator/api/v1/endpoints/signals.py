@@ -6,7 +6,7 @@ import asyncio
 import json
 import logging
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Query, HTTPException
 from typing import List, Dict, Any, Optional
 from bson import ObjectId
@@ -140,6 +140,14 @@ async def get_recent_articles_for_entity(entity: str, limit: int = 5, days: int 
     actual article publication date (not mention timestamp), ensuring the most
     recently published articles are returned.
 
+    BUG-109: this list keeps its own 7-day window, independent of the
+    Signals page's 24h timeframe (the ticket left this an explicit open
+    question; retaining the existing behavior here is the least-surprising
+    choice). But the window itself is now scoped by article publication
+    time, not mention processing time, so an old article reprocessed today
+    cannot appear as a "recent mention" here either. Articles with no known
+    publication time are excluded rather than treated as recent.
+
     Args:
         entity: The entity name to search for
         limit: Maximum number of articles to return (default 5, max 20)
@@ -155,26 +163,36 @@ async def get_recent_articles_for_entity(entity: str, limit: int = 5, days: int 
     db = await mongo_manager.get_async_database()
     mentions_collection = db.entity_mentions
 
-    # Calculate cutoff date for 7-day time window
-    cutoff_date = datetime.now() - timedelta(days=days)
+    # Single UTC reference time for the window.
+    cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
 
     # Use aggregation pipeline to join entity_mentions with articles
     # NOTE: Removed pre-group and post-group $sort stages and $limit for Atlas M0 compatibility
     # (M0 silently ignores allowDiskUse=True). Changed $first to $max to get actual latest
     # published_at without relying on pre-sort order. Sort and limit will happen post-pipeline.
     # BUG-045: Added 7-day cutoff at query level (before $group) for performance.
+    # BUG-109: cutoff is applied to article.published_at (after the join),
+    # not entity_mentions.created_at, so reprocessing an old article cannot
+    # make it appear "recent" here.
     pipeline = [
-        # Match mentions for this entity AND within time window
+        # Narrow candidate mentions for this entity before the join.
         {"$match": {
             "entity": entity,
-            "created_at": {"$gte": cutoff_date}
         }},
 
-        # Convert article_id string to ObjectId if needed for lookup
+        # Convert article_id string to ObjectId if needed for lookup.
+        # BUG-109: uses $convert with onError/onNull (not a bare
+        # $toObjectId) because a single malformed/orphaned article_id in
+        # the matched set would otherwise abort this entire aggregation
+        # with a server error -- $toObjectId has no built-in fallback and
+        # throws on any string that isn't a valid 24-char hex ObjectId.
+        # A null article_oid simply fails to match any article below, so
+        # that mention is dropped by the $unwind rather than crashing the
+        # whole request.
         {"$addFields": {
             "article_oid": {"$cond": [
                 {"$eq": [{"$type": "$article_id"}, "string"]},
-                {"$toObjectId": "$article_id"},
+                {"$convert": {"input": "$article_id", "to": "objectId", "onError": None, "onNull": None}},
                 "$article_id"
             ]}
         }},
@@ -187,8 +205,22 @@ async def get_recent_articles_for_entity(entity: str, limit: int = 5, days: int 
             "as": "article"
         }},
 
-        # Unwind the article array (should only be one)
+        # Unwind the article array (should only be one). default behavior
+        # drops documents whose "article" array is empty, so orphaned or
+        # malformed article_id mentions are excluded here, not crashed on.
         {"$unwind": "$article"},
+
+        # Exclude articles with missing/malformed publication dates and
+        # apply the publication-time window (not mention processing time).
+        # Future-dated articles are excluded defensively regardless of how
+        # they entered the database.
+        {"$match": {
+            "article.published_at": {
+                "$type": "date",
+                "$gte": cutoff_date,
+                "$lte": datetime.now(timezone.utc),
+            },
+        }},
 
         # Deduplicate by article URL - use $max to get latest published_at (no pre-sort)
         {"$group": {
@@ -234,7 +266,10 @@ async def get_signals() -> Dict[str, Any]:
     Returns:
         List of top 20 signals with entity, score, and metadata
     """
-    cache_key = "signals:top20:v2"
+    # v3: BUG-109 -- publication-time semantics replace mention processing
+    # time; bump so stale v2 cache entries (old semantics) cannot leak
+    # through after rollout.
+    cache_key = "signals:top20:v3"
     start_time = time.time()
 
     # Check in-memory cache (60 second TTL)
@@ -345,23 +380,28 @@ async def get_recent_articles_batch(entities: List[str], limit_per_entity: int =
     db = await mongo_manager.get_async_database()
     mentions_collection = db.entity_mentions
 
-    # Calculate cutoff date for time window
-    cutoff_date = datetime.now() - timedelta(days=days)
+    # Calculate cutoff date for time window (single UTC reference time)
+    cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
 
     # Single pipeline for ALL entities at once
     # BUG-045: Added 7-day cutoff at query level (before $group) for performance.
+    # BUG-109: cutoff is applied to article.published_at (after the join),
+    # not entity_mentions.created_at.
     pipeline = [
-        # Match mentions for any of the requested entities AND within time window
+        # Narrow candidate mentions for the requested entities before the join.
         {"$match": {
             "entity": {"$in": entities},
-            "created_at": {"$gte": cutoff_date}
         }},
 
-        # Convert article_id string to ObjectId if needed
+        # Convert article_id string to ObjectId if needed. BUG-109: uses
+        # $convert with onError/onNull, not a bare $toObjectId, so one
+        # malformed/orphaned article_id among many entities' mentions
+        # cannot abort the whole batch aggregation (see
+        # get_recent_articles_for_entity for the full rationale).
         {"$addFields": {
             "article_oid": {"$cond": [
                 {"$eq": [{"$type": "$article_id"}, "string"]},
-                {"$toObjectId": "$article_id"},
+                {"$convert": {"input": "$article_id", "to": "objectId", "onError": None, "onNull": None}},
                 "$article_id"
             ]}
         }},
@@ -376,6 +416,18 @@ async def get_recent_articles_batch(entities: List[str], limit_per_entity: int =
 
         # Unwind the article array
         {"$unwind": "$article"},
+
+        # Exclude articles with missing/malformed publication dates and
+        # apply the publication-time window (not mention processing time).
+        # Future-dated articles are excluded defensively regardless of how
+        # they entered the database.
+        {"$match": {
+            "article.published_at": {
+                "$type": "date",
+                "$gte": cutoff_date,
+                "$lte": datetime.now(timezone.utc),
+            },
+        }},
 
         # Deduplicate by entity + article URL, use $max for latest published_at
         {"$group": {
@@ -473,7 +525,10 @@ async def get_trending_signals(
 
     # Build cache key — cache the FULL result set, not per-page
     # Pagination (offset/limit) is applied after cache retrieval
-    cache_key = f"signals:trending:v3:{min_score}:{entity_type or 'all'}:{timeframe}"
+    # v4: BUG-109 -- publication-time semantics replace mention processing
+    # time; bump so stale v3 cache entries (old semantics) cannot leak
+    # through after rollout.
+    cache_key = f"signals:trending:v4:{min_score}:{entity_type or 'all'}:{timeframe}"
 
     # Try to get from cache (Redis or in-memory) - 60 second TTL
     cached_result = get_from_cache(cache_key)
@@ -649,7 +704,10 @@ async def get_entity_articles(
     """
     try:
         start_time = time.time()
-        cache_key = f"signals:articles:v1:{entity}:{limit}:7d"
+        # v2: BUG-109 -- window now scoped by article publication time
+        # instead of mention processing time; bump so stale v1 cache
+        # entries (old semantics) cannot leak through after rollout.
+        cache_key = f"signals:articles:v2:{entity}:{limit}:7d"
 
         # Log request parameters with clamp tracking
         original_limit = limit

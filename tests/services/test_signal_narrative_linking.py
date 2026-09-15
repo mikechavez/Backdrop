@@ -21,6 +21,7 @@ async def test_signal_score_includes_narrative_fields():
         "sentiment": "neutral",
         "source": "test",
         "created_at": datetime.now(timezone.utc),
+        "published_at": datetime.now(timezone.utc),
     })
     
     try:

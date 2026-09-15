@@ -1,8 +1,8 @@
 import feedparser
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
-from time import mktime
+from calendar import timegm
 
 from crypto_news_aggregator.models.article import (
     ArticleCreate,
@@ -77,11 +77,23 @@ class RSSService:
         """Parses a feed and returns a list of Article objects."""
         articles = []
         for entry in feed.entries:
-            published_date = (
-                datetime.fromtimestamp(mktime(entry.published_parsed))
-                if hasattr(entry, "published_parsed") and entry.published_parsed
-                else datetime.utcnow()
-            )
+            # feedparser normalizes published_parsed to a UTC struct_time
+            # regardless of the feed's original timezone offset, so we must
+            # convert it with calendar.timegm (UTC-based), never time.mktime
+            # (which interprets the struct as local time and silently
+            # shifts the timestamp by the host's UTC offset).
+            #
+            # When the feed omits a publication date, leave published_at as
+            # None rather than substituting the current time: a missing
+            # source date is not evidence the article was just published,
+            # and fabricating "now" would let reprocessing masquerade old
+            # news as fresh (BUG-109).
+            if hasattr(entry, "published_parsed") and entry.published_parsed:
+                published_date = datetime.fromtimestamp(
+                    timegm(entry.published_parsed), tz=timezone.utc
+                )
+            else:
+                published_date = None
 
             author = (
                 ArticleAuthor(id=entry.author, name=entry.author)

@@ -24,6 +24,7 @@ async def create_entity_mention(
     is_primary: bool = None,
     source: str = None,
     metadata: Dict[str, Any] = None,
+    published_at: datetime = None,
 ) -> str:
     """
     Creates a new entity mention record in the database.
@@ -37,6 +38,9 @@ async def create_entity_mention(
         is_primary: Whether this is a primary entity (auto-determined if None)
         source: Source of the article (e.g., "CoinDesk", "Cointelegraph")
         metadata: Additional metadata about the mention
+        published_at: Source article's publication time (UTC), or None if
+            unknown/unverifiable. Used for freshness windows (BUG-109);
+            never derive this from created_at/timestamp.
 
     Returns:
         The ID of the created entity mention
@@ -58,6 +62,7 @@ async def create_entity_mention(
         "source": source or "unknown",
         "timestamp": datetime.now(timezone.utc),
         "created_at": datetime.now(timezone.utc),
+        "published_at": published_at,
         "metadata": metadata or {},
     }
 
@@ -98,6 +103,7 @@ async def create_entity_mentions_batch(mentions: List[Dict[str, Any]]) -> List[s
             "source": mention.get("source", "unknown"),
             "timestamp": now,
             "created_at": now,
+            "published_at": mention.get("published_at"),
             "metadata": mention.get("metadata", {}),
         }
         mention_docs.append(mention_doc)
@@ -138,6 +144,12 @@ async def _upsert_mention(collection, mention: Dict[str, Any], now: datetime, se
                 "$setOnInsert": {
                     "timestamp": now,
                     "created_at": now,
+                    # BUG-109: published_at is the article's source
+                    # publication time (None if unknown), stamped only on
+                    # first insert. Reprocessing/retrying an already-stored
+                    # mention must never move its news date forward, so
+                    # this deliberately lives in $setOnInsert, not $set.
+                    "published_at": mention.get("published_at"),
                     **key,
                 },
             },
