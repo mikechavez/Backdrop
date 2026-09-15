@@ -39,9 +39,10 @@ async def test_calculate_mentions_and_velocity_growth(mongo_db):
             "is_primary": True,
             "source": "test_source",
             "created_at": now - timedelta(hours=12),
+            "published_at": now - timedelta(hours=12),
             "metadata": {},
         })
-    
+
     # Previous period (24-48 hours ago): 30 mentions
     for i in range(30):
         await collection.insert_one({
@@ -52,6 +53,7 @@ async def test_calculate_mentions_and_velocity_growth(mongo_db):
             "is_primary": True,
             "source": "test_source",
             "created_at": now - timedelta(hours=36),
+            "published_at": now - timedelta(hours=36),
             "metadata": {},
         })
     
@@ -79,9 +81,10 @@ async def test_calculate_mentions_and_velocity_decline(mongo_db):
             "is_primary": True,
             "source": "test_source",
             "created_at": now - timedelta(hours=12),
+            "published_at": now - timedelta(hours=12),
             "metadata": {},
         })
-    
+
     for i in range(50):
         await collection.insert_one({
             "entity": "TEST_DECLINE",
@@ -91,6 +94,7 @@ async def test_calculate_mentions_and_velocity_decline(mongo_db):
             "is_primary": True,
             "source": "test_source",
             "created_at": now - timedelta(hours=36),
+            "published_at": now - timedelta(hours=36),
             "metadata": {},
         })
     
@@ -117,6 +121,7 @@ async def test_calculate_recency_factor_all_recent(mongo_db):
             "is_primary": True,
             "source": "test_source",
             "created_at": now - timedelta(hours=2),
+            "published_at": now - timedelta(hours=2),
             "metadata": {},
         })
     
@@ -142,6 +147,7 @@ async def test_calculate_signal_score_with_timeframe(mongo_db):
             "is_primary": True,
             "source": f"source_{i % 5}",
             "created_at": now - timedelta(hours=6),
+            "published_at": now - timedelta(hours=6),
             "metadata": {},
         })
     

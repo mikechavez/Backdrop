@@ -84,6 +84,34 @@ ENRICHMENT_ROTATION_STATE_COLLECTION = "enrichment_rotation_state"
 ENRICHMENT_ROTATION_STATE_ID = "rss_fetcher_rotation_tick"
 
 
+def _trustworthy_published_at(article: Dict[str, Any]) -> Optional[datetime]:
+    """Extract a UTC publication timestamp from an article doc, or None.
+
+    BUG-109: a mention's news-freshness clock must come from the source
+    article's publication time, never from when it was ingested or
+    enriched. This is deliberately conservative -- missing, malformed, or
+    future-dated values are all treated as "unknown" (None) rather than
+    guessed at, so callers never mistake processing activity for freshness.
+    """
+    published_at = article.get("published_at")
+    if published_at is None:
+        return None
+    if isinstance(published_at, str):
+        try:
+            published_at = datetime.fromisoformat(published_at.replace("Z", "+00:00"))
+        except (ValueError, TypeError):
+            return None
+    if not isinstance(published_at, datetime):
+        return None
+    if published_at.tzinfo is None:
+        published_at = published_at.replace(tzinfo=timezone.utc)
+    else:
+        published_at = published_at.astimezone(timezone.utc)
+    if published_at > datetime.now(timezone.utc):
+        return None
+    return published_at
+
+
 async def _next_rotation_tick(db) -> int:
     """Atomically increment and return the persisted fairness rotation counter.
 
@@ -961,6 +989,7 @@ async def process_new_articles_from_mongodb():
 
                 # Create entity mentions for tracking
                 article_source = article.get("source") or article.get("source_id") or "unknown"
+                article_published_at = _trustworthy_published_at(article)
 
                 if primary_entities or context_entities:
                     mentions_to_create = []
@@ -995,6 +1024,7 @@ async def process_new_articles_from_mongodb():
                                         "article_source": article_source,
                                     },
                                     "created_at": datetime.now(timezone.utc),
+                                    "published_at": article_published_at,
                                 }
                             )
 
@@ -1024,6 +1054,7 @@ async def process_new_articles_from_mongodb():
                                         "article_source": article_source,
                                     },
                                     "created_at": datetime.now(timezone.utc),
+                                    "published_at": article_published_at,
                                 }
                             )
 

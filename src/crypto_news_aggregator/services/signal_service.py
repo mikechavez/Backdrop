@@ -38,8 +38,10 @@ async def _get_high_signal_article_ids(
 
     Args:
         db: Database instance
-        start_time: Optional start time filter (published_at)
-        end_time: Optional end time filter (published_at)
+        start_time: Optional start time filter (article created_at, used
+            only to bound the candidate set for query efficiency -- actual
+            freshness windowing happens on mentions.published_at)
+        end_time: Optional end time filter (article created_at)
 
     Returns:
         Set of article IDs (as strings) that are high/medium signal
@@ -69,6 +71,37 @@ async def _get_high_signal_article_ids(
     return article_ids
 
 
+def _published_at_filter(start_time: datetime = None, end_time: datetime = None) -> Dict[str, Any]:
+    """
+    Build a mention query fragment that scopes to a publication-time window.
+
+    BUG-109: signals must measure news freshness by source article
+    publication time (mentions.published_at), not by when the mention was
+    processed (created_at/timestamp). published_at is only ever set on
+    mention insert (see entity_mentions._upsert_mention), sourced from the
+    article's own published_at at that time, so reprocessing an old article
+    cannot move it into a fresh window. Mentions with published_at missing
+    (None, absent, or excluded as unverifiable at write time -- e.g. legacy
+    records written before this field existed) are excluded by requiring
+    the field to exist and be non-null; they never fall back to processing
+    time or "now".
+
+    Future-dated values are excluded defensively at query time too (not
+    just at write time in rss_fetcher._trustworthy_published_at), so a
+    future publication date can never count toward any window regardless
+    of how it entered the database.
+    """
+    time_filter: Dict[str, Any] = {
+        "$type": "date",
+        "$lte": datetime.now(timezone.utc),
+    }
+    if start_time:
+        time_filter["$gte"] = start_time
+    if end_time:
+        time_filter["$lt"] = end_time
+    return {"published_at": time_filter}
+
+
 async def _count_filtered_mentions(
     db,
     entity: str,
@@ -77,17 +110,19 @@ async def _count_filtered_mentions(
     high_signal_article_ids: set = None
 ) -> int:
     """
-    Count entity mentions, filtering by relevance tier.
+    Count entity mentions, filtering by relevance tier and publication time.
 
     Args:
         db: Database instance
         entity: Entity to count mentions for
-        start_time: Optional start time filter
-        end_time: Optional end time filter
+        start_time: Optional start of publication-time window (inclusive)
+        end_time: Optional end of publication-time window (exclusive)
         high_signal_article_ids: Pre-fetched set of high-signal article IDs
 
     Returns:
-        Count of mentions from high/medium signal articles
+        Count of mentions from high/medium signal articles within the
+        publication-time window. Mentions with no known publication time
+        are always excluded.
     """
     collection = db.entity_mentions
 
@@ -95,29 +130,24 @@ async def _count_filtered_mentions(
     query = {
         "entity": entity,
         "is_primary": True,
+        **_published_at_filter(start_time, end_time),
     }
-
-    if start_time or end_time:
-        time_filter = {}
-        if start_time:
-            time_filter["$gte"] = start_time
-        if end_time:
-            time_filter["$lt"] = end_time
-        if time_filter:
-            query["created_at"] = time_filter
 
     # If we have a pre-fetched set of article IDs, use it
     if high_signal_article_ids is not None:
         query["article_id"] = {"$in": list(high_signal_article_ids)}
         return await collection.count_documents(query)
 
-    # Otherwise, use aggregation to join and filter
+    # Otherwise, use aggregation to join and filter. BUG-109: $convert
+    # with onError/onNull (not a bare $toObjectId) so a single
+    # malformed/orphaned article_id cannot abort this whole aggregation;
+    # a null article_id here simply matches no article below.
     pipeline = [
         {"$match": query},
         {
             "$lookup": {
                 "from": "articles",
-                "let": {"article_id": {"$toObjectId": "$article_id"}},
+                "let": {"article_id": {"$convert": {"input": "$article_id", "to": "objectId", "onError": None, "onNull": None}}},
                 "pipeline": [
                     {
                         "$match": {
@@ -163,7 +193,10 @@ async def calculate_mentions_and_velocity(entity: str, timeframe_hours: int) -> 
     """
     db = await mongo_manager.get_async_database()
 
-    # MongoDB stores datetimes as UTC but returns them as naive
+    # One UTC reference time for the whole calculation. Current window is
+    # [now - W, now]; previous window is [now - 2W, now - W). Both windows
+    # are scoped by article publication time (mentions.published_at), not
+    # mention processing time (BUG-109).
     now = datetime.now(timezone.utc)
     current_period_start = now - timedelta(hours=timeframe_hours)
     previous_period_start = now - timedelta(hours=timeframe_hours * 2)
@@ -261,17 +294,27 @@ async def calculate_velocity(entity: str, timeframe_hours: int = 24) -> float:
     return velocity
 
 
-async def calculate_source_diversity(entity: str) -> int:
+async def calculate_source_diversity(
+    entity: str,
+    start_time: datetime = None,
+    end_time: datetime = None,
+) -> int:
     """
     Calculate source diversity for an entity.
 
-    Only includes mentions from high/medium signal articles (relevance_tier <= 2).
+    Only includes mentions from high/medium signal articles (relevance_tier <= 2)
+    within the given publication-time window (BUG-109: same clock as
+    counts/velocity/recency, not mention processing time). If no window is
+    given, scope is all-time high-signal mentions with a known publication
+    date (legacy behavior preserved for callers that don't pass a window).
 
     Counts the number of unique sources that have mentioned this entity.
     Entity mentions have a 'source' field directly.
 
     Args:
         entity: The entity to calculate diversity for
+        start_time: Optional start of publication-time window (inclusive)
+        end_time: Optional end of publication-time window (exclusive)
 
     Returns:
         Number of unique sources
@@ -279,15 +322,17 @@ async def calculate_source_diversity(entity: str) -> int:
     db = await mongo_manager.get_async_database()
 
     # Get high-signal article IDs
-    high_signal_ids = await _get_high_signal_article_ids(db)
+    high_signal_ids = await _get_high_signal_article_ids(db, start_time=start_time, end_time=end_time)
 
-    # Use aggregation to get unique sources from high-signal articles only
+    # Use aggregation to get unique sources from high-signal articles only,
+    # scoped to the same publication-time window as the rest of the signal.
     pipeline = [
         {
             "$match": {
                 "entity": entity,
                 "is_primary": True,
-                "article_id": {"$in": list(high_signal_ids)} if high_signal_ids else {"$exists": True}
+                "article_id": {"$in": list(high_signal_ids)} if high_signal_ids else {"$exists": True},
+                **_published_at_filter(start_time, end_time),
             }
         },
         {
@@ -466,9 +511,15 @@ async def calculate_signal_score(
         logger.info(f"Signal score calculation: normalized '{entity}' -> '{canonical_entity}'")
     
     if timeframe_hours is not None:
-        # New multi-timeframe calculation
+        # New multi-timeframe calculation. One UTC reference time shared
+        # across velocity/diversity/recency so all components describe the
+        # same current window [now - W, now] by publication time (BUG-109).
+        now = datetime.now(timezone.utc)
+        current_window_start = now - timedelta(hours=timeframe_hours)
         metrics = await calculate_mentions_and_velocity(canonical_entity, timeframe_hours)
-        diversity = await calculate_source_diversity(canonical_entity)
+        diversity = await calculate_source_diversity(
+            canonical_entity, start_time=current_window_start
+        )
         recency = await calculate_recency_factor(canonical_entity, timeframe_hours)
         sentiment_metrics = await calculate_sentiment_metrics(canonical_entity)
         
@@ -588,13 +639,15 @@ async def get_top_entities_by_mentions(
     # (M0 silently ignores allowDiskUse=True). Sort and source collection will happen post-$group.
     pipeline = [
         {"$match": match_criteria},
-        # Convert article_id string to ObjectId for lookup
+        # Convert article_id string to ObjectId for lookup. BUG-109: uses
+        # $convert with onError/onNull, not a bare $toObjectId, so a
+        # malformed/orphaned article_id cannot abort the whole aggregation.
         {
             "$addFields": {
                 "article_oid": {
                     "$cond": [
                         {"$eq": [{"$type": "$article_id"}, "string"]},
-                        {"$toObjectId": "$article_id"},
+                        {"$convert": {"input": "$article_id", "to": "objectId", "onError": None, "onNull": None}},
                         "$article_id"
                     ]
                 }
@@ -701,14 +754,23 @@ async def compute_trending_signals(
     }
 
     hours = timeframe_hours_map.get(timeframe, 24)
+    # One UTC reference time for this whole computation. Current window is
+    # [now - W, now]; previous window is [now - 2W, now - W), so a mention
+    # sits in exactly one period. All windowing below uses the mention's
+    # publication-time field (published_at, sourced from the article at
+    # mention-insert time), never created_at/timestamp (BUG-109) -- an old
+    # article processed today must not count as a fresh mention.
     now = datetime.now(timezone.utc)
     current_period_start = now - timedelta(hours=hours)
     previous_period_start = now - timedelta(hours=hours * 2)
 
-    # Build base match criteria
+    # Build base match criteria. Requiring published_at to exist and be a
+    # date excludes mentions with missing/null/malformed publication times
+    # (including legacy mentions written before this field existed) rather
+    # than treating them as either fresh or absent-but-countable.
     match_criteria = {
         "is_primary": True,
-        "created_at": {"$gte": previous_period_start},  # Include both periods
+        **_published_at_filter(start_time=previous_period_start),  # Include both periods
     }
     if entity_type:
         match_criteria["entity_type"] = entity_type
@@ -727,7 +789,7 @@ async def compute_trending_signals(
                 "current_mentions": {
                     "$sum": {
                         "$cond": [
-                            {"$gte": ["$created_at", current_period_start]},
+                            {"$gte": ["$published_at", current_period_start]},
                             1,
                             0
                         ]
@@ -736,14 +798,14 @@ async def compute_trending_signals(
                 "previous_mentions": {
                     "$sum": {
                         "$cond": [
-                            {"$lt": ["$created_at", current_period_start]},
+                            {"$lt": ["$published_at", current_period_start]},
                             1,
                             0
                         ]
                     }
                 },
-                "latest_mention": {"$max": "$created_at"},
-                "first_seen": {"$min": "$created_at"},
+                "latest_mention": {"$max": "$published_at"},
+                "first_seen": {"$min": "$published_at"},
             }
         },
         # Only include entities with current period mentions
@@ -760,14 +822,20 @@ async def compute_trending_signals(
     results.sort(key=lambda x: x["current_mentions"], reverse=True)
     results = results[:limit * 2]  # Limit for min_score filtering
 
-    # Second-pass aggregation for source counts on top-N entities only
+    # Second-pass aggregation for source counts on top-N entities only.
+    # Documented scope: source diversity here spans the combined
+    # current+previous publication-time window (same as total_mentions
+    # above), matching the entity-selection scope of this fast-path
+    # endpoint rather than the current-only scope used by
+    # calculate_signal_score(). Both use publication time, never
+    # processing time.
     top_entities = [doc["_id"] for doc in results]
     source_pipeline = [
         {
             "$match": {
                 "entity": {"$in": top_entities},
                 "is_primary": True,
-                "created_at": {"$gte": previous_period_start},
+                **_published_at_filter(start_time=previous_period_start),
             }
         },
         {"$group": {"_id": "$entity", "sources": {"$addToSet": "$source"}}},

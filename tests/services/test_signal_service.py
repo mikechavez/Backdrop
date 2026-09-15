@@ -28,12 +28,12 @@ async def test_calculate_velocity_no_mentions(mongo_db):
 async def test_calculate_velocity_with_mentions(mongo_db):
     """Test velocity calculation with recent mentions."""
     collection = mongo_db.entity_mentions
-    
+
     # Clean up test data
     await collection.delete_many({"entity": "TEST_VELOCITY"})
-    
+
     now = datetime.now(timezone.utc)
-    
+
     # Create mentions: 5 in last hour, 10 in last 24 hours
     for i in range(5):
         await create_entity_mention(
@@ -42,8 +42,9 @@ async def test_calculate_velocity_with_mentions(mongo_db):
             article_id=f"article_{i}",
             sentiment="neutral",
             is_primary=True,
+            published_at=now,
         )
-    
+
     # Create older mentions (2-24 hours ago)
     for i in range(5, 10):
         older_time = now - timedelta(hours=2 + i)
@@ -55,8 +56,9 @@ async def test_calculate_velocity_with_mentions(mongo_db):
             "is_primary": True,
             "timestamp": older_time,
             "created_at": older_time,
+            "published_at": older_time,
         })
-    
+
     velocity = await calculate_velocity("TEST_VELOCITY")
     
     # Expected: 5 / (10 / 24) = 5 / 0.417 = ~12
@@ -80,6 +82,7 @@ async def test_calculate_source_diversity(mongo_db):
     
     # Create entity mentions with different sources
     # The 'source' field is set directly on entity mentions
+    now = datetime.now(timezone.utc)
     await create_entity_mention(
         entity="TEST_DIVERSITY",
         entity_type="project",
@@ -87,6 +90,7 @@ async def test_calculate_source_diversity(mongo_db):
         sentiment="positive",
         is_primary=True,
         source="source_a",
+        published_at=now,
     )
     await create_entity_mention(
         entity="TEST_DIVERSITY",
@@ -95,6 +99,7 @@ async def test_calculate_source_diversity(mongo_db):
         sentiment="positive",
         is_primary=True,
         source="source_b",
+        published_at=now,
     )
     await create_entity_mention(
         entity="TEST_DIVERSITY",
@@ -103,8 +108,9 @@ async def test_calculate_source_diversity(mongo_db):
         sentiment="neutral",
         is_primary=True,
         source="source_a",  # Duplicate source
+        published_at=now,
     )
-    
+
     diversity = await calculate_source_diversity("TEST_DIVERSITY")
     
     # Should have 2 unique sources (source_a and source_b)
@@ -181,6 +187,7 @@ async def test_calculate_signal_score(mongo_db):
     await entity_mentions_collection.delete_many({"entity": "TEST_SIGNAL"})
     
     # Create entity mentions with different sources
+    now = datetime.now(timezone.utc)
     for i in range(3):
         await create_entity_mention(
             entity="TEST_SIGNAL",
@@ -189,8 +196,9 @@ async def test_calculate_signal_score(mongo_db):
             sentiment="positive",
             is_primary=True,
             source="source_x",
+            published_at=now,
         )
-    
+
     await create_entity_mention(
         entity="TEST_SIGNAL",
         entity_type="ticker",
@@ -198,8 +206,9 @@ async def test_calculate_signal_score(mongo_db):
         sentiment="positive",
         is_primary=True,
         source="source_y",
+        published_at=now,
     )
-    
+
     signal_data = await calculate_signal_score("TEST_SIGNAL")
     
     # Check structure
@@ -252,6 +261,7 @@ async def test_velocity_uses_created_at_field(mongo_db):
         "is_primary": True,
         "source": "test_source",
         "created_at": now,  # Only created_at, no timestamp field
+        "published_at": now,
         "metadata": {},
     })
     
@@ -279,6 +289,7 @@ async def test_source_diversity_uses_source_field(mongo_db):
     await collection.delete_many({"entity": "TEST_SOURCE_FIELD"})
     
     # Create mentions with source field directly (no articles needed)
+    now = datetime.now(timezone.utc)
     await collection.insert_many([
         {
             "entity": "TEST_SOURCE_FIELD",
@@ -287,7 +298,8 @@ async def test_source_diversity_uses_source_field(mongo_db):
             "sentiment": "neutral",
             "is_primary": True,
             "source": "source_a",
-            "created_at": datetime.now(timezone.utc),
+            "created_at": now,
+            "published_at": now,
             "metadata": {},
         },
         {
@@ -297,7 +309,8 @@ async def test_source_diversity_uses_source_field(mongo_db):
             "sentiment": "neutral",
             "is_primary": True,
             "source": "source_b",
-            "created_at": datetime.now(timezone.utc),
+            "created_at": now,
+            "published_at": now,
             "metadata": {},
         },
         {
@@ -307,7 +320,8 @@ async def test_source_diversity_uses_source_field(mongo_db):
             "sentiment": "neutral",
             "is_primary": True,
             "source": "source_a",  # Duplicate
-            "created_at": datetime.now(timezone.utc),
+            "created_at": now,
+            "published_at": now,
             "metadata": {},
         },
     ])
@@ -338,9 +352,10 @@ async def test_calculate_mentions_and_velocity_growth(mongo_db):
             "is_primary": True,
             "source": "test_source",
             "created_at": now - timedelta(hours=12),
+            "published_at": now - timedelta(hours=12),
             "metadata": {},
         })
-    
+
     for i in range(30):
         await collection.insert_one({
             "entity": "TEST_MF_GROWTH",
@@ -350,6 +365,7 @@ async def test_calculate_mentions_and_velocity_growth(mongo_db):
             "is_primary": True,
             "source": "test_source",
             "created_at": now - timedelta(hours=36),
+            "published_at": now - timedelta(hours=36),
             "metadata": {},
         })
     
@@ -379,6 +395,7 @@ async def test_calculate_recency_factor(mongo_db):
             "is_primary": True,
             "source": "test_source",
             "created_at": now - timedelta(hours=2),
+            "published_at": now - timedelta(hours=2),
             "metadata": {},
         })
     
@@ -407,6 +424,7 @@ async def test_calculate_signal_score_with_timeframe(mongo_db):
             "is_primary": True,
             "source": f"source_{i % 5}",
             "created_at": now - timedelta(hours=6),
+            "published_at": now - timedelta(hours=6),
             "metadata": {},
         })
     
