@@ -303,7 +303,6 @@ class MongoManager:
 
     _instance = None
     _instance_lock = threading.Lock()  # For thread-safe singleton creation
-    _async_lock = asyncio.Lock()  # For async operations
     _initialized = False
     _indexes_created = False
 
@@ -326,10 +325,40 @@ class MongoManager:
         self._client_loop = None  # Track which loop owns the client
         self._connection_uri = None  # Store URI for client recreation
         self._connection_kwargs = None  # Store kwargs for client recreation
+        self._async_lock = None  # Lazily (re)created per-loop; see _get_async_lock()
+        self._async_lock_loop = None  # Which loop _async_lock was created on
 
     def _ensure_settings(self):
         # Always fetch fresh settings to support test overrides and runtime config
         self.settings = get_settings()
+
+    def _get_async_lock(self) -> asyncio.Lock:
+        """Return an asyncio.Lock bound to the currently running loop,
+        recreating it if the running loop has changed since it was created.
+
+        A single asyncio.Lock instance reused across different event loops
+        (e.g. a Celery worker that recreates its loop, or -- as found while
+        adding tests for this exact scenario -- a task holding the lock
+        that gets cancelled/abandoned on one loop) can end up in a state
+        where the lock reports itself locked forever on a later loop, with
+        no way to release it: acquiring _client_loop-style per-loop
+        recreation (already used for the Motor client itself, for the same
+        underlying reason) avoids that permanent-deadlock class of bug
+        entirely, since a fresh loop always gets a fresh, unlocked Lock.
+        This mirrors get_async_client()'s existing loop-change detection.
+        """
+        try:
+            current_loop = asyncio.get_running_loop()
+        except RuntimeError:
+            raise RuntimeError(
+                "No running event loop found. Must be called from async context."
+            )
+
+        if self._async_lock is None or self._async_lock_loop != current_loop:
+            self._async_lock = asyncio.Lock()
+            self._async_lock_loop = current_loop
+
+        return self._async_lock
 
     async def initialize(self, force_reconnect: bool = False) -> bool:
         """Initialize the MongoDB connection asynchronously.
@@ -343,7 +372,7 @@ class MongoManager:
         Returns:
             bool: True if initialization was successful, False otherwise.
         """
-        async with self._async_lock:
+        async with self._get_async_lock():
             if self._initialized and not force_reconnect:
                 return True
 
@@ -419,19 +448,35 @@ class MongoManager:
                 "No running event loop found. Must be called from async context."
             )
 
-        # Recreate client if:
-        # - No client exists yet
-        # - Loop reference is None
-        # - Current loop is different from client's loop
-        # - Client's loop is closed
-        needs_recreation = (
-            self._async_client is None or
-            self._client_loop is None or
-            self._client_loop != current_loop or
-            self._client_loop.is_closed()
-        )
+        def _needs_recreation() -> bool:
+            # Recreate client if:
+            # - No client exists yet
+            # - Loop reference is None
+            # - Current loop is different from client's loop
+            # - Client's loop is closed
+            return (
+                self._async_client is None or
+                self._client_loop is None or
+                self._client_loop != current_loop or
+                self._client_loop.is_closed()
+            )
 
-        if needs_recreation:
+        if not _needs_recreation():
+            return self._async_client
+
+        # Serialize client (re)creation: without this lock, two concurrent
+        # callers can both observe needs_recreation=True, both create and
+        # ping their own Motor client, and both attempt to assign
+        # _async_client -- whichever assigns last "wins" while the other's
+        # connection is silently leaked (created, pinged, but never closed,
+        # since only the final assignment was atomic, not the whole
+        # check-then-act sequence). Re-check the condition after acquiring
+        # the lock (double-checked locking) so a caller that arrives after
+        # another has already finished recreating does not recreate again.
+        async with self._get_async_lock():
+            if not _needs_recreation():
+                return self._async_client
+
             # Log when loop changes (normal in Celery workers)
             if self._client_loop is not None and self._client_loop != current_loop:
                 logger.info(
@@ -775,48 +820,72 @@ class MongoManager:
             raise RuntimeError(f"MongoDB is not reachable: {e}") from e
 
     async def aclose(self):
-        """Asynchronously close all MongoDB connections."""
-        if self._async_client:
-            try:
-                logger.debug("Closing MongoDB async client...")
-                self._async_client.close()
-                # Give the client a moment to close connections
-                await asyncio.sleep(0.1)
-                logger.info("Closed MongoDB async client")
-            except Exception as e:
-                logger.error(f"Error closing MongoDB async client: {e}")
-            finally:
-                self._async_client = None
+        """Asynchronously close all MongoDB connections.
+
+        Acquires _async_lock, the same lock get_async_client() holds while
+        (re)creating the client. Without this, aclose() running concurrently
+        with get_async_client() could null out a client get_async_client()
+        just finished assigning (or close the Motor connection out from
+        under a caller that already received the reference but hasn't used
+        it yet), or race the _client_loop assignment.
+        """
+        async with self._get_async_lock():
+            if self._async_client:
+                try:
+                    logger.debug("Closing MongoDB async client...")
+                    self._async_client.close()
+                    # Give the client a moment to close connections
+                    await asyncio.sleep(0.1)
+                    logger.info("Closed MongoDB async client")
+                except Exception as e:
+                    logger.error(f"Error closing MongoDB async client: {e}")
+                finally:
+                    self._async_client = None
+                    self._client_loop = None
 
     async def close(self):
         """Close the MongoDB connection.
 
         This method should be called when the application is shutting down
         or when you want to explicitly close the connection.
+
+        Acquires _async_lock for the async-client portion for the same
+        reason as aclose(): serializing against get_async_client()'s
+        (re)creation section prevents closing a client that a concurrent
+        caller just created and is about to use, and prevents this method's
+        _initialized = False from racing get_async_client()'s lazy
+        initialize() check.
         """
         logger.info("Closing MongoDB connections...")
 
         # Close async client if it exists
-        if hasattr(self, "_async_client") and self._async_client:
-            try:
-                self._async_client.close()
-                logger.info("Closed async MongoDB connection")
-            except Exception as e:
-                logger.error(f"Error closing async MongoDB connection: {e}")
-            finally:
-                self._async_client = None
+        async with self._get_async_lock():
+            if hasattr(self, "_async_client") and self._async_client:
+                try:
+                    self._async_client.close()
+                    logger.info("Closed async MongoDB connection")
+                except Exception as e:
+                    logger.error(f"Error closing async MongoDB connection: {e}")
+                finally:
+                    self._async_client = None
+                    self._client_loop = None
 
-        # Close sync client if it exists
+            self._initialized = False
+
+        # Close sync client if it exists. Uses the synchronous
+        # _instance_lock (matching sync_client's own creation lock), not
+        # _async_lock -- the sync client has an entirely separate lifecycle
+        # from the async recreation path this method otherwise guards.
         if hasattr(self, "_sync_client") and self._sync_client:
-            try:
-                self._sync_client.close()
-                logger.info("Closed sync MongoDB connection")
-            except Exception as e:
-                logger.error(f"Error closing sync MongoDB connection: {e}")
-            finally:
-                self._sync_client = None
-
-        self._initialized = False
+            with self._instance_lock:
+                if self._sync_client:
+                    try:
+                        self._sync_client.close()
+                        logger.info("Closed sync MongoDB connection")
+                    except Exception as e:
+                        logger.error(f"Error closing sync MongoDB connection: {e}")
+                    finally:
+                        self._sync_client = None
 
     def __del__(self):
         """Ensure connections are closed when the manager is destroyed."""

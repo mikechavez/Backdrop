@@ -8,7 +8,16 @@ from typing import Iterable, List, Sequence, Dict, Any, Optional
 
 from ..services.rss_service import RSSService
 from ..db.operations.articles import create_or_update_articles
-from ..db.operations.entity_mentions import create_entity_mentions_batch
+from ..db.operations.entity_mentions import create_entity_mentions_batch_idempotent
+from ..db.operations.enrichment_state import (
+    claim_batch,
+    mark_completed,
+    mark_failed,
+    mark_skipped,
+    renew_batch_leases,
+    renew_lease,
+    write_enriched_fields,
+)
 from ..llm.factory import get_llm_provider, get_optimized_llm
 from ..db.mongodb import mongo_manager
 from ..core.config import settings
@@ -70,6 +79,27 @@ _STOPWORDS = {
 }
 
 _MAX_KEYWORDS = 10
+
+ENRICHMENT_ROTATION_STATE_COLLECTION = "enrichment_rotation_state"
+ENRICHMENT_ROTATION_STATE_ID = "rss_fetcher_rotation_tick"
+
+
+async def _next_rotation_tick(db) -> int:
+    """Atomically increment and return the persisted fairness rotation counter.
+
+    Persisted in MongoDB (not in-process memory) so the oldest-first fairness
+    cadence survives worker restarts instead of resetting to 0 each time.
+    """
+    from pymongo import ReturnDocument
+
+    collection = db[ENRICHMENT_ROTATION_STATE_COLLECTION]
+    doc = await collection.find_one_and_update(
+        {"_id": ENRICHMENT_ROTATION_STATE_ID},
+        {"$inc": {"tick": 1}},
+        upsert=True,
+        return_document=ReturnDocument.AFTER,
+    )
+    return doc["tick"]
 
 
 async def fetch_and_process_rss_feeds():
@@ -396,10 +426,32 @@ async def _retry_individual_extractions(
     }
 
 
+async def _verify_mention_uniqueness_index(db) -> tuple[bool, str]:
+    """Verify the article_entity_type_primary_unique index exists and is valid.
+
+    The index is created only via the explicit, operator-gated rollout in
+    entity_mentions_index_rollout.py (BUG-108 review: never automatically
+    at application startup, to avoid crashing startup on pre-existing
+    duplicate keys). Without a valid index, create_entity_mentions_batch_idempotent()'s
+    upsert-plus-DuplicateKeyError-retry is NOT guaranteed safe under
+    concurrent workers writing the same mention key at the same time.
+
+    When the index is absent, invalid, or unverifiable, enrichment must be
+    blocked (no claims, LLM calls, or writes) to preserve the concurrency
+    guarantee. RSS ingestion and API availability are preserved (only
+    enrichment is paused).
+
+    Returns: (is_valid, diagnostic_message)
+    """
+    from ..db.operations.entity_mentions_index_rollout import verify_unique_index_exists_and_valid
+
+    return await verify_unique_index_exists_and_valid(db.entity_mentions)
+
+
 async def process_new_articles_from_mongodb():
     """
     Analyzes and enriches new articles from MongoDB that haven't been processed yet.
-    
+
     Uses cost-optimized processing:
     - OptimizedAnthropicLLM with caching and Haiku model (12x cheaper)
     - SelectiveArticleProcessor to decide LLM vs regex extraction (~50% reduction)
@@ -407,7 +459,25 @@ async def process_new_articles_from_mongodb():
     """
     db = await mongo_manager.get_async_database()
     collection = db.articles
-    
+
+    # Verify the mention-uniqueness guarantee once per run (cheap:
+    # index_information() is a single fast call). When the index is absent,
+    # invalid, or unverifiable, BLOCK enrichment (no claims, LLM, writes)
+    # to preserve the concurrency guarantee. RSS ingestion and API remain
+    # available (only enrichment pauses until the index is rolled out).
+    index_is_valid, index_diagnostic = await _verify_mention_uniqueness_index(db)
+    if not index_is_valid:
+        logger.error(
+            "⚠️ BLOCKING enrichment: entity_mentions unique index "
+            "(article_entity_type_primary_unique) is INVALID or MISSING. "
+            "Diagnostic: %s. Concurrent mention writes are not guaranteed safe. "
+            "Operator must run the explicit index rollout "
+            "(db/operations/entity_mentions_index_rollout.py: check_for_duplicate_mentions() "
+            "then create_unique_index()). RSS ingestion and API remain available.",
+            index_diagnostic,
+        )
+        return 0
+
     # Initialize optimized LLM with caching and cost tracking
     try:
         optimized_llm = await get_optimized_llm(db)
@@ -415,47 +485,51 @@ async def process_new_articles_from_mongodb():
     except Exception as e:
         logger.error(f"Failed to initialize optimized LLM, falling back to standard: {e}")
         optimized_llm = None
-    
+
     # Initialize selective processor
     selective_processor = create_processor(db)
     logger.info(f"✅ Selective processor initialized - {selective_processor.get_processing_stats()}")
-    
+
     # Keep standard LLM for sentiment/relevance (not entity extraction)
     llm_client = get_llm_provider()
 
-    # Build enrichment query with age cutoff (newest first) and limit to prevent
-    # unbounded memory use and infinite reprocessing on interruptions.
-    # Configured via settings.ENRICHMENT_AGE_CUTOFF_DAYS and ENRICHMENT_MAX_ARTICLES_PER_RUN
+    # Claim a bounded batch of eligible articles via the durable enrichment
+    # state machine (BUG-108). This atomically transitions each article to
+    # IN_PROGRESS with a lease, so concurrent workers cannot double-process
+    # the same article and interrupted runs can be safely recovered once
+    # their lease expires.
     age_cutoff_days = settings.ENRICHMENT_AGE_CUTOFF_DAYS
     max_batch_articles = settings.ENRICHMENT_MAX_ARTICLES_PER_RUN
 
     cutoff_date = datetime.now(timezone.utc) - __import__('datetime').timedelta(days=age_cutoff_days)
 
-    enrichment_query = {
-        "created_at": {"$gte": cutoff_date},
-        "$or": [
-            {"relevance_score": {"$exists": False}},
-            {"relevance_score": None},
-            {"relevance_score": 0.0},
-            {"sentiment_score": {"$exists": False}},
-            {"sentiment_score": None},
-            {"sentiment_score": 0.0},
-            {"sentiment": {"$exists": False}},
-            {"relevance_tier": {"$exists": False}},
-            {"relevance_tier": None},
-        ]
-    }
+    rotation_tick = await _next_rotation_tick(db)
+    claim = await claim_batch(
+        collection,
+        cutoff_date=cutoff_date,
+        limit=max_batch_articles,
+        rotation_tick=rotation_tick,
+    )
+    owner_token = claim.owner_token
 
-    # Collect articles into batches for entity extraction with explicit limit and ordering
-    articles_list = []
-    async for article in collection.find(enrichment_query).sort("created_at", -1).limit(max_batch_articles):
-        articles_list.append(article)
-
-    if not articles_list:
+    if not claim.article_ids:
         logger.debug("No articles to enrich")
         return 0
 
-    logger.info(f"🚀 Processing {len(articles_list)} articles with cost-optimized extraction")
+    articles_list = []
+    async for article in collection.find({"_id": {"$in": claim.article_ids}}):
+        articles_list.append(article)
+
+    logger.info(
+        f"🚀 Processing {len(articles_list)} claimed article(s) with cost-optimized extraction "
+        f"(owner_token={owner_token[:8]}..., rotation_tick={rotation_tick})"
+    )
+
+    # Tracks which claimed article ids this worker still holds a live lease
+    # on. Renewed periodically below so a batch that legitimately takes
+    # longer than the lease duration isn't silently reclaimed mid-processing;
+    # any id that drops out of this set must not be written to again.
+    live_lease_ids = set(claim.article_ids)
 
     # Process entity extraction using selective processing
     batch_size = settings.ENTITY_EXTRACTION_BATCH_SIZE
@@ -468,7 +542,27 @@ async def process_new_articles_from_mongodb():
     failed_extraction_ids = []
 
     for i in range(0, len(articles_list), batch_size):
-        batch = articles_list[i : i + batch_size]
+        raw_batch = articles_list[i : i + batch_size]
+
+        # Renew leases before working this sub-batch; drop any article whose
+        # lease has already been reclaimed by another worker so we never
+        # extract/write for an article we no longer own.
+        still_owned = await renew_batch_leases(
+            collection, [a["_id"] for a in raw_batch], owner_token
+        )
+        still_owned_set = set(still_owned)
+        lost_ids = {a["_id"] for a in raw_batch} - still_owned_set
+        if lost_ids:
+            logger.warning(
+                "Lease lost for %d article(s) mid-batch (reclaimed by another worker); skipping",
+                len(lost_ids),
+            )
+            live_lease_ids -= lost_ids
+        batch = [a for a in raw_batch if a["_id"] in still_owned_set]
+
+        if not batch:
+            continue
+
         logger.info(
             "Processing entity extraction batch %d-%d of %d articles",
             i,
@@ -615,10 +709,16 @@ async def process_new_articles_from_mongodb():
     processed = 0
     tier_counts = {1: 0, 2: 0, 3: 0}  # Track tier distribution
 
-    # Collect articles into enrichment batches (second query uses same bounds as first)
+    # Reuse the already-claimed articles_list (no second query) so we operate
+    # on exactly the set of articles this worker holds a valid lease on.
+    # Articles whose lease was lost during entity extraction (live_lease_ids
+    # no longer contains them) are excluded here as well.
     articles_for_enrichment = []
-    async for article in collection.find(enrichment_query).sort("created_at", -1).limit(max_batch_articles):
+    claimed_ids_without_text = []
+    for article in articles_list:
         article_id = article.get("_id")
+        if article_id not in live_lease_ids:
+            continue
         title = article.get("title") or ""
         body_parts = [
             article.get("text") or "",
@@ -637,6 +737,15 @@ async def process_new_articles_from_mongodb():
                 "source": article.get("source"),
                 "original_article": article
             })
+        else:
+            # Claimed but no usable text: terminal skip so the lease doesn't
+            # dangle and the article isn't reclaimed forever.
+            claimed_ids_without_text.append(article_id)
+
+    for article_id in claimed_ids_without_text:
+        await mark_skipped(
+            collection, article_id, owner_token, reason="no_usable_text"
+        )
 
     # Process articles in batches of 10 (TASK-025 Priority 3: batch enrichment)
     BATCH_SIZE = 10
@@ -647,6 +756,23 @@ async def process_new_articles_from_mongodb():
         batch = articles_for_enrichment[batch_start:batch_end]
 
         logger.info(f"Processing batch {batch_start}-{batch_end}/{len(articles_for_enrichment)}")
+
+        # Renew leases before working this enrichment batch; drop any article
+        # whose lease was reclaimed by another worker.
+        batch_ids = [a["article_id"] for a in batch]
+        still_owned = await renew_batch_leases(collection, batch_ids, owner_token)
+        still_owned_set = set(still_owned)
+        lost_ids = set(batch_ids) - still_owned_set
+        if lost_ids:
+            logger.warning(
+                "Lease lost for %d article(s) before enrichment batch; skipping",
+                len(lost_ids),
+            )
+            live_lease_ids -= lost_ids
+        batch = [a for a in batch if a["article_id"] in still_owned_set]
+
+        if not batch:
+            continue
 
         # TIER 1 ONLY: Classify all articles into tiers FIRST (rule-based, no LLM cost)
         tier_1_articles = []
@@ -675,17 +801,24 @@ async def process_new_articles_from_mongodb():
             if classification["tier"] == 1:
                 tier_1_articles.append(article_data)
             else:
-                # Tier 2-3: Save tier assignment only, skip enrichment entirely
-                update_operations = {
-                    "$set": {
+                # Tier 2-3: Save tier assignment only, skip enrichment entirely.
+                # Fenced on ownership: a worker that lost its lease between the
+                # renewal above and here must not write article content.
+                await write_enriched_fields(
+                    collection,
+                    article_data["original_article"].get("_id"),
+                    owner_token,
+                    {
                         "relevance_tier": classification["tier"],
                         "relevance_reason": classification["reason"],
                         "updated_at": datetime.now(timezone.utc),
-                    }
-                }
-                await collection.update_one(
-                    {"_id": article_data["original_article"].get("_id")},
-                    update_operations
+                    },
+                )
+                await mark_skipped(
+                    collection,
+                    article_data["original_article"].get("_id"),
+                    owner_token,
+                    reason=f"tier_{classification['tier']}_skip",
                 )
                 logger.debug(
                     f"Article {article_id}: tier {classification['tier']} assigned, "
@@ -795,8 +928,16 @@ async def process_new_articles_from_mongodb():
                         "is_primary": False,
                     })
 
-                update_operations = {
-                    "$set": {
+                # Fenced write: enrich_articles_batch() above is a long-running
+                # LLM call, so the lease may have expired and been reclaimed
+                # by another worker while we were waiting on it. If so, this
+                # write must not land -- the new owner may already be
+                # processing (or have completed) this article.
+                wrote_fields = await write_enriched_fields(
+                    collection,
+                    article_id,
+                    owner_token,
+                    {
                         "relevance_score": relevance_score,
                         "relevance_tier": relevance_tier,
                         "relevance_reason": relevance_reason,
@@ -807,10 +948,16 @@ async def process_new_articles_from_mongodb():
                         "keywords": keywords,
                         "entities": all_entities,
                         "updated_at": datetime.now(timezone.utc),
-                    }
-                }
-
-                await collection.update_one({"_id": article_id}, update_operations)
+                    },
+                )
+                if not wrote_fields:
+                    logger.warning(
+                        "Article %s: lease lost before enrichment write landed; "
+                        "skipping mention persistence and completion for this article",
+                        article_id_str,
+                    )
+                    live_lease_ids.discard(article_id)
+                    continue
 
                 # Create entity mentions for tracking
                 article_source = article.get("source") or article.get("source_id") or "unknown"
@@ -880,14 +1027,51 @@ async def process_new_articles_from_mongodb():
                                 }
                             )
 
-                    # Bulk insert mentions
+                    # Idempotent upsert of mentions: safe to retry after a
+                    # partial write without creating duplicate mentions.
                     if mentions_to_create:
+                        # entity_mentions is a separate collection with no
+                        # owner_token of its own, so mark_completed()'s
+                        # fencing on the article document alone is not
+                        # enough. create_entity_mentions_batch_idempotent()
+                        # enforces ownership atomically with the mention
+                        # writes via a MongoDB transaction: a fenced
+                        # conditional write to the article's ownership
+                        # record and all mention upserts commit or abort as
+                        # one unit, so a lease reclaimed at any point before
+                        # commit results in zero mentions written rather
+                        # than a stale insert.
                         try:
-                            await db.entity_mentions.insert_many(mentions_to_create)
-                            batch_mentions_created += len(mentions_to_create)
+                            upserted = await create_entity_mentions_batch_idempotent(
+                                mentions_to_create,
+                                article_id=article_id,
+                                owner_token=owner_token,
+                            )
+                            batch_mentions_created += upserted
                         except Exception as e:
                             batch_mention_insert_failures += 1
                             logger.error(f"Failed to insert entity mentions for {article_id_str}: {e}")
+                            # Mention persistence is required before completion;
+                            # mark this article failed/retryable rather than
+                            # completed with missing mentions.
+                            await mark_failed(
+                                collection,
+                                article_id,
+                                owner_token,
+                                error_reason="mention_persistence_failed",
+                            )
+                            processed += 1
+                            continue
+
+                # Only mark completed after all required writes (article
+                # fields + mentions) have succeeded.
+                completed = await mark_completed(collection, article_id, owner_token)
+                if not completed:
+                    logger.warning(
+                        "Article %s completion write skipped: lease no longer owned "
+                        "(likely reclaimed after expiry)",
+                        article_id_str,
+                    )
 
                 processed += 1
 
@@ -902,6 +1086,13 @@ async def process_new_articles_from_mongodb():
 
         except Exception as e:
             logger.error(f"Error enriching batch {batch_start}-{batch_end}: {e}")
+            for article_data in tier_1_articles:
+                await mark_failed(
+                    collection,
+                    article_data["article_id"],
+                    owner_token,
+                    error_reason="batch_enrichment_exception",
+                )
             continue
 
     total_enriched = processed

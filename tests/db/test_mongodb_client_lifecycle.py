@@ -68,42 +68,21 @@ def test_duplicate_url_handling_checks_error_details():
 
 
 def test_enrichment_query_structure_from_production_code():
-    """Verify production enrichment query uses age cutoff and ordering."""
-    import ast
-    import inspect
-    from crypto_news_aggregator.background import rss_fetcher
-    
-    source = inspect.getsource(rss_fetcher.process_new_articles_from_mongodb)
-    tree = ast.parse(source)
-    
-    # Look for key query characteristics
-    enrichment_query_found = False
-    sort_found = False
-    limit_found = False
-    
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Assign):
-            for target in node.targets:
-                if isinstance(target, ast.Name) and target.id == "enrichment_query":
-                    enrichment_query_found = True
-                    if isinstance(node.value, ast.Dict):
-                        keys = [k.value if isinstance(k, ast.Constant) else None 
-                               for k in node.value.keys]
-                        assert "created_at" in keys, \
-                            "enrichment_query must have 'created_at' key"
-        
-        if isinstance(node, ast.Call):
-            if isinstance(node.func, ast.Attribute):
-                if node.func.attr == "sort" and len(node.args) >= 2:
-                    first_arg = node.args[0]
-                    if isinstance(first_arg, ast.Constant) and first_arg.value == "created_at":
-                        sort_found = True
-                if node.func.attr == "limit":
-                    limit_found = True
-    
-    assert enrichment_query_found, \
-        "enrichment_query dict must be in process_new_articles_from_mongodb()"
-    assert sort_found, \
-        ".sort('created_at', ...) must be in MongoDB query"
-    assert limit_found, \
-        ".limit() must be in MongoDB query to bound memory"
+    """Verify the production enrichment eligibility query uses an age cutoff.
+
+    Exercises the actual query builder (db/operations/enrichment_state.build_eligible_query)
+    used by process_new_articles_from_mongodb() via claim_batch(), rather than
+    inspecting source text for a variable that no longer exists post-BUG-108
+    (candidate selection now goes through the durable claim/lease state machine).
+    See tests/background/test_enrichment_query_bounds.py and
+    tests/db/test_enrichment_state_machine.py for full behavioral coverage.
+    """
+    from datetime import datetime, timedelta, timezone
+
+    from crypto_news_aggregator.db.operations.enrichment_state import build_eligible_query
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=30)
+    query = build_eligible_query(cutoff)
+
+    assert query["created_at"] == {"$gte": cutoff}
+    assert "$or" in query and len(query["$or"]) > 0
