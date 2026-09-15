@@ -254,9 +254,9 @@ async def get_signals() -> Dict[str, Any]:
         logger.info(f"signals_page: cache_hit=False, computing=True")
         compute_start = time.time()
 
-        # Compute trending signals on-demand (default 7d timeframe, top 20)
+        # Compute trending signals on-demand (default 24h timeframe, top 20)
         trending = await compute_trending_signals(
-            timeframe="7d",
+            timeframe="24h",
             limit=20,
             min_score=0.0,
         )
@@ -446,7 +446,7 @@ async def get_trending_signals(
         offset: Number of items to skip for pagination (default 0)
         min_score: Minimum signal score threshold (0-10, default 0)
         entity_type: Filter by entity type (optional)
-        timeframe: Time window for scoring (24h, 7d, or 30d, default 7d)
+        timeframe: Time window for scoring (24h, 7d, or 30d, default 24h)
 
     Returns:
         Paginated response with trending entities, total count, and pagination metadata

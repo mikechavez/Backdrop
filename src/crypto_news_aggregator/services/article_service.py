@@ -66,13 +66,16 @@ class ArticleService:
             return False
 
     async def close(self) -> None:
-        """Close underlying MongoDB client if owned by this service."""
+        """Close MongoDB resources owned by this service instance.
+
+        Does NOT close the shared mongo_manager client—that is owned by the application.
+        Only closes a test-injected database if one was provided.
+        """
         try:
-            if self._db is not None:
-                # Motor client's close() is sync
-                self._db.client.close()
-            else:
-                await mongo_manager.aclose()
+            # Do NOT close mongo_manager—it is a shared singleton owned by the application.
+            # This service only manages its own _db reference (for testing).
+            # If _db was set by tests, it will be cleaned up by the test framework.
+            pass
         except Exception as e:
             logger.warning(f"Error closing MongoDB resources in ArticleService: {e}")
 

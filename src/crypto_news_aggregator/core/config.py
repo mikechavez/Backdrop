@@ -73,6 +73,39 @@ class Settings(BaseSettings):
     ENTITY_EXTRACTION_BATCH_SIZE: int = 10
     POLYMARKET_API_KEY: str = ""
 
+    # Enrichment pipeline settings (BUG-108: durable state machine)
+    ENRICHMENT_AGE_CUTOFF_DAYS: int = Field(
+        default=30,
+        env="ENRICHMENT_AGE_CUTOFF_DAYS",
+        description="Maximum age of articles to process in enrichment (days). Prevents reprocessing old articles."
+    )
+    ENRICHMENT_MAX_ARTICLES_PER_RUN: int = Field(
+        default=5000,
+        env="ENRICHMENT_MAX_ARTICLES_PER_RUN",
+        description="Maximum articles loaded per enrichment cycle. Prevents unbounded memory use."
+    )
+    # Enrichment state machine configuration (development defaults; production approval pending)
+    ENRICHMENT_LEASE_DURATION_MINUTES: int = Field(
+        default=30,
+        env="ENRICHMENT_LEASE_DURATION_MINUTES",
+        description="Minutes before a claimed article lease expires and becomes reclaimable by another worker."
+    )
+    ENRICHMENT_MAX_RETRY_ATTEMPTS: int = Field(
+        default=3,
+        env="ENRICHMENT_MAX_RETRY_ATTEMPTS",
+        description="Maximum retry attempts per article before terminal failure (total attempts, not retries)."
+    )
+    ENRICHMENT_RETRY_BACKOFF_BASE_MINUTES: int = Field(
+        default=5,
+        env="ENRICHMENT_RETRY_BACKOFF_BASE_MINUTES",
+        description="Initial backoff in minutes for first retry. Grows exponentially: 5, 10, 20, ..."
+    )
+    ENRICHMENT_FAIRNESS_ROTATION_INTERVAL: int = Field(
+        default=3,
+        env="ENRICHMENT_FAIRNESS_ROTATION_INTERVAL",
+        description="Every Nth enrichment run, prioritize oldest articles (fairness). Default: every 3rd run."
+    )
+
     # Helicone proxy settings (TASK-074)
     USE_HELICONE_PROXY: bool = Field(
         default=False,
