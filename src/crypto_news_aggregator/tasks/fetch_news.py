@@ -77,14 +77,23 @@ async def fetch_articles_from_source(
 
 @shared_task(
     bind=True,
-    name="fetch_news",
+    name="fetch_news_source_based",
     max_retries=3,
     default_retry_delay=300,  # 5 minutes
     soft_time_limit=600,  # 10 minutes
     time_limit=660,  # 11 minutes (slightly more than soft_time_limit)
 )
 def fetch_news(self, source_id: Optional[str] = None) -> Dict[str, Any]:
-    """Fetch news from one or all enabled sources.
+    """Fetch news from one or all enabled sources (NewsSource/ArticleService path).
+
+    NOT the canonical production ingestion path (see BUG-110). Production RSS
+    ingestion runs via the FastAPI lifespan's asyncio schedule, which calls
+    ``background.rss_fetcher.fetch_and_process_rss_feeds``. This task is not
+    referenced by any Celery Beat schedule entry.
+
+    Previously this task and ``tasks.news.fetch_news`` both registered under
+    the Celery task name "fetch_news", silently shadowing one another in the
+    task registry depending on import order. Renamed to disambiguate.
 
     Args:
         source_id: Optional source ID to fetch from. If None, fetches from all enabled sources.

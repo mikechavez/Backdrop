@@ -203,6 +203,13 @@ class Settings(BaseSettings):
     HEARTBEAT_FETCH_NEWS_MAX_AGE: int = 21600  # 6 hours -- two missed 3-hour cycles
     HEARTBEAT_BRIEFING_MAX_AGE: int = 64800  # 18 hours -- ~6 hours past expected gap
 
+    # RSS fetch scheduler lock (BUG-110): prevents multiple web replicas from
+    # running the same fetch/upsert/enrichment cycle concurrently. Must safely
+    # exceed the expected end-to-end cycle duration; the fetch loop renews the
+    # lease partway through enrichment for large batches. A crashed replica's
+    # lock expires and is reclaimed automatically after this TTL.
+    RSS_FETCH_LOCK_TTL_SECONDS: int = 1200  # 20 minutes
+
     # LLM spend cap thresholds (daily, in USD)
     LLM_DAILY_SOFT_LIMIT: float = 3.00   # Operational circuit breaker; allows 2-3 full briefings during burn-in
     LLM_DAILY_HARD_LIMIT: float = 15.00  # Temp: Lifted for Sprint 13 burn-in measurement. Will drop to ~$1-2 post-optimization.

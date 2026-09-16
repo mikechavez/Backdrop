@@ -504,10 +504,16 @@ async def trigger_briefing(
 @router.post("/trigger-fetch", response_model=TaskResponse)
 async def trigger_fetch() -> TaskResponse:
     """
-    Manually trigger a news fetch task for testing.
+    Manually trigger the legacy Celery `tasks.news.fetch_news` task.
 
-    This endpoint dispatches fetch_news to collect articles from all RSS sources.
-    Useful for verifying the ingestion pipeline works after deployments.
+    IMPORTANT (BUG-110): this does NOT exercise the canonical production
+    RSS ingestion path. Production ingestion runs via the FastAPI lifespan's
+    asyncio schedule (`background.rss_fetcher.fetch_and_process_rss_feeds`),
+    not via this Celery task. `tasks.news.fetch_news` uses a separate
+    `NewsCollector`/source mechanism, is not wired into Celery Beat, and its
+    result does not indicate whether RSS ingestion is healthy. Use
+    `GET /health` (pipeline.fetch_news heartbeat) to check RSS ingestion
+    health instead.
 
     Returns:
         Task ID and details for monitoring in worker logs
@@ -520,22 +526,23 @@ async def trigger_fetch() -> TaskResponse:
             "task_id": "abc123...",
             "task_name": "fetch_news",
             "kwargs": {},
-            "message": "✅ News fetch task queued. Check celery-worker logs for task_id=abc123..."
+            "message": "✅ Legacy fetch_news task queued (NewsCollector path, NOT the RSS ingestion pipeline). Check celery-worker logs for task_id=abc123..."
         }
     """
     from crypto_news_aggregator.tasks.news import fetch_news
 
     try:
         result = fetch_news.apply_async()
-        logger.info(f"🔬 Manual news fetch trigger - task_id={result.id}")
+        logger.info(f"🔬 Manual legacy news fetch trigger (NewsCollector path) - task_id={result.id}")
 
         return TaskResponse(
             task_id=result.id,
             task_name=fetch_news.name,
             kwargs={},
             message=(
-                f"✅ News fetch task queued. "
-                f"Check celery-worker logs for task_id={result.id}"
+                f"✅ Legacy fetch_news task queued (NewsCollector path, NOT the "
+                f"RSS ingestion pipeline). Check celery-worker logs for "
+                f"task_id={result.id}"
             )
         )
     except Exception as e:

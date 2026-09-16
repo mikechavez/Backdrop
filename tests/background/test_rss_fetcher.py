@@ -93,12 +93,17 @@ class FakeOptimizedLLM:
 
 
 class FakeRSSService:
-    def __init__(self, articles):
+    def __init__(self, articles, feed_results=None):
         self._articles = articles
+        self._feed_results = feed_results if feed_results is not None else {"rss": True}
 
     async def fetch_all_feeds(self):
         await asyncio.sleep(0)
         return self._articles
+
+    async def fetch_all_feeds_with_results(self):
+        await asyncio.sleep(0)
+        return self._articles, self._feed_results
 
 
 @pytest.mark.asyncio
@@ -164,6 +169,7 @@ async def test_fetch_and_process_rss_feeds_persists_and_enriches(mongo_db, monke
     monkeypatch.setattr(rss_fetcher, "get_optimized_llm", mock_get_optimized_llm)
     
     await mongo_db.articles.delete_many({})
+    await mongo_db.scheduler_locks.delete_many({})
 
     article = ArticleCreate(
         title="Institutional flows drive crypto rally",
@@ -182,9 +188,7 @@ async def test_fetch_and_process_rss_feeds_persists_and_enriches(mongo_db, monke
         published_at=datetime.now(timezone.utc),
     )
 
-    from src.crypto_news_aggregator.services import rss_service
-
-    monkeypatch.setattr(rss_service, "RSSService", lambda: FakeRSSService([article]))
+    monkeypatch.setattr(rss_fetcher, "RSSService", lambda: FakeRSSService([article]))
 
     await rss_fetcher.fetch_and_process_rss_feeds()
 
@@ -197,6 +201,196 @@ async def test_fetch_and_process_rss_feeds_persists_and_enriches(mongo_db, monke
     assert stored["sentiment_score"] == pytest.approx(0.6)
     assert stored["sentiment_label"] == "positive"
     assert stored["themes"] == ["ETFs", "Institutional"]
+
+    # BUG-110: the canonical production ingestion path must record a
+    # fetch_news heartbeat so /health reflects real fetch activity.
+    heartbeat = await mongo_db.pipeline_heartbeats.find_one({"_id": "fetch_news"})
+    assert heartbeat is not None
+    assert heartbeat["last_success"] is not None
+    assert "feeds ok" in heartbeat["last_result_summary"]
+
+
+@pytest.mark.asyncio
+async def test_fetch_and_process_rss_feeds_records_heartbeat_with_failed_feeds(
+    mongo_db, monkeypatch
+):
+    """A partial feed failure should still record a heartbeat and surface
+    which feeds failed in the summary, instead of only ever reporting
+    aggregate article counts (BUG-110)."""
+    monkeypatch.setattr(
+        rss_fetcher,
+        "get_llm_provider",
+        lambda: FakeLLMProvider(themes=["ETFs"]),
+    )
+
+    async def mock_get_optimized_llm(db):
+        return FakeOptimizedLLM()
+
+    monkeypatch.setattr(rss_fetcher, "get_optimized_llm", mock_get_optimized_llm)
+
+    await mongo_db.articles.delete_many({})
+    await mongo_db.pipeline_heartbeats.delete_many({})
+    await mongo_db.scheduler_locks.delete_many({})
+
+    article = ArticleCreate(
+        title="Only one feed responded",
+        source_id="test-article-partial-feed-failure",
+        source="rss",
+        text="One feed succeeded while another failed to parse.",
+        author=None,
+        url="https://example.com/partial-failure",
+        lang="en",
+        metrics=ArticleMetrics(),
+        keywords=[],
+        relevance_score=None,
+        sentiment_score=None,
+        sentiment_label=None,
+        raw_data={},
+        published_at=datetime.now(timezone.utc),
+    )
+
+    monkeypatch.setattr(
+        rss_fetcher,
+        "RSSService",
+        lambda: FakeRSSService(
+            [article], feed_results={"coindesk": True, "decrypt": False}
+        ),
+    )
+
+    await rss_fetcher.fetch_and_process_rss_feeds()
+    await asyncio.sleep(0.1)
+
+    heartbeat = await mongo_db.pipeline_heartbeats.find_one({"_id": "fetch_news"})
+    assert heartbeat is not None
+    assert "1/2 feeds ok" in heartbeat["last_result_summary"]
+
+
+@pytest.mark.asyncio
+async def test_fetch_and_process_rss_feeds_skips_when_lock_held_by_another_replica(
+    mongo_db, monkeypatch
+):
+    """BUG-110: if another replica already holds the rss_fetch scheduler
+    lock, this cycle must be skipped entirely -- no fetch, no upsert, no
+    heartbeat -- rather than running concurrently or waiting."""
+    from datetime import timedelta
+
+    await mongo_db.articles.delete_many({})
+    await mongo_db.pipeline_heartbeats.delete_many({})
+    await mongo_db.scheduler_locks.delete_many({})
+
+    now = datetime.now(timezone.utc)
+    await mongo_db.scheduler_locks.insert_one(
+        {
+            "_id": "rss_fetch",
+            "owner_token": "other-replica-owns-this",
+            "acquired_at": now,
+            "expires_at": now + timedelta(seconds=600),
+        }
+    )
+
+    fetch_called = False
+
+    class ExplodingRSSService:
+        async def fetch_all_feeds_with_results(self):
+            nonlocal fetch_called
+            fetch_called = True
+            raise AssertionError("fetch must not run while another replica holds the lock")
+
+    monkeypatch.setattr(rss_fetcher, "RSSService", lambda: ExplodingRSSService())
+
+    await rss_fetcher.fetch_and_process_rss_feeds()
+
+    assert fetch_called is False
+    assert await mongo_db.articles.count_documents({}) == 0
+    assert await mongo_db.pipeline_heartbeats.find_one({"_id": "fetch_news"}) is None
+
+    # The other replica's lock must be left untouched.
+    lock_doc = await mongo_db.scheduler_locks.find_one({"_id": "rss_fetch"})
+    assert lock_doc["owner_token"] == "other-replica-owns-this"
+
+
+@pytest.mark.asyncio
+async def test_fetch_and_process_rss_feeds_releases_lock_after_success(
+    mongo_db, monkeypatch
+):
+    """The lock must be released once a cycle completes, so the next
+    scheduled cycle on this (or another) replica can acquire it."""
+    monkeypatch.setattr(
+        rss_fetcher, "get_llm_provider", lambda: FakeLLMProvider(themes=["ETFs"])
+    )
+
+    async def mock_get_optimized_llm(db):
+        return FakeOptimizedLLM()
+
+    monkeypatch.setattr(rss_fetcher, "get_optimized_llm", mock_get_optimized_llm)
+
+    await mongo_db.articles.delete_many({})
+    await mongo_db.scheduler_locks.delete_many({})
+
+    article = ArticleCreate(
+        title="Lock release check",
+        source_id="test-article-lock-release",
+        source="rss",
+        text="Verifies the scheduler lock is released after a completed cycle.",
+        author=None,
+        url="https://example.com/lock-release",
+        lang="en",
+        metrics=ArticleMetrics(),
+        keywords=[],
+        relevance_score=None,
+        sentiment_score=None,
+        sentiment_label=None,
+        raw_data={},
+        published_at=datetime.now(timezone.utc),
+    )
+
+    monkeypatch.setattr(rss_fetcher, "RSSService", lambda: FakeRSSService([article]))
+
+    await rss_fetcher.fetch_and_process_rss_feeds()
+    await asyncio.sleep(0.1)
+
+    assert await mongo_db.scheduler_locks.find_one({"_id": "rss_fetch"}) is None
+
+
+@pytest.mark.asyncio
+async def test_fetch_and_process_rss_feeds_releases_lock_after_upsert_failure(
+    mongo_db, monkeypatch
+):
+    """The lock must be released even when a stage fails, via the `finally`
+    block, so one failed cycle can't permanently starve ingestion."""
+    await mongo_db.articles.delete_many({})
+    await mongo_db.scheduler_locks.delete_many({})
+
+    article = ArticleCreate(
+        title="Upsert failure",
+        source_id="test-article-upsert-failure",
+        source="rss",
+        text="Triggers a simulated upsert failure.",
+        author=None,
+        url="https://example.com/upsert-failure",
+        lang="en",
+        metrics=ArticleMetrics(),
+        keywords=[],
+        relevance_score=None,
+        sentiment_score=None,
+        sentiment_label=None,
+        raw_data={},
+        published_at=datetime.now(timezone.utc),
+    )
+
+    monkeypatch.setattr(rss_fetcher, "RSSService", lambda: FakeRSSService([article]))
+
+    async def failing_create_or_update_articles(articles):
+        raise RuntimeError("simulated MongoDB upsert failure")
+
+    monkeypatch.setattr(
+        rss_fetcher, "create_or_update_articles", failing_create_or_update_articles
+    )
+
+    with pytest.raises(RuntimeError, match="simulated MongoDB upsert failure"):
+        await rss_fetcher.fetch_and_process_rss_feeds()
+
+    assert await mongo_db.scheduler_locks.find_one({"_id": "rss_fetch"}) is None
 
 
 def test_rss_service_has_correct_feed_count():
