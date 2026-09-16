@@ -1,7 +1,8 @@
 import feedparser
 import asyncio
+import logging
 from datetime import datetime, timezone
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 from calendar import timegm
 
 from crypto_news_aggregator.models.article import (
@@ -10,6 +11,8 @@ from crypto_news_aggregator.models.article import (
     ArticleAuthor,
 )
 from crypto_news_aggregator.core.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 
 class RSSService:
@@ -48,28 +51,47 @@ class RSSService:
             # feedparser is not async, so we run it in a thread pool
             feed = await loop.run_in_executor(None, feedparser.parse, url)
             if feed.bozo:
-                print(f"Error parsing feed {url}: {feed.bozo_exception}")
+                logger.warning("Error parsing feed %s: %s", url, feed.bozo_exception)
                 return None
             return feed
         except Exception as e:
-            print(f"An error occurred while fetching feed {url}: {e}")
+            logger.warning("An error occurred while fetching feed %s: %s", url, e)
             return None
 
     async def fetch_all_feeds(self) -> List[ArticleCreate]:
         """Fetches and processes all configured RSS feeds."""
+        articles, _ = await self.fetch_all_feeds_with_results()
+        return articles
+
+    async def fetch_all_feeds_with_results(
+        self,
+    ) -> Tuple[List[ArticleCreate], Dict[str, bool]]:
+        """Fetches and processes all configured RSS feeds.
+
+        Returns:
+            A tuple of (articles, feed_results) where feed_results maps each
+            configured source name to whether that feed was fetched and
+            parsed successfully this cycle, so callers can distinguish a
+            feed-level failure from a genuinely empty feed and surface it
+            (see BUG-110: fetch results were previously silently dropped).
+        """
         tasks = [self.fetch_feed(url) for url in self.feed_urls.values()]
         feeds = await asyncio.gather(*tasks)
 
         all_articles = []
         source_names = list(self.feed_urls.keys())
+        feed_results: Dict[str, bool] = {}
 
         for i, feed in enumerate(feeds):
+            source = source_names[i]
             if feed:
-                source = source_names[i]
                 articles = self.parse_feed(feed, source)
                 all_articles.extend(articles)
+                feed_results[source] = True
+            else:
+                feed_results[source] = False
 
-        return all_articles
+        return all_articles, feed_results
 
     def parse_feed(
         self, feed: feedparser.FeedParserDict, source: str

@@ -24,6 +24,8 @@ from ..core.config import settings
 from ..services.entity_normalization import normalize_entity_name
 from ..services.selective_processor import create_processor
 from ..services.relevance_classifier import classify_article
+from ..services.heartbeat import record_heartbeat
+from ..db.operations.scheduler_lock import acquire_lock, release_lock, renew_lock
 
 logger = logging.getLogger(__name__)
 
@@ -130,36 +132,143 @@ async def _next_rotation_tick(db) -> int:
     return doc["tick"]
 
 
-async def fetch_and_process_rss_feeds():
-    """Fetches RSS feeds, processes articles, and stores them."""
-    rss_service = RSSService()
-    articles = await rss_service.fetch_all_feeds()
-    
-    # Filter out blacklisted sources with detailed logging
-    original_count = len(articles)
-    logger.info(f"Fetched {original_count} articles from RSS feeds")
-    
-    # Log sources before filtering
-    source_counts = {}
-    for article in articles:
-        source = article.source.lower()
-        source_counts[source] = source_counts.get(source, 0) + 1
-    logger.info(f"Articles by source before filtering: {source_counts}")
-    
-    # Apply blacklist filter
-    articles = [a for a in articles if a.source.lower() not in BLACKLIST_SOURCES]
-    filtered_count = original_count - len(articles)
-    
-    if filtered_count > 0:
-        logger.warning(f"🚫 Filtered out {filtered_count} articles from blacklisted sources: {BLACKLIST_SOURCES}")
-    else:
-        logger.info(f"✅ No blacklisted articles found (blacklist: {BLACKLIST_SOURCES})")
-    
-    logger.info(f"Processing {len(articles)} articles after blacklist filter")
-    await create_or_update_articles(articles)
+RSS_FETCH_LOCK_NAME = "rss_fetch"
 
-    # Run LLM analysis on the newly fetched articles
-    await process_new_articles_from_mongodb()
+
+async def fetch_and_process_rss_feeds():
+    """Fetches RSS feeds, processes articles, and stores them.
+
+    This is the canonical production ingestion path (see BUG-110). It is
+    scheduled by the FastAPI lifespan's asyncio task, not by Celery Beat.
+    Records a "fetch_news" pipeline heartbeat so /health can distinguish
+    "the process is running but nothing is happening" from "no fetch has
+    completed recently" instead of only ever reporting a soft "warning".
+
+    Guarded by a MongoDB-backed distributed lock (BUG-110): Railway can run
+    multiple `web` replicas, and each independently starts this schedule via
+    the FastAPI lifespan. Without a lock, replicas fetch and enrich the same
+    feeds concurrently (confirmed in production as overlapping fetch cycles
+    seconds apart). If another replica already holds the lock, this cycle is
+    skipped rather than run concurrently or queued.
+    """
+    db = await mongo_manager.get_async_database()
+    lock = await acquire_lock(
+        db.scheduler_locks,
+        job_name=RSS_FETCH_LOCK_NAME,
+        ttl_seconds=settings.RSS_FETCH_LOCK_TTL_SECONDS,
+    )
+    if lock is None:
+        logger.info(
+            "Skipping RSS fetch cycle: another replica currently holds the "
+            "'%s' scheduler lock",
+            RSS_FETCH_LOCK_NAME,
+        )
+        return
+
+    try:
+        hb_start = time.time()
+        rss_service = RSSService()
+
+        try:
+            articles, feed_results = await rss_service.fetch_all_feeds_with_results()
+        except Exception:
+            logger.exception("RSS feed fetch failed before any feed could be parsed")
+            raise
+
+        ok_feeds = [name for name, ok in feed_results.items() if ok]
+        failed_feeds = [name for name, ok in feed_results.items() if not ok]
+        logger.info(
+            "RSS feed fetch results: %d/%d feeds ok%s",
+            len(ok_feeds),
+            len(feed_results),
+            f", failed: {failed_feeds}" if failed_feeds else "",
+        )
+        if failed_feeds:
+            logger.warning("RSS feeds returned no data this cycle: %s", failed_feeds)
+
+        # Filter out blacklisted sources with detailed logging
+        original_count = len(articles)
+        logger.info(f"Fetched {original_count} articles from RSS feeds")
+
+        # Log sources before filtering
+        source_counts = {}
+        for article in articles:
+            source = article.source.lower()
+            source_counts[source] = source_counts.get(source, 0) + 1
+        logger.info(f"Articles by source before filtering: {source_counts}")
+
+        # Apply blacklist filter
+        articles = [a for a in articles if a.source.lower() not in BLACKLIST_SOURCES]
+        filtered_count = original_count - len(articles)
+
+        if filtered_count > 0:
+            logger.warning(f"🚫 Filtered out {filtered_count} articles from blacklisted sources: {BLACKLIST_SOURCES}")
+        else:
+            logger.info(f"✅ No blacklisted articles found (blacklist: {BLACKLIST_SOURCES})")
+
+        logger.info(f"Processing {len(articles)} articles after blacklist filter")
+
+        try:
+            await create_or_update_articles(articles)
+        except Exception:
+            logger.exception(
+                "Article upsert failed after RSS fetch (%d articles fetched, "
+                "%d feeds ok, %d feeds failed)",
+                original_count,
+                len(ok_feeds),
+                len(failed_feeds),
+            )
+            raise
+
+        # Renew the lock before the longest-running step (LLM enrichment) so
+        # a large batch can't outlive the lease and let another replica
+        # start a concurrent cycle while this one is still finishing.
+        renewed = await renew_lock(
+            db.scheduler_locks,
+            job_name=RSS_FETCH_LOCK_NAME,
+            owner_token=lock.owner_token,
+            ttl_seconds=settings.RSS_FETCH_LOCK_TTL_SECONDS,
+        )
+        if not renewed:
+            logger.warning(
+                "Lost '%s' scheduler lock before enrichment could start; "
+                "another replica may now be processing this cycle concurrently. "
+                "Skipping enrichment for this cycle.",
+                RSS_FETCH_LOCK_NAME,
+            )
+            return
+
+        # Run LLM analysis on the newly fetched articles
+        try:
+            processed_count = await process_new_articles_from_mongodb()
+        except Exception:
+            logger.exception(
+                "Article enrichment failed after successful fetch/upsert "
+                "(%d articles fetched)",
+                original_count,
+            )
+            raise
+
+        try:
+            await record_heartbeat(
+                db,
+                stage="fetch_news",
+                duration_seconds=time.time() - hb_start,
+                summary=(
+                    f"{len(ok_feeds)}/{len(feed_results)} feeds ok, "
+                    f"{len(articles)} articles fetched, "
+                    f"{processed_count or 0} enriched"
+                ),
+            )
+        except Exception:
+            # Heartbeat is observability only; never fail the ingestion cycle for it.
+            logger.exception("Failed to record fetch_news heartbeat")
+    finally:
+        await release_lock(
+            db.scheduler_locks,
+            job_name=RSS_FETCH_LOCK_NAME,
+            owner_token=lock.owner_token,
+        )
 
 
 def _tokenize_for_keywords(text: str) -> Iterable[str]:
